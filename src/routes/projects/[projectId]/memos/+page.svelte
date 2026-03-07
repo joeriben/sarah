@@ -44,7 +44,7 @@
 					<h3>{memo.label}</h3>
 					<div class="memo-meta">
 						<span>{memo.link_count} links</span>
-						<span>{new Date(memo.updated_at).toLocaleDateString()}</span>
+						<span>{new Date(memo.created_at).toLocaleDateString()}</span>
 					</div>
 				</a>
 			{/each}
