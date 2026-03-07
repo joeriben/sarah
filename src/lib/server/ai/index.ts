@@ -1,30 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { chat, getModel } from './client.js';
 import { query } from '../db/index.js';
-
-let client: Anthropic | null = null;
-let defaultModel = 'claude-opus-4-6';
-
-function getClient(): Anthropic {
-	if (!client) {
-		// Try OpenRouter first, fall back to Anthropic direct
-		try {
-			const apiKey = readFileSync(join(process.cwd(), 'openrouter.key'), 'utf-8').trim();
-			defaultModel = 'anthropic/claude-opus-4-6';
-			client = new Anthropic({ apiKey, baseURL: 'https://openrouter.ai/api/v1' });
-		} catch {
-			try {
-				const apiKey = readFileSync(join(process.cwd(), 'anthropic.key'), 'utf-8').trim();
-				defaultModel = 'claude-opus-4-6';
-				client = new Anthropic({ apiKey });
-			} catch {
-				throw new Error('No API key found. Place openrouter.key or anthropic.key in the project root.');
-			}
-		}
-	}
-	return client;
-}
 
 export async function suggestCodes(
 	projectId: string,
@@ -33,9 +8,8 @@ export async function suggestCodes(
 ) {
 	const codeList = existingCodes.map(c => `- ${c.label}${c.description ? ': ' + c.description : ''}`).join('\n');
 
-	const response = await getClient().messages.create({
-		model: defaultModel,
-		max_tokens: 1024,
+	const response = await chat({
+		maxTokens: 1024,
 		messages: [{
 			role: 'user',
 			content: `You are assisting a qualitative researcher doing Situational Analysis (Adele Clarke). The researcher is coding a text passage.
@@ -58,16 +32,15 @@ Respond in JSON format:
 	});
 
 	return {
-		suggestions: response.content[0].type === 'text' ? response.content[0].text : '',
+		suggestions: response.text,
 		model: response.model,
-		tokensUsed: response.usage.input_tokens + response.usage.output_tokens
+		tokensUsed: response.tokensUsed
 	};
 }
 
 export async function summarizeDocument(text: string, maxLength: number = 500) {
-	const response = await getClient().messages.create({
-		model: defaultModel,
-		max_tokens: 1024,
+	const response = await chat({
+		maxTokens: 1024,
 		messages: [{
 			role: 'user',
 			content: `Summarize the following document for a qualitative researcher doing Situational Analysis. Focus on identifying key actors (human and nonhuman), discursive constructions, and the situation described. Keep it under ${maxLength} words.
@@ -80,9 +53,9 @@ ${text.slice(0, 8000)}
 	});
 
 	return {
-		summary: response.content[0].type === 'text' ? response.content[0].text : '',
+		summary: response.text,
 		model: response.model,
-		tokensUsed: response.usage.input_tokens + response.usage.output_tokens
+		tokensUsed: response.tokensUsed
 	};
 }
 
@@ -91,9 +64,8 @@ export async function findPatterns(
 ) {
 	const itemList = items.map(i => `- [${i.kind}] ${i.label}`).join('\n');
 
-	const response = await getClient().messages.create({
-		model: defaultModel,
-		max_tokens: 1500,
+	const response = await chat({
+		maxTokens: 1500,
 		messages: [{
 			role: 'user',
 			content: `You are assisting a qualitative researcher doing Situational Analysis (Adele Clarke). Analyze the following elements from their project and identify patterns, clusters, contradictions, or silences (what is notably absent).
@@ -110,9 +82,9 @@ Provide your analysis structured as:
 	});
 
 	return {
-		analysis: response.content[0].type === 'text' ? response.content[0].text : '',
+		analysis: response.text,
 		model: response.model,
-		tokensUsed: response.usage.input_tokens + response.usage.output_tokens
+		tokensUsed: response.tokensUsed
 	};
 }
 
@@ -122,9 +94,8 @@ export async function assistMemo(
 ) {
 	const links = linkedElements.map(e => `- [${e.kind}] ${e.label}`).join('\n');
 
-	const response = await getClient().messages.create({
-		model: defaultModel,
-		max_tokens: 1500,
+	const response = await chat({
+		maxTokens: 1500,
 		messages: [{
 			role: 'user',
 			content: `You are assisting a qualitative researcher doing Situational Analysis (Adele Clarke). They are writing an analytical memo.
@@ -145,9 +116,9 @@ Provide:
 	});
 
 	return {
-		assistance: response.content[0].type === 'text' ? response.content[0].text : '',
+		assistance: response.text,
 		model: response.model,
-		tokensUsed: response.usage.input_tokens + response.usage.output_tokens
+		tokensUsed: response.tokensUsed
 	};
 }
 

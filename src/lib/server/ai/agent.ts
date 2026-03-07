@@ -1,9 +1,7 @@
 // The AI agent: builds context, calls Claude with tools, executes tool calls as naming acts.
 // Every tool call produces namings in the data space — the AI is a co-analyst.
 
-import Anthropic from '@anthropic-ai/sdk';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { chat, getModel } from './client.js';
 import { getMapStructure, getMap, addElementToMap, relateElements, createPhase, assignToPhase } from '../db/queries/maps.js';
 import { getOrCreateAiNaming, logAiInteraction } from '../db/queries/ai.js';
 import { createMemo } from '../db/queries/memos.js';
@@ -12,29 +10,6 @@ import { emit } from './sse.js';
 import { SYSTEM_PROMPT, buildContextMessage, type MapContext, type TriggerEvent } from './prompts.js';
 import { AI_TOOLS, type SuggestElementInput, type SuggestRelationInput, type IdentifySilenceInput, type WriteMemoInput, type CreatePhaseInput } from './tools.js';
 import { query } from '../db/index.js';
-
-let client: Anthropic | null = null;
-let MODEL = 'claude-opus-4-6';
-
-function getClient(): Anthropic {
-	if (!client) {
-		// Try OpenRouter first, fall back to Anthropic direct
-		try {
-			const apiKey = readFileSync(join(process.cwd(), 'openrouter.key'), 'utf-8').trim();
-			MODEL = 'anthropic/claude-opus-4-6';
-			client = new Anthropic({ apiKey, baseURL: 'https://openrouter.ai/api/v1' });
-		} catch {
-			try {
-				const apiKey = readFileSync(join(process.cwd(), 'anthropic.key'), 'utf-8').trim();
-				MODEL = 'claude-opus-4-6';
-				client = new Anthropic({ apiKey });
-			} catch {
-				throw new Error('No API key found. Place openrouter.key or anthropic.key in the project root.');
-			}
-		}
-	}
-	return client;
-}
 
 // Check if AI is enabled for a map
 async function isAiEnabled(mapId: string): Promise<boolean> {
@@ -330,15 +305,15 @@ export async function runMapAgent(
 	// Check if AI is enabled
 	if (!(await isAiEnabled(mapId))) return;
 
-	const aiNamingId = await getOrCreateAiNaming(projectId, MODEL);
+	const model = getModel();
+	const aiNamingId = await getOrCreateAiNaming(projectId, model);
 	const context = await buildMapContext(mapId, projectId);
 	const contextMessage = buildContextMessage(context, triggerEvent);
 
 	try {
-		const response = await getClient().messages.create({
-			model: MODEL,
-			max_tokens: 2048,
+		const response = await chat({
 			system: SYSTEM_PROMPT,
+			maxTokens: 2048,
 			tools: AI_TOOLS,
 			messages: [
 				{ role: 'user', content: contextMessage }
@@ -348,17 +323,15 @@ export async function runMapAgent(
 		// Process tool calls
 		const toolResults: Array<{ tool: string; input: unknown; result: unknown }> = [];
 
-		for (const block of response.content) {
-			if (block.type === 'tool_use') {
-				const result = await executeTool(
-					block.name,
-					block.input as Record<string, unknown>,
-					projectId,
-					mapId,
-					aiNamingId
-				);
-				toolResults.push({ tool: block.name, input: block.input, result: result.result });
-			}
+		for (const tc of response.toolCalls) {
+			const result = await executeTool(
+				tc.name,
+				tc.input,
+				projectId,
+				mapId,
+				aiNamingId
+			);
+			toolResults.push({ tool: tc.name, input: tc.input, result: result.result });
 		}
 
 		// Log the interaction
@@ -366,10 +339,10 @@ export async function runMapAgent(
 			projectId,
 			aiNamingId,
 			`map:${triggerEvent.action}`,
-			MODEL,
+			model,
 			{ mapId, triggerEvent, contextSummary: { elements: context.elements.length, relations: context.relations.length } },
-			{ toolResults, stopReason: response.stop_reason },
-			response.usage.input_tokens + response.usage.output_tokens
+			{ toolResults, stopReason: response.stopReason },
+			response.tokensUsed
 		);
 	} catch (error) {
 		console.error('[AI Agent] Error:', error instanceof Error ? error.message : error);

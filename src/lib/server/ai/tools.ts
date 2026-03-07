@@ -1,9 +1,9 @@
 // Claude tool definitions for the AI agent.
 // Each tool maps to a naming act in the data space.
 
-import type Anthropic from '@anthropic-ai/sdk';
+import type { ToolDef } from './client.js';
 
-export const AI_TOOLS: Anthropic.Messages.Tool[] = [
+export const AI_TOOLS: ToolDef[] = [
 	{
 		name: 'suggest_element',
 		description:
