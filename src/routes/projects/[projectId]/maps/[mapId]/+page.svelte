@@ -33,6 +33,8 @@
 	let newPhaseLabel = $state('');
 	let showPhaseForm = $state(false);
 	let assigningToPhase = $state<string | null>(null);
+	let expandedPhase = $state<string | null>(null);
+	let phaseContents = $state<any[]>([]);
 
 	// Inline rename: first step captures new value, then opens naming act prompt
 	let editingId = $state<string | null>(null);
@@ -212,6 +214,25 @@
 	async function removeElementFromPhase(phaseId: string, namingId: string) {
 		await mapAction('removeFromPhase', { phaseId, namingId });
 		await reload();
+		if (expandedPhase === phaseId) await loadPhaseContents(phaseId);
+	}
+
+	async function loadPhaseContents(phaseId: string) {
+		const res = await fetch(`/api/projects/${data.projectId}/maps/${phaseId}`);
+		if (!res.ok) { phaseContents = []; return; }
+		const fresh = await res.json();
+		// Phase contents = all non-perspective appearances
+		phaseContents = [...(fresh.elements || []), ...(fresh.relations || []), ...(fresh.silences || [])];
+	}
+
+	async function togglePhase(phaseId: string) {
+		if (expandedPhase === phaseId) {
+			expandedPhase = null;
+			phaseContents = [];
+		} else {
+			expandedPhase = phaseId;
+			await loadPhaseContents(phaseId);
+		}
 	}
 
 	function startDesignation(namingId: string, designation: string) {
@@ -719,17 +740,48 @@
 				<p class="empty-small">No phases yet. Create one to cluster elements.</p>
 			{:else}
 				{#each phases as phase}
-					<div class="phase-card" class:assigning={assigningToPhase === phase.id}>
+					<div class="phase-card" class:assigning={assigningToPhase === phase.id} class:expanded={expandedPhase === phase.id}>
 						<div class="phase-header">
-							<span class="phase-label">{phase.label}</span>
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<span class="phase-label clickable" onclick={() => togglePhase(phase.id)}>{phase.label}</span>
 							<span class="phase-count">{phase.element_count}</span>
 						</div>
-						<button
-							class="btn-xs"
-							onclick={() => assigningToPhase = assigningToPhase === phase.id ? null : phase.id}
-						>
-							{assigningToPhase === phase.id ? 'done' : 'assign elements'}
-						</button>
+						<div class="phase-actions">
+							<button
+								class="btn-xs"
+								onclick={() => assigningToPhase = assigningToPhase === phase.id ? null : phase.id}
+							>
+								{assigningToPhase === phase.id ? 'done' : 'assign'}
+							</button>
+						</div>
+
+						{#if expandedPhase === phase.id}
+							<div class="phase-contents">
+								{#if phaseContents.length === 0}
+									<p class="empty-small">No elements assigned yet.</p>
+								{:else}
+									{#each phaseContents as pc}
+										<div class="phase-element">
+											<span class="designation-dot-sm" style="background: {designationColor(pc.designation)}"></span>
+											{#if pc.is_collapsed}
+												<span class="collapsed-indicator" title="Pinned at assignment">&#x1F4CC;</span>
+											{/if}
+											<span class="phase-el-label">{pc.inscription}</span>
+											{#if pc.mode === 'relation'}
+												<span class="phase-el-mode">rel</span>
+											{:else if pc.mode === 'silence'}
+												<span class="phase-el-mode">silence</span>
+											{/if}
+											{#if pc.is_collapsed && pc.current_inscription && pc.current_inscription !== pc.inscription}
+												<span class="collapsed-current-sm">now: {pc.current_inscription}</span>
+											{/if}
+											<button class="btn-xs btn-remove" title="Remove from phase" onclick={() => removeElementFromPhase(phase.id, pc.naming_id)}>×</button>
+										</div>
+									{/each}
+								{/if}
+							</div>
+						{/if}
 					</div>
 				{/each}
 			{/if}
@@ -923,7 +975,24 @@
 		margin-bottom: 0.25rem;
 	}
 	.phase-label { font-size: 0.85rem; color: #e1e4e8; font-weight: 500; }
+	.phase-label.clickable { cursor: pointer; }
+	.phase-label.clickable:hover { color: #8b9cf7; }
 	.phase-count { font-size: 0.7rem; color: #6b7280; }
+	.phase-card.expanded { border-color: #4b5563; }
+	.phase-actions { margin-bottom: 0.25rem; }
+
+	.phase-contents {
+		border-top: 1px solid #2a2d3a; padding-top: 0.4rem; margin-top: 0.3rem;
+	}
+	.phase-element {
+		display: flex; align-items: center; gap: 0.3rem;
+		padding: 0.2rem 0; font-size: 0.75rem; color: #c9cdd5;
+	}
+	.phase-el-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.phase-el-mode { font-size: 0.6rem; color: #6b7280; font-style: italic; }
+	.collapsed-current-sm { font-size: 0.6rem; color: #4b5563; font-style: italic; }
+	.btn-remove { color: #6b7280; border-color: transparent; padding: 0 0.2rem; }
+	.btn-remove:hover { color: #ef4444; }
 
 	/* Inline rename */
 	.editable { cursor: pointer; }

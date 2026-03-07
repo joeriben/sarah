@@ -253,19 +253,37 @@ export async function createPhase(
 
 // Assign an element to a phase: the element gets an appearance
 // from the phase-as-perspective.
+// Assign an element to a phase, capturing its current seq as collapseAt.
+// The phase freezes the naming's state at the moment of assignment.
+// Later renamings don't change the phase view unless explicitly updated.
 export async function assignToPhase(
 	phaseId: string,
 	namingId: string,
 	mode?: string,
 	properties?: Record<string, unknown>
 ) {
+	// Get the current highest seq for this naming's inscriptions or designations
+	const currentSeq = await queryOne<{ seq: string }>(
+		`SELECT GREATEST(
+		   COALESCE((SELECT MAX(seq) FROM naming_inscriptions WHERE naming_id = $1), 0),
+		   COALESCE((SELECT MAX(seq) FROM naming_designations WHERE naming_id = $1), 0)
+		 ) as seq`,
+		[namingId]
+	);
+	const collapseAt = currentSeq ? parseInt(currentSeq.seq) : null;
+
+	const props = { ...properties };
+	if (collapseAt) {
+		(props as any).collapseAt = collapseAt;
+	}
+
 	return queryOne(
 		`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 		 VALUES ($1, $2, $3, $4)
 		 ON CONFLICT (naming_id, perspective_id)
 		 DO UPDATE SET mode = $3, properties = appearances.properties || $4::jsonb, updated_at = now()
 		 RETURNING *`,
-		[namingId, phaseId, mode || 'entity', JSON.stringify(properties || {})]
+		[namingId, phaseId, mode || 'entity', JSON.stringify(props)]
 	);
 }
 
