@@ -232,12 +232,12 @@
 									<option value="characterization">characterization</option>
 									<option value="specification">specification</option>
 								</select>
-								{#if relatingFrom && relatingFrom !== el.naming_id}
-									<button class="btn-sm btn-relate" onclick={() => relate(relatingFrom!, el.naming_id)}>
+								{#if relatingFrom && !relatingTo && relatingFrom !== el.naming_id}
+									<button class="btn-sm btn-relate" onclick={() => startRelation(relatingFrom!, el.naming_id)}>
 										connect
 									</button>
-								{:else}
-									<button class="btn-sm" onclick={() => relatingFrom = el.naming_id}>
+								{:else if !relatingFrom}
+									<button class="btn-sm" onclick={() => { relatingFrom = el.naming_id; relatingTo = null; }}>
 										relate
 									</button>
 								{/if}
@@ -343,7 +343,7 @@
 	</div>
 </div>
 
-<svelte:window onkeydown={e => { if (e.key === 'Escape') { relatingFrom = null; assigningToPhase = null; } }} />
+<svelte:window onkeydown={e => { if (e.key === 'Escape') { cancelRelation(); assigningToPhase = null; } }} />
 
 <style>
 	.map-page {
@@ -452,6 +452,38 @@
 	.btn-sm:hover { border-color: #8b9cf7; color: #e1e4e8; }
 
 	.btn-relate { border-color: #f59e0b; color: #f59e0b; }
+	.btn-sm-primary {
+		background: #8b9cf7; color: #0f1117; border: none; border-radius: 5px;
+		padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+		margin-top: 0.5rem;
+	}
+
+	.relation-form {
+		background: #161822; border: 1px solid #8b9cf7; border-radius: 8px;
+		padding: 0.75rem 1rem; margin-bottom: 1rem;
+	}
+	.rel-form-header {
+		display: flex; align-items: center; justify-content: space-between;
+		margin-bottom: 0.6rem;
+	}
+	.rel-form-elements { font-size: 0.9rem; color: #e1e4e8; font-weight: 500; }
+	.rel-form-arrow { color: #8b9cf7; margin: 0 0.35rem; }
+	.rel-form-fields { display: flex; flex-direction: column; gap: 0.4rem; }
+	.rel-form-fields label { display: flex; flex-direction: column; gap: 0.15rem; }
+	.field-label { font-size: 0.7rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
+	.rel-form-fields input[type="text"] {
+		background: #0f1117; border: 1px solid #2a2d3a; border-radius: 5px;
+		padding: 0.4rem 0.5rem; color: #e1e4e8; font-size: 0.85rem;
+	}
+	.rel-form-fields input[type="text"]:focus { outline: none; border-color: #8b9cf7; }
+	.rel-form-row {
+		display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;
+	}
+	.toggle-label {
+		display: flex; align-items: center; gap: 0.35rem;
+		font-size: 0.8rem; color: #8b8fa3; cursor: pointer; flex-direction: row;
+	}
+	.toggle-label input[type="checkbox"] { accent-color: #8b9cf7; }
 	.btn-phase { border-color: #10b981; color: #10b981; }
 
 	.btn-xs {

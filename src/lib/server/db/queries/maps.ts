@@ -123,6 +123,7 @@ export async function relateElements(
 	opts?: {
 		inscription?: string;
 		valence?: string;
+		symmetric?: boolean;
 		properties?: Record<string, unknown>;
 	}
 ) {
@@ -144,23 +145,36 @@ export async function relateElements(
 			[partNaming.id, sourceId, targetId]
 		);
 
-		// The participation appears as relation on the map (directed reading)
+		// The participation appears as relation on the map.
+		// If symmetric: no directed_from/to (the participation is undirected).
+		// If directed: perspectival reading with from/to.
+		const dirFrom = opts?.symmetric ? null : sourceId;
+		const dirTo = opts?.symmetric ? null : targetId;
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, directed_from, directed_to, valence, properties)
 			 VALUES ($1, $2, 'relation', $3, $4, $5, $6)`,
 			[
 				partNaming.id, mapId,
-				sourceId, targetId,
+				dirFrom, dirTo,
 				opts?.valence || null,
 				JSON.stringify(opts?.properties || {})
 			]
 		);
 
-		// Designation for the relation itself: cue
+		// Auto-designation based on determination level:
+		// neither valence nor inscription → cue
+		// one of them → characterization
+		// both → specification
+		const hasValence = !!opts?.valence?.trim();
+		const hasInscription = !!opts?.inscription?.trim();
+		let relDesignation: string = 'cue';
+		if (hasValence && hasInscription) relDesignation = 'specification';
+		else if (hasValence || hasInscription) relDesignation = 'characterization';
+
 		await client.query(
 			`INSERT INTO naming_designations (naming_id, designation, by)
-			 VALUES ($1, 'cue', $2)`,
-			[partNaming.id, researcherNamingId]
+			 VALUES ($1, $2, $3)`,
+			[partNaming.id, relDesignation, researcherNamingId]
 		);
 
 		// Relating is an act of determination: the related elements

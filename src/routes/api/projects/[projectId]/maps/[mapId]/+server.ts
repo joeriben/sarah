@@ -37,10 +37,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		}
 
 		case 'relate': {
-			const { sourceId, targetId, inscription, valence, properties } = body;
+			const { sourceId, targetId, inscription, valence, symmetric, properties } = body;
 			if (!sourceId || !targetId) return json({ error: 'sourceId and targetId required' }, { status: 400 });
 			const relation = await relateElements(projectId, userId, mapId, sourceId, targetId, {
-				inscription, valence, properties
+				inscription, valence, symmetric, properties
 			});
 			return json(relation, { status: 201 });
 		}
