@@ -4,17 +4,24 @@ import { join } from 'node:path';
 import { query } from '../db/index.js';
 
 let client: Anthropic | null = null;
+let defaultModel = 'claude-opus-4-6';
 
 function getClient(): Anthropic {
 	if (!client) {
-		const keyPath = join(process.cwd(), 'anthropic.key');
-		let apiKey: string;
+		// Try OpenRouter first, fall back to Anthropic direct
 		try {
-			apiKey = readFileSync(keyPath, 'utf-8').trim();
+			const apiKey = readFileSync(join(process.cwd(), 'openrouter.key'), 'utf-8').trim();
+			defaultModel = 'anthropic/claude-opus-4-6';
+			client = new Anthropic({ apiKey, baseURL: 'https://openrouter.ai/api/v1' });
 		} catch {
-			throw new Error('anthropic.key not found. Place your API key in the project root.');
+			try {
+				const apiKey = readFileSync(join(process.cwd(), 'anthropic.key'), 'utf-8').trim();
+				defaultModel = 'claude-opus-4-6';
+				client = new Anthropic({ apiKey });
+			} catch {
+				throw new Error('No API key found. Place openrouter.key or anthropic.key in the project root.');
+			}
 		}
-		client = new Anthropic({ apiKey });
 	}
 	return client;
 }
@@ -27,7 +34,7 @@ export async function suggestCodes(
 	const codeList = existingCodes.map(c => `- ${c.label}${c.description ? ': ' + c.description : ''}`).join('\n');
 
 	const response = await getClient().messages.create({
-		model: 'claude-sonnet-4-20250514',
+		model: defaultModel,
 		max_tokens: 1024,
 		messages: [{
 			role: 'user',
@@ -59,7 +66,7 @@ Respond in JSON format:
 
 export async function summarizeDocument(text: string, maxLength: number = 500) {
 	const response = await getClient().messages.create({
-		model: 'claude-sonnet-4-20250514',
+		model: defaultModel,
 		max_tokens: 1024,
 		messages: [{
 			role: 'user',
@@ -85,7 +92,7 @@ export async function findPatterns(
 	const itemList = items.map(i => `- [${i.kind}] ${i.label}`).join('\n');
 
 	const response = await getClient().messages.create({
-		model: 'claude-sonnet-4-20250514',
+		model: defaultModel,
 		max_tokens: 1500,
 		messages: [{
 			role: 'user',
@@ -116,7 +123,7 @@ export async function assistMemo(
 	const links = linkedElements.map(e => `- [${e.kind}] ${e.label}`).join('\n');
 
 	const response = await getClient().messages.create({
-		model: 'claude-sonnet-4-20250514',
+		model: defaultModel,
 		max_tokens: 1500,
 		messages: [{
 			role: 'user',

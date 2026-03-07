@@ -13,20 +13,25 @@ import { SYSTEM_PROMPT, buildContextMessage, type MapContext, type TriggerEvent 
 import { AI_TOOLS, type SuggestElementInput, type SuggestRelationInput, type IdentifySilenceInput, type WriteMemoInput, type CreatePhaseInput } from './tools.js';
 import { query } from '../db/index.js';
 
-const MODEL = 'claude-sonnet-4-20250514';
-
 let client: Anthropic | null = null;
+let MODEL = 'claude-opus-4-6';
 
 function getClient(): Anthropic {
 	if (!client) {
-		const keyPath = join(process.cwd(), 'anthropic.key');
-		let apiKey: string;
+		// Try OpenRouter first, fall back to Anthropic direct
 		try {
-			apiKey = readFileSync(keyPath, 'utf-8').trim();
+			const apiKey = readFileSync(join(process.cwd(), 'openrouter.key'), 'utf-8').trim();
+			MODEL = 'anthropic/claude-opus-4-6';
+			client = new Anthropic({ apiKey, baseURL: 'https://openrouter.ai/api/v1' });
 		} catch {
-			throw new Error('anthropic.key not found. Place your API key in the project root.');
+			try {
+				const apiKey = readFileSync(join(process.cwd(), 'anthropic.key'), 'utf-8').trim();
+				MODEL = 'claude-opus-4-6';
+				client = new Anthropic({ apiKey });
+			} catch {
+				throw new Error('No API key found. Place openrouter.key or anthropic.key in the project root.');
+			}
 		}
-		client = new Anthropic({ apiKey });
 	}
 	return client;
 }
