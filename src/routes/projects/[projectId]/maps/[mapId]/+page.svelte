@@ -9,6 +9,17 @@
 	let phases = $state(data.phases);
 	let designationProfile = $state(data.designationProfile);
 
+	// Sync when SvelteKit re-runs the load function (navigation/invalidation)
+	$effect(() => {
+		elements = data.elements;
+		relations = data.relations;
+		silences = data.silences;
+		processes = data.processes;
+		constellations = data.constellations;
+		phases = data.phases;
+		designationProfile = data.designationProfile;
+	});
+
 	let newInscription = $state('');
 	let adding = $state(false);
 	let relatingFrom = $state<string | null>(null);
@@ -102,8 +113,18 @@
 
 	// Resolve any naming_id to its inscription across all map appearances
 	function findInscription(namingId: string): string {
+		if (!namingId) return '?';
 		const all = [...elements, ...relations, ...silences, ...processes, ...constellations];
-		return (all as any[]).find(a => a.naming_id === namingId)?.inscription || '?';
+		const found = (all as any[]).find(a => a.naming_id === namingId);
+		if (!found) return '?';
+		if (found.inscription) return found.inscription;
+		// Unnamed relation: show its endpoints instead
+		if (found.mode === 'relation') {
+			const src = findInscription(found.directed_from);
+			const tgt = findInscription(found.directed_to);
+			return `(${src} → ${tgt})`;
+		}
+		return '?';
 	}
 
 	// API helper
