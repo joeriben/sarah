@@ -452,10 +452,16 @@
 					{#each elements as el}
 						<div class="element-card" class:ai-suggested={el.properties?.aiSuggested === true} title={el.properties?.aiReasoning || ''}>
 							<div class="el-main">
-								{#if el.is_collapsed}<span class="collapsed-indicator" title="Pinned to specific layer">&#x1F4CC;</span>{/if}
+								{#if el.is_collapsed}<img class="collapsed-indicator" src="/icons/keep.svg" alt="pinned" title="Pinned to specific layer" />{/if}
 								<span class="designation-dot" style="background: {designationColor(el.designation)}"
 									title={designationLabel(el.designation)}></span>
-								<span class="provenance-indicator" title={el.has_document_anchor ? 'Empirically grounded (document annotation)' : el.has_memo_link ? 'Analytically grounded (memo link)' : 'No grounding yet'}>{el.has_document_anchor ? '📄' : el.has_memo_link ? '📝' : '∅'}</span>
+								{#if el.has_document_anchor}
+									<img class="provenance-indicator" src="/icons/text_snippet.svg" alt="empirical" title="Empirically grounded (document annotation)" />
+								{:else if el.has_memo_link}
+									<img class="provenance-indicator" src="/icons/stylus_note.svg" alt="analytical" title="Analytically grounded (memo link)" />
+								{:else}
+									<img class="provenance-indicator" src="/icons/question_mark.svg" alt="ungrounded" title="No grounding yet" />
+								{/if}
 								{#if editingId === el.naming_id}
 									<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmRename(); }}>
 										<input type="text" bind:value={editingValue} />
@@ -602,9 +608,15 @@
 						{@const tgtId = rel.directed_to || rel.part_target_id}
 						<div class="element-card relation-card" class:ai-suggested={rel.properties?.aiSuggested === true} title={rel.properties?.aiReasoning || ''}>
 							<div class="el-main">
-								{#if rel.is_collapsed}<span class="collapsed-indicator" title="Pinned to specific layer">&#x1F4CC;</span>{/if}
+								{#if rel.is_collapsed}<img class="collapsed-indicator" src="/icons/keep.svg" alt="pinned" title="Pinned to specific layer" />{/if}
 								<span class="designation-dot" style="background: {designationColor(rel.designation)}"></span>
-								<span class="provenance-indicator" title={rel.has_document_anchor ? 'Empirically grounded' : rel.has_memo_link ? 'Analytically grounded' : 'No grounding yet'}>{rel.has_document_anchor ? '📄' : rel.has_memo_link ? '📝' : '∅'}</span>
+								{#if rel.has_document_anchor}
+									<img class="provenance-indicator" src="/icons/text_snippet.svg" alt="empirical" title="Empirically grounded" />
+								{:else if rel.has_memo_link}
+									<img class="provenance-indicator" src="/icons/stylus_note.svg" alt="analytical" title="Analytically grounded" />
+								{:else}
+									<img class="provenance-indicator" src="/icons/question_mark.svg" alt="ungrounded" title="No grounding yet" />
+								{/if}
 								<span class="rel-source">
 									{findInscription(srcId)}
 								</span>
@@ -715,7 +727,13 @@
 				<div class="element-list">
 					{#each silences as s}
 						<div class="element-card silence-card" class:ai-suggested={s.properties?.aiSuggested === true} title={s.properties?.aiReasoning || ''}>
-							<span class="provenance-indicator" title={s.has_document_anchor ? 'Empirically grounded' : s.has_memo_link ? 'Analytically grounded' : 'No grounding yet'}>{s.has_document_anchor ? '📄' : s.has_memo_link ? '📝' : '∅'}</span>
+							{#if s.has_document_anchor}
+								<img class="provenance-indicator" src="/icons/text_snippet.svg" alt="empirical" title="Empirically grounded" />
+							{:else if s.has_memo_link}
+								<img class="provenance-indicator" src="/icons/stylus_note.svg" alt="analytical" title="Analytically grounded" />
+							{:else}
+								<img class="provenance-indicator" src="/icons/question_mark.svg" alt="ungrounded" title="No grounding yet" />
+							{/if}
 							<span class="el-inscription">{s.inscription}</span>
 						</div>
 					{/each}
@@ -768,7 +786,7 @@
 										<div class="phase-element">
 											<span class="designation-dot-sm" style="background: {designationColor(pc.designation)}"></span>
 											{#if pc.is_collapsed}
-												<span class="collapsed-indicator" title="Pinned at assignment">&#x1F4CC;</span>
+												<img class="collapsed-indicator" src="/icons/keep.svg" alt="pinned" title="Pinned at assignment" />
 											{/if}
 											<span class="phase-el-label">{pc.inscription}</span>
 											{#if pc.mode === 'relation'}
@@ -1011,8 +1029,8 @@
 
 	/* Provenance indicators */
 	.provenance-indicator {
-		font-size: 0.6rem; cursor: default; flex-shrink: 0;
-		opacity: 0.7; min-width: 0.9rem; text-align: center;
+		width: 14px; height: 14px; flex-shrink: 0;
+		opacity: 0.5; cursor: default;
 	}
 
 	/* Naming act prompt */
@@ -1068,9 +1086,8 @@
 
 	/* Collapsed / pinned layer */
 	.collapsed-indicator {
-		font-size: 0.6rem;
-		color: #f59e0b;
-		margin-right: 0.2rem;
+		width: 12px; height: 12px; flex-shrink: 0;
+		margin-right: 0.2rem; opacity: 0.7;
 	}
 	.collapsed-current {
 		font-size: 0.7rem;
