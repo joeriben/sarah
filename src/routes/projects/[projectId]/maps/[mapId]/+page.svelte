@@ -1,9 +1,21 @@
 <script lang="ts">
 	let { data } = $props();
 
+	let elements = $state(data.elements);
+	let relations = $state(data.relations);
+	let silences = $state(data.silences);
+	let processes = $state(data.processes);
+	let constellations = $state(data.constellations);
+	let phases = $state(data.phases);
+	let designationProfile = $state(data.designationProfile);
+
 	let newInscription = $state('');
 	let adding = $state(false);
 	let relatingFrom = $state<string | null>(null);
+	let relatingTo = $state<string | null>(null);
+	let relInscription = $state('');
+	let relValence = $state('');
+	let relDirected = $state(true);
 	let newPhaseLabel = $state('');
 	let showPhaseForm = $state(false);
 	let assigningToPhase = $state<string | null>(null);
@@ -25,13 +37,13 @@
 		const res = await fetch(`/api/projects/${data.projectId}/maps/${data.map.id}`);
 		if (!res.ok) return;
 		const fresh = await res.json();
-		data.elements = fresh.elements;
-		data.relations = fresh.relations;
-		data.silences = fresh.silences;
-		data.processes = fresh.processes;
-		data.constellations = fresh.constellations;
-		data.phases = fresh.phases;
-		data.designationProfile = fresh.designationProfile;
+		elements = fresh.elements;
+		relations = fresh.relations;
+		silences = fresh.silences;
+		processes = fresh.processes;
+		constellations = fresh.constellations;
+		phases = fresh.phases;
+		designationProfile = fresh.designationProfile;
 	}
 
 	async function addElement() {
@@ -43,11 +55,35 @@
 		await reload();
 	}
 
-	async function relate(sourceId: string, targetId: string) {
-		const valence = prompt('Valence (e.g. enables, constrains, constitutes):') || undefined;
-		const inscription = prompt('Inscription for this relation:') || '';
-		await mapAction('relate', { sourceId, targetId, inscription, valence });
+	function startRelation(fromId: string, toId: string) {
+		relatingFrom = fromId;
+		relatingTo = toId;
+		relInscription = '';
+		relValence = '';
+		relDirected = true;
+	}
+
+	function cancelRelation() {
 		relatingFrom = null;
+		relatingTo = null;
+		relInscription = '';
+		relValence = '';
+		relDirected = true;
+	}
+
+	async function submitRelation() {
+		if (!relatingFrom || !relatingTo) return;
+		const sourceId = relDirected ? relatingFrom : relatingFrom;
+		const targetId = relDirected ? relatingTo : relatingTo;
+		await mapAction('relate', {
+			sourceId: relDirected ? sourceId : sourceId,
+			targetId: relDirected ? targetId : targetId,
+			inscription: relInscription.trim() || undefined,
+			valence: relValence.trim() || undefined,
+			// If not directed, don't set directed_from/to
+			symmetric: !relDirected
+		});
+		cancelRelation();
 		await reload();
 	}
 
@@ -101,9 +137,9 @@
 		<h2>{data.map.label}</h2>
 		<span class="map-type-badge">{mapType}</span>
 
-		{#if data.designationProfile}
+		{#if designationProfile.length > 0}
 			<div class="designation-profile">
-				{#each data.designationProfile as dp}
+				{#each designationProfile as dp}
 					<span class="dp-item" style="color: {designationColor(dp.designation)}">
 						{dp.count} {designationLabel(dp.designation)}
 					</span>
@@ -127,21 +163,60 @@
 				</button>
 			</form>
 
-			<!-- Connecting hint -->
-			{#if relatingFrom}
+			<!-- Relation form (inline) -->
+			{#if relatingFrom && relatingTo}
+				{@const fromLabel = elements.find((e: any) => e.naming_id === relatingFrom)?.inscription || '?'}
+				{@const toLabel = elements.find((e: any) => e.naming_id === relatingTo)?.inscription || '?'}
+				<div class="relation-form">
+					<div class="rel-form-header">
+						<span class="rel-form-elements">
+							{fromLabel}
+							{#if relDirected}
+								<span class="rel-form-arrow">→</span>
+							{:else}
+								<span class="rel-form-arrow">↔</span>
+							{/if}
+							{toLabel}
+						</span>
+						<button class="btn-link" onclick={cancelRelation}>cancel</button>
+					</div>
+					<div class="rel-form-fields">
+						<label>
+							<span class="field-label">Valence</span>
+							<input type="text" placeholder="e.g. enables, constrains, constitutes..." bind:value={relValence} />
+						</label>
+						<label>
+							<span class="field-label">Name</span>
+							<input type="text" placeholder="Name for this relation (optional)" bind:value={relInscription} />
+						</label>
+						<div class="rel-form-row">
+							<label class="toggle-label">
+								<input type="checkbox" bind:checked={relDirected} />
+								<span>directed ({relDirected ? `${fromLabel} → ${toLabel}` : 'symmetric'})</span>
+							</label>
+							{#if relDirected}
+								<button class="btn-xs" onclick={() => { const tmp = relatingFrom; relatingFrom = relatingTo; relatingTo = tmp; }}>
+									flip
+								</button>
+							{/if}
+						</div>
+					</div>
+					<button class="btn-primary btn-sm-primary" onclick={submitRelation}>Create relation</button>
+				</div>
+			{:else if relatingFrom && !relatingTo}
 				<div class="action-bar">
-					Relating from: <strong>{data.elements.find((e: any) => e.naming_id === relatingFrom)?.inscription}</strong>
-					— click another element to connect, or
-					<button class="btn-link" onclick={() => relatingFrom = null}>cancel</button>
+					Relating from: <strong>{elements.find((e: any) => e.naming_id === relatingFrom)?.inscription}</strong>
+					— click "connect" on another element, or
+					<button class="btn-link" onclick={cancelRelation}>cancel</button>
 				</div>
 			{/if}
 
 			<!-- Elements -->
-			{#if data.elements.length === 0 && data.relations.length === 0}
+			{#if elements.length === 0 && relations.length === 0}
 				<p class="empty">Name what is in the situation. Everything is a cue at first.</p>
 			{:else}
 				<div class="element-list">
-					{#each data.elements as el}
+					{#each elements as el}
 						<div class="element-card">
 							<div class="el-main">
 								<span class="designation-dot" style="background: {designationColor(el.designation)}"
@@ -178,15 +253,15 @@
 			{/if}
 
 			<!-- Relations -->
-			{#if data.relations.length > 0}
+			{#if relations.length > 0}
 				<h3 class="section-header">Relations</h3>
 				<div class="element-list">
-					{#each data.relations as rel}
+					{#each relations as rel}
 						<div class="element-card relation-card">
 							<div class="el-main">
 								<span class="designation-dot" style="background: {designationColor(rel.designation)}"></span>
 								<span class="rel-source">
-									{data.elements.find((e: any) => e.naming_id === rel.directed_from)?.inscription || '?'}
+									{elements.find((e: any) => e.naming_id === rel.directed_from)?.inscription || '?'}
 								</span>
 								<span class="rel-arrow">
 									{#if rel.valence}
@@ -196,7 +271,7 @@
 									{/if}
 								</span>
 								<span class="rel-target">
-									{data.elements.find((e: any) => e.naming_id === rel.directed_to)?.inscription || '?'}
+									{elements.find((e: any) => e.naming_id === rel.directed_to)?.inscription || '?'}
 								</span>
 								{#if rel.inscription}
 									<span class="rel-inscription">{rel.inscription}</span>
@@ -218,10 +293,10 @@
 			{/if}
 
 			<!-- Silences -->
-			{#if data.silences.length > 0}
+			{#if silences.length > 0}
 				<h3 class="section-header">Silences</h3>
 				<div class="element-list">
-					{#each data.silences as s}
+					{#each silences as s}
 						<div class="element-card silence-card">
 							<span class="el-inscription">{s.inscription}</span>
 						</div>
@@ -246,10 +321,10 @@
 				</form>
 			{/if}
 
-			{#if data.phases.length === 0}
+			{#if phases.length === 0}
 				<p class="empty-small">No phases yet. Create one to cluster elements.</p>
 			{:else}
-				{#each data.phases as phase}
+				{#each phases as phase}
 					<div class="phase-card" class:assigning={assigningToPhase === phase.id}>
 						<div class="phase-header">
 							<span class="phase-label">{phase.label}</span>

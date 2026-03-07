@@ -310,21 +310,23 @@ export async function getMapPhases(mapId: string, projectId: string) {
 export async function getMapDesignationProfile(mapId: string, projectId: string) {
 	return (
 		await query(
-			`SELECT
-			   COALESCE(
-			     (SELECT nd.designation FROM naming_designations nd
-			      WHERE nd.naming_id = a.naming_id ORDER BY nd.seq DESC LIMIT 1),
-			     'cue'
-			   ) as designation,
-			   count(*) as count
-			 FROM appearances a
-			 JOIN namings n ON n.id = a.naming_id
-			 WHERE a.perspective_id = $1
-			   AND a.naming_id != $1
-			   AND a.mode != 'perspective'
-			   AND n.project_id = $2
-			   AND n.deleted_at IS NULL
-			 GROUP BY designation
+			`SELECT * FROM (
+			   SELECT
+			     COALESCE(
+			       (SELECT nd.designation FROM naming_designations nd
+			        WHERE nd.naming_id = a.naming_id ORDER BY nd.seq DESC LIMIT 1),
+			       'cue'
+			     ) as designation,
+			     count(*) as count
+			   FROM appearances a
+			   JOIN namings n ON n.id = a.naming_id
+			   WHERE a.perspective_id = $1
+			     AND a.naming_id != $1
+			     AND a.mode != 'perspective'
+			     AND n.project_id = $2
+			     AND n.deleted_at IS NULL
+			   GROUP BY 1
+			 ) sub
 			 ORDER BY CASE designation
 			   WHEN 'cue' THEN 1
 			   WHEN 'characterization' THEN 2
