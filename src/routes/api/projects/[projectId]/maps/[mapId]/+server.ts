@@ -14,9 +14,11 @@ import {
 	getOrCreateResearcherNaming,
 	renameNaming,
 	getInscriptionHistory,
-	getDesignationHistory
+	getDesignationHistory,
+	getNaming
 } from '$lib/server/db/queries/namings.js';
 import { createMemo } from '$lib/server/db/queries/memos.js';
+import { runMapAgent, setAiEnabled } from '$lib/server/ai/agent.js';
 
 export const GET: RequestHandler = async ({ params }) => {
 	const map = await getMap(params.mapId, params.projectId);
@@ -39,6 +41,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			const { inscription, properties } = body;
 			if (!inscription?.trim()) return json({ error: 'inscription required' }, { status: 400 });
 			const element = await addElementToMap(projectId, userId, mapId, inscription.trim(), properties);
+			// Fire AI agent asynchronously — never blocks the response
+			runMapAgent(projectId, mapId, { action: 'addElement', details: { inscription: inscription.trim() } }).catch(() => {});
 			return json(element, { status: 201 });
 		}
 
@@ -48,6 +52,16 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			const relation = await relateElements(projectId, userId, mapId, sourceId, targetId, {
 				inscription, valence, symmetric, properties
 			});
+			// Resolve inscriptions for AI context
+			const [srcNaming, tgtNaming] = await Promise.all([getNaming(sourceId, projectId), getNaming(targetId, projectId)]);
+			runMapAgent(projectId, mapId, {
+				action: 'relate',
+				details: {
+					sourceInscription: (srcNaming as any)?.inscription || sourceId,
+					targetInscription: (tgtNaming as any)?.inscription || targetId,
+					inscription, valence
+				}
+			}).catch(() => {});
 			return json(relation, { status: 201 });
 		}
 
@@ -119,6 +133,17 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 				getDesignationHistory(namingId)
 			]);
 			return json({ inscriptions, designations });
+		}
+
+		case 'toggleAi': {
+			const { enabled } = body;
+			await setAiEnabled(mapId, enabled !== false);
+			return json({ ok: true, aiEnabled: enabled !== false });
+		}
+
+		case 'requestAnalysis': {
+			await runMapAgent(projectId, mapId, { action: 'requestAnalysis', details: {} });
+			return json({ ok: true });
 		}
 
 		default:

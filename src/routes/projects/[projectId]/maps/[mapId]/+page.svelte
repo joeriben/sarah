@@ -34,6 +34,66 @@
 	let actLinkedIds = $state<string[]>([]);            // co-actors: other namings that influenced
 	let showActLinks = $state(false);                   // expand co-actor selection
 
+	// AI agent
+	let aiEnabled = $state(true);
+	let aiNotification = $state<string | null>(null);
+	let aiNotificationTimeout: ReturnType<typeof setTimeout> | undefined;
+
+	// SSE subscription for AI agent events
+	$effect(() => {
+		const evtSource = new EventSource(`/api/projects/${data.projectId}/maps/${data.map.id}/events`);
+
+		evtSource.addEventListener('message', (e) => {
+			try {
+				const event = JSON.parse(e.data);
+				switch (event.type) {
+					case 'ai:element':
+						elements = [...elements, event.payload];
+						reload();
+						break;
+					case 'ai:relation':
+						relations = [...relations, event.payload];
+						reload();
+						break;
+					case 'ai:silence':
+						silences = [...silences, event.payload];
+						reload();
+						break;
+					case 'ai:memo':
+						showAiNotification(event.payload?.text || 'AI memo created');
+						break;
+					case 'ai:phase':
+						phases = [...phases, event.payload];
+						reload();
+						break;
+				}
+			} catch {
+				// ignore malformed events
+			}
+		});
+
+		return () => {
+			evtSource.close();
+		};
+	});
+
+	function showAiNotification(text: string) {
+		aiNotification = text;
+		clearTimeout(aiNotificationTimeout);
+		aiNotificationTimeout = setTimeout(() => { aiNotification = null; }, 4000);
+	}
+
+	async function toggleAi() {
+		const next = !aiEnabled;
+		await mapAction('toggleAi', { enabled: next });
+		aiEnabled = next;
+	}
+
+	async function requestAnalysis() {
+		await mapAction('requestAnalysis');
+		showAiNotification('AI analysis requested');
+	}
+
 	// History panel
 	let historyId = $state<string | null>(null);
 	let historyData = $state<{ inscriptions: any[]; designations: any[] } | null>(null);
@@ -240,7 +300,25 @@
 				{/each}
 			</div>
 		{/if}
+
+		<div class="ai-controls">
+			<button
+				class="btn-ai-toggle"
+				class:ai-active={aiEnabled}
+				onclick={toggleAi}
+				title={aiEnabled ? 'AI agent active — click to disable' : 'AI agent inactive — click to enable'}
+			>
+				AI
+			</button>
+			<button class="btn-sm btn-ask-ai" onclick={requestAnalysis} disabled={!aiEnabled}>
+				Ask AI
+			</button>
+		</div>
 	</div>
+
+	{#if aiNotification}
+		<div class="ai-notification">{aiNotification}</div>
+	{/if}
 
 	<div class="map-workspace">
 		<div class="main-area">
@@ -311,7 +389,7 @@
 			{:else}
 				<div class="element-list">
 					{#each elements as el}
-						<div class="element-card">
+						<div class="element-card" class:ai-suggested={el.properties?.aiSuggested === true} title={el.properties?.aiReasoning || ''}>
 							<div class="el-main">
 								<span class="designation-dot" style="background: {designationColor(el.designation)}"
 									title={designationLabel(el.designation)}></span>
@@ -446,7 +524,7 @@
 				<h3 class="section-header">Relations</h3>
 				<div class="element-list">
 					{#each relations as rel}
-						<div class="element-card relation-card">
+						<div class="element-card relation-card" class:ai-suggested={rel.properties?.aiSuggested === true} title={rel.properties?.aiReasoning || ''}>
 							<div class="el-main">
 								<span class="designation-dot" style="background: {designationColor(rel.designation)}"></span>
 								<span class="rel-source">
@@ -538,7 +616,7 @@
 				<h3 class="section-header">Silences</h3>
 				<div class="element-list">
 					{#each silences as s}
-						<div class="element-card silence-card">
+						<div class="element-card silence-card" class:ai-suggested={s.properties?.aiSuggested === true} title={s.properties?.aiReasoning || ''}>
 							<span class="el-inscription">{s.inscription}</span>
 						</div>
 					{/each}
@@ -833,5 +911,40 @@
 	.he-date { color: #4b5563; margin-left: auto; font-size: 0.7rem; }
 	.designation-dot-sm {
 		width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+	}
+
+	/* AI controls */
+	.ai-controls {
+		display: flex; align-items: center; gap: 0.4rem; margin-left: 0.75rem;
+	}
+
+	.btn-ai-toggle {
+		background: #1e2030; border: 1px solid #2a2d3a; border-radius: 4px;
+		color: #6b7280; font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.5rem;
+		cursor: pointer; letter-spacing: 0.04em; transition: all 0.15s ease;
+	}
+	.btn-ai-toggle.ai-active {
+		background: rgba(139, 156, 247, 0.15); border-color: #8b9cf7; color: #8b9cf7;
+	}
+	.btn-ai-toggle:hover { border-color: #8b9cf7; }
+
+	.btn-ask-ai {
+		border-color: #8b9cf7; color: #8b9cf7;
+	}
+	.btn-ask-ai:disabled { opacity: 0.4; cursor: not-allowed; }
+
+	/* AI notification toast */
+	.ai-notification {
+		position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 100;
+		background: #1e2030; border: 1px solid #8b9cf7; border-radius: 6px;
+		padding: 0.5rem 1rem; font-size: 0.8rem; color: #c9cdd5;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+	}
+
+	/* AI-suggested elements */
+	.ai-suggested {
+		border-style: dashed !important;
+		border-color: rgba(139, 156, 247, 0.5) !important;
+		background: rgba(139, 156, 247, 0.04) !important;
 	}
 </style>
