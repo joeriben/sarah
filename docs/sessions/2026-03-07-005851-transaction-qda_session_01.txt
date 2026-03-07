@@ -1,0 +1,584 @@
+
+╭─── Claude Code v2.1.70 ──────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting        │
+│               Welcome back Benjamin!               │ started                 │
+│                                                    │ Run /init to create a … │
+│                       ▐▛███▜▌                      │ ─────────────────────── │
+│                      ▝▜█████▛▘                     │ Recent activity         │
+│                        ▘▘ ▝▝                       │ 1mo ago  Überprüfe: ❯ … │
+│                                                    │ /resume for more        │
+│      Opus 4.6 · Claude Max ·                       │                         │
+│      benjamin.joerissen@fau.de's Organization      │                         │
+│                 ~/ai/transact-qda                  │                         │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+✻ Conversation compacted (ctrl+o for history)
+
+
+❯ /compact 
+  ⎿  Compacted (ctrl+o to see full summary)
+  ⎿  Read src/routes/projects/[projectId]/memos/+page.svelte (88 lines)
+  ⎿  Read svelte.config.js (11 lines)
+  ⎿  Read src/routes/projects/[projectId]/+layout.svelte (90 lines)
+  ⎿  Read src/routes/projects/[projectId]/maps/+page.server.ts (8 lines)
+  ⎿  Read src/routes/projects/[projectId]/documents/+page.svelte (139 lines)
+  ⎿  Plan file referenced (~/.claude/plans/snazzy-dancing-journal.md)
+
+❯ commit to https://github.com/joeriben/transact-qda 
+
+❯ Tool loaded. 
+
+● Bash(git remote add origin https://github.com/joeriben/transact-qda.git && git
+       branch -M main && git push -u origin main)
+  ⎿  Error: Exit code 3
+     error: remote origin already exists.
+
+     error: remote origin already exists.
+
+● Remote already exists. Let me check and update it.
+
+● Bash(git remote -v)
+  ⎿  origin     https://github.com/joeriben/transact-qda.git (fetch)
+     origin     https://github.com/joeriben/transact-qda.git (push)
+
+● Remote is already set correctly. Let me push.
+
+● Bash(git push -u origin main)
+  ⎿  Error: Exit code 1
+     To https://github.com/joeriben/transact-qda.git
+      ! [rejected]        main -> main (non-fast-forward)
+     error: failed to push some refs to 
+     'https://github.com/joeriben/transact-qda.git'
+     hint: Updates were rejected because a pushed branch tip is behind its 
+     remote
+     hint: counterpart. If you want to integrate the remote changes, use 'git 
+     pull'
+     hint: before pushing again.
+     hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+
+     To https://github.com/joeriben/transact-qda.git
+     … +6 lines (ctrl+o to see all)
+
+● Local branch is behind the remote. Let me check what's diverged.
+
+● Bash(git fetch origin && git log --oneline main..origin/main)
+  ⎿  e787360 Initial commit
+
+● Bash(git log --oneline origin/main..main)
+  ⎿  36f5ac9 Add session export to docs/sessions
+     0b56997 Refactor to transactional ontology: namings, participations, a
+     ppearances
+     d2a8fa1 Initial scaffold: transact-qda
+
+● The remote has an "Initial commit" (likely a GitHub-generated one with
+  README/LICENSE), while local has 3 commits with all the actual work.
+
+  Should I force push to replace the remote's initial commit with our full
+  history? This will overwrite that single remote commit (e787360 Initial 
+  commit).
+
+❯ yes 
+
+● Bash(git push --force origin main)
+  ⎿  To https://github.com/joeriben/transact-qda.git
+      + e787360...36f5ac9 main -> main (forced update)
+
+● Pushed successfully. All 3 commits are now on
+  https://github.com/joeriben/transact-qda.
+
+❯ /model 
+  ⎿  Kept model as Default (Opus 4.6 · Most capable for complex work)
+
+❯ Ok. Wir haben nun eine adäquate Grundlage. Wir bleiben auf der Ebene von  
+  Daten-Objekten und belasten und noch nicht mit Visualisierungsfragen.     
+  Ziel der Theoriebildung in einer relationalen Empirie ist weniger die     
+  Rekonstruktion von Sinn-Prozessen humaner Akteure. Es gibt sicherlich     
+  verschiedene Beschreibungen für das worum es geht, je nach gewähltem      
+  paradigmatischen Bezugsrahmen (dafür sollten wir offen bleiben).          
+  Bentley/Dewey zumindest im Ansatz; Barad; Haraway; Harrison C. White; ... 
+
+● Understood. The data model we have (namings, participations, appearances) is
+  already well-suited for this — it doesn't privilege human actors or
+  meaning-reconstruction. The ontology is flat: a naming can be a discourse, a
+  technology, a policy, a material arrangement — the distinction only emerges
+  perspectivally through appearances.
+
+  The theoretical openness you describe maps well onto the architecture:
+  - Dewey/Bentley: namings as trans-actions, not inter-actions between pre-given
+   entities
+  - Barad: intra-action — participations as mutual constitution, not external
+  relation
+  - Haraway: situated perspectives — appearances are always from somewhere
+  - White: network domains, identities emerging from relational positions —
+  participations + perspectival collapse
+
+  The 3-table model doesn't commit to any single framework. The mode field in
+  appearances (entity, relation, constellation, process, silence, perspective)
+  is where paradigmatic choices become operational — and it's extensible.
+
+  What's the next concrete step you'd like to take on the data object level?
+
+❯ ... Whitehead/Stengers, OOO, ggf. Postphänomenologie, ... -- Ich selbst   
+  bin in der rekonstruktiven qualitativen Forschungsidee verankert; daher   
+  bildet Rekonstruktion für mich ein Zentrum - ohne dass ich von einem      
+  ontologisch vorgängigen "Was" der Rekonstruktion ausgehe, aber auch ein   
+  Latentraum (Oevermann) lässt sich ja als perspektivische appearance       
+  lesen. Ich stelle mir hier in zwei Richtungen Fragen: 1) Was sind Ziele   
+  rekonstruktiv-qualitativer Forschung? Gegenstandsbasierte Theoriebildung, 
+   die transformierte Perspektiven ermöglichen, wobei das Transformative    
+  sich aus der Annahme des Wandels von "Selbst-Welt-Verhältnissen"          
+  (interaktionale metapher), aber auch von Weltverähltnissen per se, und    
+  Formen in denen Subjekte auftreten, bezieht.                              
+  ⎿  Interrupted · What should Claude do instead?
+
+❯ In einer stark-relationstheoretischen Perspektive steht dabei notwendig   
+  die Frage des Werdens, oder allgemeiner stehen Strukturen der             
+  Prozessualität deutlich im Zentrum. Das haben wir (halb-) empirischen in  
+  einem Artikel versucht: " Sustainability and Cultural Resilience:         
+  Processes and Dynamics of Relational Becoming in Distributed Agencies     
+                                                                            
+              Analyzing Ligurian micro-agriculture, the article             
+  conceptualizes cultural resilience via relational entanglements of soil,  
+  knowledge, economy, and place. Employing neo-materialist approaches, it   
+  shows how sympoietic networks disrupt nature–culture divides, producing   
+  resilience through distributed agency rather than individual adaptation.  
+  Cultural resilience thus emerges as collective, sustainable               
+  post-anthropic becoming." 2) Zweite Fragerichtung: helfen uns die Namings 
+   von Bently-Dewey, Formen zu identifizieren für das Prozessieren unserer  
+  Objekte (oder ist das doch zu eng oder paradigmatisch zu alt). Da muss    
+  ich selbst noch einmal in ihren Versuch Namings zu listen hineinschauen,  
+  aber die Frage kann man schon festhalten.                                 
+
+● Sehr guter Punkt. Ich halte die beiden Fragerichtungen fest:
+
+  1) Prozessualität als Kernstruktur: Das relationale Werden — nicht Zustände,
+  sondern Transformationsdynamiken — muss sich im Datenmodell abbilden lassen.
+  Unser seq-Feld in namings ist bereits ein Ansatz (jedes Naming IS ein Ereignis
+   mit Zeitindex), aber die Frage ist, ob wir Prozessualität expliziter
+  modellieren: Wie werden Sequenzen, Übergänge, Emergenz-Muster (wie in eurem
+  Ligurien-Artikel: sympoietische Netzwerke, verteilte Agentialität) als solche
+  greifbar — nicht nur als nachträgliche Interpretation, sondern als
+  Daten-Objekte?
+
+  Der mode: 'process' in appearances ist ein Platzhalter dafür, aber noch nicht
+  ausgearbeitet.
+
+  2) Dewey/Bentleys Naming-Taxonomie als Prozessierungsformen: In Knowing and 
+  the Known unterscheiden sie bekanntlich:
+  - Cue (Signal/Hinweis)
+  - Characterization (vorläufige Bestimmung)
+  - Specification (präzise trans-aktionale Bestimmung)
+  - Definition (formale Fixierung)
+  - Description, Designation, Symbol...
+
+  Die Frage ist: Liefert diese Taxonomie brauchbare operationale Kategorien für
+  das, was man mit Namings im Forschungsprozess tut? Oder ist sie zu eng an ein
+  szientifisches Ideal gebunden und verfehlt gerade das Rekonstruktive — den
+  Latentraum, das Noch-nicht-Bestimmte, die Emergenz?
+
+  Das ist eine produktive Spannung: Dewey/Bentley systematisieren Naming-Formen,
+   aber aus einer pragmatistischen Wissenschaftstheorie heraus. Die
+  rekonstruktive Tradition (Oevermann, aber auch Bohnsack, Nohl) operiert mit
+  einer anderen Logik — Abduktion, Sequenzialität, Fallstruktur. Die Frage wäre,
+   ob sich beide Perspektiven in unserem Modell als verschiedene Perspektiven
+  (im technischen Sinn: verschiedene appearances desselben Namings) abbilden
+  lassen, statt sich für eine zu entscheiden.
+
+  Möchtest du zunächst in die Dewey/Bentley-Liste hineinschauen, oder sollen wir
+   erst die Prozessualitäts-Frage auf Datenmodell-Ebene konkreter machen?
+
+❯ D/W; das gibt uns ggf. Auskunft über die Prozessualität. Ich will aber zu 
+   letzterem vorwegnehmen: im Gegensatz zu den genannten rekonsturktiven    
+  Ansätzen (denke ich) sehe ich in Prozessperspektiven eine Symmetrie von   
+  dem, was aus Sicht europäischer Ontologien als asymmetrische Differenz    
+  von Existentem vs. nicht-Existentem erscheint. Besonders anregend finde   
+  ich z.B. bei Barad die optische Metapher der Wellenüberlagerung, und      
+  zwar: der x-Wert "0" bei einer solchen Überlagerung, also nichts, keine   
+  Information (im Vergleich zur Basislinie) ist durchaus vielfältig,        
+  nämlich konkreter Effekt nicht sichtbarer Überlagerungesdynamiken. D.h.   
+  empirisch interessiert mich auch als Frage der Sozialforschung die Frage  
+  des Nicht-Anwesenden, als konkret rekonstruierbares, mindestens so wie    
+  die des Sichtbaren/Anwesenden. Z.B: in der Videographie oder der          
+  Biographieanalyse geht es ausschließlich um Präsenzen. Oevermann hat ja   
+  einen deutlichen Sinn für den methodisch-heuristischen Wert des           
+  Nicht-faktischen. Ich denke das aber nicht heuristisch, sondern           
+  onto-epistemologisch. Prozessualität in diesem Sinne ist also nicht nur   
+  Werden und Entstehen von Anwesendem, sondern es sind Dynamiken in Gefügen 
+   von Beobachtungsmöglichkeiten und -weisen im SPannungsfeld des           
+  "Nichtsexistenten" vs. Sichtbaren. (Kann man naütrlich mit Spivak, mit    
+  Rancière und vielen anderen auch mit kritischem Leben füllen; ist aber    
+  zunächst eher formal gedacht).                                            
+
+● Das ist ein entscheidender Punkt, und er ist im Datenmodell bereits angelegt —
+   der mode: 'silence' in appearances ist genau dafür da: das konkret
+  Nicht-Anwesende als positiven Befund zu registrieren, nicht als Leerstelle.
+  Aber deine Überlegung geht weiter.
+
+  Wenn ich das richtig verstehe: Die destruktive Interferenz (Barad) — der
+  Nullpunkt als Effekt konkreter Überlagerungsdynamiken — bedeutet, dass
+  Abwesenheit nicht einfach "nichts" ist, sondern ein bestimmtes Nichts, das aus
+   der spezifischen Konfiguration des Gefüges resultiert. Empirisch
+  rekonstruierbar, weil es Spuren hinterlässt — nicht als Präsenz, sondern als
+  Muster der Nicht-Präsenz.
+
+  Das hat Konsequenzen für das Datenmodell: Ein silence-appearance müsste eigene
+   Partizipationen haben können — es ist ja nicht einfach die Abwesenheit von X,
+   sondern die Abwesenheit von X aufgrund bestimmter Überlagerungen. Das Gefüge,
+   das die Auslöschung produziert, ist selbst beschreibbar.
+
+  Unser Modell kann das bereits: Ein silence-Naming kann Partizipationen mit den
+   Namings haben, deren Überlagerung es produziert. Die Perspektive, aus der
+  etwas als silence erscheint, ist selbst ein Naming. So wird die "konkrete
+  Rekonstruierbarkeit" des Nicht-Anwesenden modellierbar.
+
+  Aber schauen wir jetzt in Dewey/Bentley. Hast du Knowing and the Known als
+  Datei vorliegen, oder soll ich aus dem arbeiten, was ich kenne?
+
+❯ "Empirisch                                                                
+    rekonstruierbar, weil es Spuren hinterlässt — nicht als Präsenz,        
+  sondern als Muster der Nicht-Präsenz." -> SEHR genau erkannt. D/B habe    
+  ich vorliegen, es ist frei verfügbar, z.B: hier als txt:                  
+  https://dn710700.ca.archive.org/0/items/in.ernet.dli.2015.188277/2015.188 
+  277.Knowing-And-The-Known_djvu.txt                                        
+
+❯ Tool loaded. 
+
+● Fetch(https://dn710700.ca.archive.org/0/items/in.ernet.dli.2015.188277/2015.18
+       8277.Knowing-And-The-Known_djvu.txt)
+  ⎿  Error: Request failed with status code 401
+
+● Bash(curl -s -L -o /tmp/knowing_and_known.txt
+      "https://dn710700.ca.archive.org/0/items/in.ernet.dli.2015.188277/2015.188
+      277.Knowing-And-The-Known_djvu.txt" && wc -l…)
+  ⎿  7 /tmp/knowing_and_known.txt
+     <html>
+     <head><title>401 Authorization Required</title></head>
+     … +5 lines (ctrl+o to expand)
+
+● That URL requires auth. Let me try the main archive.org page for this text.
+
+● Bash(curl -s -L -o /tmp/knowing_and_known.txt "https://archive.org/download/in
+      .ernet.dli.2015.188277/2015.188277.Knowing-And-The-Known_djvu.txt" && wc
+      -c /tmp/knowin…)
+  ⎿  Interrupted · What should Claude do instead?
+
+❯ '/home/joerissen/Documents/2015.188277.Knowing-And-The-Known_djvu.txt' 
+
+❯ Tool loaded. 
+
+● Read 1 file (ctrl+o to expand)
+
+● Let me find the key chapters on naming taxonomy and the table of contents.
+
+❯ Tool loaded. 
+
+● Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Key chapters: V "Transactions as Known and Named", VI "Specification", VII
+  "The Case of Definition", XI "A Trial Group of Names". Let me read those.
+
+● Read 1 file (ctrl+o to expand)
+
+● Now let me also read Chapter V ("Transactions as Known and Named") for the
+  systematic framework.
+
+● Read 1 file (ctrl+o to expand)
+
+● Now I have a thorough picture. Let me synthesize the key taxonomy.
+
+  Here's what Dewey/Bentley systematize in Knowing and the Known:
+
+  The Three Levels of Observation/Presentation
+
+  ┌──────────────┬─────────────────────────────────┬────────────────────────┐
+  │    Level     │           Description           │   Ontological Status   │
+  ├──────────────┼─────────────────────────────────┼────────────────────────┤
+  │              │ Things act under their own      │                        │
+  │ Self-Action  │ powers (soul, vital principle,  │ archaic, rejected      │
+  │              │ faculties)                      │                        │
+  ├──────────────┼─────────────────────────────────┼────────────────────────┤
+  │              │ Pre-given entities act upon     │ classical mechanics    │
+  │ Inter-Action │ each other; described prior to  │ model; legitimate      │
+  │              │ inquiry into connections        │ within limited scope   │
+  ├──────────────┼─────────────────────────────────┼────────────────────────┤
+  │              │ No constituent specifiable      │                        │
+  │ Trans-Action │ apart from specification of     │ the target level       │
+  │              │ others; knowing-known as one    │                        │
+  │              │ process                         │                        │
+  └──────────────┴─────────────────────────────────┴────────────────────────┘
+
+  The Three Stages of Sign (evolutionary/functional)
+
+  ┌──────────────────┬─────────────────────────┬────────────────────────────┐
+  │      Stage       │          Level          │         Character          │
+  ├──────────────────┼─────────────────────────┼────────────────────────────┤
+  │                  │                         │ pre-linguistic;            │
+  │ Signal           │ perception-manipulation │ organism-environment       │
+  │                  │                         │ orientation                │
+  ├──────────────────┼─────────────────────────┼────────────────────────────┤
+  │ Name/Designation │ central range           │ knowing through naming;    │
+  │                  │                         │ the main subject           │
+  ├──────────────────┼─────────────────────────┼────────────────────────────┤
+  │                  │ mathematics, formal     │ post-naming; loses         │
+  │ Symbol           │ logic                   │ specific reference, gains  │
+  │                  │                         │ exactness                  │
+  └──────────────────┴─────────────────────────┴────────────────────────────┘
+
+  The Three Stages of Designation (Naming)
+
+  This is the core taxonomy for our purposes:
+
+  ┌──────────────────┬──────────────────────────────────────┬───────────────┐
+  │      Stage       │              Character               │    Quality    │
+  ├──────────────────┼──────────────────────────────────────┼───────────────┤
+  │                  │ earliest, most primitive             │               │
+  │ Cue              │ designation; signal-like hints       │ vague         │
+  │                  │ beginning to name                    │               │
+  ├──────────────────┼──────────────────────────────────────┼───────────────┤
+  │                  │ intermediate; everyday language;     │ loose but     │
+  │ Characterization │ "reasonably adequate for commoner    │ functional    │
+  │                  │ practical purposes"                  │               │
+  ├──────────────────┼──────────────────────────────────────┼───────────────┤
+  │                  │ most highly perfected naming; modern │ accurate (not │
+  │ Specification    │  science; ever-increasing accuracy,  │  exact)       │
+  │                  │ never final                          │               │
+  └──────────────────┴──────────────────────────────────────┴───────────────┘
+
+  Plus two boundary cases:
+  - Definition: demoted — too confused for terminological use; could belong to
+  symbolization rather than designation
+  - Symbolization: beyond naming; formal/mathematical; "exact" rather than
+  "accurate"; loses specific reference
+
+  The Named Side (correlative to Designation)
+
+  ┌───────────┬───────────────────────────────────────────┐
+  │   Named   │                Specificity                │
+  ├───────────┼───────────────────────────────────────────┤
+  │ Situation │ most general, least specified             │
+  ├───────────┼───────────────────────────────────────────┤
+  │ Event     │ intermediate; durational transition       │
+  ├───────────┼───────────────────────────────────────────┤
+  │ Object    │ firmest specification; outcome of inquiry │
+  └───────────┴───────────────────────────────────────────┘
+
+  Key for Our Project
+
+  The productive question you raised — whether D/B's naming forms help us
+  identify Prozessierungsformen for our data objects — I think the answer is:
+  partially yes, but with a crucial extension.
+
+  What D/B give us is a processual gradient of determination: Cue →
+  Characterization → Specification. This maps well onto a research process:
+  something first appears as a vague signal (cue), gets provisionally named
+  (characterization), and is progressively specified through inquiry. Every
+  naming in our system could carry a marker of where it sits on this gradient.
+
+  But — and this connects to your point about destructive interference — D/B's
+  gradient is monotonically toward more determination. It doesn't account for
+  the reverse movement: the deliberate de-specification, the moment when
+  something well-determined dissolves back into superposition, or when a silence
+   is registered. The Barad-point: that the zero of interference is itself a
+  positive finding.
+
+  So I'd propose: D/B's Cue → Characterization → Specification gives us one axis
+   of processuality. But we need a second axis that D/B don't provide —
+  something like resolution/dissolution or collapse/superposition — to capture
+  the symmetry you described between presence and absence, between the visible
+  and the concretely-not-there.
+
+  Shall we sketch how this maps onto the data model concretely? For instance,
+  should appearances carry a field indicating their designational stage
+  (cue/characterization/specification)?
+
+✻ Cooked for 60s
+
+❯ Chapter XI 
+
+● I've already read Chapter XI in full (lines 14648–15656). Here's the complete
+  systematic structure from "A Trial Group of Names," organized by function
+  rather than alphabetically as D/B present it:
+
+  Postulatory Core (the framework itself)
+
+  ┌─────────────┬────────────────────────────────────────────────────────────┐
+  │    Name     │                       D/B Definition                       │
+  ├─────────────┼────────────────────────────────────────────────────────────┤
+  │             │ "The cosmos in course of being known through naming by     │
+  │ Fact        │ organisms, themselves among its phases." Knowings-knowns,  │
+  │             │ durationally and extensionally spread.                     │
+  ├─────────────┼────────────────────────────────────────────────────────────┤
+  │             │ "The knowing-naming phase of fact." Always transactionally │
+  │ Designation │  behavioral. Extends over three levels: cue,               │
+  │             │ characterization, specification.                           │
+  ├─────────────┼────────────────────────────────────────────────────────────┤
+  │             │ "The known-named phase of fact, transactionally            │
+  │ Existence   │ inspected." Established through designation under          │
+  │             │ ever-increasing accuracy.                                  │
+  ├─────────────┼────────────────────────────────────────────────────────────┤
+  │ Transaction │ "The knowing-known taken as one process."                  │
+  └─────────────┴────────────────────────────────────────────────────────────┘
+
+  The Designation Gradient (three levels of naming)
+
+  ┌──────────────────┬───────────────────────────────────────────────────────┐
+  │      Level       │                          D/B                          │
+  ├──────────────────┼───────────────────────────────────────────────────────┤
+  │ Cue              │ "The earliest stage of designation in the             │
+  │                  │ evolutionary scale."                                  │
+  ├──────────────────┼───────────────────────────────────────────────────────┤
+  │                  │ "The intermediate stage of designation... includes    │
+  │ Characterization │ the greater part of everyday use of words; reasonably │
+  │                  │  adequate for the commoner practical purposes."       │
+  ├──────────────────┼───────────────────────────────────────────────────────┤
+  │                  │ "The most highly perfected naming behavior. Best      │
+  │ Specification    │ exhibited in modern science." Requires "accurate"     │
+  │                  │ (not "exact").                                        │
+  └──────────────────┴───────────────────────────────────────────────────────┘
+
+  The Named Gradient (correlative)
+
+  ┌───────────┬──────────────────────────────────────────────────────────────┐
+  │   Level   │                             D/B                              │
+  ├───────────┼──────────────────────────────────────────────────────────────┤
+  │ Situation │ "The more general, and less clearly specified, range of the  │
+  │           │ named phase of fact."                                        │
+  ├───────────┼──────────────────────────────────────────────────────────────┤
+  │           │ "Better specified than situation, but less well specified    │
+  │ Event     │ than object. Most commonly employed with respect to          │
+  │           │ durational transition."                                      │
+  ├───────────┼──────────────────────────────────────────────────────────────┤
+  │ Object    │ "That which acquires firmest specification." Emerges as      │
+  │           │ "definite constituent of a resolved situation."              │
+  └───────────┴──────────────────────────────────────────────────────────────┘
+
+  Beyond Designation
+
+  ┌────────┬─────────────────────────────────────────────────────────────────┐
+  │  Name  │                               D/B                               │
+  ├────────┼─────────────────────────────────────────────────────────────────┤
+  │ Signal │ "The perceptive-manipulative level and stage of sign." Border   │
+  │        │ to naming "still imperfectly explored."                         │
+  ├────────┼─────────────────────────────────────────────────────────────────┤
+  │ Symbol │ "A non-naming component of symboling behavior." Advance beyond  │
+  │        │ naming; disappearance of specific reference.                    │
+  ├────────┼─────────────────────────────────────────────────────────────────┤
+  │ Exact  │ Quality of symbolic procedure (vs. "accurate" for               │
+  │        │ specification).                                                 │
+  └────────┴─────────────────────────────────────────────────────────────────┘
+
+  The Three Observation Modes
+
+  ┌──────────────┬───────────────────────────────────────────────────────────┐
+  │     Mode     │                            D/B                            │
+  ├──────────────┼───────────────────────────────────────────────────────────┤
+  │              │ "Various primitive treatments of the known, prior to      │
+  │ Self-Action  │ interactional and transactional." Rarely found today      │
+  │              │ except in philosophy, logic, epistemology.                │
+  ├──────────────┼───────────────────────────────────────────────────────────┤
+  │              │ Objects enter "as if adequately named and known prior to  │
+  │ Inter-Action │ the start of inquiry." Legitimate within limits; abusive  │
+  │              │ when dogmatized.                                          │
+  ├──────────────┼───────────────────────────────────────────────────────────┤
+  │              │ "Inquiry which ranges under primary observation across    │
+  │ Trans-Action │ all subjectmatters... and proceeds with freedom toward    │
+  │              │ the re-determination and re-naming of the objects         │
+  │              │ comprised in the system."                                 │
+  └──────────────┴───────────────────────────────────────────────────────────┘
+
+  Structural/Relational Terms
+
+  ┌────────────┬─────────────────────────────────────────────────────────────┐
+  │    Name    │                             D/B                             │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │            │ "The components of a full transactional situation, being    │
+  │ Aspect     │ not independents, are aspects." Etymologically: "to look    │
+  │            │ out."                                                       │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │ Phase      │ "Aspect of fact in sufficiently developed statement to      │
+  │            │ exhibit definite spatial and temporal localizations."       │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │ Connection │ "To apply between objects under naming."                    │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │ Reference  │ "Behavioral application of naming to named."                │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │ Relation   │ "System among words, in correlation with reference and      │
+  │            │ connection."                                                │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │            │ Should have important behavioral application, but "definite │
+  │ Field      │  correspondence needed for behavioral application can not   │
+  │            │ be established."                                            │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │            │ Usable "where transactional inquiry is under way."          │
+  │ System     │ Distinguished from Organization which "would represent      │
+  │            │ interaction."                                               │
+  └────────────┴─────────────────────────────────────────────────────────────┘
+
+  Terms Rejected or Demoted
+
+  ┌───────────────┬──────────────────────────────────────────────────────────┐
+  │     Name      │                           Why                            │
+  ├───────────────┼──────────────────────────────────────────────────────────┤
+  │ Entity        │ "Assumed or implied... independence... a tricky word...  │
+  │               │ should be rejected in all serious inquiry."              │
+  ├───────────────┼──────────────────────────────────────────────────────────┤
+  │ Substance     │ "No word of this type has place."                        │
+  ├───────────────┼──────────────────────────────────────────────────────────┤
+  │ Definition    │ Demoted — "so confused as to rate no higher than a crude │
+  │               │  characterization."                                      │
+  ├───────────────┼──────────────────────────────────────────────────────────┤
+  │ Meaning       │ "A word so confused that it is best never used at all."  │
+  ├───────────────┼──────────────────────────────────────────────────────────┤
+  │ Consciousness │ "No value whatever in it."                               │
+  ├───────────────┼──────────────────────────────────────────────────────────┤
+  │ Mental        │ "Not used by us." Hypostatization from imperfect view of │
+  │               │  behavior.                                               │
+  ├───────────────┼──────────────────────────────────────────────────────────┤
+  │ Reality       │ "The most metaphysical of all words in the most          │
+  │               │ obnoxious sense."                                        │
+  ├───────────────┼──────────────────────────────────────────────────────────┤
+  │ Individual    │ "Abandonment... seems essential wherever a positive      │
+  │               │ general theory is undertaken."                           │
+  ├───────────────┼──────────────────────────────────────────────────────────┤
+  │ Actor         │ "Confused and confusing... should always be taken as     │
+  │               │ Trans-actor."                                            │
+  └───────────────┴──────────────────────────────────────────────────────────┘
+
+  Other Notable Entries
+
+  - Behavior: "Always transactionally: never as of the organism alone... but
+  always of the organic-environmental situation, with organisms and
+  environmental objects taken as equally its aspects."
+  - Circularity: "Regarded as a radical defect by non-transactional
+  epistemologies... Normal for inquiry into knowings and knowns in system."
+  - Context: "Where it obscures the issues of naming and the named... more apt
+  to do harm than good."
+  - Description: "Cues organizing characterizations; characterizations
+  developing into specifications... A name is, in effect, a truncated
+  description."
+  - Observation: "Durationally and extensionally transactional, and thus neither
+   separately in terms of the observing, nor separately of the observed."
+  - Inquiry: "A strictly transactional name. Equivalent of knowing."
+  - Thing: "Most generally used for anything named. Its very generality gives it
+   frequent advantage over Entity and Substance."
+
+  ---
+  What strikes me reading this systematically: D/B's vocabulary is almost
+  entirely oriented toward the positive determination of the named — the
+  gradient from vague to firm. There is no entry for silence, absence,
+  withdrawal, or non-appearance. The closest is their insistence on openness and
+   tentativeness — that specification never reaches finality — but that's
+  epistemological modesty, not an ontological account of productive absence.
+
+  Their Aspect and Phase are interesting for your purposes though: aspects are
+  "not independents" (components of a transactional situation), and phases are
+  aspects with "definite spatial and temporal localizations." This maps directly
+   onto our appearances model — an appearance IS a phase in D/B's sense.
+
+  And their distinction between System (transactional) vs. Organization
+  (interactional) could be productive for differentiating map types or
+  analytical perspectives.
+
+  What do you want to draw from this for the data model?
+
+✻ Cogitated for 49s
