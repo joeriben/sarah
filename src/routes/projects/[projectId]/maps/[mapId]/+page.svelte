@@ -20,14 +20,19 @@
 	let showPhaseForm = $state(false);
 	let assigningToPhase = $state<string | null>(null);
 
-	// Inline rename
+	// Inline rename: first step captures new value, then opens naming act prompt
 	let editingId = $state<string | null>(null);
 	let editingValue = $state('');
 
-	// Designation change with memo prompt
-	let designatingId = $state<string | null>(null);
-	let designatingTo = $state('');
-	let designationMemo = $state('');
+	// Naming act prompt: shown after rename or designation change
+	// This is the transparency mechanism — every act of designation power
+	// becomes a memo-naming linked to its co-actors.
+	let actTarget = $state<string | null>(null);      // the naming being acted upon
+	let actType = $state<'rename' | 'designate'>('rename');
+	let actNewValue = $state('');                       // new inscription or designation
+	let actMemo = $state('');                           // why / what influenced this
+	let actLinkedIds = $state<string[]>([]);            // co-actors: other namings that influenced
+	let showActLinks = $state(false);                   // expand co-actor selection
 
 	// History panel
 	let historyId = $state<string | null>(null);
@@ -120,26 +125,12 @@
 	}
 
 	function startDesignation(namingId: string, designation: string) {
-		designatingId = namingId;
-		designatingTo = designation;
-		designationMemo = '';
-	}
-
-	async function submitDesignation() {
-		if (!designatingId) return;
-		await mapAction('designate', {
-			namingId: designatingId,
-			designation: designatingTo,
-			memoText: designationMemo.trim() || undefined
-		});
-		designatingId = null;
-		designationMemo = '';
-		await reload();
-	}
-
-	function cancelDesignation() {
-		designatingId = null;
-		designationMemo = '';
+		actTarget = namingId;
+		actType = 'designate';
+		actNewValue = designation;
+		actMemo = '';
+		actLinkedIds = [];
+		showActLinks = false;
 	}
 
 	function startRename(namingId: string, currentInscription: string) {
@@ -147,12 +138,65 @@
 		editingValue = currentInscription;
 	}
 
-	async function submitRename() {
+	function confirmRename() {
 		if (!editingId || !editingValue.trim()) return;
-		await mapAction('rename', { namingId: editingId, inscription: editingValue.trim() });
+		// Close inline edit, open naming act prompt
+		actTarget = editingId;
+		actType = 'rename';
+		actNewValue = editingValue.trim();
+		actMemo = '';
+		actLinkedIds = [];
+		showActLinks = false;
 		editingId = null;
 		editingValue = '';
+	}
+
+	async function submitAct() {
+		if (!actTarget) return;
+		if (actType === 'rename') {
+			await mapAction('rename', {
+				namingId: actTarget,
+				inscription: actNewValue,
+				memoText: actMemo.trim() || undefined,
+				linkedNamingIds: actLinkedIds.length > 0 ? actLinkedIds : undefined
+			});
+		} else {
+			await mapAction('designate', {
+				namingId: actTarget,
+				designation: actNewValue,
+				memoText: actMemo.trim() || undefined,
+				linkedNamingIds: actLinkedIds.length > 0 ? actLinkedIds : undefined
+			});
+		}
+		cancelAct();
 		await reload();
+	}
+
+	async function skipAct() {
+		// Execute without memo
+		if (!actTarget) return;
+		if (actType === 'rename') {
+			await mapAction('rename', { namingId: actTarget, inscription: actNewValue });
+		} else {
+			await mapAction('designate', { namingId: actTarget, designation: actNewValue });
+		}
+		cancelAct();
+		await reload();
+	}
+
+	function cancelAct() {
+		actTarget = null;
+		actMemo = '';
+		actLinkedIds = [];
+		showActLinks = false;
+	}
+
+	function toggleActLink(namingId: string) {
+		if (actLinkedIds.includes(namingId)) {
+			actLinkedIds = actLinkedIds.filter(id => id !== namingId);
+		} else {
+			actLinkedIds = [...actLinkedIds, namingId];
+		}
 	}
 
 	async function showHistory(namingId: string) {
@@ -272,7 +316,7 @@
 								<span class="designation-dot" style="background: {designationColor(el.designation)}"
 									title={designationLabel(el.designation)}></span>
 								{#if editingId === el.naming_id}
-									<form class="inline-rename" onsubmit={e => { e.preventDefault(); submitRename(); }}>
+									<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmRename(); }}>
 										<input type="text" bind:value={editingValue} />
 										<button type="submit" class="btn-xs">ok</button>
 										<button type="button" class="btn-xs" onclick={() => editingId = null}>×</button>
@@ -345,23 +389,54 @@
 				</div>
 			{/if}
 
-			<!-- Designation memo prompt -->
-			{#if designatingId}
-				{@const elName = [...elements, ...relations].find((e: any) => e.naming_id === designatingId)?.inscription || '?'}
-				<div class="designation-prompt">
-					<div class="dp-header">
-						<strong>{elName}</strong> → <span style="color: {designationColor(designatingTo)}">{designatingTo}</span>
+			<!-- Naming act prompt: transparency for every act of designation power -->
+			{#if actTarget}
+				{@const targetNaming = [...elements, ...relations].find((e: any) => e.naming_id === actTarget)}
+				{@const allMapNamings = [...elements, ...relations].filter((e: any) => e.naming_id !== actTarget)}
+				<div class="act-prompt">
+					<div class="act-header">
+						{#if actType === 'rename'}
+							Rename: <strong>{targetNaming?.inscription}</strong> → <strong>{actNewValue}</strong>
+						{:else}
+							Designation: <strong>{targetNaming?.inscription}</strong> →
+							<span style="color: {designationColor(actNewValue)}">{actNewValue}</span>
+						{/if}
 					</div>
+
 					<textarea
-						placeholder="Why this change? (optional memo)"
-						bind:value={designationMemo}
+						placeholder="What influenced this act? What changed in your understanding?"
+						bind:value={actMemo}
 						rows="2"
 					></textarea>
-					<div class="dp-actions">
-						<button class="btn-primary btn-sm-primary" onclick={submitDesignation}>
-							{designationMemo.trim() ? 'Change + memo' : 'Change'}
+
+					<div class="act-links-toggle">
+						<button class="btn-xs" onclick={() => showActLinks = !showActLinks}>
+							{showActLinks ? 'hide co-actors' : `link co-actors (${actLinkedIds.length})`}
 						</button>
-						<button class="btn-link" onclick={cancelDesignation}>cancel</button>
+					</div>
+
+					{#if showActLinks}
+						<div class="act-links-list">
+							{#each allMapNamings as n}
+								<label class="act-link-item">
+									<input
+										type="checkbox"
+										checked={actLinkedIds.includes(n.naming_id)}
+										onchange={() => toggleActLink(n.naming_id)}
+									/>
+									<span class="designation-dot-sm" style="background: {designationColor(n.designation)}"></span>
+									<span>{n.inscription || '(unnamed relation)'}</span>
+								</label>
+							{/each}
+						</div>
+					{/if}
+
+					<div class="act-actions">
+						<button class="btn-primary btn-sm-primary" onclick={submitAct}>
+							{actMemo.trim() || actLinkedIds.length > 0 ? 'Apply + memo' : 'Apply + memo'}
+						</button>
+						<button class="btn-link" onclick={skipAct}>skip memo</button>
+						<button class="btn-link" onclick={cancelAct}>cancel</button>
 					</div>
 				</div>
 			{/if}
@@ -388,7 +463,7 @@
 									{elements.find((e: any) => e.naming_id === (rel.directed_to || rel.directed_from))?.inscription || '?'}
 								</span>
 								{#if editingId === rel.naming_id}
-									<form class="inline-rename" onsubmit={e => { e.preventDefault(); submitRename(); }}>
+									<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmRename(); }}>
 										<input type="text" bind:value={editingValue} />
 										<button type="submit" class="btn-xs">ok</button>
 										<button type="button" class="btn-xs" onclick={() => editingId = null}>×</button>
@@ -509,7 +584,7 @@
 	</div>
 </div>
 
-<svelte:window onkeydown={e => { if (e.key === 'Escape') { cancelRelation(); assigningToPhase = null; } }} />
+<svelte:window onkeydown={e => { if (e.key === 'Escape') { cancelRelation(); cancelAct(); assigningToPhase = null; editingId = null; } }} />
 
 <style>
 	.map-page {
@@ -709,19 +784,33 @@
 		padding: 0.2rem 0.4rem; color: #e1e4e8; font-size: 0.85rem; width: 200px;
 	}
 
-	/* Designation prompt */
-	.designation-prompt {
+	/* Naming act prompt */
+	.act-prompt {
 		background: #161822; border: 1px solid #f59e0b; border-radius: 8px;
 		padding: 0.75rem 1rem; margin: 0.75rem 0;
 	}
-	.dp-header { font-size: 0.85rem; color: #c9cdd5; margin-bottom: 0.4rem; }
-	.designation-prompt textarea {
+	.act-header { font-size: 0.85rem; color: #c9cdd5; margin-bottom: 0.4rem; }
+	.act-prompt textarea {
 		width: 100%; background: #0f1117; border: 1px solid #2a2d3a; border-radius: 5px;
 		padding: 0.4rem 0.5rem; color: #e1e4e8; font-size: 0.85rem; resize: vertical;
 		font-family: inherit;
 	}
-	.designation-prompt textarea:focus { outline: none; border-color: #8b9cf7; }
-	.dp-actions { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
+	.act-prompt textarea:focus { outline: none; border-color: #8b9cf7; }
+	.act-links-toggle { margin-top: 0.35rem; }
+	.act-links-list {
+		display: flex; flex-direction: column; gap: 0.15rem;
+		max-height: 150px; overflow-y: auto;
+		background: #0f1117; border: 1px solid #2a2d3a; border-radius: 5px;
+		padding: 0.4rem; margin-top: 0.25rem;
+	}
+	.act-link-item {
+		display: flex; align-items: center; gap: 0.35rem;
+		font-size: 0.8rem; color: #c9cdd5; cursor: pointer;
+		padding: 0.15rem 0.2rem; border-radius: 3px;
+	}
+	.act-link-item:hover { background: #1e2030; }
+	.act-link-item input[type="checkbox"] { accent-color: #8b9cf7; }
+	.act-actions { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
 
 	/* History panel */
 	.history-panel {

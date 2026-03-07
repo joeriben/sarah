@@ -73,23 +73,41 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		}
 
 		case 'designate': {
-			const { namingId, designation, memoText } = body;
+			const { namingId, designation, memoText, linkedNamingIds } = body;
 			if (!namingId || !designation) return json({ error: 'namingId and designation required' }, { status: 400 });
 			const researcherNamingId = await getOrCreateResearcherNaming(projectId, userId);
 			const result = await designate(namingId, designation, researcherNamingId);
 
-			// If a memo note was provided, create a linked memo
-			if (memoText?.trim()) {
-				await createMemo(projectId, userId, `Designation → ${designation}`, memoText.trim(), [namingId]);
+			// Create memo-naming for this act of designation
+			if (memoText?.trim() || (linkedNamingIds && linkedNamingIds.length > 0)) {
+				const links = [namingId, ...(linkedNamingIds || [])];
+				await createMemo(
+					projectId, userId,
+					`Designation → ${designation}`,
+					memoText?.trim() || '',
+					links
+				);
 			}
 
 			return json(result);
 		}
 
 		case 'rename': {
-			const { namingId, inscription } = body;
+			const { namingId, inscription, memoText, linkedNamingIds } = body;
 			if (!namingId || !inscription?.trim()) return json({ error: 'namingId and inscription required' }, { status: 400 });
 			const result = await renameNaming(namingId, projectId, userId, inscription.trim());
+
+			// Create memo-naming for this act of re-naming
+			if (memoText?.trim() || (linkedNamingIds && linkedNamingIds.length > 0)) {
+				const links = [namingId, ...(linkedNamingIds || [])];
+				await createMemo(
+					projectId, userId,
+					`Rename → ${inscription.trim()}`,
+					memoText?.trim() || '',
+					links
+				);
+			}
+
 			return json(result);
 		}
 
