@@ -23,6 +23,13 @@ WHAT YOU DO:
 - Write analytical memos with questions, tensions, theoretical connections
 - Propose phases (thematic groupings) when patterns emerge
 
+PROVENANCE AWARENESS:
+- Elements with document anchors (marked 📄) are empirically grounded — they come from coded data
+- Elements with memo links (marked 📝) are analytically grounded — the researcher has documented their reasoning
+- Elements with neither (marked ∅) lack grounding — flag these in your memos
+- When you suggest new elements, consider whether they should be connected to existing documents or memos
+- Methodological transparency requires that every naming has a traceable provenance chain
+
 METHODOLOGICAL SENSITIVITY:
 - Situational Analysis foregrounds the situation itself, not individual actors
 - Attend to power dynamics, implicated actors (silenced/absent), and discursive constructions
@@ -50,6 +57,7 @@ export interface MapContext {
 		inscription: string;
 		designation: string;
 		mode: string;
+		provenance: 'empirical' | 'analytical' | 'ungrounded';
 	}>;
 	relations: Array<{
 		id: string;
@@ -59,6 +67,7 @@ export interface MapContext {
 		target: { id: string; inscription: string };
 		valence: string | null;
 		symmetric: boolean;
+		provenance: 'empirical' | 'analytical' | 'ungrounded';
 	}>;
 	silences: Array<{
 		id: string;
@@ -94,7 +103,8 @@ export function buildContextMessage(ctx: MapContext, triggerEvent: TriggerEvent)
 	if (ctx.elements.length > 0) {
 		parts.push('\nELEMENTS:');
 		for (const el of ctx.elements) {
-			parts.push(`  [${el.designation}] "${el.inscription}" (id: ${el.id})`);
+			const prov = el.provenance === 'empirical' ? ' 📄' : el.provenance === 'analytical' ? ' 📝' : ' ∅';
+			parts.push(`  [${el.designation}]${prov} "${el.inscription}" (id: ${el.id})`);
 		}
 	} else {
 		parts.push('\nELEMENTS: (none yet)');
@@ -107,7 +117,8 @@ export function buildContextMessage(ctx: MapContext, triggerEvent: TriggerEvent)
 			const arrow = rel.symmetric ? '↔' : '→';
 			const label = rel.inscription ? `: "${rel.inscription}"` : '';
 			const val = rel.valence ? ` [${rel.valence}]` : '';
-			parts.push(`  [${rel.designation}] "${rel.source.inscription}" ${arrow} "${rel.target.inscription}"${label}${val} (id: ${rel.id})`);
+			const prov = rel.provenance === 'empirical' ? ' 📄' : rel.provenance === 'analytical' ? ' 📝' : ' ∅';
+			parts.push(`  [${rel.designation}]${prov} "${rel.source.inscription}" ${arrow} "${rel.target.inscription}"${label}${val} (id: ${rel.id})`);
 		}
 	}
 

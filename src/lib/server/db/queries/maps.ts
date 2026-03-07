@@ -381,6 +381,20 @@ export async function getMapAppearances(mapId: string, projectId: string) {
 			   ) as designation,
 			   -- Whether this appearance is collapsed (pinned) or showing latest
 			   (a.properties->>'collapseAt') IS NOT NULL as is_collapsed,
+			   -- Provenance: empirical grounding (has document annotations)
+			   EXISTS (
+			     SELECT 1 FROM appearances ann
+			     WHERE ann.directed_from = a.naming_id AND ann.valence = 'codes'
+			   ) as has_document_anchor,
+			   -- Provenance: analytical grounding (linked to a memo)
+			   EXISTS (
+			     SELECT 1 FROM participations mp
+			     JOIN memo_content mc ON mc.naming_id = CASE
+			       WHEN mp.naming_id = a.naming_id THEN mp.participant_id
+			       ELSE mp.naming_id END
+			     JOIN namings mn ON mn.id = mc.naming_id AND mn.deleted_at IS NULL
+			     WHERE mp.naming_id = a.naming_id OR mp.participant_id = a.naming_id
+			   ) as has_memo_link,
 			   p.naming_id as part_source_id,
 			   p.participant_id as part_target_id
 			 FROM appearances a

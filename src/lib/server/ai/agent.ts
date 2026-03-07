@@ -48,7 +48,8 @@ async function buildMapContext(mapId: string, projectId: string): Promise<MapCon
 			inscription: elementMap.get(rel.directed_to) || '?'
 		},
 		valence: rel.valence,
-		symmetric: !rel.directed_from && !rel.directed_to
+		symmetric: !rel.directed_from && !rel.directed_to,
+		provenance: rel.has_document_anchor ? 'empirical' as const : rel.has_memo_link ? 'analytical' as const : 'ungrounded' as const
 	}));
 
 	// Get recent memos (last 5)
@@ -65,7 +66,8 @@ async function buildMapContext(mapId: string, projectId: string): Promise<MapCon
 			id: el.naming_id,
 			inscription: el.inscription,
 			designation: el.designation || 'cue',
-			mode: el.mode
+			mode: el.mode,
+			provenance: el.has_document_anchor ? 'empirical' as const : el.has_memo_link ? 'analytical' as const : 'ungrounded' as const
 		})),
 		relations,
 		silences: structure.silences.map((s: any) => ({

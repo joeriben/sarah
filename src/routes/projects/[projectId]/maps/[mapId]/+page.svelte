@@ -455,6 +455,7 @@
 								{#if el.is_collapsed}<span class="collapsed-indicator" title="Pinned to specific layer">&#x1F4CC;</span>{/if}
 								<span class="designation-dot" style="background: {designationColor(el.designation)}"
 									title={designationLabel(el.designation)}></span>
+								<span class="provenance-indicator" title={el.has_document_anchor ? 'Empirically grounded (document annotation)' : el.has_memo_link ? 'Analytically grounded (memo link)' : 'No grounding yet'}>{el.has_document_anchor ? '📄' : el.has_memo_link ? '📝' : '∅'}</span>
 								{#if editingId === el.naming_id}
 									<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmRename(); }}>
 										<input type="text" bind:value={editingValue} />
@@ -603,6 +604,7 @@
 							<div class="el-main">
 								{#if rel.is_collapsed}<span class="collapsed-indicator" title="Pinned to specific layer">&#x1F4CC;</span>{/if}
 								<span class="designation-dot" style="background: {designationColor(rel.designation)}"></span>
+								<span class="provenance-indicator" title={rel.has_document_anchor ? 'Empirically grounded' : rel.has_memo_link ? 'Analytically grounded' : 'No grounding yet'}>{rel.has_document_anchor ? '📄' : rel.has_memo_link ? '📝' : '∅'}</span>
 								<span class="rel-source">
 									{findInscription(srcId)}
 								</span>
@@ -713,6 +715,7 @@
 				<div class="element-list">
 					{#each silences as s}
 						<div class="element-card silence-card" class:ai-suggested={s.properties?.aiSuggested === true} title={s.properties?.aiReasoning || ''}>
+							<span class="provenance-indicator" title={s.has_document_anchor ? 'Empirically grounded' : s.has_memo_link ? 'Analytically grounded' : 'No grounding yet'}>{s.has_document_anchor ? '📄' : s.has_memo_link ? '📝' : '∅'}</span>
 							<span class="el-inscription">{s.inscription}</span>
 						</div>
 					{/each}
@@ -1004,6 +1007,12 @@
 	.inline-rename input {
 		background: #0f1117; border: 1px solid #8b9cf7; border-radius: 4px;
 		padding: 0.2rem 0.4rem; color: #e1e4e8; font-size: 0.85rem; width: 200px;
+	}
+
+	/* Provenance indicators */
+	.provenance-indicator {
+		font-size: 0.6rem; cursor: default; flex-shrink: 0;
+		opacity: 0.7; min-width: 0.9rem; text-align: center;
 	}
 
 	/* Naming act prompt */
