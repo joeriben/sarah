@@ -55,8 +55,8 @@ function buildElkGraph(
 		id: 'root',
 		layoutOptions: {
 			'elk.algorithm': algorithm,
-			'elk.spacing.nodeNode': '60',
-			'elk.spacing.edgeNode': '30',
+			'elk.spacing.nodeNode': '120',
+			'elk.spacing.edgeNode': '40',
 		},
 		children: [],
 		edges: []
@@ -65,10 +65,10 @@ function buildElkGraph(
 	// Algorithm-specific options
 	if (algorithm === 'layered') {
 		graph.layoutOptions!['elk.direction'] = 'RIGHT';
-		graph.layoutOptions!['elk.layered.spacing.nodeNodeBetweenLayers'] = '80';
+		graph.layoutOptions!['elk.layered.spacing.nodeNodeBetweenLayers'] = '120';
 		graph.layoutOptions!['elk.edgeRouting'] = 'POLYLINE';
 	} else if (algorithm === 'stress') {
-		graph.layoutOptions!['elk.stress.desiredEdgeLength'] = '120';
+		graph.layoutOptions!['elk.stress.desiredEdgeLength'] = '250';
 	}
 
 	// Track which naming_ids are elements vs relations (for meta-relation detection)
@@ -135,13 +135,16 @@ function collectPositions(parent: ElkNode, offsetX: number, offsetY: number): Ma
 	if (!parent.children) return positions;
 
 	for (const child of parent.children) {
-		const absX = offsetX + (child.x ?? 0);
-		const absY = offsetY + (child.y ?? 0);
+		const w = child.width ?? 0;
+		const h = child.height ?? 0;
+		// Convert ELK top-left to center (CanvasElement uses center-based positioning)
+		const absX = offsetX + (child.x ?? 0) + w / 2;
+		const absY = offsetY + (child.y ?? 0) + h / 2;
 		positions.set(child.id, {
 			x: absX,
 			y: absY,
-			width: child.width ?? 0,
-			height: child.height ?? 0
+			width: w,
+			height: h
 		});
 		// Recurse for compound nodes
 		for (const [id, pos] of collectPositions(child, absX, absY)) {
