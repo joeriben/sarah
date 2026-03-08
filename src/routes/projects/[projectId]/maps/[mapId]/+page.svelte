@@ -734,7 +734,7 @@
 			<textarea placeholder="What influenced this act? What changed in your understanding?" bind:value={actMemo} rows="2"></textarea>
 			<div class="act-links-toggle">
 				<button class="btn-xs" onclick={() => showActLinks = !showActLinks}>
-					{showActLinks ? 'hide co-actors' : `link co-actors (${actLinkedIds.length})`}
+					{showActLinks ? 'hide' : `namings I have in mind (${actLinkedIds.length})`}
 				</button>
 			</div>
 			{#if showActLinks}
