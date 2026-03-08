@@ -123,6 +123,24 @@ export async function getMemo(memoId: string, projectId: string) {
 	return { ...memo, links: links.rows };
 }
 
+export async function getMemosForNaming(namingId: string, projectId: string) {
+	return (
+		await query(
+			`SELECT DISTINCT m.id, m.inscription as label, mc.content, m.created_at
+			 FROM participations p
+			 JOIN namings pn ON pn.id = p.id AND pn.deleted_at IS NULL
+			 JOIN namings m ON m.id = CASE WHEN p.naming_id = $1 THEN p.participant_id ELSE p.naming_id END
+			 JOIN memo_content mc ON mc.naming_id = m.id
+			 WHERE (p.naming_id = $1 OR p.participant_id = $1)
+			   AND m.project_id = $2
+			   AND m.deleted_at IS NULL
+			   AND m.id != $1
+			 ORDER BY m.created_at DESC`,
+			[namingId, projectId]
+		)
+	).rows;
+}
+
 export async function updateMemoContent(memoId: string, content: string) {
 	await query(
 		`UPDATE memo_content SET content = $1 WHERE naming_id = $2`,

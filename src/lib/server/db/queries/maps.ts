@@ -365,7 +365,7 @@ export async function setCollapse(
 // Get the full stack of a naming: all inscription and designation layers.
 // This is not "history" — it IS the naming's constitution.
 export async function getNamingStack(namingId: string) {
-	const [inscriptions, designations] = await Promise.all([
+	const [inscriptions, designations, memos] = await Promise.all([
 		query(
 			`SELECT ni.seq, ni.inscription, ni.created_at, n.inscription as by_inscription
 			 FROM naming_inscriptions ni
@@ -381,11 +381,25 @@ export async function getNamingStack(namingId: string) {
 			 WHERE nd.naming_id = $1
 			 ORDER BY nd.seq ASC`,
 			[namingId]
+		),
+		query(
+			`SELECT DISTINCT m.id, m.inscription as label, mc.content, m.created_at,
+			        m.created_by
+			 FROM participations p
+			 JOIN namings pn ON pn.id = p.id AND pn.deleted_at IS NULL
+			 JOIN namings m ON m.id = CASE WHEN p.naming_id = $1 THEN p.participant_id ELSE p.naming_id END
+			 JOIN memo_content mc ON mc.naming_id = m.id
+			 WHERE (p.naming_id = $1 OR p.participant_id = $1)
+			   AND m.deleted_at IS NULL
+			   AND m.id != $1
+			 ORDER BY m.created_at DESC`,
+			[namingId]
 		)
 	]);
 	return {
 		inscriptions: inscriptions.rows,
-		designations: designations.rows
+		designations: designations.rows,
+		memos: memos.rows
 	};
 }
 

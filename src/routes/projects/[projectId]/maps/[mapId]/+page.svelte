@@ -113,6 +113,7 @@
 	let actMemo = $state('');
 	let actLinkedIds = $state<string[]>([]);
 	let showActLinks = $state(false);
+	let actExistingMemos = $state<any[]>([]);
 
 	// Inline editing
 	let editingId = $state<string | null>(null);
@@ -125,7 +126,7 @@
 
 	// Stack panel
 	let stackId = $state<string | null>(null);
-	let stackData = $state<{ inscriptions: any[]; designations: any[] } | null>(null);
+	let stackData = $state<{ inscriptions: any[]; designations: any[]; memos: any[] } | null>(null);
 
 	// AI
 	let aiEnabled = $state(true);
@@ -334,6 +335,7 @@
 			actMemo = '';
 			actLinkedIds = [];
 			showActLinks = false;
+			loadActMemos(relationId);
 		}
 	}
 
@@ -357,6 +359,7 @@
 		actNewValue = designation;
 		actMemo = '';
 		ctxMenuId = null;
+		loadActMemos(id);
 	}
 
 	function ctxShowStack(id: string) {
@@ -381,6 +384,7 @@
 		actType = 'rename';
 		actNewValue = editingValue.trim();
 		actMemo = '';
+		loadActMemos(editingId);
 		editingId = null;
 		editingValue = '';
 	}
@@ -420,11 +424,17 @@
 		await reload();
 	}
 
+	async function loadActMemos(namingId: string) {
+		const res = await mapAction('getMemosForNaming', { namingId });
+		actExistingMemos = res?.memos || [];
+	}
+
 	function cancelAct() {
 		actTarget = null;
 		actMemo = '';
 		actLinkedIds = [];
 		showActLinks = false;
+		actExistingMemos = [];
 	}
 
 	function toggleActLink(namingId: string) {
@@ -452,6 +462,7 @@
 		actMemo = '';
 		actLinkedIds = [];
 		showActLinks = false;
+		loadActMemos(namingId);
 	}
 
 	// ─── Relation (list view) ───
@@ -620,6 +631,17 @@
 					Relation: <strong>{actNode?.inscription || actNewValue || '(unnamed)'}</strong>
 				{/if}
 			</div>
+			{#if actExistingMemos.length > 0}
+				<div class="act-existing-memos">
+					<span class="act-existing-label">Previous memos ({actExistingMemos.length}):</span>
+					{#each actExistingMemos as memo}
+						<div class="act-existing-memo">
+							<span class="act-memo-label">{memo.label}</span>
+							{#if memo.content}<span class="act-memo-content">{memo.content}</span>{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
 			<textarea placeholder="What influenced this act? What changed in your understanding?" bind:value={actMemo} rows="2"></textarea>
 			<div class="act-links-toggle">
 				<button class="btn-xs" onclick={() => showActLinks = !showActLinks}>
@@ -942,6 +964,18 @@
 										</div>
 									{/each}
 								</div>
+								{#if stackData.memos?.length > 0}
+									<div class="history-section">
+										<span class="history-label">Memos ({stackData.memos.length})</span>
+										{#each stackData.memos as memo}
+											<div class="memo-entry">
+												<span class="memo-label">{memo.label}</span>
+												<span class="memo-content">{memo.content}</span>
+												<span class="he-date">{new Date(memo.created_at).toLocaleString()}</span>
+											</div>
+										{/each}
+									</div>
+								{/if}
 							</div>
 						{/if}
 					{/each}
@@ -1060,6 +1094,18 @@
 										</div>
 									{/each}
 								</div>
+								{#if stackData.memos?.length > 0}
+									<div class="history-section">
+										<span class="history-label">Memos ({stackData.memos.length})</span>
+										{#each stackData.memos as memo}
+											<div class="memo-entry">
+												<span class="memo-label">{memo.label}</span>
+												<span class="memo-content">{memo.content}</span>
+												<span class="he-date">{new Date(memo.created_at).toLocaleString()}</span>
+											</div>
+										{/each}
+									</div>
+								{/if}
 							</div>
 						{/if}
 					{/each}
@@ -1295,6 +1341,17 @@
 	.he-by { color: #6b7280; }
 	.he-by::before { content: '— '; }
 	.he-date { color: #4b5563; margin-left: auto; font-size: 0.7rem; }
+	.memo-entry {
+		padding: 0.3rem 0; border-bottom: 1px solid #1e2030;
+		font-size: 0.75rem;
+	}
+	.memo-entry:last-child { border-bottom: none; }
+	.memo-label { color: #f59e0b; font-size: 0.72rem; display: block; }
+	.memo-content {
+		display: block; color: #a0a4b0; font-size: 0.75rem;
+		margin-top: 0.15rem; white-space: pre-wrap;
+		max-height: 4.5em; overflow-y: auto;
+	}
 	.btn-pin { margin-left: auto; border-color: #f59e0b; color: #f59e0b; }
 	.btn-pin:hover { background: rgba(245, 158, 11, 0.1); }
 	.btn-unpin { border-color: #f59e0b; color: #f59e0b; margin-bottom: 0.4rem; }
@@ -1307,6 +1364,19 @@
 		padding: 0.75rem 1rem; margin: 0 1rem 0.5rem;
 	}
 	.act-header { font-size: 0.85rem; color: #c9cdd5; margin-bottom: 0.4rem; }
+	.act-existing-memos {
+		background: #0f1117; border: 1px solid #2a2d3a; border-radius: 5px;
+		padding: 0.4rem 0.5rem; margin-bottom: 0.4rem;
+		max-height: 120px; overflow-y: auto;
+	}
+	.act-existing-label { font-size: 0.75rem; color: #8b9cf7; }
+	.act-existing-memo {
+		padding: 0.2rem 0; border-bottom: 1px solid #1e2030;
+		font-size: 0.8rem; color: #c9cdd5;
+	}
+	.act-existing-memo:last-child { border-bottom: none; }
+	.act-memo-label { color: #f59e0b; font-size: 0.75rem; }
+	.act-memo-content { display: block; color: #a0a4b0; font-size: 0.78rem; margin-top: 0.1rem; }
 	.act-prompt-bar textarea, .act-prompt textarea {
 		width: 100%; background: #0f1117; border: 1px solid #2a2d3a; border-radius: 5px;
 		padding: 0.4rem 0.5rem; color: #e1e4e8; font-size: 0.85rem; resize: vertical;

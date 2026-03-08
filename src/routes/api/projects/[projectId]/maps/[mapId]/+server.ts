@@ -20,7 +20,7 @@ import {
 	getDesignationHistory,
 	getNaming
 } from '$lib/server/db/queries/namings.js';
-import { createMemo } from '$lib/server/db/queries/memos.js';
+import { createMemo, getMemosForNaming } from '$lib/server/db/queries/memos.js';
 import { runMapAgent, setAiEnabled } from '$lib/server/ai/agent.js';
 
 export const GET: RequestHandler = async ({ params }) => {
@@ -170,6 +170,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		case 'requestAnalysis': {
 			await runMapAgent(projectId, mapId, { action: 'requestAnalysis', details: {} });
 			return json({ ok: true });
+		}
+
+		case 'getMemosForNaming': {
+			const { namingId } = body;
+			if (!namingId) return json({ error: 'namingId required' }, { status: 400 });
+			const memos = await getMemosForNaming(namingId, projectId);
+			return json({ memos });
 		}
 
 		case 'updatePosition': {
