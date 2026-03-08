@@ -160,11 +160,6 @@
 		return node.phase_ids?.includes(highlightedPhase) ?? false;
 	}
 
-	// Compute node opacity: when a phase is highlighted, dim non-members
-	function nodeOpacity(node: any): number {
-		if (!highlightedPhase) return 1;
-		return isPhaseHighlighted(node) ? 1 : 0.2;
-	}
 
 	// ─── Helpers ───
 
@@ -568,8 +563,8 @@
 							onclick={handleNodeClick}
 							oncontextmenu={handleNodeContextMenu}
 						>
-							<div class="map-node" class:ai-suggested={el.properties?.aiSuggested} class:phase-member={highlightedPhase && isPhaseHighlighted(el)}
-								style="opacity: {nodeOpacity(el)};{highlightedPhase && isPhaseHighlighted(el) ? ` --phase-color: ${phaseColorMap.get(highlightedPhase)};` : ''}">
+							<div class="map-node" class:ai-suggested={el.properties?.aiSuggested} class:phase-member={highlightedPhase && isPhaseHighlighted(el)} class:phase-dimmed={highlightedPhase && !isPhaseHighlighted(el)}
+								style="{highlightedPhase && isPhaseHighlighted(el) ? `--phase-color: ${phaseColorMap.get(highlightedPhase)};` : ''}">
 								<div class="node-header">
 									<span class="designation-dot" style="background: {designationColor(el.designation)}"></span>
 									{#if el.has_document_anchor}
@@ -619,8 +614,8 @@
 							onclick={handleNodeClick}
 							oncontextmenu={handleNodeContextMenu}
 						>
-							<div class="map-node relation-node" class:ai-suggested={rel.properties?.aiSuggested} class:phase-member={highlightedPhase && isPhaseHighlighted(rel)}
-								style="opacity: {nodeOpacity(rel)};{highlightedPhase && isPhaseHighlighted(rel) ? ` --phase-color: ${phaseColorMap.get(highlightedPhase)};` : ''}">
+							<div class="map-node relation-node" class:ai-suggested={rel.properties?.aiSuggested} class:phase-member={highlightedPhase && isPhaseHighlighted(rel)} class:phase-dimmed={highlightedPhase && !isPhaseHighlighted(rel)}
+								style="{highlightedPhase && isPhaseHighlighted(rel) ? `--phase-color: ${phaseColorMap.get(highlightedPhase)};` : ''}">
 								{#if rel.valence}
 									<span class="rel-valence">{rel.valence}</span>
 								{/if}
@@ -658,8 +653,7 @@
 							onclick={handleNodeClick}
 							oncontextmenu={handleNodeContextMenu}
 						>
-							<div class="map-node silence-node"
-								style="opacity: {nodeOpacity(s)};">
+							<div class="map-node silence-node" class:phase-dimmed={highlightedPhase}>
 								<span class="node-label">{s.inscription}</span>
 							</div>
 						</CanvasElement>
@@ -938,10 +932,15 @@
 		border-color: rgba(139, 156, 247, 0.5);
 		background: rgba(139, 156, 247, 0.04);
 	}
+	.map-node.phase-dimmed { opacity: 0.85; transition: opacity 0.3s; }
 	.map-node.phase-member {
-		box-shadow: 0 0 10px var(--phase-color, transparent), inset 0 0 0 1px var(--phase-color, transparent);
+		animation: phase-pulse 2s ease-in-out infinite;
+		--pulse-color: var(--phase-color, #8b9cf7);
 	}
-	.map-node { transition: opacity 0.2s, box-shadow 0.2s; }
+	@keyframes phase-pulse {
+		0%, 100% { box-shadow: 0 0 6px var(--pulse-color); }
+		50% { box-shadow: 0 0 20px var(--pulse-color), inset 0 0 0 2px var(--pulse-color); }
+	}
 	.node-header {
 		display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.15rem;
 	}
