@@ -894,7 +894,7 @@
 								{:else}
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
-									<span class="el-inscription editable" ondblclick={() => ctxRename(el.naming_id, el.inscription)}>
+									<span class="el-inscription editable" onclick={() => showStack(el.naming_id)} ondblclick={() => ctxRename(el.naming_id, el.inscription)}>
 										{el.inscription}
 									</span>
 									{#if el.is_collapsed && el.current_inscription && el.current_inscription !== el.inscription}
@@ -1018,13 +1018,13 @@
 								{:else if rel.inscription}
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
-									<span class="rel-inscription editable" ondblclick={() => ctxRename(rel.naming_id, rel.inscription)}>
+									<span class="rel-inscription editable" onclick={() => showStack(rel.naming_id)} ondblclick={() => ctxRename(rel.naming_id, rel.inscription)}>
 										{rel.inscription}
 									</span>
 								{:else}
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
-									<span class="rel-inscription editable unnamed" ondblclick={() => ctxRename(rel.naming_id, '')}>
+									<span class="rel-inscription editable unnamed" onclick={() => showStack(rel.naming_id)} ondblclick={() => ctxRename(rel.naming_id, '')}>
 										(name...)
 									</span>
 								{/if}
