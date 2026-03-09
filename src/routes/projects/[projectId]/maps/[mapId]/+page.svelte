@@ -291,6 +291,10 @@
 	}
 
 	function handleNodeClick(id: string, e: MouseEvent) {
+		if (relatingFrom) {
+			completeRelating(id);
+			return;
+		}
 		selection.select(id, e.ctrlKey || e.metaKey);
 		ctxMenuId = null;
 	}
@@ -1017,6 +1021,89 @@
 						<button class="ctx-item" onclick={() => assignElement(assigningToPhase!, ctxMenuId!)}>
 							+ Phase
 						</button>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- Floating stack panel (canvas) -->
+			{#if stackId && stackData}
+				{@const stackNode = findNode(stackId)}
+				<div class="canvas-stack-panel">
+					<div class="stack-panel-header">
+						<span class="stack-title">{stackNode?.inscription || '(unnamed)'}</span>
+						<button class="btn-link" onclick={() => { stackId = null; stackData = null; }}>close</button>
+					</div>
+					{#if stackNode?.is_collapsed}
+						<button class="btn-xs btn-unpin" onclick={() => unpinLayer(stackId!)}>
+							unpin (show latest)
+						</button>
+					{/if}
+					{#if stackData.inscriptions.length > 1}
+						<div class="history-section">
+							<span class="history-label">Inscriptions</span>
+							{#each stackData.inscriptions as hi}
+								<div class="history-entry" class:pinned-layer={stackNode?.is_collapsed && stackNode?.properties?.collapseAt === hi.seq}>
+									<span class="he-value">{hi.inscription}</span>
+									<span class="he-by">{hi.by_inscription}</span>
+									<span class="he-date">{new Date(hi.created_at).toLocaleString()}</span>
+									<button class="btn-xs btn-pin" title="Pin to this layer" onclick={() => pinToLayer(stackId!, hi.seq)}>
+										pin
+									</button>
+								</div>
+							{/each}
+						</div>
+					{/if}
+					<div class="history-section">
+						<span class="history-label">Designations</span>
+						{#each stackData.designations as hd}
+							<div class="history-entry">
+								<span class="designation-dot-sm" style="background: {designationColor(hd.designation)}"></span>
+								<span class="he-value">{hd.designation}</span>
+								<span class="he-by">{hd.by_inscription}</span>
+								<span class="he-date">{new Date(hd.created_at).toLocaleString()}</span>
+							</div>
+						{/each}
+					</div>
+					{#if stackData.memos?.length > 0}
+						<div class="history-section">
+							<span class="history-label">Memos ({stackData.memos.length})</span>
+							{#each stackData.memos as memo}
+								<div class="memo-entry">
+									<span class="memo-label">{memo.label}</span>
+									<span class="memo-content">{memo.content}</span>
+									<span class="he-date">{new Date(memo.created_at).toLocaleString()}</span>
+								</div>
+							{/each}
+						</div>
+					{/if}
+					{#if stackData.aiSuggested}
+						<div class="history-section ai-discussion-section">
+							<span class="history-label">
+								<img class="label-icon" src="/icons/comment.svg" alt="" />
+								AI Cue {stackData.aiWithdrawn ? '(withdrawn)' : ''}
+							</span>
+							{#if stackData.aiReasoning}
+								<div class="ai-reasoning">{stackData.aiReasoning}</div>
+							{/if}
+							{#if stackData.discussion && stackData.discussion.length > 0}
+								<div class="discussion-thread">
+									{#each stackData.discussion as turn}
+										<div class="discussion-turn" class:turn-researcher={turn.role === 'researcher'} class:turn-ai={turn.role === 'ai'}>
+											<span class="turn-role">{turn.role === 'researcher' ? 'You' : 'AI'}{turn.type === 'rewrite' ? ' (rewrote)' : turn.type === 'withdrawn' ? ' (withdrew)' : ''}</span>
+											<span class="turn-content">{turn.content}</span>
+										</div>
+									{/each}
+								</div>
+							{/if}
+							{#if !stackData.aiWithdrawn}
+								<form class="discuss-form" onsubmit={e => { e.preventDefault(); submitDiscussion(); }}>
+									<input type="text" placeholder="Discuss this cue..." bind:value={discussInput} disabled={discussLoading} />
+									<button type="submit" class="btn-xs" disabled={discussLoading || !discussInput.trim()}>
+										{discussLoading ? '...' : 'send'}
+									</button>
+								</form>
+							{/if}
+						</div>
 					{/if}
 				</div>
 			{/if}
@@ -1825,8 +1912,20 @@
 	.act-header { font-size: 0.85rem; color: #c9cdd5; margin-bottom: 0.4rem; }
 	.act-actions { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
 
-	/* Stack panel */
-	.stack-panel { bottom: auto; top: 1rem; right: 240px; left: auto; transform: none; min-width: 280px; }
+	/* Floating stack panel (canvas) */
+	.canvas-stack-panel {
+		position: absolute; top: 0.75rem; right: 0.75rem;
+		width: 320px; max-height: calc(100% - 1.5rem);
+		overflow-y: auto;
+		background: #161822; border: 1px solid #2a2d3a; border-radius: 8px;
+		padding: 0.75rem; z-index: 20;
+		box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+	}
+	.stack-panel-header {
+		display: flex; align-items: center; justify-content: space-between;
+		margin-bottom: 0.5rem;
+	}
+	.stack-title { font-size: 0.9rem; font-weight: 600; color: #e1e4e8; }
 	.btn-remove { color: #ef4444; border-color: #ef4444; font-size: 0.7rem; padding: 0 0.3rem; margin-left: auto; }
 	.btn-remove:hover { background: rgba(239, 68, 68, 0.1); }
 	.stack-header {
