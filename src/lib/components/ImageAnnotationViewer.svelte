@@ -5,7 +5,7 @@
 		id: string;
 		code_id: string;
 		properties?: { anchor?: { type: string; x: number; y: number; width: number; height: number } };
-		code_properties?: { color?: string };
+		code_color?: string;
 	};
 
 	type RegionSelection = { x: number; y: number; width: number; height: number };
@@ -243,7 +243,7 @@
 				{#each annotations as ann (ann.id)}
 					{@const anchor = ann.properties?.anchor}
 					{#if anchor?.type === 'rect'}
-						{@const color = ann.code_properties?.color || '#8b9cf7'}
+						{@const color = ann.code_color || '#8b9cf7'}
 						<rect
 							x={anchor.x}
 							y={anchor.y}

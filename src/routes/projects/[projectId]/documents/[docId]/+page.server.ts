@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types.js';
 import { queryOne } from '$lib/server/db/index.js';
-import { getAnnotationsByDocument, getCodeTree } from '$lib/server/db/queries/codes.js';
+import { getAnnotationsByDocument, getAnnotationCandidates } from '$lib/server/db/queries/codes.js';
 import { error } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ params }) => {
@@ -20,15 +20,15 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	if (!doc) error(404, 'Document not found');
 
-	const [annotations, codes] = await Promise.all([
+	const [annotations, candidates] = await Promise.all([
 		getAnnotationsByDocument(params.projectId, params.docId),
-		getCodeTree(params.projectId)
+		getAnnotationCandidates(params.projectId)
 	]);
 
 	return {
 		document: doc,
 		annotations,
-		codes,
+		candidates,
 		projectId: params.projectId
 	};
 };

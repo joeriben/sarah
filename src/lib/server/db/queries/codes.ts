@@ -1,25 +1,26 @@
 import { query, queryOne, transaction } from '../index.js';
-import { createNaming, createParticipation, setAppearance } from './namings.js';
+import { createNaming, setAppearance } from './namings.js';
 
-// The "code system" perspective is a project-level naming
-// that serves as the perspective for all codes in a project.
-// We create it lazily and cache per project.
+// The "grounding workspace" perspective is a project-level naming
+// that holds orphan in-vivo codes (not yet placed on a map) and
+// annotation relation appearances. It is infrastructure, not a
+// separate analytical domain.
 
-export async function getOrCreateCodeSystemPerspective(projectId: string, userId: string) {
+export async function getOrCreateGroundingWorkspace(projectId: string, userId: string) {
 	let perspective = await queryOne<{ id: string }>(
 		`SELECT n.id FROM namings n
 		 JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = n.id
 		 WHERE n.project_id = $1 AND a.mode = 'perspective'
-		   AND a.properties->>'role' = 'code-system'
+		   AND a.properties->>'role' = 'grounding-workspace'
 		   AND n.deleted_at IS NULL
 		 LIMIT 1`,
 		[projectId]
 	);
 
 	if (!perspective) {
-		const n = await createNaming(projectId, userId, 'Code System');
+		const n = await createNaming(projectId, userId, 'Grounding Workspace');
 		await setAppearance(n.id, n.id, 'perspective', {
-			properties: { role: 'code-system' }
+			properties: { role: 'grounding-workspace' }
 		});
 		perspective = { id: n.id };
 	}
@@ -27,37 +28,81 @@ export async function getOrCreateCodeSystemPerspective(projectId: string, userId
 	return perspective.id;
 }
 
-export async function createCode(
+/**
+ * All namings that can be used as annotation anchors.
+ * Pulls entities from ALL map perspectives AND the grounding workspace.
+ * Prefers map appearances over grounding workspace for color/source info.
+ */
+export async function getAnnotationCandidates(projectId: string) {
+	const result = await query(
+		`SELECT DISTINCT ON (n.id)
+		        n.id,
+		        n.inscription as label,
+		        a.properties->>'color' as color,
+		        -- Source map info (NULL for grounding workspace orphans)
+		        CASE WHEN pa.properties->>'role' = 'grounding-workspace' THEN NULL
+		             ELSE a.perspective_id END as source_map_id,
+		        CASE WHEN pa.properties->>'role' = 'grounding-workspace' THEN NULL
+		             ELSE map_n.inscription END as source_map_label,
+		        -- Is this an orphan (only on grounding workspace, no map)?
+		        CASE WHEN pa.properties->>'role' = 'grounding-workspace' THEN true
+		             ELSE false END as is_orphan,
+		        -- Has document anchor?
+		        EXISTS (
+		          SELECT 1 FROM appearances ann
+		          WHERE ann.directed_from = n.id AND ann.valence = 'codes'
+		            AND EXISTS (SELECT 1 FROM namings ann_n WHERE ann_n.id = ann.naming_id AND ann_n.deleted_at IS NULL)
+		        ) as has_document_anchor
+		 FROM namings n
+		 JOIN appearances a ON a.naming_id = n.id AND a.mode = 'entity'
+		 JOIN appearances pa ON pa.naming_id = a.perspective_id AND pa.perspective_id = a.perspective_id AND pa.mode = 'perspective'
+		 LEFT JOIN namings map_n ON map_n.id = a.perspective_id
+		 WHERE n.project_id = $1 AND n.deleted_at IS NULL
+		   AND (pa.properties ? 'mapType' OR pa.properties->>'role' = 'grounding-workspace')
+		 ORDER BY n.id,
+		          -- Prefer map appearances over grounding workspace
+		          CASE WHEN pa.properties->>'role' = 'grounding-workspace' THEN 1 ELSE 0 END,
+		          n.inscription`,
+		[projectId]
+	);
+	return result.rows;
+}
+
+/**
+ * Create an orphan naming on the grounding workspace.
+ * Used for in-vivo coding when no map context is active.
+ */
+export async function createOrphanNaming(
 	projectId: string,
 	userId: string,
 	label: string,
-	opts?: { color?: string; parentId?: string; description?: string }
+	opts?: { color?: string; description?: string }
 ) {
 	return transaction(async (client) => {
-		const perspectiveId = await getOrCreateCodeSystemPerspective(projectId, userId);
+		const perspectiveId = await getOrCreateGroundingWorkspace(projectId, userId);
 
-		// Check for duplicate code label (case-insensitive)
+		// Check for duplicate label (case-insensitive) across ALL entity appearances
 		const existing = await client.query(
 			`SELECT n.id FROM namings n
-			 JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = $1 AND a.mode = 'entity'
-			 WHERE n.project_id = $2 AND n.deleted_at IS NULL
-			   AND LOWER(n.inscription) = LOWER($3)
+			 JOIN appearances a ON a.naming_id = n.id AND a.mode = 'entity'
+			 WHERE n.project_id = $1 AND n.deleted_at IS NULL
+			   AND LOWER(n.inscription) = LOWER($2)
 			 LIMIT 1`,
-			[perspectiveId, projectId, label]
+			[projectId, label]
 		);
 		if (existing.rows.length > 0) {
 			throw new Error(`Code "${label}" already exists`);
 		}
 
-		// Create the code naming
+		// Create the naming
 		const namingRes = await client.query(
 			`INSERT INTO namings (project_id, inscription, created_by)
 			 VALUES ($1, $2, $3) RETURNING *`,
 			[projectId, label, userId]
 		);
-		const code = namingRes.rows[0];
+		const naming = namingRes.rows[0];
 
-		// It appears as entity from the code-system perspective
+		// It appears as entity from the grounding workspace
 		const props: Record<string, unknown> = {};
 		if (opts?.color) props.color = opts.color;
 		if (opts?.description) props.description = opts.description;
@@ -65,67 +110,11 @@ export async function createCode(
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $2, 'entity', $3)`,
-			[code.id, perspectiveId, JSON.stringify(props)]
+			[naming.id, perspectiveId, JSON.stringify(props)]
 		);
 
-		// If parent: create participation (parent ↔ child)
-		if (opts?.parentId) {
-			const partNaming = await client.query(
-				`INSERT INTO namings (project_id, inscription, created_by)
-				 VALUES ($1, $2, $3) RETURNING id`,
-				[projectId, `${opts.parentId} contains ${code.id}`, userId]
-			);
-			await client.query(
-				`INSERT INTO participations (id, naming_id, participant_id)
-				 VALUES ($1, $2, $3)`,
-				[partNaming.rows[0].id, opts.parentId, code.id]
-			);
-			// The participation appears as a directed relation from the code-system perspective
-			const maxPos = await client.query(
-				`SELECT COUNT(*) as cnt FROM participations p
-				 JOIN appearances a ON a.naming_id = p.id AND a.perspective_id = $1
-				 WHERE p.naming_id = $2`,
-				[perspectiveId, opts.parentId]
-			);
-			await client.query(
-				`INSERT INTO appearances (naming_id, perspective_id, mode, directed_from, directed_to, valence, properties)
-				 VALUES ($1, $2, 'relation', $3, $4, 'contains', $5)`,
-				[partNaming.rows[0].id, perspectiveId, opts.parentId, code.id,
-				 JSON.stringify({ position: parseInt(maxPos.rows[0].cnt) })]
-			);
-		}
-
-		return { ...code, properties: props };
+		return { ...naming, properties: props };
 	});
-}
-
-export async function getCodeTree(projectId: string) {
-	// All namings that appear as 'entity' from the code-system perspective
-	const codes = await query(
-		`SELECT n.id, n.inscription as label, a.properties,
-		        -- find parent via participation that appears as 'contains' relation
-		        (SELECT p.naming_id FROM participations p
-		         JOIN appearances pa ON pa.naming_id = p.id AND pa.perspective_id = a.perspective_id
-		         WHERE p.participant_id = n.id AND pa.valence = 'contains'
-		         LIMIT 1) as parent_id,
-		        (SELECT (pa.properties->>'position')::int FROM participations p
-		         JOIN appearances pa ON pa.naming_id = p.id AND pa.perspective_id = a.perspective_id
-		         WHERE p.participant_id = n.id AND pa.valence = 'contains'
-		         LIMIT 1) as position
-		 FROM namings n
-		 JOIN appearances a ON a.naming_id = n.id
-		 WHERE n.project_id = $1 AND n.deleted_at IS NULL
-		   AND a.mode = 'entity'
-		   AND a.perspective_id IN (
-		     SELECT n2.id FROM namings n2
-		     JOIN appearances a2 ON a2.naming_id = n2.id AND a2.perspective_id = n2.id
-		     WHERE n2.project_id = $1 AND a2.mode = 'perspective'
-		       AND a2.properties->>'role' = 'code-system'
-		   )
-		 ORDER BY position NULLS FIRST, n.inscription`,
-		[projectId]
-	);
-	return codes.rows;
 }
 
 export async function createAnnotation(
@@ -138,7 +127,7 @@ export async function createAnnotation(
 	comment?: string
 ) {
 	return transaction(async (client) => {
-		const perspectiveId = await getOrCreateCodeSystemPerspective(projectId, userId);
+		const perspectiveId = await getOrCreateGroundingWorkspace(projectId, userId);
 
 		// The annotation is a naming
 		const annNaming = await client.query(
@@ -162,7 +151,7 @@ export async function createAnnotation(
 			);
 		}
 
-		// From the code-system perspective, the annotation appears as a directed relation
+		// From the grounding workspace, the annotation appears as a directed relation
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, directed_from, directed_to, valence, properties)
 			 VALUES ($1, $2, 'relation', $3, $4, 'codes', $5)`,
@@ -180,11 +169,15 @@ export async function getAnnotationsByDocument(projectId: string, documentId: st
 			`SELECT a.naming_id as id, a.directed_from as code_id, a.directed_to as document_id,
 			        a.properties, a.valence,
 			        code.inscription as code_label,
-			        code_app.properties as code_properties
+			        -- Resolve color from ANY entity appearance (any map or grounding workspace)
+			        (SELECT ca.properties->>'color'
+			         FROM appearances ca
+			         WHERE ca.naming_id = code.id AND ca.mode = 'entity'
+			           AND ca.properties->>'color' IS NOT NULL
+			         LIMIT 1) as code_color
 			 FROM appearances a
 			 JOIN namings n ON n.id = a.naming_id AND n.deleted_at IS NULL
 			 JOIN namings code ON code.id = a.directed_from
-			 LEFT JOIN appearances code_app ON code_app.naming_id = code.id AND code_app.perspective_id = a.perspective_id
 			 WHERE a.directed_to = $1 AND a.valence = 'codes'
 			   AND n.project_id = $2
 			 ORDER BY n.created_at`,

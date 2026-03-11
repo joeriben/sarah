@@ -17,7 +17,7 @@
 		<nav>
 			<a href="{base}">Overview</a>
 			<a href="{base}/documents">Documents <span class="badge">{c.documents}</span></a>
-			<a href="{base}/codes">Codes <span class="badge">{c.codes}</span></a>
+			<a href="{base}/codes">Grounding <span class="badge">{c.codes}</span></a>
 			<a href="{base}/maps">Maps <span class="badge">{c.maps}</span></a>
 			<a href="{base}/memos">Memos <span class="badge">{c.memos}</span></a>
 			<a href="{base}/members">Members <span class="badge">{c.members}</span></a>

@@ -3,8 +3,8 @@
 
 	let { data } = $props();
 	const doc = $derived(data.document);
-	let codes = $state<any[]>([]);
-	$effect(() => { codes = data.codes; });
+	let candidates = $state<any[]>([]);
+	$effect(() => { candidates = data.candidates; });
 	const isImage = $derived(doc.mime_type?.startsWith('image/'));
 
 	let annotations = $state<any[]>([]);
@@ -22,15 +22,28 @@
 	let codeFilter = $state('');
 	let creatingCode = $state(false);
 	let newCodeColor = $state('#8b9cf7');
-	const filteredCodes = $derived(
+	const filteredCandidates = $derived(
 		codeFilter.trim()
-			? codes.filter((c: any) => c.label.toLowerCase().includes(codeFilter.trim().toLowerCase()))
-			: codes
+			? candidates.filter((c: any) => c.label.toLowerCase().includes(codeFilter.trim().toLowerCase()))
+			: candidates
 	);
 	const canCreateInVivo = $derived(
 		codeFilter.trim().length > 0 &&
-		!codes.some((c: any) => c.label.toLowerCase() === codeFilter.trim().toLowerCase())
+		!candidates.some((c: any) => c.label.toLowerCase() === codeFilter.trim().toLowerCase())
 	);
+
+	// Group candidates by source map for display
+	const candidateGroups = $derived.by(() => {
+		const groups = new Map<string, { label: string; items: any[] }>();
+		for (const c of filteredCandidates) {
+			const key = c.source_map_id || '__orphan__';
+			if (!groups.has(key)) {
+				groups.set(key, { label: c.source_map_label || 'Unplaced', items: [] });
+			}
+			groups.get(key)!.items.push(c);
+		}
+		return groups;
+	});
 
 	// Annotation highlight on hover
 	let highlightedAnnotationId = $state<string | null>(null);
@@ -48,7 +61,7 @@
 		if (!textEl) return;
 		const sel = window.getSelection();
 		if (!sel || sel.isCollapsed || !sel.rangeCount) {
-			selection = null;
+			// Don't clear selection when focus moves elsewhere (e.g. to input field)
 			return;
 		}
 		const range = sel.getRangeAt(0);
@@ -65,7 +78,14 @@
 	}
 
 	function getOffsetsFromRange(container: HTMLElement, range: Range): { pos0: number; pos1: number } | null {
-		const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+		// Walk only visible text nodes, skipping tooltip spans (which contain code labels)
+		const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+			acceptNode(node) {
+				const parent = node.parentElement;
+				if (parent?.classList.contains('code-tooltip')) return NodeFilter.FILTER_REJECT;
+				return NodeFilter.FILTER_ACCEPT;
+			}
+		});
 		let offset = 0;
 		let pos0 = -1;
 		let node: Node | null;
@@ -130,7 +150,7 @@
 			for (const ann of textAnns) {
 				const { pos0, pos1 } = ann.properties.anchor;
 				if (pos0 <= start && pos1 > start) {
-					activeCodes.push({ id: ann.code_id, annId: ann.id, label: ann.code_label, color: ann.code_properties?.color || '#8b9cf7' });
+					activeCodes.push({ id: ann.code_id, annId: ann.id, label: ann.code_label, color: ann.code_color || '#8b9cf7' });
 				}
 			}
 			segments.push({ text: text.slice(start, end), codes: activeCodes });
@@ -159,7 +179,7 @@
 				annId: ann.id,
 				line,
 				label: shortLabel(ann.code_label),
-				color: ann.code_properties?.color || '#8b9cf7'
+				color: ann.code_color || '#8b9cf7'
 			};
 		});
 	});
@@ -210,10 +230,10 @@
 		});
 		if (res.ok) {
 			const newCode = await res.json();
-			// Refresh codes list
-			const codesRes = await fetch(`/api/projects/${data.projectId}/codes`);
-			if (codesRes.ok) {
-				codes = await codesRes.json();
+			// Refresh candidates list
+			const candidatesRes = await fetch(`/api/projects/${data.projectId}/codes`);
+			if (candidatesRes.ok) {
+				candidates = await candidatesRes.json();
 			}
 			codeFilter = '';
 			await annotate(newCode.id);
@@ -314,7 +334,7 @@
 							<span
 								class="margin-label"
 								class:margin-highlighted={highlightedAnnotationId === ma.annId}
-								style="top: calc({ma.line} * 1.7em); color: {ma.color};"
+								style="top: calc({ma.line} * 0.85rem * 1.7); color: {ma.color};"
 								onmouseenter={() => { highlightedAnnotationId = ma.annId; }}
 								onmouseleave={() => { highlightedAnnotationId = null; }}
 							>{ma.label}</span>
@@ -358,17 +378,24 @@
 						{/if}
 					</form>
 
-					{#if filteredCodes.length > 0}
-						<div class="code-chips">
-							{#each filteredCodes as code (code.id)}
-								<button
-									class="code-chip"
-									disabled={annotating}
-									onclick={() => annotate(code.id)}
-								>
-									<span class="color-dot" style="background: {code.properties?.color || '#8b9cf7'}"></span>
-									{code.label}
-								</button>
+					{#if filteredCandidates.length > 0}
+						<div class="candidate-groups">
+							{#each [...candidateGroups] as [key, group] (key)}
+								<div class="candidate-group">
+									<span class="candidate-group-label">{group.label}</span>
+									<div class="code-chips">
+										{#each group.items as c (c.id)}
+											<button
+												class="code-chip"
+												disabled={annotating}
+												onclick={() => annotate(c.id)}
+											>
+												<span class="color-dot" style="background: {c.color || '#8b9cf7'}"></span>
+												{c.label}
+											</button>
+										{/each}
+									</div>
+								</div>
 							{/each}
 						</div>
 					{:else if !canCreateInVivo}
@@ -403,7 +430,7 @@
 							onmouseleave={() => { highlightedAnnotationId = null; }}
 						>
 							<div class="ann-header">
-								<span class="color-dot" style="background: {ann.code_properties?.color || '#8b9cf7'}"></span>
+								<span class="color-dot" style="background: {ann.code_color || '#8b9cf7'}"></span>
 								<span class="code-name">{ann.code_label}</span>
 								<button class="btn-remove" title="Delete annotation" onclick={() => deleteAnnotation(ann.id)}>&times;</button>
 							</div>
@@ -480,7 +507,6 @@
 		left: 0.4rem;
 		font-family: system-ui, sans-serif;
 		font-size: 0.65rem;
-		line-height: 1.7em;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -614,11 +640,21 @@
 		overflow: hidden;
 	}
 
+	.candidate-groups { margin-bottom: 0.5rem; }
+	.candidate-group { margin-bottom: 0.4rem; }
+	.candidate-group-label {
+		display: block;
+		font-size: 0.65rem;
+		color: #6b7280;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		margin-bottom: 0.2rem;
+	}
 	.code-chips {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.35rem;
-		margin-bottom: 0.5rem;
+		margin-bottom: 0.25rem;
 	}
 
 	.code-chip {

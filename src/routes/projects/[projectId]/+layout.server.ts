@@ -20,15 +20,10 @@ export const load: LayoutServerLoad = async ({ params, locals }) => {
 			(SELECT COUNT(*) FROM document_content dc
 			 JOIN namings n ON n.id = dc.naming_id
 			 WHERE n.project_id = $1 AND n.deleted_at IS NULL) as documents,
-			(SELECT COUNT(*) FROM appearances a
-			 JOIN namings n ON n.id = a.naming_id
-			 WHERE n.project_id = $1 AND n.deleted_at IS NULL
-			   AND a.mode = 'entity'
-			   AND a.perspective_id IN (
-			     SELECT n2.id FROM namings n2
-			     JOIN appearances a2 ON a2.naming_id = n2.id AND a2.perspective_id = n2.id
-			     WHERE n2.project_id = $1 AND a2.properties->>'role' = 'code-system'
-			   )) as codes,
+			(SELECT COUNT(DISTINCT a.directed_from)
+			 FROM appearances a
+			 JOIN namings n ON n.id = a.directed_from AND n.deleted_at IS NULL
+			 WHERE a.valence = 'codes' AND n.project_id = $1) as codes,
 			(SELECT COUNT(*) FROM appearances a
 			 JOIN namings n ON n.id = a.naming_id
 			 WHERE n.project_id = $1 AND n.deleted_at IS NULL
