@@ -22,6 +22,7 @@
 	// In-vivo coding state
 	let codeFilter = $state('');
 	let creatingCode = $state(false);
+	let newCodeColor = $state('#8b9cf7');
 	const filteredCodes = $derived(
 		codeFilter.trim()
 			? codes.filter((c: any) => c.label.toLowerCase().includes(codeFilter.trim().toLowerCase()))
@@ -198,7 +199,7 @@
 		const res = await fetch(`/api/projects/${data.projectId}/codes`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ label })
+			body: JSON.stringify({ label, color: newCodeColor })
 		});
 		if (res.ok) {
 			const newCode = await res.json();
@@ -321,9 +322,12 @@
 							disabled={annotating || creatingCode}
 						/>
 						{#if canCreateInVivo}
-							<button type="submit" class="btn-create-code" disabled={creatingCode}>
-								+ {codeFilter.trim()}
-							</button>
+							<div class="invivo-create-row">
+								<input type="color" class="invivo-color" bind:value={newCodeColor} />
+								<button type="submit" class="btn-create-code" disabled={creatingCode}>
+									+ {codeFilter.trim()}
+								</button>
+							</div>
 						{/if}
 					</form>
 
@@ -500,6 +504,14 @@
 	}
 	.btn-create-code:hover { background: rgba(139, 156, 247, 0.2); }
 	.btn-create-code:disabled { opacity: 0.4; cursor: wait; }
+	.invivo-create-row {
+		display: flex; align-items: center; gap: 0.35rem;
+	}
+	.invivo-color {
+		width: 26px; height: 26px; padding: 0; border: 1px solid #2a2d3a;
+		border-radius: 4px; background: none; cursor: pointer; flex-shrink: 0;
+	}
+	.invivo-create-row .btn-create-code { flex: 1; }
 
 	.selection-preview {
 		font-size: 0.8rem;

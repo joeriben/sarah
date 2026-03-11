@@ -36,6 +36,19 @@ export async function createCode(
 	return transaction(async (client) => {
 		const perspectiveId = await getOrCreateCodeSystemPerspective(projectId, userId);
 
+		// Check for duplicate code label (case-insensitive)
+		const existing = await client.query(
+			`SELECT n.id FROM namings n
+			 JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = $1 AND a.mode = 'entity'
+			 WHERE n.project_id = $2 AND n.deleted_at IS NULL
+			   AND LOWER(n.inscription) = LOWER($3)
+			 LIMIT 1`,
+			[perspectiveId, projectId, label]
+		);
+		if (existing.rows.length > 0) {
+			throw new Error(`Code "${label}" already exists`);
+		}
+
 		// Create the code naming
 		const namingRes = await client.query(
 			`INSERT INTO namings (project_id, inscription, created_by)
