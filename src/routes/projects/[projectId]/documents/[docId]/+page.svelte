@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import ImageAnnotationViewer from '$lib/components/ImageAnnotationViewer.svelte';
 
 	let { data } = $props();
@@ -44,7 +43,6 @@
 
 	// DOM refs (text mode)
 	let textEl = $state<HTMLPreElement>();
-	let dynamicStyle = $state<HTMLStyleElement>();
 
 	function handleMouseUp() {
 		if (!textEl) return;
@@ -76,27 +74,6 @@
 			if (node === range.startContainer) pos0 = offset + range.startOffset;
 			if (node === range.endContainer) {
 				return pos0 >= 0 ? { pos0, pos1: offset + range.endOffset } : null;
-			}
-			offset += len;
-		}
-		return null;
-	}
-
-	function createRangeFromOffsets(container: HTMLElement, pos0: number, pos1: number): Range | null {
-		const range = document.createRange();
-		const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-		let offset = 0;
-		let startSet = false;
-		let node: Node | null;
-		while ((node = walker.nextNode())) {
-			const len = node.textContent?.length || 0;
-			if (!startSet && offset + len > pos0) {
-				range.setStart(node, pos0 - offset);
-				startSet = true;
-			}
-			if (startSet && offset + len >= pos1) {
-				range.setEnd(node, pos1 - offset);
-				return range;
 			}
 			offset += len;
 		}
