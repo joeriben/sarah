@@ -186,6 +186,9 @@ Core principle: the fundamental unit is the event (naming/relating act), not the
 - In-vivo coding: create codes inline during annotation (type name → create + annotate in one step)
 - Color picker for in-vivo codes, code uniqueness enforcement
 - Zoom fixes: configurable min/max zoom in viewport, large image support, viewport constraint after zoom
+- Text annotation rendering: segment-based inline color coding with hover tooltips (no layout shift)
+- Monospace font for document text (Courier New/Consolas) — stable character positions for Gruppendiskussionen
+- Fixed code panel: no longer scrolls away, stays in view while text scrolls independently
 - **Design decision: provenance and codes** — documented in `docs/design-provenance-and-codes.md`
   - Codes should be a derived view from maps, not a separate ontological domain
   - Two orthogonal dimensions: CCS gradient (cue → characterization → specification) vs. grounding (📄 document anchor)
@@ -199,3 +202,4 @@ Core principle: the fundamental unit is the event (naming/relating act), not the
 | `287d4c5` | Add in-vivo coding: create codes inline during annotation |
 | `de0c481` | Add color picker for in-vivo codes, enforce code uniqueness |
 | `ac39f27` | Fix image viewer zoom, cancel button, and large image support |
+| `a550c06` | Segment-based text annotation rendering, monospace font, fixed code panel |

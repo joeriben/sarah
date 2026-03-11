@@ -97,18 +97,17 @@
 		return `linear-gradient(180deg, ${stops.join(', ')})`;
 	}
 
-	// Build text segments with inline annotation labels
-	type TextSegment = { text: string; codes: { id: string; annId: string; label: string; color: string }[]; startsHere: { label: string; color: string; annId: string }[] };
+	// Build text segments for color-coded annotation display
+	type TextSegment = { text: string; codes: { id: string; annId: string; label: string; color: string }[] };
 	const textSegments = $derived.by((): TextSegment[] => {
 		const text = doc.full_text;
 		if (!text) return [];
 
-		// Collect text annotations only
 		const textAnns = annotations.filter((a: any) => {
 			const anchor = a.properties?.anchor;
 			return anchor && anchor.pos0 != null && anchor.pos1 != null;
 		});
-		if (textAnns.length === 0) return [{ text, codes: [], startsHere: [] }];
+		if (textAnns.length === 0) return [{ text, codes: [] }];
 
 		// Build boundary points
 		const points = new Set<number>();
@@ -121,7 +120,6 @@
 		}
 		const sorted = [...points].sort((a, b) => a - b);
 
-		// Build segments
 		const segments: TextSegment[] = [];
 		for (let i = 0; i < sorted.length - 1; i++) {
 			const start = sorted[i];
@@ -129,16 +127,13 @@
 			if (start === end) continue;
 
 			const activeCodes: TextSegment['codes'] = [];
-			const startsHere: TextSegment['startsHere'] = [];
 			for (const ann of textAnns) {
 				const { pos0, pos1 } = ann.properties.anchor;
 				if (pos0 <= start && pos1 > start) {
-					const info = { id: ann.code_id, annId: ann.id, label: ann.code_label, color: ann.code_properties?.color || '#8b9cf7' };
-					activeCodes.push(info);
-					if (pos0 === start) startsHere.push(info);
+					activeCodes.push({ id: ann.code_id, annId: ann.id, label: ann.code_label, color: ann.code_properties?.color || '#8b9cf7' });
 				}
 			}
-			segments.push({ text: text.slice(start, end), codes: activeCodes, startsHere });
+			segments.push({ text: text.slice(start, end), codes: activeCodes });
 		}
 		return segments;
 	});
@@ -279,17 +274,13 @@
 				/>
 			{:else if doc.full_text}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<pre class="document-text" bind:this={textEl} onmouseup={handleMouseUp}>{#each textSegments as seg}{#if seg.codes.length > 0}{#each seg.startsHere as c}<span
-						class="code-tag"
-						class:tag-highlighted={highlightedAnnotationId === c.annId}
-						style="background: {c.color};"
-						onmouseenter={() => { highlightedAnnotationId = c.annId; }}
-						onmouseleave={() => { highlightedAnnotationId = null; }}
-					>{c.label}</span>{/each}<span
+				<pre class="document-text" bind:this={textEl} onmouseup={handleMouseUp}>{#each textSegments as seg}{#if seg.codes.length > 0}<span
 						class="coded-text"
 						class:coded-highlighted={seg.codes.some(c => c.annId === highlightedAnnotationId)}
 						style="background: {codedBackground(seg.codes)}; border-bottom: 2px solid {seg.codes[0].color};"
-					>{seg.text}</span>{:else}{seg.text}{/if}{/each}</pre>
+						onmouseenter={() => { highlightedAnnotationId = seg.codes[0].annId; }}
+						onmouseleave={() => { highlightedAnnotationId = null; }}
+					>{seg.text}<span class="code-tooltip">{seg.codes.map(c => c.label).join(', ')}</span></span>{:else}{seg.text}{/if}{/each}</pre>
 			{:else}
 				<p class="placeholder">No text content available</p>
 			{/if}
@@ -397,7 +388,7 @@
 	h1 { font-size: 1.2rem; margin-bottom: 0.25rem; }
 	.meta { font-size: 0.8rem; color: #6b7280; }
 
-	.doc-body { display: flex; gap: 1rem; flex: 1; min-height: 0; }
+	.doc-body { display: flex; gap: 1rem; flex: 1; min-height: 0; overflow: hidden; }
 
 	.content-panel {
 		flex: 1;
@@ -416,8 +407,8 @@
 	.document-text {
 		white-space: pre-wrap;
 		word-break: break-word;
-		font-family: 'Georgia', serif;
-		font-size: 0.9rem;
+		font-family: 'Courier New', 'Consolas', monospace;
+		font-size: 0.85rem;
 		line-height: 1.7;
 		color: #d1d5db;
 		cursor: text;
@@ -427,42 +418,41 @@
 		background: rgba(139, 156, 247, 0.35);
 	}
 
-	/* Inline code annotations */
-	.code-tag {
-		display: inline;
-		font-family: system-ui, sans-serif;
-		font-size: 0.6rem;
-		font-weight: 600;
-		color: #0f1117;
-		padding: 0.05rem 0.3rem;
-		border-radius: 2px;
-		margin-right: 1px;
-		vertical-align: text-top;
-		line-height: 1;
-		cursor: default;
-		white-space: nowrap;
-	}
-	.code-tag.tag-highlighted {
-		outline: 1px solid #fff;
-	}
+	/* Coded text: background + underline, no layout shift */
 	.coded-text {
+		position: relative;
 		border-radius: 2px;
 		transition: filter 0.15s;
+		cursor: default;
 	}
 	.coded-text.coded-highlighted {
 		filter: brightness(1.4);
 	}
+	.code-tooltip {
+		display: none;
+		position: absolute;
+		bottom: 100%; left: 0;
+		background: #1e2030;
+		border: 1px solid #2a2d3a;
+		border-radius: 4px;
+		padding: 0.2rem 0.4rem;
+		font-family: system-ui, sans-serif;
+		font-size: 0.7rem;
+		color: #e1e4e8;
+		white-space: nowrap;
+		z-index: 10;
+		pointer-events: none;
+		box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+	}
+	.coded-text:hover > .code-tooltip { display: block; }
 
 	.code-panel {
 		width: 300px;
+		flex-shrink: 0;
 		display: flex;
 		flex-direction: column;
 		gap: 0.75rem;
 		overflow-y: auto;
-		position: sticky;
-		top: 0;
-		align-self: flex-start;
-		max-height: 100%;
 	}
 
 	.section-icon { width: 16px; height: 16px; opacity: 0.5; }
