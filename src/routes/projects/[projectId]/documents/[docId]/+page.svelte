@@ -4,7 +4,8 @@
 
 	let { data } = $props();
 	const doc = $derived(data.document);
-	const codes = $derived(data.codes);
+	let codes = $state<any[]>([]);
+	$effect(() => { codes = data.codes; });
 	const isImage = $derived(doc.mime_type?.startsWith('image/'));
 
 	let annotations = $state<any[]>([]);
@@ -17,6 +18,19 @@
 
 	let comment = $state('');
 	let annotating = $state(false);
+
+	// In-vivo coding state
+	let codeFilter = $state('');
+	let creatingCode = $state(false);
+	const filteredCodes = $derived(
+		codeFilter.trim()
+			? codes.filter((c: any) => c.label.toLowerCase().includes(codeFilter.trim().toLowerCase()))
+			: codes
+	);
+	const canCreateInVivo = $derived(
+		codeFilter.trim().length > 0 &&
+		!codes.some((c: any) => c.label.toLowerCase() === codeFilter.trim().toLowerCase())
+	);
 
 	// Annotation highlight on hover
 	let highlightedAnnotationId = $state<string | null>(null);
@@ -177,6 +191,28 @@
 		annotating = false;
 	}
 
+	async function createCodeAndAnnotate() {
+		if (!canCreateInVivo || creatingCode) return;
+		creatingCode = true;
+		const label = codeFilter.trim();
+		const res = await fetch(`/api/projects/${data.projectId}/codes`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ label })
+		});
+		if (res.ok) {
+			const newCode = await res.json();
+			// Refresh codes list
+			const codesRes = await fetch(`/api/projects/${data.projectId}/codes`);
+			if (codesRes.ok) {
+				codes = await codesRes.json();
+			}
+			codeFilter = '';
+			await annotate(newCode.id);
+		}
+		creatingCode = false;
+	}
+
 	async function deleteAnnotation(annId: string) {
 		const res = await fetch(`/api/projects/${data.projectId}/documents/${doc.id}/annotations?id=${annId}`, {
 			method: 'DELETE'
@@ -276,11 +312,24 @@
 					</div>
 					<div class="selection-preview">{getSelectionPreview()}</div>
 
-					{#if codes.length === 0}
-						<p class="empty">No codes yet. <a href="/projects/{data.projectId}/codes">Create codes</a> first.</p>
-					{:else}
+					<form class="invivo-form" onsubmit={e => { e.preventDefault(); if (canCreateInVivo) createCodeAndAnnotate(); }}>
+						<input
+							type="text"
+							class="code-filter-input"
+							placeholder="Search or create code..."
+							bind:value={codeFilter}
+							disabled={annotating || creatingCode}
+						/>
+						{#if canCreateInVivo}
+							<button type="submit" class="btn-create-code" disabled={creatingCode}>
+								+ {codeFilter.trim()}
+							</button>
+						{/if}
+					</form>
+
+					{#if filteredCodes.length > 0}
 						<div class="code-chips">
-							{#each codes as code (code.id)}
+							{#each filteredCodes as code (code.id)}
 								<button
 									class="code-chip"
 									disabled={annotating}
@@ -291,6 +340,8 @@
 								</button>
 							{/each}
 						</div>
+					{:else if !canCreateInVivo}
+						<p class="empty">No codes match.</p>
 					{/if}
 
 					<input
@@ -418,6 +469,37 @@
 		cursor: pointer;
 	}
 	.btn-cancel:hover { color: #e1e4e8; }
+
+	/* In-vivo coding */
+	.invivo-form {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		margin-bottom: 0.5rem;
+	}
+	.code-filter-input {
+		width: 100%;
+		background: #0f1117;
+		border: 1px solid #2a2d3a;
+		border-radius: 4px;
+		padding: 0.4rem 0.5rem;
+		color: #e1e4e8;
+		font-size: 0.8rem;
+		box-sizing: border-box;
+	}
+	.code-filter-input:focus { outline: none; border-color: #8b9cf7; }
+	.btn-create-code {
+		background: rgba(139, 156, 247, 0.1);
+		border: 1px dashed #8b9cf7;
+		border-radius: 4px;
+		padding: 0.3rem 0.5rem;
+		color: #8b9cf7;
+		font-size: 0.78rem;
+		cursor: pointer;
+		text-align: left;
+	}
+	.btn-create-code:hover { background: rgba(139, 156, 247, 0.2); }
+	.btn-create-code:disabled { opacity: 0.4; cursor: wait; }
 
 	.selection-preview {
 		font-size: 0.8rem;
