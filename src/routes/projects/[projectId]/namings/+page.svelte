@@ -40,6 +40,9 @@
 	let hideAI = $state(false);
 	let hideWithdrawn = $state(true);
 
+	let newNamingValue = $state('');
+	let creatingNaming = $state(false);
+
 	let editingId = $state<string | null>(null);
 	let editingValue = $state('');
 
@@ -56,6 +59,11 @@
 
 	// Relate mode
 	let relateSource = $state<string | null>(null);
+
+	// Reify-as-relation mode: entity → relation
+	// Step 1: pick source, Step 2: pick target
+	let reifyNamingId = $state<string | null>(null);
+	let reifySourceId = $state<string | null>(null);
 
 	// Local withdrawn set (keeps items visible until next page load)
 	let localWithdrawn = $state<Set<string>>(new Set());
@@ -88,6 +96,7 @@
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
 			if (actTarget) { cancelAct(); e.preventDefault(); return; }
+			if (reifyNamingId) { cancelReify(); e.preventDefault(); return; }
 			if (relateSource) { cancelRelate(); e.preventDefault(); return; }
 			if (editingId) { editingId = null; e.preventDefault(); return; }
 			if (stackId) { stackId = null; stackData = null; e.preventDefault(); return; }
@@ -150,6 +159,17 @@
 			body: JSON.stringify({ action, ...params })
 		});
 		return res.json();
+	}
+
+	// ---- Create ----
+	async function createNaming() {
+		if (!newNamingValue.trim() || creatingNaming) return;
+		creatingNaming = true;
+		await apiAction('create', { inscription: newNamingValue.trim() });
+		newNamingValue = '';
+		creatingNaming = false;
+		const module = await import('$app/navigation');
+		module.invalidateAll();
 	}
 
 	// ---- Stack ----
@@ -264,6 +284,40 @@
 		// Don't invalidate — item stays visible (struck through) until next navigation
 	}
 
+	// ---- Mode switching ----
+	async function switchToEntity(namingId: string) {
+		await apiAction('switchToEntity', { namingId });
+		const module = await import('$app/navigation');
+		module.invalidateAll();
+	}
+
+	function startReifyAsRelation(namingId: string) {
+		reifyNamingId = namingId;
+		reifySourceId = null;
+	}
+
+	async function reifyPickTarget(targetId: string) {
+		if (!reifyNamingId || !reifySourceId) return;
+		await apiAction('reifyAsRelation', {
+			namingId: reifyNamingId,
+			sourceId: reifySourceId,
+			targetId
+		});
+		reifyNamingId = null;
+		reifySourceId = null;
+		const module = await import('$app/navigation');
+		module.invalidateAll();
+	}
+
+	function reifyPickSource(sourceId: string) {
+		reifySourceId = sourceId;
+	}
+
+	function cancelReify() {
+		reifyNamingId = null;
+		reifySourceId = null;
+	}
+
 	function findNaming(id: string): NamingRow | undefined {
 		return (namings as NamingRow[]).find(n => n.naming_id === id);
 	}
@@ -275,6 +329,15 @@
 	<!-- Header -->
 	<div class="header">
 		<h1>Namings</h1>
+		<form class="create-form" onsubmit={e => { e.preventDefault(); createNaming(); }}>
+			<input
+				type="text"
+				class="create-input"
+				placeholder="New naming..."
+				bind:value={newNamingValue}
+				disabled={creatingNaming}
+			/>
+		</form>
 		<span class="summary">
 			{counts.total} total
 			<span class="sep">|</span>
@@ -346,6 +409,20 @@
 		</div>
 	{/if}
 
+	<!-- Reify-as-relation mode indicator -->
+	{#if reifyNamingId}
+		{@const reifyNaming = findNaming(reifyNamingId)}
+		<div class="relate-banner">
+			{#if !reifySourceId}
+				<strong>{reifyNaming?.current_inscription || reifyNaming?.inscription}</strong> → Relation: click the <strong>source</strong> naming
+			{:else}
+				{@const srcNaming = findNaming(reifySourceId)}
+				<strong>{reifyNaming?.current_inscription || reifyNaming?.inscription}</strong>: <strong>{srcNaming?.current_inscription || srcNaming?.inscription}</strong> → click the <strong>target</strong> naming
+			{/if}
+			<button class="btn-xs" onclick={cancelReify}>cancel</button>
+		</div>
+	{/if}
+
 	<!-- Act-prompt bar -->
 	{#if actTarget}
 		{@const targetNaming = findNaming(actTarget)}
@@ -404,8 +481,14 @@
 			<div class="naming-list">
 				{#each entities as n (n.naming_id)}
 					{@const withdrawn = isWithdrawn(n.naming_id, n.properties)}
-					<div class="naming-card" class:withdrawn class:relate-target={relateSource && relateSource !== n.naming_id}>
-						<div class="naming-main" onclick={() => relateSource ? startRelate(n.naming_id) : null}>
+					<div class="naming-card" class:withdrawn class:relate-target={(relateSource && relateSource !== n.naming_id) || (reifyNamingId && reifyNamingId !== n.naming_id)}>
+						<div class="naming-main" onclick={() => {
+							if (relateSource) { startRelate(n.naming_id); return; }
+							if (reifyNamingId && reifyNamingId !== n.naming_id) {
+								if (!reifySourceId) { reifyPickSource(n.naming_id); return; }
+								reifyPickTarget(n.naming_id); return;
+							}
+						}}>
 							<span class="designation-dot" style="background: {designationColor(n.designation)}" title="{designationLabel(n.designation)}"></span>
 							{#if n.has_document_anchor}
 								<img class="provenance-indicator" src="/icons/text_snippet.svg" alt="empirical" title="Empirically grounded" />
@@ -444,6 +527,7 @@
 							</select>
 							<button class="btn-xs" onclick={() => showStack(n.naming_id)}>stack</button>
 							<button class="btn-xs" onclick={() => startRelate(n.naming_id)}>relate</button>
+							<button class="btn-xs btn-mode" onclick={() => startReifyAsRelation(n.naming_id)}>→ relation</button>
 							<button class="btn-xs btn-withdraw" onclick={() => withdraw(n.naming_id)}>
 								{withdrawn ? 'restore' : 'withdraw'}
 							</button>
@@ -579,6 +663,7 @@
 								<option value="specification">specification</option>
 							</select>
 							<button class="btn-xs" onclick={() => showStack(n.naming_id)}>stack</button>
+							<button class="btn-xs btn-mode" onclick={() => switchToEntity(n.naming_id)}>→ entity</button>
 							<button class="btn-xs btn-withdraw" onclick={() => withdraw(n.naming_id)}>
 								{withdrawn ? 'restore' : 'withdraw'}
 							</button>
@@ -709,6 +794,22 @@
 	h1 { font-size: 1.3rem; margin: 0; }
 	.summary { font-size: 0.8rem; color: #6b7280; }
 	.sep { color: #3a3d4a; margin: 0 0.15rem; }
+
+	/* Create naming */
+	.create-form { flex: 1; }
+	.create-input {
+		width: 100%;
+		background: #161822;
+		border: 1px solid #2a2d3a;
+		border-radius: 5px;
+		padding: 0.35rem 0.55rem;
+		color: #e1e4e8;
+		font-size: 0.85rem;
+		box-sizing: border-box;
+	}
+	.create-input:focus { outline: none; border-color: #8b9cf7; }
+	.create-input::placeholder { color: #4b5563; }
+	.create-input:disabled { opacity: 0.5; }
 
 	/* Filters */
 	.filter-bar {
@@ -932,6 +1033,8 @@
 	.btn-icon { width: 14px; height: 14px; opacity: 0.5; display: block; }
 	.btn-withdraw { border-color: #6b7280; color: #6b7280; font-size: 0.65rem; }
 	.btn-withdraw:hover { background: rgba(107, 114, 128, 0.1); }
+	.btn-mode { border-color: #8b9cf7; color: #8b9cf7; font-size: 0.65rem; opacity: 0.6; }
+	.btn-mode:hover { opacity: 1; background: rgba(139, 156, 247, 0.08); }
 
 	/* Inline rename */
 	.inline-rename {

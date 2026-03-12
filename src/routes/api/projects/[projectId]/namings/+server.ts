@@ -5,7 +5,8 @@ import {
 	getOrCreateResearcherNaming,
 	renameNaming,
 	softDelete,
-	getNaming
+	getNaming,
+	createParticipation
 } from '$lib/server/db/queries/namings.js';
 import { relateElements, getNamingStack } from '$lib/server/db/queries/maps.js';
 import { createMemo, getMemosForNaming } from '$lib/server/db/queries/memos.js';
@@ -34,6 +35,35 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const userId = locals.user!.id;
 
 	switch (action) {
+		case 'create': {
+			const { inscription, designation } = body;
+			if (!inscription?.trim()) return json({ error: 'inscription required' }, { status: 400 });
+			const researcherNamingId = await getOrCreateResearcherNaming(projectId, userId);
+
+			const result = await query(
+				`INSERT INTO namings (project_id, inscription, created_by)
+				 VALUES ($1, $2, $3) RETURNING *`,
+				[projectId, inscription.trim(), userId]
+			);
+			const naming = result.rows[0];
+
+			// Record initial inscription
+			await query(
+				`INSERT INTO naming_inscriptions (naming_id, inscription, by)
+				 VALUES ($1, $2, $3)`,
+				[naming.id, inscription.trim(), researcherNamingId]
+			);
+
+			// Initial designation (default: cue)
+			await query(
+				`INSERT INTO naming_designations (naming_id, designation, by)
+				 VALUES ($1, $2, $3)`,
+				[naming.id, designation || 'cue', researcherNamingId]
+			);
+
+			return json(naming, { status: 201 });
+		}
+
 		case 'getStack': {
 			const { namingId } = body;
 			if (!namingId) return json({ error: 'namingId required' }, { status: 400 });
@@ -87,6 +117,47 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 				inscription, valence, symmetric, properties
 			});
 			return json(relation, { status: 201 });
+		}
+
+		case 'switchToEntity': {
+			// Relation → Entity: change appearance mode, participations remain
+			const { namingId } = body;
+			if (!namingId) return json({ error: 'namingId required' }, { status: 400 });
+			await query(
+				`UPDATE appearances SET mode = 'entity', updated_at = now()
+				 WHERE naming_id = $1 AND mode = 'relation'`,
+				[namingId]
+			);
+			return json({ ok: true });
+		}
+
+		case 'reifyAsRelation': {
+			// Entity → Relation: create participation between sourceId and targetId,
+			// using this naming as the relation. Then update appearance mode.
+			const { namingId, sourceId, targetId, valence } = body;
+			if (!namingId || !sourceId || !targetId) return json({ error: 'namingId, sourceId, targetId required' }, { status: 400 });
+
+			// Create participation: the naming becomes the bond between source and target
+			await query(
+				`INSERT INTO participations (id, naming_id, participant_id)
+				 VALUES ($1, $2, $3)
+				 ON CONFLICT (id) DO UPDATE SET naming_id = $2, participant_id = $3`,
+				[namingId, sourceId, targetId]
+			);
+
+			// Update all appearances to mode='relation' with direction
+			await query(
+				`UPDATE appearances
+				 SET mode = 'relation',
+				     directed_from = $2,
+				     directed_to = $3,
+				     valence = COALESCE($4, valence),
+				     updated_at = now()
+				 WHERE naming_id = $1 AND naming_id != perspective_id`,
+				[namingId, sourceId, targetId, valence || null]
+			);
+
+			return json({ ok: true });
 		}
 
 		case 'getMemosForNaming': {
