@@ -63,6 +63,7 @@
 
 	// Relate mode
 	let relateSource = $state<string | null>(null);
+	let relateTarget = $state<string | null>(null);
 
 	// Reify-as-relation mode: entity → relation
 	// Step 1: pick source, Step 2: pick target
@@ -101,7 +102,7 @@
 		if (e.key === 'Escape') {
 			if (actTarget) { cancelAct(); e.preventDefault(); return; }
 			if (reifyNamingId) { cancelReify(); e.preventDefault(); return; }
-			if (relateSource) { cancelRelate(); e.preventDefault(); return; }
+			if (relateSource || relateTarget) { cancelRelate(); e.preventDefault(); return; }
 			if (editingValenceId) { editingValenceId = null; e.preventDefault(); return; }
 			if (editingId) { editingId = null; e.preventDefault(); return; }
 			if (stackId) { stackId = null; stackData = null; e.preventDefault(); return; }
@@ -227,24 +228,32 @@
 	}
 
 	// ---- Relate ----
-	async function startRelate(namingId: string) {
+	function startRelate(namingId: string) {
 		if (relateSource && relateSource !== namingId) {
-			// Second click: create relation immediately
-			const src = relateSource;
-			relateSource = null;
-			await apiAction('relate', { sourceId: src, targetId: namingId });
-			const module = await import('$app/navigation');
-			module.invalidateAll();
+			// Second click: stage target for confirmation
+			relateTarget = namingId;
 		} else if (relateSource === namingId) {
 			// Clicked same naming again: cancel
 			relateSource = null;
+			relateTarget = null;
 		} else {
 			relateSource = namingId;
+			relateTarget = null;
 		}
+	}
+
+	async function confirmRelate() {
+		if (!relateSource || !relateTarget) return;
+		await apiAction('relate', { sourceId: relateSource, targetId: relateTarget });
+		relateSource = null;
+		relateTarget = null;
+		const module = await import('$app/navigation');
+		module.invalidateAll();
 	}
 
 	function cancelRelate() {
 		relateSource = null;
+		relateTarget = null;
 	}
 
 	// ---- Act-prompt actions ----
@@ -424,8 +433,15 @@
 	{#if relateSource}
 		{@const srcNaming = findNaming(relateSource)}
 		<div class="relate-banner">
-			Relating: <strong>{srcNaming?.current_inscription || srcNaming?.inscription}</strong> — click another naming to connect
-			<button class="btn-xs" onclick={cancelRelate}>cancel</button>
+			{#if relateTarget}
+				{@const tgtNaming = findNaming(relateTarget)}
+				Relate: <strong>{srcNaming?.current_inscription || srcNaming?.inscription}</strong> → <strong>{tgtNaming?.current_inscription || tgtNaming?.inscription}</strong>
+				<button class="btn-xs btn-confirm" onclick={confirmRelate}>ok</button>
+				<button class="btn-xs" onclick={cancelRelate}>cancel</button>
+			{:else}
+				Relating: <strong>{srcNaming?.current_inscription || srcNaming?.inscription}</strong> — click another naming to connect
+				<button class="btn-xs" onclick={cancelRelate}>cancel</button>
+			{/if}
 		</div>
 	{/if}
 
@@ -1050,6 +1066,8 @@
 		cursor: pointer;
 	}
 	.btn-xs:hover { border-color: #4b5060; color: #e1e4e8; }
+	.btn-confirm { border-color: #8b9cf7; color: #8b9cf7; font-weight: 600; }
+	.btn-confirm:hover { background: rgba(139, 156, 247, 0.12); color: #e1e4e8; }
 	.btn-icon { width: 14px; height: 14px; opacity: 0.5; display: block; }
 	.btn-withdraw { border-color: #6b7280; color: #6b7280; font-size: 0.65rem; }
 	.btn-withdraw:hover { background: rgba(107, 114, 128, 0.1); }
