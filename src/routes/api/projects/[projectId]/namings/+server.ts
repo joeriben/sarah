@@ -47,18 +47,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			);
 			const naming = result.rows[0];
 
-			// Record initial inscription
+			// Initial act: inscription + designation in one stack entry
 			await query(
-				`INSERT INTO naming_inscriptions (naming_id, inscription, by)
-				 VALUES ($1, $2, $3)`,
-				[naming.id, inscription.trim(), researcherNamingId]
-			);
-
-			// Initial designation (default: cue)
-			await query(
-				`INSERT INTO naming_designations (naming_id, designation, by)
-				 VALUES ($1, $2, $3)`,
-				[naming.id, designation || 'cue', researcherNamingId]
+				`INSERT INTO naming_acts (naming_id, by, inscription, designation)
+				 VALUES ($1, $2, $3, $4)`,
+				[naming.id, researcherNamingId, inscription.trim(), designation || 'cue']
 			);
 
 			return json(naming, { status: 201 });

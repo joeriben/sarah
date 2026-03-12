@@ -34,9 +34,9 @@ export async function createMap(
 			[map.id, JSON.stringify({ mapType, ...properties })]
 		);
 
-		// Initial designation
+		// Initial act
 		await client.query(
-			`INSERT INTO naming_designations (naming_id, designation, by)
+			`INSERT INTO naming_acts (naming_id, designation, by)
 			 VALUES ($1, 'cue', $2)`,
 			[map.id, researcherNamingId]
 		);
@@ -100,9 +100,9 @@ export async function addElementToMap(
 			[naming.id, mapId, JSON.stringify(properties || {})]
 		);
 
-		// Initial designation: cue (just registered, not yet determined)
+		// Initial act: cue (just registered, not yet determined)
 		await client.query(
-			`INSERT INTO naming_designations (naming_id, designation, by)
+			`INSERT INTO naming_acts (naming_id, designation, by)
 			 VALUES ($1, 'cue', $2)`,
 			[naming.id, researcherNamingId]
 		);
@@ -174,7 +174,7 @@ export async function relateElements(
 		else if (hasInscription) relDesignation = 'characterization';
 
 		await client.query(
-			`INSERT INTO naming_designations (naming_id, designation, by)
+			`INSERT INTO naming_acts (naming_id, designation, by)
 			 VALUES ($1, $2, $3)`,
 			[partNaming.id, relDesignation, researcherNamingId]
 		);
@@ -183,13 +183,13 @@ export async function relateElements(
 		// advance from cue toward characterization (if they aren't already beyond it)
 		for (const elementId of [sourceId, targetId]) {
 			const current = await client.query(
-				`SELECT designation FROM naming_designations
-				 WHERE naming_id = $1 ORDER BY seq DESC LIMIT 1`,
+				`SELECT designation FROM naming_acts
+				 WHERE naming_id = $1 AND designation IS NOT NULL ORDER BY seq DESC LIMIT 1`,
 				[elementId]
 			);
 			if (current.rows[0]?.designation === 'cue') {
 				await client.query(
-					`INSERT INTO naming_designations (naming_id, designation, by)
+					`INSERT INTO naming_acts (naming_id, designation, by)
 					 VALUES ($1, 'characterization', $2)`,
 					[elementId, researcherNamingId]
 				);
@@ -242,9 +242,9 @@ export async function createPhase(
 			[phase.id, phase.id, mapId]
 		);
 
-		// Designation: cue
+		// Initial act: cue
 		await client.query(
-			`INSERT INTO naming_designations (naming_id, designation, by)
+			`INSERT INTO naming_acts (naming_id, designation, by)
 			 VALUES ($1, 'cue', $2)`,
 			[phase.id, researcherNamingId]
 		);
@@ -265,12 +265,9 @@ export async function assignToPhase(
 	properties?: Record<string, unknown>,
 	byNamingId?: string
 ) {
-	// Get the current highest seq for this naming's inscriptions or designations
+	// Get the current highest seq for this naming's acts
 	const currentSeq = await queryOne<{ seq: string }>(
-		`SELECT GREATEST(
-		   COALESCE((SELECT MAX(seq) FROM naming_inscriptions WHERE naming_id = $1), 0),
-		   COALESCE((SELECT MAX(seq) FROM naming_designations WHERE naming_id = $1), 0)
-		 ) as seq`,
+		`SELECT COALESCE(MAX(seq), 0) as seq FROM naming_acts WHERE naming_id = $1`,
 		[namingId]
 	);
 	const collapseAt = currentSeq ? parseInt(currentSeq.seq) : null;
@@ -369,19 +366,19 @@ export async function setCollapse(
 export async function getNamingStack(namingId: string) {
 	const [inscriptions, designations, memos, aiMeta] = await Promise.all([
 		query(
-			`SELECT ni.seq, ni.inscription, ni.created_at, n.inscription as by_inscription
-			 FROM naming_inscriptions ni
-			 JOIN namings n ON n.id = ni.by
-			 WHERE ni.naming_id = $1
-			 ORDER BY ni.seq ASC`,
+			`SELECT na.seq, na.inscription, na.created_at, n.inscription as by_inscription
+			 FROM naming_acts na
+			 JOIN namings n ON n.id = na.by
+			 WHERE na.naming_id = $1 AND na.inscription IS NOT NULL
+			 ORDER BY na.seq ASC`,
 			[namingId]
 		),
 		query(
-			`SELECT nd.seq, nd.designation, nd.created_at, n.inscription as by_inscription
-			 FROM naming_designations nd
-			 JOIN namings n ON n.id = nd.by
-			 WHERE nd.naming_id = $1
-			 ORDER BY nd.seq ASC`,
+			`SELECT na.seq, na.designation, na.created_at, n.inscription as by_inscription
+			 FROM naming_acts na
+			 JOIN namings n ON n.id = na.by
+			 WHERE na.naming_id = $1 AND na.designation IS NOT NULL
+			 ORDER BY na.seq ASC`,
 			[namingId]
 		),
 		query(
@@ -445,22 +442,22 @@ export async function getMapAppearances(mapId: string, projectId: string) {
 			`SELECT a.*,
 			   -- Inscription: collapsed (at collapseAt seq) or current
 			   COALESCE(
-			     (SELECT ni.inscription FROM naming_inscriptions ni
-			      WHERE ni.naming_id = a.naming_id
+			     (SELECT na.inscription FROM naming_acts na
+			      WHERE na.naming_id = a.naming_id AND na.inscription IS NOT NULL
 			        AND (a.properties->>'collapseAt' IS NULL
-			             OR ni.seq <= (a.properties->>'collapseAt')::bigint)
-			      ORDER BY ni.seq DESC LIMIT 1),
+			             OR na.seq <= (a.properties->>'collapseAt')::bigint)
+			      ORDER BY na.seq DESC LIMIT 1),
 			     n.inscription
 			   ) as inscription,
 			   n.inscription as current_inscription,
 			   n.created_at as naming_created_at,
 			   -- Designation: collapsed or current
 			   COALESCE(
-			     (SELECT nd.designation FROM naming_designations nd
-			      WHERE nd.naming_id = a.naming_id
+			     (SELECT na.designation FROM naming_acts na
+			      WHERE na.naming_id = a.naming_id AND na.designation IS NOT NULL
 			        AND (a.properties->>'collapseAt' IS NULL
-			             OR nd.seq <= (a.properties->>'collapseAt')::bigint)
-			      ORDER BY nd.seq DESC LIMIT 1),
+			             OR na.seq <= (a.properties->>'collapseAt')::bigint)
+			      ORDER BY na.seq DESC LIMIT 1),
 			     'cue'
 			   ) as designation,
 			   -- Whether this appearance is collapsed (pinned) or showing latest
@@ -550,11 +547,11 @@ export async function getMapDesignationProfile(mapId: string, projectId: string)
 			`SELECT * FROM (
 			   SELECT
 			     COALESCE(
-			       (SELECT nd.designation FROM naming_designations nd
-			        WHERE nd.naming_id = a.naming_id
+			       (SELECT na.designation FROM naming_acts na
+			        WHERE na.naming_id = a.naming_id AND na.designation IS NOT NULL
 			          AND (a.properties->>'collapseAt' IS NULL
-			               OR nd.seq <= (a.properties->>'collapseAt')::bigint)
-			        ORDER BY nd.seq DESC LIMIT 1),
+			               OR na.seq <= (a.properties->>'collapseAt')::bigint)
+			        ORDER BY na.seq DESC LIMIT 1),
 			       'cue'
 			     ) as designation,
 			     count(*) as count

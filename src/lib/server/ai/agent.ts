@@ -218,7 +218,7 @@ async function addElementToAiMap(
 
 		// Designation: cue, by the AI naming
 		await client.query(
-			`INSERT INTO naming_designations (naming_id, designation, by)
+			`INSERT INTO naming_acts (naming_id, designation, by)
 			 VALUES ($1, 'cue', $2)`,
 			[naming.id, aiNamingId]
 		);
@@ -258,7 +258,7 @@ async function relateElementsAsAi(
 		);
 
 		await client.query(
-			`INSERT INTO naming_designations (naming_id, designation, by)
+			`INSERT INTO naming_acts (naming_id, designation, by)
 			 VALUES ($1, 'cue', $2)`,
 			[partNaming.id, aiNamingId]
 		);
@@ -289,7 +289,7 @@ async function addSilenceToMap(
 		);
 
 		await client.query(
-			`INSERT INTO naming_designations (naming_id, designation, by)
+			`INSERT INTO naming_acts (naming_id, designation, by)
 			 VALUES ($1, 'cue', $2)`,
 			[naming.id, aiNamingId]
 		);
@@ -332,7 +332,7 @@ async function createPhaseAsAi(
 		);
 
 		await client.query(
-			`INSERT INTO naming_designations (naming_id, designation, by)
+			`INSERT INTO naming_acts (naming_id, designation, by)
 			 VALUES ($1, 'cue', $2)`,
 			[phase.id, aiNamingId]
 		);
@@ -508,7 +508,7 @@ export async function discussCue(
 						[new_inscription.trim(), namingId]
 					);
 					await client.query(
-						`INSERT INTO naming_inscriptions (naming_id, inscription, by)
+						`INSERT INTO naming_acts (naming_id, inscription, by)
 						 VALUES ($1, $2, $3)`,
 						[namingId, new_inscription.trim(), aiNamingId]
 					);

@@ -45,9 +45,9 @@ export async function getOrCreateResearcherNaming(
 			[userId, projectId, namingId]
 		);
 
-		// Initial designation: the researcher characterizes itself
+		// Initial act: the researcher characterizes itself
 		await client.query(
-			`INSERT INTO naming_designations (naming_id, designation, by)
+			`INSERT INTO naming_acts (naming_id, designation, by)
 			 VALUES ($1, 'characterization', $1)`,
 			[namingId]
 		);
@@ -73,18 +73,11 @@ export async function createNaming(
 	);
 	const naming = res!;
 
-	// Initial designation as characterization, by the researcher-naming
+	// Initial act: inscription + designation in one stack entry
 	await query(
-		`INSERT INTO naming_designations (naming_id, designation, by)
-		 VALUES ($1, 'characterization', $2)`,
-		[naming.id, researcherNamingId]
-	);
-
-	// Record initial inscription
-	await query(
-		`INSERT INTO naming_inscriptions (naming_id, inscription, by)
-		 VALUES ($1, $2, $3)`,
-		[naming.id, inscription, researcherNamingId]
+		`INSERT INTO naming_acts (naming_id, by, inscription, designation)
+		 VALUES ($1, $2, $3, 'characterization')`,
+		[naming.id, researcherNamingId, inscription]
 	);
 
 	return naming;
@@ -107,11 +100,11 @@ export async function renameNaming(
 			[inscription, namingId, projectId]
 		);
 
-		// Record in history
+		// Record in stack
 		await client.query(
-			`INSERT INTO naming_inscriptions (naming_id, inscription, by)
+			`INSERT INTO naming_acts (naming_id, by, inscription)
 			 VALUES ($1, $2, $3)`,
-			[namingId, inscription, researcherNamingId]
+			[namingId, researcherNamingId, inscription]
 		);
 
 		return result.rows[0];
@@ -121,11 +114,11 @@ export async function renameNaming(
 export async function getInscriptionHistory(namingId: string) {
 	return (
 		await query(
-			`SELECT ni.*, n.inscription as by_inscription
-			 FROM naming_inscriptions ni
-			 JOIN namings n ON n.id = ni.by
-			 WHERE ni.naming_id = $1
-			 ORDER BY ni.seq ASC`,
+			`SELECT na.seq, na.inscription, na.created_at, n.inscription as by_inscription
+			 FROM naming_acts na
+			 JOIN namings n ON n.id = na.by
+			 WHERE na.naming_id = $1 AND na.inscription IS NOT NULL
+			 ORDER BY na.seq ASC`,
 			[namingId]
 		)
 	).rows;
@@ -340,7 +333,7 @@ export async function designate(
 	byNamingId: string
 ) {
 	return queryOne(
-		`INSERT INTO naming_designations (naming_id, designation, by)
+		`INSERT INTO naming_acts (naming_id, designation, by)
 		 VALUES ($1, $2, $3) RETURNING *`,
 		[namingId, designation, byNamingId]
 	);
@@ -348,8 +341,8 @@ export async function designate(
 
 export async function getCurrentDesignation(namingId: string) {
 	return queryOne<{ designation: string; by: string; created_at: string }>(
-		`SELECT designation, by, created_at FROM naming_designations
-		 WHERE naming_id = $1 ORDER BY seq DESC LIMIT 1`,
+		`SELECT designation, by, created_at FROM naming_acts
+		 WHERE naming_id = $1 AND designation IS NOT NULL ORDER BY seq DESC LIMIT 1`,
 		[namingId]
 	);
 }
@@ -357,11 +350,11 @@ export async function getCurrentDesignation(namingId: string) {
 export async function getDesignationHistory(namingId: string) {
 	return (
 		await query(
-			`SELECT nd.*, n.inscription as by_inscription
-			 FROM naming_designations nd
-			 JOIN namings n ON n.id = nd.by
-			 WHERE nd.naming_id = $1
-			 ORDER BY nd.seq ASC`,
+			`SELECT na.seq, na.designation, na.created_at, n.inscription as by_inscription
+			 FROM naming_acts na
+			 JOIN namings n ON n.id = na.by
+			 WHERE na.naming_id = $1 AND na.designation IS NOT NULL
+			 ORDER BY na.seq ASC`,
 			[namingId]
 		)
 	).rows;
@@ -373,12 +366,12 @@ export async function getAllProjectNamings(projectId: string) {
 	return (
 		await query(
 			`SELECT n.id as naming_id, n.inscription, n.created_at, n.seq,
-			   -- Current designation (latest in chain)
-			   (SELECT nd.designation FROM naming_designations nd
-			    WHERE nd.naming_id = n.id ORDER BY nd.seq DESC LIMIT 1) as designation,
-			   -- Current inscription (latest in chain)
-			   (SELECT ni.inscription FROM naming_inscriptions ni
-			    WHERE ni.naming_id = n.id ORDER BY ni.seq DESC LIMIT 1) as current_inscription,
+			   -- Current designation (latest non-NULL in stack)
+			   (SELECT na.designation FROM naming_acts na
+			    WHERE na.naming_id = n.id AND na.designation IS NOT NULL ORDER BY na.seq DESC LIMIT 1) as designation,
+			   -- Current inscription (latest non-NULL in stack)
+			   (SELECT na.inscription FROM naming_acts na
+			    WHERE na.naming_id = n.id AND na.inscription IS NOT NULL ORDER BY na.seq DESC LIMIT 1) as current_inscription,
 			   -- Grounding: has document anchor
 			   EXISTS(SELECT 1 FROM appearances a
 			    WHERE a.directed_from = n.id AND a.valence = 'codes') as has_document_anchor,

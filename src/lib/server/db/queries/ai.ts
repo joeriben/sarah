@@ -35,9 +35,9 @@ export async function getOrCreateAiNaming(
 			[projectId, namingId, model]
 		);
 
-		// Initial designation: the AI characterizes itself
+		// Initial act: the AI characterizes itself
 		await client.query(
-			`INSERT INTO naming_designations (naming_id, designation, by)
+			`INSERT INTO naming_acts (naming_id, designation, by)
 			 VALUES ($1, 'characterization', $1)`,
 			[namingId]
 		);
