@@ -28,6 +28,17 @@
 	const selection = createSelection();
 
 	let viewMode = $state<'canvas' | 'list'>('list');
+	let showConnections = $state(true);
+	let listGroupBy = $state<'mode' | 'designation' | 'phase' | 'provenance' | 'flat'>('mode');
+
+	// Restore preferences from localStorage
+	$effect(() => {
+		const mapId = data.map.id;
+		const savedConn = localStorage.getItem(`map:${mapId}:showConnections`);
+		if (savedConn !== null) showConnections = savedConn !== 'false';
+		const savedGroup = localStorage.getItem(`map:${mapId}:listGroupBy`);
+		if (savedGroup) listGroupBy = savedGroup as typeof listGroupBy;
+	});
 
 	// Positions: naming_id → {x, y}
 	let positions = $state<Map<string, { x: number; y: number }>>(new Map());
@@ -72,24 +83,40 @@
 	}
 
 	// Layout unpositioned nodes (e.g. after adding a new element)
+	// For 1-2 new nodes: scatter-place near viewport center (no full ELK re-layout)
+	// For 3+ new nodes: run full ELK
 	async function layoutNewNodes() {
 		const unpositioned = [...elements, ...relations, ...silences]
 			.filter(n => !positions.has(n.naming_id));
 		if (unpositioned.length === 0) return;
 
-		const result = await computeLayout(
-			[...elements],
-			[...relations],
-			[...silences]
-		);
-		const merged = new Map(positions);
-		for (const [id, p] of result.positions) {
-			if (!merged.has(id)) {
-				merged.set(id, { x: p.x, y: p.y });
+		if (unpositioned.length <= 2 && positions.size > 0) {
+			// Scatter placement: near viewport center with random offset
+			const merged = new Map(positions);
+			const cx = viewport.x ? -viewport.x / viewport.zoom + 400 : 400;
+			const cy = viewport.y ? -viewport.y / viewport.zoom + 300 : 300;
+			for (const node of unpositioned) {
+				const ox = (Math.random() - 0.5) * 200;
+				const oy = (Math.random() - 0.5) * 200;
+				merged.set(node.naming_id, { x: cx + ox, y: cy + oy });
 			}
+			positions = merged;
+			await saveAllPositions(merged);
+		} else {
+			const result = await computeLayout(
+				[...elements],
+				[...relations],
+				[...silences]
+			);
+			const merged = new Map(positions);
+			for (const [id, p] of result.positions) {
+				if (!merged.has(id)) {
+					merged.set(id, { x: p.x, y: p.y });
+				}
+			}
+			positions = merged;
+			await saveAllPositions(merged);
 		}
-		positions = merged;
-		await saveAllPositions(merged);
 	}
 
 	// Withdrawn check: works for both AI-withdrawn and researcher-withdrawn
@@ -177,6 +204,49 @@
 	const declinedCount = $derived(
 		[...elements, ...relations, ...silences].filter((n: any) => isWithdrawn(n.properties)).length
 	);
+
+	// ─── List grouping ───
+	const allItems = $derived([...elements, ...relations, ...silences]);
+
+	const groupedItems = $derived.by(() => {
+		const items = allItems.filter((n: any) => !isHiddenByFilter(n));
+		switch (listGroupBy) {
+			case 'mode':
+				return [
+					{ label: 'Elements', items: items.filter((n: any) => n.mode === 'entity') },
+					{ label: 'Relations', items: items.filter((n: any) => n.mode === 'relation') },
+					{ label: 'Silences', items: items.filter((n: any) => n.mode === 'silence') }
+				].filter(g => g.items.length > 0);
+			case 'designation':
+				return ['cue', 'characterization', 'specification'].map(d => ({
+					label: d.charAt(0).toUpperCase() + d.slice(1) + 's',
+					items: items.filter((n: any) => (n.designation || 'cue') === d)
+				})).filter(g => g.items.length > 0);
+			case 'phase': {
+				const groups: Array<{ label: string; items: any[] }> = [];
+				for (const phase of phases) {
+					groups.push({
+						label: phase.label,
+						items: items.filter((n: any) => n.phase_ids?.includes(phase.id))
+					});
+				}
+				const assigned = new Set(phases.flatMap((p: any) => items.filter((n: any) => n.phase_ids?.includes(p.id)).map((n: any) => n.naming_id)));
+				const unassigned = items.filter((n: any) => !assigned.has(n.naming_id));
+				if (unassigned.length > 0) groups.push({ label: 'Unassigned', items: unassigned });
+				return groups.filter(g => g.items.length > 0);
+			}
+			case 'provenance':
+				return [
+					{ label: 'Empirically grounded', items: items.filter((n: any) => n.has_document_anchor) },
+					{ label: 'Memo-linked', items: items.filter((n: any) => !n.has_document_anchor && n.has_memo_link) },
+					{ label: 'Ungrounded', items: items.filter((n: any) => !n.has_document_anchor && !n.has_memo_link) }
+				].filter(g => g.items.length > 0);
+			case 'flat':
+				return [{ label: '', items }];
+			default:
+				return [{ label: '', items }];
+		}
+	});
 
 	// Check if a node is a member of the highlighted phase
 	function isPhaseHighlighted(node: any): boolean {
@@ -730,6 +800,12 @@
 				<button class="btn-view" class:active={viewMode === 'list'} onclick={() => switchView('list')}>List</button>
 				<button class="btn-view" class:active={viewMode === 'canvas'} onclick={() => switchView('canvas')}>Canvas</button>
 			</div>
+			<button class="btn-sm btn-connections" class:connections-off={!showConnections}
+				onclick={() => { showConnections = !showConnections; localStorage.setItem(`map:${data.map.id}:showConnections`, String(showConnections)); }}
+				title={showConnections ? 'Hide connection lines' : 'Show connection lines'}
+				disabled={viewMode !== 'canvas'} style="{viewMode !== 'canvas' ? 'opacity: 0.3;' : ''}">
+				<img src="/icons/hub.svg" alt="connections" class="toolbar-icon" />
+			</button>
 			<button class="btn-sm" onclick={runAutoLayout} title="Re-compute layout"
 				disabled={viewMode !== 'canvas'} style="{viewMode !== 'canvas' ? 'opacity: 0.3;' : ''}">Layout</button>
 			<button class="btn-sm" onclick={() => { showTopoPanel = !showTopoPanel; if (showTopoPanel) loadTopoSnapshots(); }}
@@ -854,6 +930,7 @@
 		<div class="canvas-container" style="{viewMode !== 'canvas' ? 'display: none;' : ''}">
 			<InfiniteCanvas {viewport} oncanvasclick={handleCanvasClick}>
 				<!-- Connections: draw edges between elements and their relation nodes -->
+				{#if showConnections}
 				{#each relations as rel}
 					{@const srcId = rel.directed_from || rel.part_source_id}
 					{@const tgtId = rel.directed_to || rel.part_target_id}
@@ -879,6 +956,7 @@
 						/>
 					{/if}
 				{/each}
+				{/if}
 
 				<!-- Element nodes -->
 				{#each elements as el}
@@ -1135,343 +1213,251 @@
 			{/if}
 
 		</div>
-		<!-- List view (original) -->
+		<!-- List view -->
 		<div class="main-area" style="{viewMode !== 'list' ? 'display: none;' : ''}">
-			{#if elements.length === 0 && relations.length === 0}
+			<div class="list-grouping-bar">
+				<span class="grouping-label">Group by</span>
+				<select class="grouping-select" value={listGroupBy} onchange={e => { listGroupBy = (e.target as HTMLSelectElement).value as typeof listGroupBy; localStorage.setItem(`map:${data.map.id}:listGroupBy`, listGroupBy); }}>
+					<option value="mode">Mode (entity / relation / silence)</option>
+					<option value="designation">Designation (cue / char / spec)</option>
+					<option value="phase">Phase</option>
+					<option value="provenance">Provenance</option>
+					<option value="flat">Flat (all mixed)</option>
+				</select>
+			</div>
+			{#if allItems.length === 0}
 				<p class="empty">Name what is in the situation. Everything is a cue at first.</p>
 			{:else}
-				<div class="element-list">
-					{#each elements as el}
-						{#if !isHiddenByFilter(el)}
-						<div class="element-card" class:ai-suggested={el.properties?.aiSuggested === true} class:ai-withdrawn={isWithdrawn(el.properties)} title={el.properties?.aiReasoning || ''}>
-							<div class="el-main">
-								{#if el.is_collapsed}<img class="collapsed-indicator" src="/icons/keep.svg" alt="pinned" title="Pinned to specific layer" />{/if}
-								<span class="designation-dot" style="background: {designationColor(el.designation)}"
-									title={designationLabel(el.designation)}></span>
-								{#if el.has_document_anchor}
-									<img class="provenance-indicator" src="/icons/text_snippet.svg" alt="empirical" title="Empirically grounded" />
-								{:else if el.has_memo_link}
-									<img class="provenance-indicator" src="/icons/stylus_note.svg" alt="analytical" title="Analytically grounded" />
-								{:else}
-									<img class="provenance-indicator" src="/icons/question_mark.svg" alt="ungrounded" title="No grounding yet" />
-								{/if}
-								{#if editingId === el.naming_id}
-									<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmRename(); }}>
-										<input type="text" bind:value={editingValue} />
-										<button type="submit" class="btn-xs">ok</button>
-										<button type="button" class="btn-xs" onclick={() => editingId = null}>×</button>
-									</form>
-								{:else}
-									<!-- svelte-ignore a11y_click_events_have_key_events -->
-									<!-- svelte-ignore a11y_no_static_element_interactions -->
-									<span class="el-inscription editable" onclick={() => showStack(el.naming_id)} ondblclick={() => ctxRename(el.naming_id, el.inscription)}>
-										{el.inscription}
-									</span>
-									{#if el.is_collapsed && el.current_inscription && el.current_inscription !== el.inscription}
-										<span class="collapsed-current">currently: {el.current_inscription}</span>
-									{/if}
-								{/if}
-							</div>
-							<div class="el-actions">
-								<select
-									value={el.designation || 'cue'}
-									onchange={e => startDesignation(el.naming_id, (e.target as HTMLSelectElement).value)}
-								>
-									<option value="cue">cue</option>
-									<option value="characterization">characterization</option>
-									<option value="specification">specification</option>
-								</select>
-								<button class="btn-xs" title="naming stack" onclick={() => showStack(el.naming_id)}>
-									stack
-								</button>
-								<button class="btn-xs btn-withdraw" title={isWithdrawn(el.properties) ? 'Restore this naming' : 'Withdraw this naming'} onclick={() => toggleWithdraw(el.naming_id, isWithdrawn(el.properties))}>
-									{isWithdrawn(el.properties) ? 'restore' : 'withdraw'}
-								</button>
-								{#if relatingFrom && !relatingTo && relatingFrom !== el.naming_id}
-									<button class="btn-sm btn-relate" onclick={() => startRelation(relatingFrom!, el.naming_id)}>
-										connect
-									</button>
-								{:else if !relatingFrom}
-									<button class="btn-sm" onclick={() => { relatingFrom = el.naming_id; relatingTo = null; }}>
-										relate
-									</button>
-								{/if}
-								{#if assigningToPhase}
-									<button class="btn-sm btn-phase" onclick={() => assignElement(assigningToPhase!, el.naming_id)}>
-										+ phase
-									</button>
-								{/if}
-							</div>
-						</div>
-
-						{#if stackId === el.naming_id && stackData}
-							<div class="history-panel">
-								{#if el.is_collapsed}
-									<button class="btn-xs btn-unpin" onclick={() => unpinLayer(el.naming_id)}>
-										unpin (show latest)
-									</button>
-								{/if}
-								{#if stackData.inscriptions.length > 1}
-									<div class="history-section">
-										<span class="history-label">Inscriptions</span>
-										{#each stackData.inscriptions as hi}
-											<div class="history-entry" class:pinned-layer={el.is_collapsed && el.properties?.collapseAt === hi.seq}>
-												<span class="he-value">{hi.inscription}</span>
-												<span class="he-by">{hi.by_inscription}</span>
-												<span class="he-date">{new Date(hi.created_at).toLocaleString()}</span>
-												<button class="btn-xs btn-pin" title="Pin to this layer" onclick={() => pinToLayer(el.naming_id, hi.seq)}>
-													pin
-												</button>
-											</div>
-										{/each}
-									</div>
-								{/if}
-								<div class="history-section">
-									<span class="history-label">Designations</span>
-									{#each stackData.designations as hd}
-										<div class="history-entry">
-											<span class="designation-dot-sm" style="background: {designationColor(hd.designation)}"></span>
-											<span class="he-value">{hd.designation}</span>
-											<span class="he-by">{hd.by_inscription}</span>
-											<span class="he-date">{new Date(hd.created_at).toLocaleString()}</span>
-										</div>
-									{/each}
-								</div>
-								{#if stackData.memos?.length > 0}
-									<div class="history-section">
-										<span class="history-label">Memos ({stackData.memos.length})</span>
-										{#each stackData.memos as memo}
-											<div class="memo-entry">
-												<span class="memo-label">{memo.label}</span>
-												<span class="memo-content">{memo.content}</span>
-												<span class="he-date">{new Date(memo.created_at).toLocaleString()}</span>
-											</div>
-										{/each}
-									</div>
-								{/if}
-								{#if stackData.aiSuggested}
-									<div class="history-section ai-discussion-section">
-										<span class="history-label">
-											<img class="label-icon" src="/icons/comment.svg" alt="" />
-											AI Cue {stackData.aiWithdrawn ? '(withdrawn)' : ''}
+				{#each groupedItems as group}
+					{#if group.label}
+						<h3 class="section-header">{group.label}</h3>
+					{/if}
+					<div class="element-list">
+						{#each group.items as item}
+							{#if item.mode === 'relation'}
+								{@const srcId = item.directed_from || item.part_source_id}
+								{@const tgtId = item.directed_to || item.part_target_id}
+								<div class="element-card relation-card" class:ai-suggested={item.properties?.aiSuggested === true} class:ai-withdrawn={isWithdrawn(item.properties)} title={item.properties?.aiReasoning || ''}>
+									<div class="el-main">
+										{#if item.is_collapsed}<img class="collapsed-indicator" src="/icons/keep.svg" alt="pinned" title="Pinned to specific layer" />{/if}
+										<span class="designation-dot" style="background: {designationColor(item.designation)}"></span>
+										{#if item.has_document_anchor}
+											<img class="provenance-indicator" src="/icons/text_snippet.svg" alt="empirical" title="Empirically grounded" />
+										{:else if item.has_memo_link}
+											<img class="provenance-indicator" src="/icons/stylus_note.svg" alt="analytical" title="Analytically grounded" />
+										{:else}
+											<img class="provenance-indicator" src="/icons/question_mark.svg" alt="ungrounded" title="No grounding yet" />
+										{/if}
+										{#if listGroupBy !== 'mode'}<span class="mode-indicator" title="relation">↔</span>{/if}
+										<span class="rel-source">{findInscription(srcId)}</span>
+										<span class="rel-arrow">
+											{#if item.directed_from && item.directed_to}
+												{#if item.valence}—{item.valence}→{:else}→{/if}
+											{:else}
+												{#if item.valence}—{item.valence}—{:else}↔{/if}
+											{/if}
 										</span>
-										{#if stackData.aiReasoning}
-											<div class="ai-reasoning">
-												{stackData.aiReasoning}
-											</div>
-										{/if}
-										{#if stackData.discussion && stackData.discussion.length > 0}
-											<div class="discussion-thread">
-												{#each stackData.discussion as turn}
-													<div class="discussion-turn" class:turn-researcher={turn.role === 'researcher'} class:turn-ai={turn.role === 'ai'}>
-														<span class="turn-role">{turn.role === 'researcher' ? 'You' : 'AI'}{turn.type === 'rewrite' ? ' (rewrote)' : turn.type === 'withdrawn' ? ' (withdrew)' : ''}</span>
-														<span class="turn-content">{turn.content}</span>
-													</div>
-												{/each}
-											</div>
-										{/if}
-										{#if !stackData.aiWithdrawn}
-											<form class="discuss-form" onsubmit={e => { e.preventDefault(); submitDiscussion(); }}>
-												<input type="text" placeholder="Discuss this cue..." bind:value={discussInput} disabled={discussLoading} />
-												<button type="submit" class="btn-xs" disabled={discussLoading || !discussInput.trim()}>
-													{discussLoading ? '...' : 'send'}
-												</button>
+										<span class="rel-target">{findInscription(tgtId)}</span>
+										{#if editingId === item.naming_id}
+											<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmRename(); }}>
+												<input type="text" bind:value={editingValue} />
+												<button type="submit" class="btn-xs">ok</button>
+												<button type="button" class="btn-xs" onclick={() => editingId = null}>×</button>
 											</form>
+										{:else if item.inscription}
+											<!-- svelte-ignore a11y_click_events_have_key_events -->
+											<!-- svelte-ignore a11y_no_static_element_interactions -->
+											<span class="rel-inscription editable" onclick={() => showStack(item.naming_id)} ondblclick={() => ctxRename(item.naming_id)}>
+												{item.inscription}
+											</span>
+										{:else}
+											<!-- svelte-ignore a11y_click_events_have_key_events -->
+											<!-- svelte-ignore a11y_no_static_element_interactions -->
+											<span class="rel-inscription editable unnamed" onclick={() => showStack(item.naming_id)} ondblclick={() => ctxRename(item.naming_id)}>
+												(name...)
+											</span>
+										{/if}
+										{#if item.is_collapsed && item.current_inscription && item.current_inscription !== item.inscription}
+											<span class="collapsed-current">currently: {item.current_inscription}</span>
 										{/if}
 									</div>
-								{/if}
-							</div>
-						{/if}
-						{/if}
-					{/each}
-				</div>
-			{/if}
-
-			<!-- Relations -->
-			{#if relations.length > 0}
-				<h3 class="section-header">Relations</h3>
-				<div class="element-list">
-					{#each relations as rel}
-						{@const srcId = rel.directed_from || rel.part_source_id}
-						{@const tgtId = rel.directed_to || rel.part_target_id}
-						{#if !isHiddenByFilter(rel)}
-						<div class="element-card relation-card" class:ai-suggested={rel.properties?.aiSuggested === true} class:ai-withdrawn={isWithdrawn(rel.properties)} title={rel.properties?.aiReasoning || ''}>
-							<div class="el-main">
-								{#if rel.is_collapsed}<img class="collapsed-indicator" src="/icons/keep.svg" alt="pinned" title="Pinned to specific layer" />{/if}
-								<span class="designation-dot" style="background: {designationColor(rel.designation)}"></span>
-								{#if rel.has_document_anchor}
-									<img class="provenance-indicator" src="/icons/text_snippet.svg" alt="empirical" title="Empirically grounded" />
-								{:else if rel.has_memo_link}
-									<img class="provenance-indicator" src="/icons/stylus_note.svg" alt="analytical" title="Analytically grounded" />
-								{:else}
-									<img class="provenance-indicator" src="/icons/question_mark.svg" alt="ungrounded" title="No grounding yet" />
-								{/if}
-								<span class="rel-source">{findInscription(srcId)}</span>
-								<span class="rel-arrow">
-									{#if rel.directed_from && rel.directed_to}
-										{#if rel.valence}—{rel.valence}→{:else}→{/if}
-									{:else}
-										{#if rel.valence}—{rel.valence}—{:else}↔{/if}
-									{/if}
-								</span>
-								<span class="rel-target">{findInscription(tgtId)}</span>
-								{#if editingId === rel.naming_id}
-									<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmRename(); }}>
-										<input type="text" bind:value={editingValue} />
-										<button type="submit" class="btn-xs">ok</button>
-										<button type="button" class="btn-xs" onclick={() => editingId = null}>×</button>
-									</form>
-								{:else if rel.inscription}
-									<!-- svelte-ignore a11y_click_events_have_key_events -->
-									<!-- svelte-ignore a11y_no_static_element_interactions -->
-									<span class="rel-inscription editable" onclick={() => showStack(rel.naming_id)} ondblclick={() => ctxRename(rel.naming_id, rel.inscription)}>
-										{rel.inscription}
-									</span>
-								{:else}
-									<!-- svelte-ignore a11y_click_events_have_key_events -->
-									<!-- svelte-ignore a11y_no_static_element_interactions -->
-									<span class="rel-inscription editable unnamed" onclick={() => showStack(rel.naming_id)} ondblclick={() => ctxRename(rel.naming_id, '')}>
-										(name...)
-									</span>
-								{/if}
-								{#if rel.is_collapsed && rel.current_inscription && rel.current_inscription !== rel.inscription}
-									<span class="collapsed-current">currently: {rel.current_inscription}</span>
-								{/if}
-							</div>
-							<div class="el-actions">
-								<select
-									value={rel.designation || 'cue'}
-									onchange={e => startDesignation(rel.naming_id, (e.target as HTMLSelectElement).value)}
-								>
-									<option value="cue">cue</option>
-									<option value="characterization">characterization</option>
-									<option value="specification">specification</option>
-								</select>
-								<button class="btn-xs" title="naming stack" onclick={() => showStack(rel.naming_id)}>
-									stack
-								</button>
-								<button class="btn-xs btn-withdraw" title={isWithdrawn(rel.properties) ? 'Restore' : 'Withdraw'} onclick={() => toggleWithdraw(rel.naming_id, isWithdrawn(rel.properties))}>
-									{isWithdrawn(rel.properties) ? 'restore' : 'withdraw'}
-								</button>
-								{#if relatingFrom && !relatingTo && relatingFrom !== rel.naming_id}
-									<button class="btn-sm btn-relate" onclick={() => startRelation(relatingFrom!, rel.naming_id)}>
-										connect
-									</button>
-								{:else if !relatingFrom}
-									<button class="btn-sm" onclick={() => { relatingFrom = rel.naming_id; relatingTo = null; }}>
-										relate
-									</button>
-								{/if}
-								{#if assigningToPhase}
-									<button class="btn-sm btn-phase" onclick={() => assignElement(assigningToPhase!, rel.naming_id)}>
-										+ phase
-									</button>
-								{/if}
-							</div>
-						</div>
-
-						{#if stackId === rel.naming_id && stackData}
-							<div class="history-panel">
-								{#if rel.is_collapsed}
-									<button class="btn-xs btn-unpin" onclick={() => unpinLayer(rel.naming_id)}>
-										unpin (show latest)
-									</button>
-								{/if}
-								{#if stackData.inscriptions.length > 1}
-									<div class="history-section">
-										<span class="history-label">Inscriptions</span>
-										{#each stackData.inscriptions as hi}
-											<div class="history-entry" class:pinned-layer={rel.is_collapsed && rel.properties?.collapseAt === hi.seq}>
-												<span class="he-value">{hi.inscription}</span>
-												<span class="he-by">{hi.by_inscription}</span>
-												<span class="he-date">{new Date(hi.created_at).toLocaleString()}</span>
-												<button class="btn-xs btn-pin" title="Pin to this layer" onclick={() => pinToLayer(rel.naming_id, hi.seq)}>
-													pin
-												</button>
-											</div>
-										{/each}
+									<div class="el-actions">
+										<select value={item.designation || 'cue'} onchange={e => startDesignation(item.naming_id, (e.target as HTMLSelectElement).value)}>
+											<option value="cue">cue</option>
+											<option value="characterization">characterization</option>
+											<option value="specification">specification</option>
+										</select>
+										<button class="btn-xs" title="naming stack" onclick={() => showStack(item.naming_id)}>stack</button>
+										<button class="btn-xs btn-withdraw" onclick={() => toggleWithdraw(item.naming_id, isWithdrawn(item.properties))}>
+											{isWithdrawn(item.properties) ? 'restore' : 'withdraw'}
+										</button>
+										{#if relatingFrom && !relatingTo && relatingFrom !== item.naming_id}
+											<button class="btn-sm btn-relate" onclick={() => startRelation(relatingFrom!, item.naming_id)}>connect</button>
+										{:else if !relatingFrom}
+											<button class="btn-sm" onclick={() => { relatingFrom = item.naming_id; relatingTo = null; }}>relate</button>
+										{/if}
+										{#if assigningToPhase}
+											<button class="btn-sm btn-phase" onclick={() => assignElement(assigningToPhase!, item.naming_id)}>+ phase</button>
+										{/if}
 									</div>
-								{/if}
-								<div class="history-section">
-									<span class="history-label">Designations</span>
-									{#each stackData.designations as hd}
-										<div class="history-entry">
-											<span class="designation-dot-sm" style="background: {designationColor(hd.designation)}"></span>
-											<span class="he-value">{hd.designation}</span>
-											<span class="he-by">{hd.by_inscription}</span>
-											<span class="he-date">{new Date(hd.created_at).toLocaleString()}</span>
-										</div>
-									{/each}
 								</div>
-								{#if stackData.memos?.length > 0}
-									<div class="history-section">
-										<span class="history-label">Memos ({stackData.memos.length})</span>
-										{#each stackData.memos as memo}
-											<div class="memo-entry">
-												<span class="memo-label">{memo.label}</span>
-												<span class="memo-content">{memo.content}</span>
-												<span class="he-date">{new Date(memo.created_at).toLocaleString()}</span>
-											</div>
-										{/each}
-									</div>
-								{/if}
-								{#if stackData.aiSuggested}
-									<div class="history-section ai-discussion-section">
-										<span class="history-label">
-											<img class="label-icon" src="/icons/comment.svg" alt="" />
-											AI Cue {stackData.aiWithdrawn ? '(withdrawn)' : ''}
+							{:else if item.mode === 'silence'}
+								<div class="element-card silence-card" class:ai-suggested={item.properties?.aiSuggested === true} class:ai-withdrawn={isWithdrawn(item.properties)} title={item.properties?.aiReasoning || ''}>
+									<div class="el-main">
+										{#if item.has_document_anchor}
+											<img class="provenance-indicator" src="/icons/text_snippet.svg" alt="empirical" title="Empirically grounded" />
+										{:else if item.has_memo_link}
+											<img class="provenance-indicator" src="/icons/stylus_note.svg" alt="analytical" title="Analytically grounded" />
+										{:else}
+											<img class="provenance-indicator" src="/icons/question_mark.svg" alt="ungrounded" title="No grounding yet" />
+										{/if}
+										{#if listGroupBy !== 'mode'}<span class="mode-indicator" title="silence">∅</span>{/if}
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<span class="el-inscription editable" onclick={() => showStack(item.naming_id)} ondblclick={() => ctxRename(item.naming_id)}>
+											{item.inscription}
 										</span>
-										{#if stackData.aiReasoning}
-											<div class="ai-reasoning">
-												{stackData.aiReasoning}
-											</div>
-										{/if}
-										{#if stackData.discussion && stackData.discussion.length > 0}
-											<div class="discussion-thread">
-												{#each stackData.discussion as turn}
-													<div class="discussion-turn" class:turn-researcher={turn.role === 'researcher'} class:turn-ai={turn.role === 'ai'}>
-														<span class="turn-role">{turn.role === 'researcher' ? 'You' : 'AI'}{turn.type === 'rewrite' ? ' (rewrote)' : turn.type === 'withdrawn' ? ' (withdrew)' : ''}</span>
-														<span class="turn-content">{turn.content}</span>
-													</div>
-												{/each}
-											</div>
-										{/if}
-										{#if !stackData.aiWithdrawn}
-											<form class="discuss-form" onsubmit={e => { e.preventDefault(); submitDiscussion(); }}>
-												<input type="text" placeholder="Discuss this cue..." bind:value={discussInput} disabled={discussLoading} />
-												<button type="submit" class="btn-xs" disabled={discussLoading || !discussInput.trim()}>
-													{discussLoading ? '...' : 'send'}
-												</button>
-											</form>
+									</div>
+									<div class="el-actions">
+										<button class="btn-xs" title="naming stack" onclick={() => showStack(item.naming_id)}>stack</button>
+										<button class="btn-xs btn-withdraw" onclick={() => toggleWithdraw(item.naming_id, isWithdrawn(item.properties))}>
+											{isWithdrawn(item.properties) ? 'restore' : 'withdraw'}
+										</button>
+										{#if relatingFrom && !relatingTo && relatingFrom !== item.naming_id}
+											<button class="btn-sm btn-relate" onclick={() => startRelation(relatingFrom!, item.naming_id)}>connect</button>
+										{:else if !relatingFrom}
+											<button class="btn-sm" onclick={() => { relatingFrom = item.naming_id; relatingTo = null; }}>relate</button>
 										{/if}
 									</div>
-								{/if}
-							</div>
-						{/if}
-						{/if}
-					{/each}
-				</div>
-			{/if}
-
-			<!-- Silences -->
-			{#if silences.length > 0}
-				<h3 class="section-header">Silences</h3>
-				<div class="element-list">
-					{#each silences as s}
-						{#if !isHiddenByFilter(s)}
-						<div class="element-card silence-card" class:ai-suggested={s.properties?.aiSuggested === true} class:ai-withdrawn={isWithdrawn(s.properties)} title={s.properties?.aiReasoning || ''}>
-							{#if s.has_document_anchor}
-								<img class="provenance-indicator" src="/icons/text_snippet.svg" alt="empirical" title="Empirically grounded" />
-							{:else if s.has_memo_link}
-								<img class="provenance-indicator" src="/icons/stylus_note.svg" alt="analytical" title="Analytically grounded" />
+								</div>
 							{:else}
-								<img class="provenance-indicator" src="/icons/question_mark.svg" alt="ungrounded" title="No grounding yet" />
+								<!-- Entity (element) -->
+								<div class="element-card" class:ai-suggested={item.properties?.aiSuggested === true} class:ai-withdrawn={isWithdrawn(item.properties)} title={item.properties?.aiReasoning || ''}>
+									<div class="el-main">
+										{#if item.is_collapsed}<img class="collapsed-indicator" src="/icons/keep.svg" alt="pinned" title="Pinned to specific layer" />{/if}
+										<span class="designation-dot" style="background: {designationColor(item.designation)}" title={designationLabel(item.designation)}></span>
+										{#if item.has_document_anchor}
+											<img class="provenance-indicator" src="/icons/text_snippet.svg" alt="empirical" title="Empirically grounded" />
+										{:else if item.has_memo_link}
+											<img class="provenance-indicator" src="/icons/stylus_note.svg" alt="analytical" title="Analytically grounded" />
+										{:else}
+											<img class="provenance-indicator" src="/icons/question_mark.svg" alt="ungrounded" title="No grounding yet" />
+										{/if}
+										{#if editingId === item.naming_id}
+											<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmRename(); }}>
+												<input type="text" bind:value={editingValue} />
+												<button type="submit" class="btn-xs">ok</button>
+												<button type="button" class="btn-xs" onclick={() => editingId = null}>×</button>
+											</form>
+										{:else}
+											<!-- svelte-ignore a11y_click_events_have_key_events -->
+											<!-- svelte-ignore a11y_no_static_element_interactions -->
+											<span class="el-inscription editable" onclick={() => showStack(item.naming_id)} ondblclick={() => ctxRename(item.naming_id)}>
+												{item.inscription}
+											</span>
+											{#if item.is_collapsed && item.current_inscription && item.current_inscription !== item.inscription}
+												<span class="collapsed-current">currently: {item.current_inscription}</span>
+											{/if}
+										{/if}
+									</div>
+									<div class="el-actions">
+										<select value={item.designation || 'cue'} onchange={e => startDesignation(item.naming_id, (e.target as HTMLSelectElement).value)}>
+											<option value="cue">cue</option>
+											<option value="characterization">characterization</option>
+											<option value="specification">specification</option>
+										</select>
+										<button class="btn-xs" title="naming stack" onclick={() => showStack(item.naming_id)}>stack</button>
+										<button class="btn-xs btn-withdraw" onclick={() => toggleWithdraw(item.naming_id, isWithdrawn(item.properties))}>
+											{isWithdrawn(item.properties) ? 'restore' : 'withdraw'}
+										</button>
+										{#if relatingFrom && !relatingTo && relatingFrom !== item.naming_id}
+											<button class="btn-sm btn-relate" onclick={() => startRelation(relatingFrom!, item.naming_id)}>connect</button>
+										{:else if !relatingFrom}
+											<button class="btn-sm" onclick={() => { relatingFrom = item.naming_id; relatingTo = null; }}>relate</button>
+										{/if}
+										{#if assigningToPhase}
+											<button class="btn-sm btn-phase" onclick={() => assignElement(assigningToPhase!, item.naming_id)}>+ phase</button>
+										{/if}
+									</div>
+								</div>
 							{/if}
-							<span class="el-inscription">{s.inscription}</span>
-						</div>
-						{/if}
-					{/each}
-				</div>
+
+							<!-- Stack panel (shared across all modes) -->
+							{#if stackId === item.naming_id && stackData}
+								<div class="history-panel">
+									{#if item.is_collapsed}
+										<button class="btn-xs btn-unpin" onclick={() => unpinLayer(item.naming_id)}>unpin (show latest)</button>
+									{/if}
+									{#if stackData.inscriptions.length > 1}
+										<div class="history-section">
+											<span class="history-label">Inscriptions</span>
+											{#each stackData.inscriptions as hi}
+												<div class="history-entry" class:pinned-layer={item.is_collapsed && item.properties?.collapseAt === hi.seq}>
+													<span class="he-value">{hi.inscription}</span>
+													<span class="he-by">{hi.by_inscription}</span>
+													<span class="he-date">{new Date(hi.created_at).toLocaleString()}</span>
+													<button class="btn-xs btn-pin" title="Pin to this layer" onclick={() => pinToLayer(item.naming_id, hi.seq)}>pin</button>
+												</div>
+											{/each}
+										</div>
+									{/if}
+									<div class="history-section">
+										<span class="history-label">Designations</span>
+										{#each stackData.designations as hd}
+											<div class="history-entry">
+												<span class="designation-dot-sm" style="background: {designationColor(hd.designation)}"></span>
+												<span class="he-value">{hd.designation}</span>
+												<span class="he-by">{hd.by_inscription}</span>
+												<span class="he-date">{new Date(hd.created_at).toLocaleString()}</span>
+											</div>
+										{/each}
+									</div>
+									{#if stackData.memos?.length > 0}
+										<div class="history-section">
+											<span class="history-label">Memos ({stackData.memos.length})</span>
+											{#each stackData.memos as memo}
+												<div class="memo-entry">
+													<span class="memo-label">{memo.label}</span>
+													<span class="memo-content">{memo.content}</span>
+													<span class="he-date">{new Date(memo.created_at).toLocaleString()}</span>
+												</div>
+											{/each}
+										</div>
+									{/if}
+									{#if stackData.aiSuggested}
+										<div class="history-section ai-discussion-section">
+											<span class="history-label">
+												<img class="label-icon" src="/icons/comment.svg" alt="" />
+												AI Cue {stackData.aiWithdrawn ? '(withdrawn)' : ''}
+											</span>
+											{#if stackData.aiReasoning}
+												<div class="ai-reasoning">{stackData.aiReasoning}</div>
+											{/if}
+											{#if stackData.discussion && stackData.discussion.length > 0}
+												<div class="discussion-thread">
+													{#each stackData.discussion as turn}
+														<div class="discussion-turn" class:turn-researcher={turn.role === 'researcher'} class:turn-ai={turn.role === 'ai'}>
+															<span class="turn-role">{turn.role === 'researcher' ? 'You' : 'AI'}{turn.type === 'rewrite' ? ' (rewrote)' : turn.type === 'withdrawn' ? ' (withdrew)' : ''}</span>
+															<span class="turn-content">{turn.content}</span>
+														</div>
+													{/each}
+												</div>
+											{/if}
+											{#if !stackData.aiWithdrawn}
+												<form class="discuss-form" onsubmit={e => { e.preventDefault(); submitDiscussion(); }}>
+													<input type="text" placeholder="Discuss this cue..." bind:value={discussInput} disabled={discussLoading} />
+													<button type="submit" class="btn-xs" disabled={discussLoading || !discussInput.trim()}>
+														{discussLoading ? '...' : 'send'}
+													</button>
+												</form>
+											{/if}
+										</div>
+									{/if}
+								</div>
+							{/if}
+						{/each}
+					</div>
+				{/each}
 			{/if}
 
 		</div>
@@ -1643,7 +1629,26 @@
 	.map-workspace { display: flex; flex: 1; min-height: 0; }
 	.canvas-container { flex: 1; position: relative; overflow: hidden; }
 
+	/* Connection toggle */
+	.btn-connections { display: flex; align-items: center; padding: 0.2rem 0.4rem; }
+	.btn-connections .toolbar-icon { width: 16px; height: 16px; opacity: 0.7; }
+	.btn-connections.connections-off { opacity: 0.4; }
+	.btn-connections.connections-off .toolbar-icon { opacity: 0.4; }
+
 	/* List view */
+	.list-grouping-bar {
+		display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;
+	}
+	.grouping-label { font-size: 0.7rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
+	.grouping-select {
+		background: #0f1117; border: 1px solid #2a2d3a; border-radius: 4px;
+		color: #c9cdd5; font-size: 0.75rem; padding: 0.2rem 0.4rem; cursor: pointer;
+	}
+	.grouping-select:focus { outline: none; border-color: #8b9cf7; }
+	.mode-indicator {
+		font-size: 0.7rem; color: #6b7280; flex-shrink: 0;
+		width: 16px; text-align: center;
+	}
 	.main-area { flex: 1; padding: 1.25rem; overflow-y: auto; }
 	.empty { color: #6b7280; font-size: 0.9rem; padding: 2rem 0; text-align: center; }
 	.section-header {

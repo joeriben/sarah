@@ -517,14 +517,15 @@
 			<div class="naming-list">
 				{#each entities as n (n.naming_id)}
 					{@const withdrawn = isWithdrawn(n.naming_id, n.properties)}
-					<div class="naming-card" class:withdrawn class:relate-target={(relateSource && relateSource !== n.naming_id) || (reifyNamingId && reifyNamingId !== n.naming_id)}>
-						<div class="naming-main" onclick={() => {
-							if (relateSource) { startRelate(n.naming_id); return; }
+					<div class="naming-card" class:withdrawn class:relate-target={(relateSource && relateSource !== n.naming_id) || (reifyNamingId && reifyNamingId !== n.naming_id)}
+						onclick={() => {
+							if (relateSource && !relateTarget && relateSource !== n.naming_id) { startRelate(n.naming_id); return; }
 							if (reifyNamingId && reifyNamingId !== n.naming_id) {
 								if (!reifySourceId) { reifyPickSource(n.naming_id); return; }
 								reifyPickTarget(n.naming_id); return;
 							}
 						}}>
+						<div class="naming-main">
 							<span class="designation-dot" style="background: {designationColor(n.designation)}" title="{designationLabel(n.designation)}"></span>
 							{#if n.has_document_anchor}
 								<img class="provenance-indicator" src="/icons/text_snippet.svg" alt="empirical" title="Empirically grounded" />
@@ -552,7 +553,7 @@
 							{/if}
 						</div>
 
-						<div class="naming-actions">
+						<div class="naming-actions" onclick={e => { if (relateSource || reifyNamingId) e.stopPropagation(); }}>
 							<select
 								value={n.designation || 'cue'}
 								onchange={e => startDesignation(n.naming_id, (e.target as HTMLSelectElement).value)}
