@@ -46,6 +46,10 @@
 	let editingId = $state<string | null>(null);
 	let editingValue = $state('');
 
+	// Valence editing (separate from inscription rename)
+	let editingValenceId = $state<string | null>(null);
+	let editingValenceValue = $state('');
+
 	let stackId = $state<string | null>(null);
 	let stackData = $state<StackData | null>(null);
 
@@ -98,6 +102,7 @@
 			if (actTarget) { cancelAct(); e.preventDefault(); return; }
 			if (reifyNamingId) { cancelReify(); e.preventDefault(); return; }
 			if (relateSource) { cancelRelate(); e.preventDefault(); return; }
+			if (editingValenceId) { editingValenceId = null; e.preventDefault(); return; }
 			if (editingId) { editingId = null; e.preventDefault(); return; }
 			if (stackId) { stackId = null; stackData = null; e.preventDefault(); return; }
 		}
@@ -204,6 +209,21 @@
 		actMemo = '';
 		actLinkedIds = [];
 		showActLinks = false;
+	}
+
+	// ---- Valence ----
+	function startValenceEdit(namingId: string, currentValence: string) {
+		editingValenceId = namingId;
+		editingValenceValue = currentValence;
+	}
+
+	async function confirmValence() {
+		if (!editingValenceId) { editingValenceId = null; return; }
+		await apiAction('setValence', { namingId: editingValenceId, valence: editingValenceValue.trim() });
+		editingValenceId = null;
+		editingValenceValue = '';
+		const module = await import('$app/navigation');
+		module.invalidateAll();
 	}
 
 	// ---- Relate ----
@@ -628,25 +648,25 @@
 								{/if}
 								<span class="rel-source">{n.source_inscription || '?'}</span>
 								<span class="rel-connector">—</span>
-								{#if editingId === n.naming_id}
-									<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmRename(); }}>
-										<input type="text" bind:value={editingValue} placeholder="inscription" />
+								{#if editingValenceId === n.naming_id}
+									<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmValence(); }}>
+										<input type="text" bind:value={editingValenceValue} placeholder="valence" />
 										<button type="submit" class="btn-xs">ok</button>
-										<button type="button" class="btn-xs" onclick={() => editingId = null}>x</button>
+										<button type="button" class="btn-xs" onclick={() => editingValenceId = null}>x</button>
 									</form>
 									<span class="rel-connector">—</span>
 								{:else if n.valence}
 									<span
 										class="rel-predicate"
-										ondblclick={() => { if (!hasInscription) startRename(n.naming_id, n.valence || ''); }}
+										ondblclick={() => startValenceEdit(n.naming_id, n.valence || '')}
 										onclick={() => showStack(n.naming_id)}
 									>{n.valence}</span>
 									<span class="rel-connector">—</span>
 								{:else}
 									<span
 										class="rel-predicate-empty"
-										ondblclick={() => startRename(n.naming_id, '')}
-									>+ name</span>
+										ondblclick={() => startValenceEdit(n.naming_id, '')}
+									>+ valence</span>
 									<span class="rel-connector">—</span>
 								{/if}
 								<span class="rel-target">{n.target_inscription || '?'}</span>

@@ -119,6 +119,17 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			return json(relation, { status: 201 });
 		}
 
+		case 'setValence': {
+			const { namingId, valence: newValence } = body;
+			if (!namingId) return json({ error: 'namingId required' }, { status: 400 });
+			await query(
+				`UPDATE appearances SET valence = $2, updated_at = now()
+				 WHERE naming_id = $1 AND mode = 'relation'`,
+				[namingId, newValence?.trim() || null]
+			);
+			return json({ ok: true });
+		}
+
 		case 'switchToEntity': {
 			// Relation → Entity: change appearance mode, participations remain
 			const { namingId } = body;
