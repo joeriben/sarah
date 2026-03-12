@@ -223,3 +223,91 @@ export async function computeLayout(
 
 	return { positions: normalizedPositions, edges };
 }
+
+// Radial layout centered on a selected naming.
+// Center node at origin, directly connected nodes in inner ring,
+// everything else in outer ring. Relation nodes midway between center and target.
+// Pure geometry — no ELK, synchronous, deterministic.
+export function computeRadialLayout(
+	centerId: string,
+	elements: LayoutNode[],
+	relations: LayoutNode[],
+	silences: LayoutNode[]
+): Map<string, { x: number; y: number }> {
+	const positions = new Map<string, { x: number; y: number }>();
+
+	// Find which nodes are directly connected to center via participations
+	const directlyConnected = new Set<string>();
+	const relationsBetween = new Map<string, string>(); // relationId → connected node
+	for (const rel of relations) {
+		const src = rel.directed_from || rel.part_source_id;
+		const tgt = rel.directed_to || rel.part_target_id;
+		if (src === centerId && tgt) {
+			directlyConnected.add(tgt);
+			relationsBetween.set(rel.naming_id, tgt);
+		} else if (tgt === centerId && src) {
+			directlyConnected.add(src);
+			relationsBetween.set(rel.naming_id, src);
+		}
+	}
+
+	// Center node at origin
+	positions.set(centerId, { x: 0, y: 0 });
+
+	// Inner ring: directly connected nodes (elements + silences, not relation nodes)
+	const innerNodes = [...elements, ...silences].filter(
+		n => n.naming_id !== centerId && directlyConnected.has(n.naming_id)
+	);
+	const innerRadius = Math.max(250, innerNodes.length * 40);
+	placeInRing(innerNodes, innerRadius, positions);
+
+	// Relation nodes: halfway between center and their connected node
+	for (const [relId, connectedId] of relationsBetween) {
+		const connPos = positions.get(connectedId);
+		if (connPos) {
+			positions.set(relId, { x: connPos.x * 0.5, y: connPos.y * 0.5 });
+		}
+	}
+
+	// Relations not involving center: place near their participants if possible
+	for (const rel of relations) {
+		if (relationsBetween.has(rel.naming_id)) continue; // already placed
+		const src = rel.directed_from || rel.part_source_id;
+		const tgt = rel.directed_to || rel.part_target_id;
+		const srcPos = src ? positions.get(src) : null;
+		const tgtPos = tgt ? positions.get(tgt) : null;
+		if (srcPos && tgtPos) {
+			positions.set(rel.naming_id, {
+				x: (srcPos.x + tgtPos.x) / 2,
+				y: (srcPos.y + tgtPos.y) / 2
+			});
+		}
+		// Otherwise handled as outer node below
+	}
+
+	// Outer ring: everything not yet positioned
+	const allNodes = [...elements, ...relations, ...silences];
+	const outerNodes = allNodes.filter(
+		n => n.naming_id !== centerId && !positions.has(n.naming_id)
+	);
+	const outerRadius = innerRadius + Math.max(200, outerNodes.length * 30);
+	placeInRing(outerNodes, outerRadius, positions);
+
+	return positions;
+}
+
+function placeInRing(
+	nodes: LayoutNode[],
+	radius: number,
+	positions: Map<string, { x: number; y: number }>
+) {
+	if (nodes.length === 0) return;
+	const angleStep = (2 * Math.PI) / nodes.length;
+	for (let i = 0; i < nodes.length; i++) {
+		const angle = -Math.PI / 2 + i * angleStep;
+		positions.set(nodes[i].naming_id, {
+			x: Math.cos(angle) * radius,
+			y: Math.sin(angle) * radius
+		});
+	}
+}

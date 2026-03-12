@@ -5,7 +5,7 @@
 	import CanvasConnection from '$lib/canvas/CanvasConnection.svelte';
 	import { createViewport } from '$lib/canvas/viewport.svelte.js';
 	import { createSelection } from '$lib/canvas/selection.svelte.js';
-	import { computeLayout } from '$lib/canvas/layout.js';
+	import { computeLayout, computeRadialLayout } from '$lib/canvas/layout.js';
 	import { regionColor } from '$lib/canvas/regions.js';
 
 	let { data } = $props();
@@ -155,6 +155,25 @@
 	let relInscription = $state('');
 	let relValence = $state('');
 	let relDirected = $state(true);
+
+	// Center-on (radial layout for relational interrogation)
+	let centeredId = $state<string | null>(null);
+	let preRadialPositions: Map<string, { x: number; y: number }> | null = null;
+
+	const centeredConnections = $derived.by(() => {
+		if (!centeredId) return null;
+		const connected = new Set<string>([centeredId]);
+		for (const rel of relations) {
+			const src = rel.directed_from || rel.part_source_id;
+			const tgt = rel.directed_to || rel.part_target_id;
+			if (src === centeredId || tgt === centeredId) {
+				if (src) connected.add(src);
+				if (tgt) connected.add(tgt);
+				connected.add(rel.naming_id);
+			}
+		}
+		return connected;
+	});
 
 	// Stack panel
 	let stackId = $state<string | null>(null);
@@ -357,7 +376,10 @@
 
 	function handleNodeDragEnd(id: string, x: number, y: number) {
 		positions = new Map(positions).set(id, { x, y });
-		mapAction('updatePosition', { namingId: id, x, y });
+		// Don't persist positions during radial center-on view (transient layout)
+		if (!centeredId) {
+			mapAction('updatePosition', { namingId: id, x, y });
+		}
 	}
 
 	function handleNodeClick(id: string, e: MouseEvent) {
@@ -681,6 +703,8 @@
 	// ─── Auto layout ───
 
 	async function runAutoLayout() {
+		centeredId = null;
+		preRadialPositions = null;
 		const result = await computeLayout(elements, relations, silences);
 		const newPos = new Map<string, { x: number; y: number }>();
 		for (const [id, p] of result.positions) {
@@ -688,6 +712,36 @@
 		}
 		positions = newPos;
 		await saveAllPositions(newPos);
+	}
+
+	// ─── Center on (radial layout) ───
+
+	function centerOn(id: string) {
+		// Save current positions so we can restore on uncenter
+		preRadialPositions = new Map(positions);
+
+		const newPositions = computeRadialLayout(id, elements, relations, silences);
+
+		// Offset so center node is at viewport center
+		const cx = viewport.x ? -viewport.x / viewport.zoom + 400 : 400;
+		const cy = viewport.y ? -viewport.y / viewport.zoom + 300 : 300;
+
+		const adjusted = new Map<string, { x: number; y: number }>();
+		for (const [nid, pos] of newPositions) {
+			adjusted.set(nid, { x: pos.x + cx, y: pos.y + cy });
+		}
+
+		positions = adjusted;
+		centeredId = id;
+		// Don't persist radial positions — transient view
+	}
+
+	function uncenter() {
+		if (preRadialPositions) {
+			positions = preRadialPositions;
+			preRadialPositions = null;
+		}
+		centeredId = null;
 	}
 
 	// ─── Topology snapshots ───
@@ -811,6 +865,14 @@
 			<button class="btn-sm" onclick={() => { showTopoPanel = !showTopoPanel; if (showTopoPanel) loadTopoSnapshots(); }}
 				title="Topology snapshots"
 				disabled={viewMode !== 'canvas'} style="{viewMode !== 'canvas' ? 'opacity: 0.3;' : ''}">Topo</button>
+			{#if centeredId}
+				<button class="btn-sm btn-centered" onclick={uncenter}
+					title="Centered on: {findInscription(centeredId)} — click to uncenter">
+					<img src="/icons/target.svg" alt="centered" class="toolbar-icon" />
+					<span class="centered-label">{findInscription(centeredId)}</span>
+					<span class="centered-close">×</span>
+				</button>
+			{/if}
 			<button class="btn-ai-toggle" class:ai-active={aiEnabled} onclick={toggleAi}>AI</button>
 			<button class="btn-sm" onclick={requestAnalysis} disabled={!aiEnabled}>Ask AI</button>
 		</div>
@@ -972,7 +1034,7 @@
 							onclick={handleNodeClick}
 							oncontextmenu={handleNodeContextMenu}
 						>
-							<div class="map-node" class:ai-suggested={el.properties?.aiSuggested} class:ai-withdrawn={isWithdrawn(el.properties)} class:phase-member={highlightedPhase && isPhaseHighlighted(el)} class:phase-dimmed={highlightedPhase && !isPhaseHighlighted(el)}
+							<div class="map-node" class:ai-suggested={el.properties?.aiSuggested} class:ai-withdrawn={isWithdrawn(el.properties)} class:phase-member={highlightedPhase && isPhaseHighlighted(el)} class:phase-dimmed={highlightedPhase && !isPhaseHighlighted(el)} class:centered-dim={centeredConnections && !centeredConnections.has(el.naming_id)} class:centered-anchor={centeredId === el.naming_id}
 								style="{highlightedPhase && isPhaseHighlighted(el) ? `--phase-color: ${phaseColorMap.get(highlightedPhase)};` : ''}">
 								<div class="node-header">
 									<span class="designation-dot" style="background: {designationColor(el.designation)}"></span>
@@ -1036,7 +1098,7 @@
 							onclick={handleNodeClick}
 							oncontextmenu={handleNodeContextMenu}
 						>
-							<div class="map-node relation-node" class:ai-suggested={rel.properties?.aiSuggested} class:ai-withdrawn={isWithdrawn(rel.properties)} class:phase-member={highlightedPhase && isPhaseHighlighted(rel)} class:phase-dimmed={highlightedPhase && !isPhaseHighlighted(rel)}
+							<div class="map-node relation-node" class:ai-suggested={rel.properties?.aiSuggested} class:ai-withdrawn={isWithdrawn(rel.properties)} class:phase-member={highlightedPhase && isPhaseHighlighted(rel)} class:phase-dimmed={highlightedPhase && !isPhaseHighlighted(rel)} class:centered-dim={centeredConnections && !centeredConnections.has(rel.naming_id)} class:centered-anchor={centeredId === rel.naming_id}
 								style="{highlightedPhase && isPhaseHighlighted(rel) ? `--phase-color: ${phaseColorMap.get(highlightedPhase)};` : ''}">
 								{#if rel.valence}
 									<span class="rel-valence">{rel.valence}</span>
@@ -1088,7 +1150,7 @@
 							onclick={handleNodeClick}
 							oncontextmenu={handleNodeContextMenu}
 						>
-							<div class="map-node silence-node" class:phase-dimmed={highlightedPhase}>
+							<div class="map-node silence-node" class:phase-dimmed={highlightedPhase} class:centered-dim={centeredConnections && !centeredConnections.has(s.naming_id)}>
 								<span class="node-label">{s.inscription}</span>
 							</div>
 						</CanvasElement>
@@ -1120,6 +1182,9 @@
 						{relatingFrom ? 'Connect here' : 'Relate...'}
 					</button>
 					<button class="ctx-item" onclick={() => ctxShowStack(ctxMenuId!)}>Stack</button>
+					<button class="ctx-item" onclick={() => { centerOn(ctxMenuId!); ctxMenuId = null; }}>
+						{centeredId === ctxMenuId ? 'Centered' : 'Center'}
+					</button>
 					{#if assigningToPhase}
 						<div class="ctx-separator"></div>
 						<button class="ctx-item" onclick={() => assignElement(assigningToPhase!, ctxMenuId!)}>
@@ -1635,6 +1700,16 @@
 	.btn-connections.connections-off { opacity: 0.4; }
 	.btn-connections.connections-off .toolbar-icon { opacity: 0.4; }
 
+	.btn-centered {
+		display: flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.5rem;
+		border-color: #f59e0b; color: #f59e0b; background: rgba(245, 158, 11, 0.1);
+	}
+	.btn-centered .toolbar-icon { width: 14px; height: 14px; opacity: 0.9; }
+	.btn-centered .centered-label {
+		font-size: 0.7rem; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+	}
+	.btn-centered .centered-close { font-size: 0.85rem; margin-left: 0.15rem; }
+
 	/* List view */
 	.list-grouping-bar {
 		display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;
@@ -1850,6 +1925,8 @@
 		border-color: rgba(139, 156, 247, 0.2);
 	}
 	.map-node.phase-dimmed { opacity: 0.85; transition: opacity 0.3s; }
+	.map-node.centered-dim { opacity: 0.35; transition: opacity 0.3s; }
+	.map-node.centered-anchor { box-shadow: 0 0 12px rgba(245, 158, 11, 0.6), 0 0 4px rgba(245, 158, 11, 0.3); }
 	.map-node.phase-member {
 		animation: phase-pulse 2s ease-in-out infinite;
 		--pulse-color: var(--phase-color, #8b9cf7);
