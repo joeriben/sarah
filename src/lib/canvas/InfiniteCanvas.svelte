@@ -17,15 +17,23 @@
 	let lastPointer = { x: 0, y: 0 };
 
 	function onWheel(e: WheelEvent) {
-		e.preventDefault();
-		if (e.ctrlKey || e.metaKey) {
+		if (e.ctrlKey || e.metaKey || e.altKey) {
+			e.preventDefault();
 			const factor = e.deltaY > 0 ? 0.9 : 1.1;
 			const rect = containerEl.getBoundingClientRect();
 			viewport.zoomAt(factor, (e.clientX - rect.left) / viewport.zoom, (e.clientY - rect.top) / viewport.zoom);
 		} else {
+			e.preventDefault();
 			viewport.pan(-e.deltaX, -e.deltaY);
 		}
 	}
+
+	// Must register as non-passive to allow preventDefault() on wheel events
+	$effect(() => {
+		if (!containerEl) return;
+		containerEl.addEventListener('wheel', onWheel, { passive: false });
+		return () => containerEl.removeEventListener('wheel', onWheel);
+	});
 
 	function onPointerDown(e: PointerEvent) {
 		if (e.button === 1 || (e.button === 0 && e.altKey)) {
@@ -64,7 +72,6 @@
 <div
 	class="infinite-canvas"
 	bind:this={containerEl}
-	onwheel={onWheel}
 	onpointerdown={onPointerDown}
 	onpointermove={onPointerMove}
 	onpointerup={onPointerUp}
@@ -79,7 +86,9 @@
 	</div>
 
 	<div class="canvas-hud">
+		<button onclick={() => viewport.zoomAt(0.8, containerEl.clientWidth / 2 / viewport.zoom, containerEl.clientHeight / 2 / viewport.zoom)}>−</button>
 		<span class="zoom-label">{Math.round(viewport.zoom * 100)}%</span>
+		<button onclick={() => viewport.zoomAt(1.25, containerEl.clientWidth / 2 / viewport.zoom, containerEl.clientHeight / 2 / viewport.zoom)}>+</button>
 		<button onclick={() => viewport.reset()}>Reset</button>
 	</div>
 </div>
