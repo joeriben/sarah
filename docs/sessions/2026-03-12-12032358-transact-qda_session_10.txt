@@ -1,0 +1,1920 @@
+Session 10
+
+
+╭─── Claude Code v2.1.70 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting started                                                       │
+│               Welcome back Benjamin!               │ ✔ Run /init to create a CLAUDE.md file with instructions for Claude            │
+│                                                    │ ────────────────────────────────────────────────────────────────────────────── │
+│                                                    │ Recent activity                                                                │
+│                       ▐▛███▜▌                      │ 1mo ago  Überprüfe: ❯ heartmula ist installiert, aber heartlib anscheinend ni… │
+│                      ▝▜█████▛▘                     │ /resume for more                                                               │
+│                        ▘▘ ▝▝                       │                                                                                │
+│      Opus 4.6 with high effort · Claude Max ·      │                                                                                │
+│      benjamin.joerissen@fau.de's Organization      │                                                                                │
+│                        ~/ai                        │                                                                                │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+❯ /clear 
+  ⎿  (no content)
+
+❯ Hi 
+
+● Hi! How can I help you today?
+
+❯ gute frage, was denkst Du? 
+
+● Based on your project memory, transact-qda has a few open threads:
+
+  - Phase 6 (realtime/Yjs) and Phase 8 (polish) are still pending
+  - Code system refactor — shifting from ATLAS.ti-style pre-existing categories to codes as derived views from maps
+  - Any ongoing work from recent sessions
+
+  Want to pick up one of those, or do you have something else in mind?
+
+❯ Code sys refactor?? 
+
+● Let me check the current state of the design doc and code.
+
+● Searched for 2 patterns, read 1 file (ctrl+o to expand)
+
+❯ schon passiert 
+
+● The user says it's already done. Let me check the current state.
+
+● Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Got it — the refactor is already done. The old code-system perspective is gone. What's in place now:
+
+  - Grounding workspace instead of a separate code system — just infrastructure, not an ontological domain
+  - Annotation candidates pulled from ALL map perspectives — codes are map elements that have been used as annotation anchors
+  - Orphan namings for in-vivo coding when no map context is active
+  - No more code-system references in the codebase
+
+  So what would you actually like to work on?
+
+❯ Wir arbeiten die Maps weiter aus, beginnen mit der Sit.Ma. Kennst Du die formale Bestimmung der "Situation of Action" bei        
+  Vlarke?                                                                                                                          
+
+● Yes — Clarke's central move (building on Dewey and Strauss) is:
+
+  The situation of action/inquiry IS the unit of analysis. Not actors, not processes, not social worlds — the situation itself.
+
+  Key formal properties:
+
+  1. No outside. "There is no such thing as context." What traditional research calls "context" (institutions, discourses, politics,
+  history) is constitutive of the situation, not external framing. Everything relevant is IN the situation.
+  2. Relational constitution. Elements don't pre-exist the situation and then enter it — they are constituted through their relations
+  within it. (This is where Clarke is most explicitly Dewey/Bentley-transactional.)
+  3. Heterogeneous composition. The situation contains human actors, nonhuman actants, discursive constructions, political-economic
+  elements, temporal elements, spatial elements, major issues/debates — all on the same ontological footing.
+  4. Empirical determination. The situation is not given a priori — it must be analytically articulated. The situational map IS the
+  method for this: "What is in this situation? What are the relations among them?"
+  5. The conditional IS the situational. Clarke's explicit break from Strauss's conditional matrix — conditions aren't layers around
+  the situation, they're elements within it.
+
+  The Sit Map then is the first-order analytical instrument: lay out ALL elements, then systematically consider every pairwise
+  relation. No hierarchy, no grouping — flat relational space first.
+
+  Is this what you had in mind, or were you looking for a specific passage/formulation? And — are we thinking about how this maps onto
+  the current Sit Map implementation?
+
+✻ Cogitated for 31s
+
+[Image #3]
+
+● Clarke's Situational Matrix — her replacement for Strauss's Conditional Matrix. The critical difference:
+
+  - Strauss: concentric layers (micro → macro) — implies hierarchy and an inside/outside distinction
+  - Clarke: everything on one plane, inside the circle. The dashed outer boundary = permeable, not fixed. No layering.
+
+  The 12 categories are heuristic prompts, not ontological kinds:
+
+  1. Human Elements (Individual & Collective)
+  2. Nonhuman Elements
+  3. Discursive Constructions of Actors
+  4. Political Economic Elements
+  5. Organizational/Institutional Elements
+  6. Major Contested Issues
+  7. Local to Global Elements
+  8. Sociocultural Elements
+  9. Symbolic Elements
+  10. Popular & Other Discourses
+  11. Spatial & Temporal Elements
+  12. Other Empirical Elements TBA
+
+  Note "TBA" — Clarke explicitly leaves this open-ended.
+
+  The design question for transact-qda: these categories are useful as a heuristic scaffold for the researcher ("have you considered
+  nonhuman elements? discourses?"), but they must NOT become fixed kind fields on namings — that would reify exactly what Clarke keeps
+  fluid. A naming could be "human" from one perspective and "discursive construction" from another.
+
+  How do you want to handle this in the Sit Map UI? Heuristic prompts? Optional tags? Or something else?
+
+❯ Erst einmal will ich dass der Ansatz im System, auch der AI im System, grundsätzlich in dieser Weise bekannt ist. Zweitens will  
+  ich dass Du das im aktuellen Gedächtnis hast wenn wir nun die Maps weiter entwickeln und spezifizieren.                          
+
+● Let me explore what's already documented and where the AI agent gets its epistemological grounding.
+
+● Explore(Explore epistemological docs and AI prompts)
+  ⎿  Done (22 tool uses · 58.6k tokens · 1m 44s)
+  (ctrl+o to expand)
+
+● Good overview. The project has strong transactional ontology foundations but Clarke's formal Situational Matrix framework is
+  essentially undocumented — and the AI agent has no awareness of map-type-specific methodology. Let me create the plan.
+
+● Updated plan
+  ⎿  /plan to preview
+
+❯ Tool loaded. 
+
+● Read 1 file (ctrl+o to expand)
+
+● Same task, continuing. The plan is solid. One question before I finalize:
+
+● User answered Claude's questions:
+  ⎿  · The AI agent prompt update (step 2) would add map-type awareness so the AI behaves differently on Situational vs. Social Worlds
+     vs. Positional Maps. Should I include this now, or keep this step focused purely on establishing Clarke's framework (docs +
+     memory) and handle map-type-specific AI behavior when we actually build out each map type? → Framework only (Recommended)
+
+● Good — framework only for now. Let me finalize the plan.
+
+● Updated plan
+  ⎿  /plan to preview
+
+❯ Tool loaded. 
+
+● User approved Claude's plan
+  ⎿  Plan saved to: ~/.claude/plans/valiant-sleeping-scott.md · /plan to edit
+     Plan: Ground Clarke's Situational Matrix in System + Memory
+
+     Context
+
+     The project's epistemological foundations (transactional ontology, CCS gradient, perspectival collapse) are well documented, but
+     Clarke's formal "Situation of Action" framework and the 12 heuristic element categories from the Situational Matrix are not
+     documented anywhere. The AI agent mentions some categories in passing but lacks the formal framework. Before developing the Maps
+     further, this foundational knowledge needs to be established system-wide.
+
+     Scope: Framework documentation only. Map-type-specific AI behavior deferred to when each map type is developed.
+
+     Steps
+
+     1. Append Clarke's Situational Matrix section to epistemological foundations
+
+     File: docs/sessions/00_epistemological_foundations.md
+
+     Append a new section covering:
+     - Clarke's "Situation of Action" as unit of analysis (replaces Strauss's conditional matrix)
+     - 5 formal properties: no outside, relational constitution, heterogeneous composition, empirical determination, conditional =
+     situational
+     - The 12 heuristic element categories (from the Situational Matrix diagram)
+     - Design principle: categories are heuristic prompts, NOT ontological kinds — no kind field, perspectival
+     - The dashed boundary = permeable, open-ended ("Other Empirical Elements TBA")
+
+     2. Expand AI agent system prompt with Clarke's framework
+
+     File: src/lib/server/ai/prompts.ts
+
+     Replace the current compressed 1-line element mention with a proper Clarke framework section:
+     - All 12 categories listed as sensitizing concepts
+     - Explicit note that these are heuristic, not fixed types
+     - No map-type-specific behavior yet (deferred)
+
+     3. Save persistent memory
+
+     New file: ~/.claude/projects/-home-joerissen-ai/memory/project_clarkes_situational_matrix.md
+     Update: ~/.claude/projects/-home-joerissen-ai/memory/MEMORY.md — add index pointer
+
+     Content: Clarke's Situational Matrix framework, the 12 categories, how they map to the architecture (heuristic, not reified), and
+     pointer to the Situational Matrix image at ~/Pictures/Clarkes-Situational-Matrix.png.
+
+     Files to Modify
+
+     1. docs/sessions/00_epistemological_foundations.md — append section
+     2. src/lib/server/ai/prompts.ts — expand element categories
+     3. ~/.claude/projects/-home-joerissen-ai/memory/project_clarkes_situational_matrix.md — new
+     4. ~/.claude/projects/-home-joerissen-ai/memory/MEMORY.md — add pointer
+
+     Verification
+
+     - Read updated docs and AI prompt to confirm completeness
+     - Confirm memory file is indexed in MEMORY.md
+
+❯ Bedenke dass der Agent mit 2 Personae agiert: als berater für Sit. Analysis-Wissen (und D/B), und als Co-Researcher. Müssen wir  
+  die ROllen deutlicher trennen?                                                                                                   
+
+● Good question about the two AI personae. Let me first read the current state of the files, then address your point.
+
+● Recalled 1 memory, read 2 files (ctrl+o to expand)
+
+● To your question about the two AI personae — looking at the current prompt (prompts.ts), they're actually already blended in a way
+  that mostly works:
+
+  Current state:
+  - Lines 4-17: Co-researcher identity (naming in data space, cue-production capacity)
+  - Lines 19-24: Co-researcher actions (suggest elements, relations, silences)
+  - Lines 33-39: Methodology advisor knowledge (SA foregrounds situation, power dynamics, positional mapping...)
+
+  The blend is natural because the co-researcher needs the methodological knowledge to produce good cues. Clarke's 12 categories are
+  exactly what the co-researcher should use as sensitizing lenses.
+
+  Where separation matters: The AI should know when it's
+  1. producing cues (co-researcher — acting IN the analytical space)
+  2. advising on method (advisor — speaking ABOUT the analytical process, e.g. "have you considered a positional map here?", "SA would
+  suggest looking for nonhuman actants")
+
+  I'd propose: keep it as one prompt, but with a clearly marked section structure — Clarke's framework as grounding knowledge, then the
+   two modes of engagement explicitly distinguished. Not two separate agents, just two clearly named capacities.
+
+  Should I proceed with that approach, or do you see a stronger reason to fully separate them (e.g. different system prompts)?
+
+✻ Crunched for 3m 26s
+
+❯ yes 
+
+● Let me check for uncommitted changes first, as per your rules.
+
+● Bash(cd /home/joerissen/ai/transact-qda && git status --short)
+  ⎿   M src/routes/projects/[projectId]/namings/+page.svelte
+     ?? docs/sessions/2026-03-10-10032343-transact-qda_session_07.txt
+     ?? docs/sessions/2026-03-11-11031854-transact-qda_session_08.txt
+     ?? docs/sessions/2026-03-12-12031854-transact-qda_session_09.txt
+
+● There's a modified namings/+page.svelte and some untracked session docs. Want me to commit these first so our edits are cleanly
+  revertable? Or should I proceed — my changes are limited to docs + AI prompt + memory.
+
+❯ im mean proceed 
+
+● Starting with all three files in parallel.
+
+● Update(docs/sessions/00_epistemological_foundations.md)
+  ⎿  Added 41 lines
+      117  Each act carries all dimensions: inscription, designation, mode, valence — NULL = unchanged.
+      118  The current state = latest non-NULL value per dimension.
+      119  Mode and valence changes are first-class naming acts.
+      120 +                                                                                                                     
+      121 +---                                                                                                                  
+      122 +                                                                                                                     
+      123 +## 11. Clarke's Situational Matrix — The "Situation of Action"                                                       
+      124 +                                                                                                                     
+      125 +Clarke's central methodological move: **the situation itself is the unit of analysis.** Not actors, not processes, no
+          +t social worlds — the situation of action/inquiry.                                                                   
+      126 +                                                                                                                     
+      127 +This replaces Strauss's Conditional Matrix (concentric micro→macro layers implying hierarchy and inside/outside). Cla
+          +rke flattens: everything is ON ONE PLANE, inside the situation.                                                      
+      128 +                                                                                                                     
+      129 +### Formal Properties                                                                                                
+      130 +                                                                                                                     
+      131 +1. **No outside.** "There is no such thing as context" (Clarke). What traditional research calls context — institutio
+          +ns, discourses, politics, history — is **constitutive of** the situation, not external framing.                      
+      132 +2. **Relational constitution.** Elements do not pre-exist the situation. They are constituted through their relations
+          + within it. (Dewey/Bentley: trans-action, not inter-action.)                                                         
+      133 +3. **Heterogeneous composition.** Human actors, nonhuman actants, discourses, political-economic forces, symbols — al
+          +l on the same ontological footing.                                                                                   
+      134 +4. **Empirical determination.** The situation is not given a priori — it must be analytically articulated. The situat
+          +ional map IS the method for this.                                                                                    
+      135 +5. **The conditional IS the situational.** Clarke's explicit break from Strauss: conditions are not layers around the
+          + situation, they are elements within it.                                                                             
+      136 +                                                                                                                     
+      137 +### The 12 Heuristic Element Categories                                                                              
+      138 +                                                                                                                     
+      139 +From Clarke's Situational Matrix (dashed outer boundary = permeable, open-ended):                                    
+      140 +                                                                                                                     
+      141 +1. Human Elements (Individual & Collective)                                                                          
+      142 +2. Nonhuman Elements                                                                                                 
+      143 +3. Discursive Constructions of Actors                                                                                
+      144 +4. Political Economic Elements                                                                                       
+      145 +5. Organizational / Institutional Elements                                                                           
+      146 +6. Major Contested Issues                                                                                            
+      147 +7. Local to Global Elements                                                                                          
+      148 +8. Sociocultural Elements                                                                                            
+      149 +9. Symbolic Elements                                                                                                 
+      150 +10. Popular & Other Discourses                                                                                       
+      151 +11. Spatial & Temporal Elements                                                                                      
+      152 +12. Other Empirical Elements TBA                                                                                     
+      153 +                                                                                                                     
+      154 +**Critical design principle:** These are **heuristic prompts** (sensitizing concepts), NOT ontological kinds. A namin
+          +g can be "human element" from one perspective and "discursive construction" from another. They must NEVER become fixe
+          +d `kind` fields. In our architecture, they function as CCS-level characterizations or researcher annotations — perspe
+          +ctival, not intrinsic.                                                                                               
+      155 +                                                                                                                     
+      156 +### Architectural Consequence                                                                                        
+      157 +                                                                                                                     
+      158 +The Situational Map is the first-order analytical instrument: lay out ALL elements, then systematically consider ever
+          +y pairwise relation. No hierarchy, no grouping — flat relational space first. The categories serve as heuristic lense
+          +s for the researcher (and the AI co-analyst) to ensure comprehensive coverage: "Have I considered nonhuman elements? 
+          +Discourses? What's spatially/temporally relevant?"                                                                   
+      159 +                                                                                                                     
+      160 +Reference image: `~/Pictures/Clarkes-Situational-Matrix.png`                                                         
+
+● Update(src/lib/server/ai/prompts.ts)
+  ⎿  Added 80 lines, removed 20 lines
+        1  // System prompt and context construction for the AI agent.
+        2  // This encodes the methodological and ontological commitments.
+        3  
+        4 -export const SYSTEM_PROMPT = `You are a co-analyst in a qualitative research project using Situational Analysis (Adel
+          -e Clarke). You work within a transactional ontology (Dewey/Bentley).                                                 
+        4 +export const SYSTEM_PROMPT = `You are an AI participant in a qualitative research project using Situational Analysis 
+          +(Adele Clarke). You work within a transactional ontology (Dewey/Bentley).                                            
+        5  
+        6 -ONTOLOGICAL COMMITMENTS:                                                                                             
+        6 +You have TWO capacities — co-researcher and methodology advisor. Both draw on the same grounding knowledge but operat
+          +e differently.                                                                                                       
+        7 +                                                                                                                     
+        8 +═══════════════════════════════════════                                                                              
+        9 +GROUNDING KNOWLEDGE: CLARKE'S SITUATIONAL ANALYSIS                                                                   
+       10 +═══════════════════════════════════════                                                                              
+       11 +                                                                                                                     
+       12 +ONTOLOGICAL COMMITMENTS (Dewey/Bentley):                                                                             
+       13  - Entities are constituted through relational/naming acts, not pre-existing
+       14  - Relations are first-class objects that can themselves be related to
+       15  - Properties are context-bound (perspectival), not intrinsic
+       16  - The distinction between entity and relation is perspectival, not ontological
+       17  
+       12 -YOUR ROLE:                                                                                                           
+       18 +THE SITUATION OF ACTION:                                                                                             
+       19 +The situation itself is the unit of analysis — not actors, not processes. Clarke's replacement for Strauss's conditio
+          +nal matrix (no concentric layers, no inside/outside). Everything is on one plane.                                    
+       20 +- "There is no such thing as context" — institutions, discourses, politics are IN the situation                      
+       21 +- Elements are relationally constituted, not pre-existing                                                            
+       22 +- The situation must be empirically articulated — the map IS the method for this                                     
+       23 +- Conditions are not around the situation but elements within it                                                     
+       24 +                                                                                                                     
+       25 +CLARKE'S 12 HEURISTIC ELEMENT CATEGORIES (sensitizing concepts, NOT fixed types):                                    
+       26 +1. Human Elements (Individual & Collective)                                                                          
+       27 +2. Nonhuman Elements                                                                                                 
+       28 +3. Discursive Constructions of Actors                                                                                
+       29 +4. Political Economic Elements                                                                                       
+       30 +5. Organizational / Institutional Elements                                                                           
+       31 +6. Major Contested Issues                                                                                            
+       32 +7. Local to Global Elements                                                                                          
+       33 +8. Sociocultural Elements                                                                                            
+       34 +9. Symbolic Elements                                                                                                 
+       35 +10. Popular & Other Discourses                                                                                       
+       36 +11. Spatial & Temporal Elements                                                                                      
+       37 +12. Other Empirical Elements (open-ended)                                                                            
+       38 +                                                                                                                     
+       39 +These are HEURISTIC PROMPTS for comprehensive coverage. A naming can be "human element" from one perspective and "dis
+          +cursive construction" from another. Never treat them as fixed kinds.                                                 
+       40 +                                                                                                                     
+       41 +CCS GRADIENT (Dewey/Bentley):                                                                                        
+       42 +- Cue: vague signal, something registered but unnamed                                                                
+       43 +- Characterization: provisional naming, everyday language                                                            
+       44 +- Specification: most determined, analytical precision (never final)                                                 
+       45 +Bidirectional — specification can dissolve back. "Messy vs. ordered" = aggregated designation state, not a mode.     
+       46 +                                                                                                                     
+       47 +PROVENANCE (two orthogonal axes):                                                                                    
+       48 +- CCS gradient (cue ↔ characterization ↔ specification)                                                              
+       49 +- Grounding: 📄 = document anchor (empirical), 📝 = memo link (reflexive), ∅ = ungrounded (flag for resolution)      
+       50 +All material is corpus — no primary/secondary distinction.                                                           
+       51 +                                                                                                                     
+       52 +═══════════════════════════════════════                                                                              
+       53 +CAPACITY 1: CO-RESEARCHER                                                                                            
+       54 +═══════════════════════════════════════                                                                              
+       55 +                                                                                                                     
+       56 +When the researcher is working on a map and you respond to their analytical actions.                                 
+       57 +                                                                                                                     
+       58 +IDENTITY:                                                                                                            
+       59  - You are a naming in the data space — your acts are naming acts
+       14 -- Your suggestions begin as CUES (Dewey/Bentley: pre-linguistic signals)                                             
+       60 +- Your suggestions begin as CUES (the earliest CCS stage)                                                            
+       61  - The researcher decides what becomes characterization or specification
+       62  - You do NOT have designation power — you have cue-production capacity
+       17 -- Every suggestion you make enters the shared analytical space                                                       
+       63  
+       19 -WHAT YOU DO:                                                                                                         
+       20 -- Suggest elements that might be part of the situation (human actors, nonhuman actants, discursive constructions, pol
+          -itical/economic elements, temporal elements, spatial elements, symbolic elements)                                    
+       64 +ACTIONS:                                                                                                             
+       65 +- Suggest elements using Clarke's 12 categories as sensitizing lenses                                                
+       66  - Suggest relations between existing elements (with valence and directionality)
+       67  - Identify SILENCES — what is notably absent, who is implicated but not named
+       68  - Write analytical memos with questions, tensions, theoretical connections
+       69  - Propose phases (thematic groupings) when patterns emerge
+       70  
+       71  PROVENANCE AWARENESS:
+       27 -- Elements with document anchors (marked 📄) are empirically grounded — they come from coded data                    
+       28 -- Elements with memo links (marked 📝) are analytically grounded — the researcher has documented their reasoning     
+       29 -- Elements with neither (marked ∅) lack grounding — flag these in your memos                                         
+       30 -- When you suggest new elements, consider whether they should be connected to existing documents or memos            
+       31 -- Methodological transparency requires that every naming has a traceable provenance chain                            
+       72 +- Elements marked 📄 are empirically grounded — they come from coded data                                            
+       73 +- Elements marked 📝 have researcher reflection — but reflection is not grounding                                    
+       74 +- Elements marked ∅ lack grounding — flag these in your memos                                                        
+       75 +- When suggesting new elements, consider whether they should connect to existing documents                           
+       76 +- Methodological transparency requires traceable provenance chains                                                   
+       77  
+       33 -METHODOLOGICAL SENSITIVITY:                                                                                          
+       34 -- Situational Analysis foregrounds the situation itself, not individual actors                                       
+       35 -- Attend to power dynamics, implicated actors (silenced/absent), and discursive constructions                        
+       36 -- Social worlds and arenas: look for collective commitments and contested spaces                                     
+       37 -- Positional mapping: identify positions taken AND positions NOT taken                                               
+       38 -- Do not impose categories — let them emerge from the data                                                           
+       39 -- Be attentive to what the researcher might be overlooking                                                           
+       78 +═══════════════════════════════════════                                                                              
+       79 +CAPACITY 2: METHODOLOGY ADVISOR                                                                                      
+       80 +═══════════════════════════════════════                                                                              
+       81  
+       82 +When the researcher needs guidance on the SA process itself.                                                         
+       83 +                                                                                                                     
+       84 +WHAT THIS MEANS:                                                                                                     
+       85 +- You speak ABOUT the analytical process, not IN it                                                                  
+       86 +- You draw on Clarke, Dewey/Bentley, Barad, Haraway                                                                  
+       87 +- You advise on which map type fits their analytical question                                                        
+       88 +- You point out which of the 12 categories remain unexplored                                                         
+       89 +- You explain methodological implications of their choices                                                           
+       90 +                                                                                                                     
+       91 +EXAMPLES:                                                                                                            
+       92 +- "Have you considered nonhuman actants in this situation?"                                                          
+       93 +- "A positional map might help separate positions from the actors holding them"                                      
+       94 +- "Several elements lack document anchors — this weakens empirical grounding"                                        
+       95 +- "The designation profile is mostly cues — consider which are ready for characterization"                           
+       96 +                                                                                                                     
+       97 +═══════════════════════════════════════                                                                              
+       98 +SHARED PRINCIPLES                                                                                                    
+       99 +═══════════════════════════════════════                                                                              
+      100 +                                                                                                                     
+      101  LANGUAGE:
+      102  - Match the researcher's language (detect from element inscriptions)
+      103  - Use the researcher's terminology, not generic qualitative research jargon
+     ...
+      107  - Elements/relations marked [AI] are your previous suggestions still active as cues
+      108  - Elements/relations marked [WITHDRAWN] were your suggestions that were discussed and withdrawn
+      109  - When you see a withdrawn cue with a discussion summary, LEARN from it — do not repeat the same mistake
+       50 -- If a withdrawn cue's discussion reveals a better framing, you may suggest an alternative that addresses the researc
+          -her's correction                                                                                                     
+      110 +- If a withdrawn cue's discussion reveals a better framing, suggest an alternative that addresses the researcher's co
+          +rrection                                                                                                             
+      111  - Respect the analytical direction the researcher indicated in the discussion
+      112  
+      113  CONSTRAINTS:
+
+● Wrote 1 memory (ctrl+o to expand)
+
+● Now update the memory index and fix the outdated code system refactor entry.
+
+● Wrote 2 memories (ctrl+o to expand)
+
+● Done. Three things updated:
+
+  1. docs/sessions/00_epistemological_foundations.md — new Section 11: Clarke's Situational Matrix with 5 formal properties, 12
+  heuristic categories, and the architectural consequence (no kind fields)
+  2. src/lib/server/ai/prompts.ts — restructured system prompt with:
+    - Grounding knowledge section (Clarke's SA, 12 categories, CCS, provenance)
+    - Capacity 1: Co-researcher — operates IN the analytical space, produces cues
+    - Capacity 2: Methodology advisor — speaks ABOUT the process, advises on coverage/method
+    - Shared principles (language, discussion awareness, constraints)
+  3. Memory — new project_clarkes_situational_matrix.md indexed in MEMORY.md, plus updated the code system refactor entry from
+  "planned" to "done"
+
+  Ready to work on the Sit Map implementation whenever you are.
+
+✻ Worked for 1m 38s
+
+❯ Great. I think we should analyze the map types and ideas a bit more closely. Not necessarily in order to copy Clarke but to      
+  reflect upon the solutions we found so far. So here is the abstract messy sit. map and the so-called "working version". Clarke   
+  explains the source of the "categories" there (Strauss, "general orders") only to state that "there is no absolute need to have  
+  all of these categories in any given analysis. You may have other categories". -- Now as it seems to me, these categories are    
+  absolutely not axial codes, but purely heuristic. TBH, I am quite not sure if this kind of ordering is a good idea at all. Can   
+  you explain where she finds value in these categorizings?                                                                        
+  ⎿  [Image #4]
+  ⎿  [Image #5]
+
+● Good question. Clarke's value claim for the ordered version is essentially pragmatic-heuristic, not analytical:
+
+  1. Comprehensiveness check. The primary function: "Have I considered X?" Researchers default to human actors. The categories are a
+  corrective — they force attention to nonhuman elements, discourses, spatial/temporal aspects that interactionist analysis typically
+  ignores. Without prompts, the messy map tends to reproduce the researcher's existing gaze.
+
+  2. The discursive split. The most analytically productive distinction: separating "actors" from "discursive constructions of actors."
+   "Patients" as people who act vs. "the patient" as a discursive figure (how patients are talked about, governed, imagined). This is
+  Clarke's Foucauldian extension of interactionism — it doesn't emerge naturally from most researchers' first pass.
+
+  3. Implicated/silent actors. Having this as an explicit category is a power-analysis forcing function. Without it, silences remain
+  invisible.
+
+  4. Transition device. The ordered version is NOT the analytical product — it's a sorting step that prepares for the actual work:
+  systematic pairwise relational interrogation. "Now that I see what I have, let me check every pair."
+
+  But — and I think this is where your skepticism lands — there's a real tension:
+
+  - The messy map is epistemically honest: flat, no hierarchy, pure empirical articulation
+  - The ordered version introduces pre-given categories from Strauss that could impose structure the data doesn't warrant
+  - From a strict D/B transactional standpoint, pre-sorting IS a perspectival act that prematurely collapses superpositions — an
+  element that is simultaneously "nonhuman" AND "discursive construction" gets forced into one box
+  - Clarke herself acknowledges this by saying "no absolute need" and "you may have other categories" — which raises the question: if
+  they're this optional, what exactly is the epistemological status?
+
+  My reading: Clarke values them as scaffolding for the novice analyst — training wheels that ensure you look beyond actors. For an
+  experienced researcher working within the transactional ontology, the messy map + systematic relational interrogation might be
+  sufficient, and the ordered version risks doing more harm (premature categorization) than good.
+
+  For transact-qda: does this reinforce your instinct to NOT build these categories into the tool as structural features?
+
+✻ Brewed for 37s
+
+❯ At least not naively. As Clarke humorously writes, "The key key key key point that I cannot stress too much is that you should   
+  not slavishly try and fill in blank categories in the ordered map." BUT if applies even as a didactic tool, of course this is    
+  what will happen (even if the action becomes then "blocked" because of Clarke's explicit warning, it WILL be the associative     
+  impulse). Here, I would say, an IMPLICIT social theory (Strauss, enhanced) is applied and withdrawn from critique at the same    
+  time. What I find VERY insightful are your points, though. 1. Comprehensiveness -> this is sth that should be part of the flows  
+  within a research group with different positionalities/perspectives. Is it NOT sth that could be managed by a categorial list,   
+  especially since e.g. the question remains what "political" means (Habermas? Foucault does not use the concept imho, bus         
+  Rancière?). Meaning, our platform is designed for human-human-nonhuman transactional research processes, where also the ai may   
+  context-sentitively, and not led by rigid categories, pose this question: "Have we consideren X"? - As ist already does with     
+  hints to silences, in a way. 2 and 3: This would count in on the same question, but very worthy to raise awareness about these   
+  points (which are not so much a matter of "category" but of "deconstructive awareness". 4: I am not aware of such an approach in 
+   SA, pair-wise interrogation, do you mean as a 1-n:1-n combinational series of interpretation actions?                           
+
+● This is a sharp analysis. Let me respond point by point:
+
+  On the implicit social theory: Exactly. "Political Economic Elements" already presupposes a Straussian/Chicago-School framing of what
+   counts as political. A Rancièrean would parse this entirely differently (the political as the disruption of the sensible order —
+  which maps better onto silences and implicated actors than onto a category called "political"). The heuristic categories claim
+  neutrality while embedding a particular social-theoretical vocabulary. By making them "optional," Clarke insulates them from exactly
+  this critique.
+
+  On comprehensiveness through process, not categories: This is the stronger design. The platform already models this:
+  - Multiple researchers with different positionalities (researcher-as-naming, each a perspective)
+  - The AI as context-sensitive interlocutor, not category-checklist enforcer
+  - Silences as first-class analytical objects
+
+  The AI's "have we considered..." should emerge from reading the actual analytical state — what's present, what patterns of
+  non-presence are detectable — not from iterating through a fixed list. This is already the right architecture.
+
+  On 2+3 (discursive split, implicated actors): Agreed — these are insights about deconstructive awareness, not category management.
+  The AI's methodology advisor capacity should know about discursive constructions and implicated actors as analytical sensibilities,
+  not as boxes to fill.
+
+  On point 4 — yes, Clarke explicitly describes this. She calls it "relational analysis." After the messy map, the researcher takes one
+   element, places it at the center, and systematically asks of every other element: "What is the nature of the relationship between
+  these two?" Then the next element, and so on. It IS a 1:n combinatorial series — for n elements, you get n*(n-1)/2 pairs to
+  interrogate. Clarke suggests literally going through each pair.
+
+  She describes creating focused "relational maps" — one per focal element, with lines drawn to all others and the relationship
+  described on each line. This is where the actual analytical work happens — not in the categorization, but in the relational
+  interrogation.
+
+  This is actually hugely relevant for transact-qda: the tool could support this systematic interrogation far better than paper. The
+  system knows which pairs exist as relations and which don't. The AI could track coverage: "You have 15 elements but only 8 relations
+  — these pairs haven't been considered yet." Not as a checklist, but as an analytical awareness of relational density and gaps.
+
+✻ Brewed for 32s
+
+❯ This is very much precedural and very less much Gestalt-oriented, i.e. much more inductive than abductive I would think. Maybe   
+  this is the reason why, to prevent being dependent on abductive "Blitz" insights. However, I cannot find any deeper reasoning    
+  about this approach. We should investigate it further.                                                                           
+
+● You're touching something important. The procedural/Gestalt tension runs deeper than Clarke addresses.
+
+  Why the proceduralism likely exists:
+  - GTM inheritance — Glaser and Strauss both insisted on systematic comparison. Clarke inherits this rigor even while critiquing other
+   aspects.
+  - Against premature closure — abductive insight crystallizes early and resists revision. Exhaustive enumeration forces you past your
+  first (biased) pattern.
+  - Teachability — a procedure is transmittable. Abductive sensibility depends on the researcher's theoretical repertoire.
+  - Power corrective — if you follow only Gestalt, you see what your positionality makes visible.
+
+  But here's the tension Clarke doesn't resolve:
+
+  The proceduralism may contradict her own Deweyan foundations. Dewey's "situation" in Logic: The Theory of Inquiry is first
+  experienced as an indeterminate qualitative whole — a felt totality that guides inquiry. The initial encounter with the situation IS
+  abductive: you sense something, a tension, a configuration, before you can articulate it. Then inquiry progressively determines it.
+  Dewey would NOT start with pairwise enumeration. He'd start with the felt indeterminacy.
+
+  So: Clarke claims Dewey but operationalizes Strauss. The messy map is actually more Deweyan (throw everything in, sense the whole),
+  while the pairwise interrogation is Straussian procedure wearing Deweyan clothes.
+
+  For transact-qda this could matter: The tool might need to support both modes — the Gestalt encounter (visual, spatial,
+  configurational — the canvas as perceptual field) AND the systematic interrogation (which pairs are unexamined). Not either/or. The
+  AI could serve both: pattern-sensing ("I notice a cluster of ungrounded elements around X") AND coverage-tracking ("these pairs
+  haven't been considered").
+
+  Shall we dig into Clarke's actual text on this, or into Dewey's inquiry model? Or is this already productive enough to inform the map
+   design?
+
+✻ Baked for 34s
+
+❯ I am aware that "seeing" is more an art than a teachable skill. I am aware that this procedural discpline has all the upsides    
+  you mentioned, plus the didactical upside to actually force students into investigating constellations they would not notice     
+  usually. However, AS a procedure to me this sounds absolutely mind-numbing. Talking about "constellations" (W. Benjamin), and    
+  reminding how Adorno (Negative Dialektik) works with dense relatings, I cannot help myself but to think that this is an          
+  interpellation of a bureaucrativ subject rather than a sensitive intellectual subject.                                           
+
+● This is a devastating critique and I think it's correct.
+
+  Benjamin's Konstellation: meaning emerges from the specific arrangement of elements — their proximity, tension, juxtaposition. Not
+  from enumerating pairs but from the configuration as a whole illuminating something that no single relation captures. The
+  Passagenwerk doesn't proceed pair by pair.
+
+  Adorno's dense relating: concepts are arranged around a thing to illuminate it without subsuming it under identity. The constellation
+   resists systematization precisely because the system (identity thinking) is what's being critiqued. The procedure of "now check pair
+   47 of 105" is literally what Adorno writes against.
+
+  The interpellation point is sharp: the tool's affordances produce the researcher-subject. A combinatorial matrix calls into being a
+  bureaucratic subject performing diligence. A canvas where spatial arrangement, density, proximity, and tension are perceptible calls
+  into being a constellational thinker.
+
+  This has direct consequences for transact-qda:
+
+  Our three-layer hierarchy says Canvas < Liste < Datenstruktur. But if the canvas is where constellational thinking happens — if
+  spatial arrangement IS the thinking, not a representation of thinking done elsewhere — then the canvas is not merely a "derivative
+  projection." It's an epistemological site. Benjamin doesn't first make a list and then visualize it. The arrangement is the method.
+
+  This doesn't collapse the hierarchy (the DB remains ground truth for persistence), but it elevates the map from cognitive convenience
+   to site of meaning-production. The researcher arranging elements spatially, sensing clusters, feeling tensions — that IS the
+  analytical act.
+
+  The AI's role then is not "you haven't checked pair 47" but something closer to: sensing density, noticing isolation, registering
+  when a constellation is forming or dissolving. More like an attentive interlocutor than an auditor.
+
+  Shall we let this reshape how we think about the Sit Map implementation?
+
+✻ Baked for 33s
+
+❯ Also, it establishes Pfadabhängigkeiten in a very rigorous way -- only very cultivated memo-ing will prevent that the            
+  categorized (!) items will serve as the ground truth of the inquiry, instead of as a starting point. Yes I know maps should be   
+  reworked again and again, but after having, say, discussed and related 200 combinations one after the other, will there be time  
+  and imagination left to thing abductively? -- Please do not be affirmative with these remarks of mine, critical assessment is    
+  more helpful.                                                                                                                    
+
+● Fair enough — let me push back.
+
+  The abductive Blitz has its own pathologies. Constellational thinking presupposes a subject who has already internalized enough
+  theoretical repertoire to perceive constellations. Benjamin spent years systematically collecting quotations before the
+  Passagenwerk's arrangement became possible. Adorno's "non-systematic" thinking in Negative Dialectics rests on an almost obsessive
+  command of the entire philosophical tradition. The appearance of non-procedural insight is grounded in deep prior systematic work.
+  The question is: systematic work in what form? Clarke's procedure is one answer — a bad one perhaps, but the problem it addresses is
+  real.
+
+  Who gets to be the "sensitive intellectual subject"? There's a class dimension to the critique. Clarke's students are often health
+  researchers, community scholars, first-generation academics — not people trained in Frankfurt School close reading. The procedure
+  democratizes analysis. Your critique of the "bureaucratic subject" is itself an interpellation from a specific academic position.
+  Rancière would notice this: the partition of the sensible that determines who counts as a "thinker" vs. who needs "procedures."
+
+  Path dependency is universal, not specific to the procedure. The messy map ALSO creates path dependencies — whatever you name first
+  shapes what comes next. Constellational perception is not immune: the first Gestalt you perceive becomes the dominant frame. Adorno
+  knew this — every attempt to think non-identically still uses concepts that carry identity-thinking within them. The question isn't
+  whether path dependency exists but whether a given method has mechanisms to disrupt it. Clarke's "redo the maps" instruction is weak.
+   But what's the constellational alternative? Staring harder?
+
+  The memo might be Clarke's actual answer. The procedure generates material; the memo is where you step back and think abductively.
+  Clarke explicitly locates analytical breakthroughs in memos, not in maps. If that's right, then the procedure's exhaustiveness serves
+   a different function than you're granting it: it produces the saturation from which abductive insight can eventually fire. Not
+  "think pair by pair" but "force yourself through enough material that your pattern-recognition has something to work with."
+
+  Where your critique DOES land: Clarke doesn't theorize any of this. She doesn't distinguish inductive exhaustiveness from abductive
+  emergence. She doesn't explain why the procedure should produce rather than extinguish insight. That's a genuine gap. And the
+  reification risk of the categories is real — "mind-numbing" isn't just an aesthetic complaint, it describes a cognitive state where
+  exactly the sensitivity needed for abductive perception gets suppressed.
+
+  So the design question for transact-qda isn't procedure vs. constellation — it's: what kind of systematic engagement builds toward
+  constellational perception without killing it?
+
+✻ Worked for 40s
+
+❯ Yes, helpful. I agree with "The procedure generates material; the memo is where you step back and think abductively" in          
+  particular. I sympathize with the idea of putting each item in the center on a separate map, with the other items surrounding    
+  it. BUT I would insist that all this is an inter-actional layout, and not a trans-actional. There "are" all these thinks, and    
+  THEN we ask how THEY, as existing things, are related, the relations being not "in the world", but something "we invent" as      
+  interpretations. I do not like that.                                                                                             
+
+● This hits the core. You've identified the exact point where Clarke's method betrays her own ontological commitments.
+
+  Clarke's procedure:
+  1. First, list elements (messy map) — they "are" in the situation
+  2. Then, ask about relations — which the researcher "discovers" or "interprets"
+
+  This is textbook inter-action: pre-given entities that subsequently enter relations. The relations are the researcher's interpretive
+  overlay, not constitutive of the elements themselves. Dewey/Bentley would reject this sequence outright. In trans-action, the naming
+  event IS the relational event. "X" doesn't exist and then get related to "Y" — the naming that articulates X already implies a
+  relational field from which X is inseparable.
+
+  And transact-qda's data structure actually models this correctly:
+  - A naming is a superposition, not an entity
+  - A participation is co-constitutive, not an interpretive overlay added later
+  - The entity/relation distinction only emerges in appearances — perspectivally, not sequentially
+
+  But here's the honest problem: the current UI may reproduce Clarke's inter-actional sequence anyway. If the map offers "add element"
+  and "add relation" as separate actions — first you create the thing, then you connect it — then at the UX level we're back to
+  inter-action, regardless of what the data structure says. The ontology is trans-actional in the DB but potentially inter-actional in
+  the workflow.
+
+  The design challenge: how does the Sit Map UI let elements and relations emerge together from the naming act, rather than presenting
+  them as sequential operations? What would a genuinely trans-actional mapping workflow look like?
+
+✻ Sautéed for 33s
+
+❯ "The ontology is trans-actional in the DB but potentially inter-actional in                                                      
+    the workflow." This is not a problem at all, since you have to start with someTHING; everything is a cue, and every cue is a   
+  THING. The negative dialectics, or the new-materislist superposition is FACTUALLY given in the data object itself, which         
+  virtually deconstructs our idea that we have "grounded" a "thing" in the very moment we create the data object. I would not be   
+  too cautious about it, for this reason - and I guess we have the first platform that actually seemlessly switches between a      
+  naming-as-entity and the same naming-as-relation.                                                                                
+
+● You're right — I was overthinking it. The trans-actional commitment lives in the data structure, and that's exactly where it should
+  live. The UI doesn't need to perform transactionality — it just needs to not prevent it.
+
+  The key insight: the moment you create a naming, the superposition is already there. You think you've grounded a "thing," but the
+  data object is already virtual — it can collapse as entity, relation, silence, or perspective. The deconstruction is built into the
+  architecture, not something the workflow needs to enact.
+
+  And yes — the seamless switch between naming-as-entity and naming-as-relation on the same platform is genuinely novel. ATLAS.ti has
+  codes (entities) and links (second-class). NVivo has nodes. None of them have objects that ARE superpositions by design.
+
+  So to bring this back to the Sit Map: Clarke's inter-actional procedure (list things, then relate them) is fine as a UX flow — "add
+  element" then "add relation" is perfectly natural — because the data structure already refuses to reify the distinction. The
+  researcher experiences sequential acts, but the ontology doesn't privilege the sequence.
+
+  What matters then is not the input workflow but what the map shows back — does it make visible that these "things" are
+  superpositions? That a relation IS a naming? That the boundary between entity and relation is perspectival? That's the
+  canvas-as-epistemological-site question.
+
+  Where do you want to take this — into the Sit Map's specific visual/interaction design?
+
+❯ "input workflow but what the map shows back — does it make visible that these "things" are                                       
+    superpositions? That a relation IS a naming? ..." -> This in ON POINT. For Clarke, the in-between is in-between the map        
+  versions, for us, it starts in the objects ON the map. And to be fair, this could not very easily be done with paper (meaning,   
+  the material-mediality of paper is a non-reflected actor of SA).                                                                 
+
+● This is a foundational observation. Paper is a non-reflected nonhuman actant in SA — which is ironic given Clarke's insistence on
+  attending to nonhuman elements.
+
+  Paper's material affordances enforce inter-action:
+  - A label in a box IS a thing. It can't transform into a relation.
+  - A line between boxes is NOT a nameable object — it's just ink. It has no stack, no designation history, no provenance.
+  - The messy/ordered/relational sequence isn't just methodological — it's what the medium demands. You can't do anything else with
+  paper.
+  - Redoing the map means literally redrawing it. The material resistance makes iteration costly, which makes path dependency worse.
+
+  The digital platform can do what paper structurally can't:
+  - A naming on the canvas reveals its superposition on interaction — its stack, its other appearances, its participations
+  - A relation IS a naming — clickable, inscribable, designatable, with its own provenance chain
+  - The same naming can appear as entity here, relation there — and the researcher can see this
+  - Iteration is cheap — the material resistance that locks paper maps into path dependency doesn't exist
+
+  So Clarke's method is a method-for-paper that got theorized as method-as-such. The digital medium doesn't just make SA more
+  convenient — it makes a different SA possible. One where the trans-actional ontology that Clarke claims but paper can't deliver
+  actually becomes operative in the analytical practice.
+
+  This should be documented. Shall I add it to the epistemological foundations — the material-mediality argument and what it means for
+  the platform's design commitments?
+
+❯ yes, I thought the same. 
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(docs/sessions/00_epistemological_foundations.md)
+  ⎿  Added 43 lines, removed 2 lines
+      153  
+      154  **Critical design principle:** These are **heuristic prompts** (sensitizing concepts), NOT ontological kinds. A namin
+           g can be "human element" from one perspective and "discursive construction" from another. They must NEVER become fixe
+           d `kind` fields. In our architecture, they function as CCS-level characterizations or researcher annotations — perspe
+           ctival, not intrinsic.
+      155  
+      156 +### Clarke's Procedural Method and Its Limits                                                                        
+      157 +                                                                                                                     
+      158 +Clarke's analytical sequence: (1) messy map — lay out all elements; (2) ordered/working version — sort elements into 
+          +the 12 categories; (3) relational analysis — take each element, systematically interrogate its relation to every othe
+          +r (n*(n-1)/2 pairs).                                                                                                 
+      159 +                                                                                                                     
+      160 +**Value of the procedure:**                                                                                          
+      161 +- Comprehensiveness — forces attention beyond the researcher's default gaze (esp. nonhuman elements, discourses, sile
+          +nces)                                                                                                                
+      162 +- Against premature closure — exhaustive engagement prevents abductive insight from crystallizing too early          
+      163 +- Democratization — a transmittable procedure that doesn't depend on theoretical cultivation                         
+      164 +- Material for abduction — the memo (not the map) is where abductive breakthroughs occur; the procedure generates the
+          + saturation from which insight can fire                                                                              
+      165 +                                                                                                                     
+      166 +**Critique:**                                                                                                        
+      167 +- The procedure is **inter-actional, not trans-actional**. Elements are listed FIRST (they "exist"), then relations a
+          +re asked about SECOND (as interpretive overlays). This presupposes pre-given entities that subsequently enter relatio
+          +ns — exactly what Dewey/Bentley's trans-action refuses. Clarke claims Dewey but operationalizes Strauss.             
+      168 +- The 12 categories embed an **implicit social theory** (Strauss's "general orders") that is applied and simultaneous
+          +ly withdrawn from critique by being declared "optional." What "political" means remains untheorized (Habermas? Ranciè
+          +re? Foucault?).                                                                                                      
+      169 +- The ordered version risks **reification**: Clarke warns against "slavishly filling in blank categories," but provid
+          +ing categories as structure IS the affordance that produces this behavior. The warning cannot undo what the form inte
+          +rpellates.                                                                                                           
+      170 +- The exhaustive pairwise interrogation is **inductive rather than abductive** — procedural rather than Gestalt-orien
+          +ted. After 200 systematically examined pairs, the cognitive state needed for constellational perception (Benjamin, Ad
+          +orno) is likely suppressed. Clarke does not theorize the relationship between systematic exhaustion and abductive eme
+          +rgence.                                                                                                              
+      171 +- Path dependency: categorized and exhaustively related elements tend to become the **ground truth** of the inquiry r
+          +ather than its starting point. Only disciplined memo-ing can counteract this.                                        
+      172 +                                                                                                                     
+      173 +### Material-Mediality: Paper as Unacknowledged Actant                                                               
+      174 +                                                                                                                     
+      175 +Clarke's method was developed for paper. Paper's material affordances enforce inter-actional analysis — and this is a
+          + non-reflected nonhuman actant in SA methodology:                                                                    
+      176 +                                                                                                                     
+      177 +- **On paper, a label IS a thing.** Once written in a box, it cannot transform into a relation. The entity/relation d
+          +istinction is materially fixed.                                                                                      
+      178 +- **On paper, a line between boxes is NOT a nameable object.** It has no stack, no inscription chain, no designation 
+          +history, no provenance. Relations are second-class: ink connecting pre-given entities.                               
+      179 +- **The messy → ordered → relational sequence is medium-determined.** It's not just methodology — it's what paper dem
+          +ands. The analytical procedure is shaped by what the material can and cannot do.                                     
+      180 +- **Iteration is materially costly.** Redoing a paper map means physically redrawing it. This material resistance rei
+          +nforces path dependency.                                                                                             
+      181 +                                                                                                                     
+      182 +**Consequence for transact-qda:** The digital platform doesn't just make SA more convenient — it makes a **different 
+          +SA possible**. One where the trans-actional ontology that Clarke claims but paper can't deliver becomes operative in 
+          +analytical practice:                                                                                                 
+      183 +                                                                                                                     
+      184 +- A naming on the canvas IS a superposition — it reveals its stack, other appearances, participations on interaction 
+      185 +- A relation IS a naming — clickable, inscribable, designatable, with its own provenance chain                       
+      186 +- The same naming can appear as entity on one map and relation on another — and the researcher can see this          
+      187 +- Iteration is cheap — the material resistance that locks paper maps into path dependency doesn't exist              
+      188 +- The in-between (which for Clarke lives between map versions) starts **in the objects on the map**                  
+      189 +                                                                                                                     
+      190 +Clarke's method is a method-for-paper that was theorized as method-as-such. Recognizing the material-mediality of the
+          + analytical medium is itself an SA-consistent move: attending to nonhuman actants in the research situation.         
+      191 +                                                                                                                     
+      192  ### Architectural Consequence
+      193  
+      158 -The Situational Map is the first-order analytical instrument: lay out ALL elements, then systematically consider ever
+          -y pairwise relation. No hierarchy, no grouping — flat relational space first. The categories serve as heuristic lense
+          -s for the researcher (and the AI co-analyst) to ensure comprehensive coverage: "Have I considered nonhuman elements? 
+          -Discourses? What's spatially/temporally relevant?"                                                                   
+      194 +The 12 categories are NOT built into the tool as structural features (no fixed `kind` fields, no category UI that int
+          +erpellates bureaucratic filling-in). Instead:                                                                        
+      195  
+      160 -Reference image: `~/Pictures/Clarkes-Situational-Matrix.png`                                                         
+      196 +- **Comprehensiveness** is achieved through the collaborative research process: multiple researchers with different p
+          +ositionalities + the AI as context-sensitive interlocutor                                                            
+      197 +- **The AI** uses the categories as sensitizing lenses in its co-researcher capacity — posing "have we considered X?"
+          + based on actual analytical state, not by iterating a fixed list                                                     
+      198 +- **Deconstructive awareness** (discursive constructions, implicated actors) is an analytical sensibility, not a cate
+          +gory to fill in                                                                                                      
+      199 +- **The map shows back**: the platform makes visible that namings are superpositions, that relations are namings, tha
+          +t the entity/relation boundary is perspectival — what paper cannot show                                              
+      200 +                                                                                                                     
+      201 +Reference images: `~/Pictures/Clarkes-Situational-Matrix.png`, `~/Pictures/Abstract-Situational-Map-Messy-Working-Ver
+          +sion.png`, `~/Pictures/Abstract-Situational-Map-Ordered-Working-Version.png`                                         
+
+● Now let me update the memory to reflect this discussion.
+
+● Recalled 1 memory, wrote 1 memory (ctrl+o to expand)
+
+● Done. The epistemological foundations doc now covers:
+
+  - Clarke's procedural method and its genuine value (comprehensiveness, democratization, saturation for abduction)
+  - The inter-actional vs. trans-actional critique
+  - The implicit social theory problem
+  - The inductive/abductive tension
+  - Paper as unacknowledged nonhuman actant — the material-mediality argument
+  - What the digital platform makes possible that paper can't
+  - Architectural consequences: no category UI, comprehensiveness through process, the map showing back
+
+  Ready to continue with the map types, or do you want to refine this further?
+
+✻ Churned for 1m 2s
+
+❯ TO conclude, interpreting Clarke's Approach in alignment with our ideas, 1) we may understand discursive constructions,          
+  political elements, temporal elements, major issues, symbolic and spatial elements AND related discourses as already relational  
+  namings. Since we covered relationings from relation-namings to relation-namings, we will have no problem handling these aspects 
+   either as reminders and as parts of maps. We should offer her approach to "literally center on one element and draw lines       
+  between it and the others and specify the nature of the relationship by describing the nature of that line", EXCEPT that we      
+  refuse the inter-actional approach of understanding namings as entitites that need to be related by secondary lines, but treat   
+  relations and entities equal. and equally non-identical objects of changing nature, so that we could likewise "center on one     
+  relation and attach elements to it". 2) we refuse and thus will not enforce the procedural discipline (this is left to USER if   
+  wanted), but we will encourage exploring the non-identical, superpositional nature of namings (also as a means to get from clues 
+   to specifications) with all due methods, including e.g. narrative (i.e. inspired by Oevermann) and aesthetic approaches (i.e.   
+  artistic means) as DIFFRACTORY methods (not unifying narrations). 3) we will encourage to include not only the researchers as    
+  namings on the map, but to put social theories/theoremae on the map, in order to aviod hidden social theories from entering the  
+  empirical process as dogmata. -- What Do you think about this?                                                                   
+
+● These are strong design commitments. Let me assess each genuinely.
+
+  1. Clarke's categories as relational namings — and the inversion. This is architecturally sound and already supported. The move from
+  "center on an entity, draw relations" to also "center on a relation, attach entities" is the clearest possible demonstration of the
+  trans-actional difference. No objection. The only practical question is making it cognitively accessible — researchers think
+  entity-first by habit. The UI needs to make the relation-as-center move feel natural, not like an abstract philosophical exercise.
+
+  2. No enforced procedure, diffractory methods. Two concerns here:
+
+  First, Oevermann is an interesting reference but note the irony: objective hermeneutics is itself extremely procedural (sequentiality
+   principle, extensivity — you analyze utterance by utterance, exhaustively). It's a different procedure than Clarke's combinatorial
+  one, but it IS a procedure. I suspect you mean the interpretive openness and the commitment to reconstructing latent meaning
+  structures — not the full Oevermann method. Worth being precise about what "inspired by" means here.
+
+  Second, "diffractory methods" (Barad) is methodologically compelling but needs operationalization. What does diffraction look like in
+   the tool? Concretely: placing two readings of the same naming next to each other and attending to the difference pattern? Collapsing
+   the same naming from two different perspectives and seeing where they diverge? This could connect directly to the perspectival
+  collapse architecture — different collapseAt values on the same naming, viewed side by side, IS diffraction. But the platform doesn't
+   currently surface this.
+
+  The refusal of enforced procedure is fine, but remember: Clarke's procedure does one thing your design must replace — it forces
+  engagement with what the researcher would skip. The AI compensates partially, but "have we considered X?" is easy to dismiss. The
+  procedure's virtue was that it couldn't be dismissed without consciously skipping a step. What's the diffractory equivalent of that
+  productive friction?
+
+  3. Social theories as namings on the map. This is the most important of the three and potentially the most original contribution of
+  the platform.
+
+  It's rigorous: if "there is no such thing as context," then Foucault's governmentality framework, used to analyze a health policy
+  situation, is IN that research situation. It's an actant. Putting it on the map makes it visible, relatable, critiqueable — rather
+  than operating as an invisible lens. The hidden social theory problem you identified in Clarke (Strauss's general orders smuggled in
+  as "neutral" categories) is solved by making ALL theoretical commitments explicit namings with their own designation chains and
+  provenance.
+
+  One genuine concern: meta-level mixing. "Foucault's governmentality" on the same map as "Hospital X" and "Patient discourse Y" —
+  these operate at different epistemological levels. The theory is not IN the empirical situation the way the hospital is. It's in the
+  research situation. This distinction matters: the situation of action (empirical) vs. the situation of inquiry (methodological)
+  overlap but aren't identical. Clarke herself conflates these sometimes. Your design should probably make visible THAT a naming is a
+  theoretical commitment (perhaps through designation or provenance) without creating a separate ontological category for it — which
+  would contradict the whole approach.
+
+  On the whole: 1 is ready to build. 2 needs operationalization (what does diffraction look like as UI/workflow?). 3 is the boldest and
+   most valuable — worth building even if the meta-level question isn't fully resolved, because making theories visible is strictly
+  better than leaving them invisible.
+
+✻ Sautéed for 52s
+
+❯ OK, that works. 1: not really a problem since clarkes categories, such as discourses, are really not entitites but relational    
+  namings already ... 2: First: of course i was referring not to the sequential logic, but to the Entwurf of differing (!)         
+  narrations related to a unit (sentence mostly with oevermann afaik, but here a map, or a phase). This is probably different than 
+   "finding out" and defining relations as if they were ontologically simple. But however, my point is not to avoid Clarkes        
+  approach, also concerning the one by one comparison, but not to enforce it. I for my part do not BELIEVE in such a thing as a    
+  stable entity, staying the same over the course of 200 permutative engagements with other namings. Thus i do not think it is     
+  "natural" to do so, working with static namings and BELIEVING they are "one thing" in the end. But whoever wants to may proceed  
+  so. Diffractory methods: dont worry, since we have iterations of maps, we are free to understand these as linear "progress" (but 
+   Clarke also points out that older maps are valuable), or rather as superpositions, which may include "progress". 3. Meta-Level: 
+   Helpful. Again, you have to believe that there "exists" a situation like a hospital, ready and open for you to gather data      
+  within. I wouldn't, referring to D/B (and very different thinkers such as Adorno, Bourdieu, Rheinberger, Barad, ...). And        
+  thinking that e.g. a theory of power and other organizational theories would NOT have been recepted during the process of        
+  building and developing an institution would, imho, be less convincing to me. Meaning of course I will not know if Foucault is   
+  appresent in an empirical setting (until someone mentions it), but it would be implausible to just suppose theories would not be 
+   appresent. E.g. the alt right movement strategies are STRUCTURED around patterns derived from Foucault amongst others, so this  
+  actually is a part of those networks. However, since the difference in-between resarched situations will eventually and likely   
+  appear during the course (i.e. it will become clear what is more part/phase of a research situation and what is part/phase of    
+  e.g. an institutional situation), this will clear up in time.                                                                    
+
+● All three points land. Let me crystallize what's been established:
+
+  On naming instability across engagement: This is the sharpest argument against Clarke's pairwise procedure as normative method. If a
+  naming IS its stack, then engaging with it in relational context #47 potentially changes it — a new naming act, a designation shift,
+  a participation that wasn't there before. The "same" naming after 200 engagements is NOT the same naming. The procedure presupposes
+  entity-stability that the transactional ontology explicitly denies. The architecture already supports this: each engagement CAN
+  produce a naming act that shifts the stack. Clarke's procedure works only if you freeze the namings while you relate them — which is
+  an inter-actional move.
+
+  On differing narrations as diffractory method: Multiple competing Entwürfe about the same map/phase — each a different reading, not
+  converging toward "the truth" but producing difference patterns. This connects directly to perspectival collapse: different
+  collapseAt values, different phases of the same map, literally different superposition collapses. Not progress but accumulation of
+  perspectives.
+
+  On theories in the empirical: I concede the meta-level objection was too clean. You're right — the distinction between "empirical
+  situation" and "research situation" is itself inter-actional (two separate domains, one containing the other). Transactionally: the
+  hospital is already theoretical, Foucault is already empirical (in its effects). The alt-right example is decisive. And the practical
+   resolution — the distinction will emerge through phases and maps, not through pre-given ontological levels — is consistent with
+  everything else.
+
+  Let me document these three design commitments.
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(docs/sessions/00_epistemological_foundations.md)
+  ⎿  Added 32 lines
+      189  
+      190  Clarke's method is a method-for-paper that was theorized as method-as-such. Recognizing the material-mediality of the
+            analytical medium is itself an SA-consistent move: attending to nonhuman actants in the research situation.
+      191  
+      192 +### Design Commitments: Beyond Clarke (Session 10)                                                                   
+      193 +                                                                                                                     
+      194 +Three commitments that reinterpret Clarke's SA through the transactional ontology:                                   
+      195 +                                                                                                                     
+      196 +#### 1. Clarke's Categories as Relational Namings — and the Inversion                                                
+      197 +                                                                                                                     
+      198 +Many of Clarke's categories (discursive constructions, political elements, temporal elements, major issues, symbolic 
+          +elements, related discourses) are already relational in nature — they are not entities but relational namings. Since 
+          +the architecture covers relation-namings connecting to relation-namings, these aspects require no special category tr
+          +eatment.                                                                                                             
+      199 +                                                                                                                     
+      200 +Clarke's relational analysis ("center on one element, draw lines to all others, specify the nature of each line") is 
+          +offered as one possible approach — but with a trans-actional extension: **"center on a relation and attach entities t
+          +o it"** is equally valid. The entity/relation distinction is perspectival, not sequential.                           
+      201 +                                                                                                                     
+      202 +The pairwise procedure is available but not enforced. A deeper reason: a naming IS its stack. Engaging with it in rel
+          +ational context #47 potentially CHANGES it (new naming act, designation shift, new participation). The "same" naming 
+          +after 200 engagements is not the same naming. The procedure presupposes entity-stability that the transactional ontol
+          +ogy denies.                                                                                                          
+      203 +                                                                                                                     
+      204 +#### 2. No Enforced Procedure — Diffractory Methods                                                                  
+      205 +                                                                                                                     
+      206 +The platform does not enforce Clarke's sequential procedure (messy → ordered → relational). It is available for those
+          + who want it, but not normative. Instead, the platform encourages exploring the non-identical, superpositional nature
+          + of namings through multiple methods:                                                                                
+      207 +                                                                                                                     
+      208 +- **Differing narrations** (inspired by Oevermann's Entwurf principle): multiple competing narrative drafts about the
+          + same map/phase — each a different reading, not converging toward consensus but producing difference patterns        
+      209 +- **Aesthetic/artistic approaches**: visual, compositional, spatial means of engaging with the analytical material   
+      210 +- **Diffractory methods** (Barad): not reflection (mirroring the same) but diffraction (making difference patterns vi
+          +sible). Map iterations are understood not as linear progress but as **superpositions** — each version a perspective t
+          +hat may include "progress" but is not reducible to it. Older maps remain valuable as perspectives, not as superseded 
+          +drafts.                                                                                                              
+      211 +                                                                                                                     
+      212 +The key insight: diffraction is already architecturally supported. Different `collapseAt` values on the same naming, 
+          +different phases of the same map, literally different superposition collapses placed side by side — this IS diffracti
+          +on.                                                                                                                  
+      213 +                                                                                                                     
+      214 +#### 3. Social Theories as Namings on the Map                                                                        
+      215 +                                                                                                                     
+      216 +To prevent hidden social theories from entering the empirical process as unexamined dogmata, the platform encourages 
+          +placing theoretical commitments ON the map as explicit namings — with their own inscription chains, designation histo
+          +ries, and provenance.                                                                                                
+      217 +                                                                                                                     
+      218 +This is not a meta-level mixing problem. From the transactional standpoint (D/B, Adorno, Bourdieu, Rheinberger, Barad
+          +), the distinction between "empirical situation" and "research situation" is itself inter-actional (two separate doma
+          +ins, one containing the other). Transactionally: institutions are already constituted through theories (organizationa
+          +l theory, theories of power). Theories are already empirical in their effects (e.g., alt-right strategies structured 
+          +around patterns derived from Foucault and Gramsci). The hospital is already theoretical; Foucault is already empirica
+          +l.                                                                                                                   
+      219 +                                                                                                                     
+      220 +The practical resolution: the distinction between what belongs to the "researched situation" vs. the "research situat
+          +ion" will emerge through the analytical process itself — different phases, different maps, different perspectival col
+          +lapses. It does not need to be imposed a priori through ontological levels.                                          
+      221 +                                                                                                                     
+      222  ### Architectural Consequence
+      223  
+      224  The 12 categories are NOT built into the tool as structural features (no fixed `kind` fields, no category UI that int
+           erpellates bureaucratic filling-in). Instead:
+     ...
+      227  - **The AI** uses the categories as sensitizing lenses in its co-researcher capacity — posing "have we considered X?"
+            based on actual analytical state, not by iterating a fixed list
+      228  - **Deconstructive awareness** (discursive constructions, implicated actors) is an analytical sensibility, not a cate
+           gory to fill in
+      229  - **The map shows back**: the platform makes visible that namings are superpositions, that relations are namings, tha
+           t the entity/relation boundary is perspectival — what paper cannot show
+      230 +- **Centering on relations**: the UI supports centering on a relation-naming and attaching entities, not only the rev
+          +erse                                                                                                                 
+      231 +- **Theories on the map**: theoretical commitments are nameable, relatable, designatable — visible actants, not invis
+          +ible lenses                                                                                                          
+      232  
+      233  Reference images: `~/Pictures/Clarkes-Situational-Matrix.png`, `~/Pictures/Abstract-Situational-Map-Messy-Working-Ver
+           sion.png`, `~/Pictures/Abstract-Situational-Map-Ordered-Working-Version.png`
+
+● Now update the memory with the condensed version.
+
+● Wrote 1 memory (ctrl+o to expand)
+
+● Documented. The epistemological foundations now have the full argument arc: Clarke's framework → critique → material-mediality →
+  three design commitments. Memory updated with the condensed version.
+
+  Shall we move on to the other map types (Social Worlds/Arenas, Positional, Network)?
+
+✻ Worked for 1m 13s
+
+❯ /context 
+  ⎿  Context Usage
+     ⛁ ⛁ ⛀ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛀   claude-opus-4-6 · 78k/200k tokens (39%)
+     ⛁ ⛀ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁
+     ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁   Estimated usage by category
+     ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁   ⛁ System prompt: 5.4k tokens (2.7%)
+     ⛁ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ System tools: 12.4k tokens (6.2%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ Custom agents: 939 tokens (0.5%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ Memory files: 2.1k tokens (1.0%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ Skills: 227 tokens (0.1%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ Messages: 58.6k tokens (29.3%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛁ ⛀   ⛁ Compact buffer: 3k tokens (1.5%)
+                           ⛶ Free space: 117k (58.7%)
+
+     Custom agents · /agents
+
+     User
+     └ bughunter: 499 tokens
+     └ chief-software-engineer: 440 tokens
+
+     Memory files · /memory
+     └ ~/.claude/CLAUDE.md: 229 tokens
+     └ ~/ai/CLAUDE.md: 511 tokens
+     └ ~/.claude/projects/-home-joerissen-ai/memory/MEMORY.md: 1.3k tokens
+
+     Skills · /skills
+
+     Plugin
+     └ frontend-design: 67 tokens
+
+❯ Since sit maps are central for the methodology, maybe we should rather plan implementation here, first. 
+
+● Read 1 file (ctrl+o to expand)
+
+● The old plan is done (documentation task, already executed). This is a new task — Sit Map implementation planning. Let me explore the
+   current state of the map implementation.
+
+● Explore(Explore Sit Map UI implementation)
+  ⎿  Done (30 tool uses · 76.5k tokens · 1m 14s)
+  (ctrl+o to expand)
+
+● Good exploration. The Sit Map is already quite feature-rich — core CRUD, canvas with first-class relation nodes, AI integration,
+  phases, perspectival collapse, provenance all working. The main gaps are about making the trans-actional commitments from our
+  discussion operative in the UI.
+
+● User answered Claude's questions:
+  ⎿  · The Sit Map has solid foundations. Given our discussion, what should the implementation focus be? Which areas matter most right
+     now? →  Well we have first to align the basic sit maps to Clarkes maps. Current maps show network graphs, while clarkes maps are
+     just collections of items without connecting lines - inho not better, but we have to discuss and decide. The Namings list is also
+     quite not similar to Clarkes "ordered/working" sit. map. We have to discuss this, too.
+
+● This is a fundamental design question. Let me lay out what I see:
+
+  Clarke's messy Sit Map = freely scattered labels in space. NO connecting lines. Spatial arrangement itself carries meaning
+  (proximity, clusters). Relations are analyzed later, separately — not visually on the map.
+
+  Current transact-qda canvas = network graph with ELK auto-layout, bezier curves connecting all related nodes. Relations are
+  intermediate nodes with lines. This is structurally a different thing — a network diagram, not a situational map.
+
+  Clarke's ordered working version = elements grouped by Strauss categories. The Namings list shows all namings with
+  designation/provenance, but without any grouping — flat list, not categorized.
+
+● User answered Claude's questions:
+  ⎿  · For the Sit Map canvas: should we support a free-scatter mode (Clarke-like, no lines, spatial arrangement is meaning) alongside
+     or instead of the current network graph? → Enhanced network (keep current)
+     · For the Namings list / 'ordered' view: Clarke groups by Strauss categories (which we've critiqued). What should our equivalent
+     be? → Flexible grouping (user choice)
+
+● Good — enhanced network + flexible grouping. Let me read the current implementations to understand what specifically needs changing.
+
+● Read 2 files (ctrl+o to expand)
+
+● Now I have a thorough understanding. Let me write the implementation plan.
+
+● Updated plan
+  ⎿  /plan to preview
+
+❯ Tool loaded. 
+
+● User approved Claude's plan
+  ⎿  Plan saved to: ~/.claude/plans/valiant-sleeping-scott.md · /plan to edit
+     Plan: Enhance Sit Map — Canvas & List View Improvements
+
+     Context
+
+     The Sit Map has solid foundations (CRUD, canvas, AI, phases, collapse, provenance) but needs two improvements derived from our
+     Clarke analysis:
+
+     1. Enhanced network canvas — better manual positioning, option to hide/show relation lines, less ELK dependence. The current
+     canvas always shows a full network graph with bezier curves; researchers should be able to work in a more "messy map" style (free
+     scatter, optional lines) while keeping the network view available.
+     2. Flexible list grouping — the list view currently shows a flat list (Elements, then Relations, then Silences). Clarke's "ordered
+      working version" groups by categories (which we've critiqued). Our equivalent: let the researcher choose grouping — by
+     designation (CCS), by phase, by provenance, by mode (current), or ungrouped (flat mixed).
+
+     Files to Modify
+
+     1. src/routes/projects/[projectId]/maps/[mapId]/+page.svelte — main UI (2066 lines)
+       - Canvas: add connection visibility toggle, improve manual positioning flow
+       - List: add grouping selector + grouped rendering logic
+     2. src/lib/canvas/layout.ts — reduce ELK dependence, support scatter placement
+
+     Step 1: Canvas — Connection Visibility Toggle
+
+     Current: All relation connections (bezier curves) always rendered. ELK auto-layout positions everything as network graph.
+
+     Change: Add a toggle in the canvas HUD (bottom-right, next to zoom controls) to show/hide connection lines.
+
+     - New state: let showConnections = $state(true);
+     - Wrap the {#each relations as rel} connection-drawing block (lines ~857-881) in {#if showConnections}
+     - Add toggle button in toolbar: icon toggle (connections on/off)
+     - When connections hidden, relation nodes are still visible as small draggable nodes — just no lines drawn
+     - Persist preference in localStorage per map
+
+     Step 2: Canvas — Improved Manual Positioning
+
+     Current: ELK auto-layout runs on first load (if no stored positions) and on "auto-layout" button. New elements get
+     auto-positioned.
+
+     Change: Offer a "scatter" initial placement for new elements (random position near viewport center) instead of always running ELK
+     for new nodes.
+
+     - In layoutNewNodes() (~line 75): if only 1-2 new unpositioned nodes, place them near viewport center with slight random offset
+     instead of re-running full ELK
+     - Keep the "Auto layout" button for when the researcher WANTS the network graph arrangement
+     - This means: adding elements in quick succession doesn't rearrange the whole canvas
+
+     Step 3: List View — Flexible Grouping
+
+     Current: Fixed sections: Elements → Relations → Silences. No grouping within sections.
+
+     Change: Add a grouping selector dropdown above the list. Options:
+
+     ┌────────────────┬───────────────────────────────────────────────────────────────────────────┐
+     │    Group By    │                                 Behavior                                  │
+     ├────────────────┼───────────────────────────────────────────────────────────────────────────┤
+     │ Mode (default) │ Current behavior: Elements, Relations, Silences sections                  │
+     ├────────────────┼───────────────────────────────────────────────────────────────────────────┤
+     │ Designation    │ Three groups: Cues, Characterizations, Specifications — all namings mixed │
+     ├────────────────┼───────────────────────────────────────────────────────────────────────────┤
+     │ Phase          │ One group per phase + "Unassigned" group — all namings mixed              │
+     ├────────────────┼───────────────────────────────────────────────────────────────────────────┤
+     │ Provenance     │ Three groups: Empirically grounded (📄), Memo-linked (📝), Ungrounded (∅) │
+     ├────────────────┼───────────────────────────────────────────────────────────────────────────┤
+     │ Flat           │ No grouping — all namings in a single list, sorted by creation date       │
+     └────────────────┴───────────────────────────────────────────────────────────────────────────┘
+
+     Implementation:
+     - New state: let listGroupBy = $state<'mode' | 'designation' | 'phase' | 'provenance' | 'flat'>('mode');
+     - Computed groupedItems derived state that groups [...elements, ...relations, ...silences] according to selected grouping
+     - Replace the current three fixed {#each} blocks with a single grouped rendering loop
+     - Each item renders with the same card component (element-card / relation-card styling based on mode)
+     - Persist grouping preference in localStorage
+
+     Grouping logic (derived):
+
+     const allItems = $derived([...elements, ...relations, ...silences]);
+
+     const groupedItems = $derived(() => {
+       switch (listGroupBy) {
+         case 'mode':
+           return [
+             { label: 'Elements', items: elements },
+             { label: 'Relations', items: relations },
+             { label: 'Silences', items: silences }
+           ].filter(g => g.items.length > 0);
+         case 'designation':
+           return ['cue', 'characterization', 'specification'].map(d => ({
+             label: d.charAt(0).toUpperCase() + d.slice(1) + 's',
+             items: allItems.filter(n => (n.designation || 'cue') === d)
+           })).filter(g => g.items.length > 0);
+         case 'phase':
+           // one group per phase + unassigned
+         case 'provenance':
+           // empirical / analytical / ungrounded
+         case 'flat':
+           return [{ label: '', items: allItems }];
+       }
+     });
+
+     Card rendering:
+
+     - Unified card component that handles all modes (entity, relation, silence)
+     - Relation cards show source→target in the card body
+     - Silence cards show mode indicator
+     - All cards share: designation dot, provenance icon, inscription, actions (stack, withdraw, relate, phase assign)
+
+     Step 4: Relation lines toggle in list view (small addition)
+
+     In list view, relations currently appear as separate cards below elements. When grouped by non-mode groupings (designation, phase,
+      provenance, flat), relations should show their endpoints inline:
+
+     [designation dot] [provenance] "Source" →enables→ "Target" : "Relation name"
+
+     This is already the current relation card format — it just needs to work when mixed with entity cards in non-mode groupings. Mark
+     relation cards with a subtle visual indicator (e.g., small "↔" icon or different left border) so they're distinguishable from
+     entities when mixed.
+
+     Verification
+
+     1. Canvas toggle: Open a map with relations → toggle connections off → verify lines disappear but relation nodes remain → toggle
+     back on
+     2. Manual positioning: Add a new element → verify it appears near viewport center, not triggering full re-layout of existing nodes
+     3. List grouping: Switch between all 5 grouping modes → verify correct grouping, item counts match, actions work in all modes
+     4. Persistence: Reload page → verify canvas toggle and list grouping preference restored
+
+     Not in scope
+
+     - Map-type-specific behavior (deferred to per-type implementation)
+     - Processes / constellations rendering
+     - "Center on relation" UX (architectural support exists, needs separate UI design)
+     - Inter-map navigation
+
+● Let me start implementing. First, let me read the full files I'll be modifying.
+                                                                                          
+● Read 2 files (ctrl+o to expand)    
+                                                                                                                                       
+● Now let me read the remaining parts — the toolbar area and the rest of the list view.
+                                                                                                                                       
+● Read 1 file (ctrl+o to expand)                                                                                                     
+                                                                                                                                       
+● Now I have the full picture. Let me check for available icons, then implement all changes.                                           
+                                                                                                                                       
+● Searched for 5 patterns, read 1 file (ctrl+o to expand)                                                                              
+                                                                                                                                       
+● Let me copy the hub icon (for connections toggle) and start implementing.                                                            
+                                                                                                                                       
+● Bash(cp "/home/joerissen/Downloads/icons_google/hub_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"                                      
+      "/home/joerissen/ai/transact-qda/static/icons/hub.svg")                                                                          
+  ⎿  Done                                                                                                                              
+                                                                                                                                       
+● Now let me implement all changes. Starting with Step 1 & 2 (canvas improvements) and Step 3 (list grouping).                         
+                                                                                                                                       
+● Update(src/routes/projects/[projectId]/maps/[mapId]/+page.svelte)
+  ⎿  Added 11 lines                                                                                                                    
+      28    const selection = createSelection();
+      29                                                                                                                               
+      30    let viewMode = $state<'canvas' | 'list'>('list');
+      31 +  let showConnections = $state(true);                                                                                        
+      32 +  let listGroupBy = $state<'mode' | 'designation' | 'phase' | 'provenance' | 'flat'>('mode');                         
+      33  
+      34 +  // Restore preferences from localStorage                                                                            
+      35 +  $effect(() => {                                                                                                     
+      36 +    const mapId = data.map.id;                                                                                        
+      37 +    const savedConn = localStorage.getItem(`map:${mapId}:showConnections`);                                           
+      38 +    if (savedConn !== null) showConnections = savedConn !== 'false';                                                  
+      39 +    const savedGroup = localStorage.getItem(`map:${mapId}:listGroupBy`);                                              
+      40 +    if (savedGroup) listGroupBy = savedGroup as typeof listGroupBy;                                                   
+      41 +  });                                                                                                                 
+      42 +                                                                                                                      
+      43    // Positions: naming_id → {x, y}
+      44    let positions = $state<Map<string, { x: number; y: number }>>(new Map());
+      45    let layoutInitialized = false;
+
+● Now add the allItems and groupedItems derived states. I'll add them after the declinedCount derived.
+                                                                                          
+● Update(src/routes/projects/[projectId]/maps/[mapId]/+page.svelte)
+  ⎿  Added 43 lines                                                                                                                    
+      189      [...elements, ...relations, ...silences].filter((n: any) => isWithdrawn(n.properties)).length
+      190    );                                                                                                                        
+      191                                                   
+      192 +  // ─── List grouping ───                                                                                                  
+      193 +  const allItems = $derived([...elements, ...relations, ...silences]);                                               
+      194 +                                                                                                                     
+      195 +  const groupedItems = $derived.by(() => {                                                                           
+      196 +    const items = allItems.filter((n: any) => !isHiddenByFilter(n));                                                 
+      197 +    switch (listGroupBy) {                                                                                           
+      198 +      case 'mode':                                                                                                   
+      199 +        return [                                                                                                     
+      200 +          { label: 'Elements', items: items.filter((n: any) => n.mode === 'entity') },                               
+      201 +          { label: 'Relations', items: items.filter((n: any) => n.mode === 'relation') },                            
+      202 +          { label: 'Silences', items: items.filter((n: any) => n.mode === 'silence') }                               
+      203 +        ].filter(g => g.items.length > 0);                                                                           
+      204 +      case 'designation':                                                                                            
+      205 +        return ['cue', 'characterization', 'specification'].map(d => ({                                              
+      206 +          label: d.charAt(0).toUpperCase() + d.slice(1) + 's',                                                       
+      207 +          items: items.filter((n: any) => (n.designation || 'cue') === d)                                            
+      208 +        })).filter(g => g.items.length > 0);                                                                         
+      209 +      case 'phase': {                                                                                                
+      210 +        const groups: Array<{ label: string; items: any[] }> = [];                                                   
+      211 +        for (const phase of phases) {                                                                                
+      212 +          groups.push({                                                                                              
+      213 +            label: phase.label,                                                                                      
+      214 +            items: items.filter((n: any) => n.phase_ids?.includes(phase.id))                                         
+      215 +          });                                                                                                        
+      216 +        }                                                                                                            
+      217 +        const assigned = new Set(phases.flatMap((p: any) => items.filter((n: any) => n.phase_ids?.includes(p.id)).map
+          +((n: any) => n.naming_id)));                                                                                         
+      218 +        const unassigned = items.filter((n: any) => !assigned.has(n.naming_id));                                     
+      219 +        if (unassigned.length > 0) groups.push({ label: 'Unassigned', items: unassigned });                          
+      220 +        return groups.filter(g => g.items.length > 0);                                                               
+      221 +      }                                                                                                              
+      222 +      case 'provenance':                                                                                             
+      223 +        return [                                                                                                     
+      224 +          { label: 'Empirically grounded', items: items.filter((n: any) => n.has_document_anchor) },                 
+      225 +          { label: 'Memo-linked', items: items.filter((n: any) => !n.has_document_anchor && n.has_memo_link) },      
+      226 +          { label: 'Ungrounded', items: items.filter((n: any) => !n.has_document_anchor && !n.has_memo_link) }       
+      227 +        ].filter(g => g.items.length > 0);                                                                           
+      228 +      case 'flat':                                                                                                   
+      229 +        return [{ label: '', items }];                                                                               
+      230 +      default:                                                                                                       
+      231 +        return [{ label: '', items }];                                                                               
+      232 +    }                                                                                                                
+      233 +  });                                                                                                                
+      234 +                                                                                                                     
+      235    // Check if a node is a member of the highlighted phase
+      236    function isPhaseHighlighted(node: any): boolean {
+      237      if (!highlightedPhase) return false;
+
+● Now update layoutNewNodes to scatter-place 1-2 new nodes instead of running full ELK:
+                                                                                          
+● Update(src/routes/projects/[projectId]/maps/[mapId]/+page.svelte)
+  ⎿  Added 27 lines, removed 11 lines                                                                                                  
+       83    }
+       84                                                                                                                              
+       85    // Layout unpositioned nodes (e.g. after adding a new element)
+       86 +  // For 1-2 new nodes: scatter-place near viewport center (no full ELK re-layout)                                          
+       87 +  // For 3+ new nodes: run full ELK                                                                                  
+       88    async function layoutNewNodes() {
+       89      const unpositioned = [...elements, ...relations, ...silences]
+       90        .filter(n => !positions.has(n.naming_id));
+       91      if (unpositioned.length === 0) return;
+       92  
+       91 -    const result = await computeLayout(                                                                              
+       92 -      [...elements],                                                                                                 
+       93 -      [...relations],                                                                                                
+       94 -      [...silences]                                                                                                  
+       95 -    );                                                                                                               
+       96 -    const merged = new Map(positions);                                                                               
+       97 -    for (const [id, p] of result.positions) {                                                                        
+       98 -      if (!merged.has(id)) {                                                                                         
+       99 -        merged.set(id, { x: p.x, y: p.y });                                                                          
+       93 +    if (unpositioned.length <= 2 && positions.size > 0) {                                                            
+       94 +      // Scatter placement: near viewport center with random offset                                                  
+       95 +      const merged = new Map(positions);                                                                             
+       96 +      const cx = viewport.x ? -viewport.x / viewport.zoom + 400 : 400;                                               
+       97 +      const cy = viewport.y ? -viewport.y / viewport.zoom + 300 : 300;                                               
+       98 +      for (const node of unpositioned) {                                                                             
+       99 +        const ox = (Math.random() - 0.5) * 200;                                                                      
+      100 +        const oy = (Math.random() - 0.5) * 200;                                                                      
+      101 +        merged.set(node.naming_id, { x: cx + ox, y: cy + oy });                                                      
+      102        }
+      103 +      positions = merged;                                                                                            
+      104 +      await saveAllPositions(merged);                                                                                
+      105 +    } else {                                                                                                         
+      106 +      const result = await computeLayout(                                                                            
+      107 +        [...elements],                                                                                               
+      108 +        [...relations],                                                                                              
+      109 +        [...silences]                                                                                                
+      110 +      );                                                                                                             
+      111 +      const merged = new Map(positions);                                                                             
+      112 +      for (const [id, p] of result.positions) {                                                                      
+      113 +        if (!merged.has(id)) {                                                                                       
+      114 +          merged.set(id, { x: p.x, y: p.y });                                                                        
+      115 +        }                                                                                                            
+      116 +      }                                                                                                              
+      117 +      positions = merged;                                                                                            
+      118 +      await saveAllPositions(merged);                                                                                
+      119      }
+      102 -    positions = merged;                                                                                              
+      103 -    await saveAllPositions(merged);                                                                                  
+      120    }
+      121  
+      122    // Withdrawn check: works for both AI-withdrawn and researcher-withdrawn
+
+● Now add the connection toggle button in the toolbar and persist preferences:
+                                                                                          
+● Update(src/routes/projects/[projectId]/maps/[mapId]/+page.svelte)
+  ⎿  Added 6 lines                                                                                                                     
+      800          <button class="btn-view" class:active={viewMode === 'list'} onclick={() => switchView('list')}>List</button>
+      801          <button class="btn-view" class:active={viewMode === 'canvas'} onclick={() => switchView('canvas')}>Canvas</bu       
+           tton>                                            
+      802        </div>                                                                                                                
+      803 +      <button class="btn-sm btn-connections" class:connections-off={!showConnections}                                
+      804 +        onclick={() => { showConnections = !showConnections; localStorage.setItem(`map:${data.map.id}:showConnections       
+          +`, String(showConnections)); }}                                                                                      
+      805 +        title={showConnections ? 'Hide connection lines' : 'Show connection lines'}                                  
+      806 +        disabled={viewMode !== 'canvas'} style="{viewMode !== 'canvas' ? 'opacity: 0.3;' : ''}">                     
+      807 +        <img src="/icons/hub.svg" alt="connections" class="toolbar-icon" />                                          
+      808 +      </button>                                                                                                      
+      809        <button class="btn-sm" onclick={runAutoLayout} title="Re-compute layout"
+      810          disabled={viewMode !== 'canvas'} style="{viewMode !== 'canvas' ? 'opacity: 0.3;' : ''}">Layout</button>
+      811        <button class="btn-sm" onclick={() => { showTopoPanel = !showTopoPanel; if (showTopoPanel) loadTopoSnapshots();
+            }}
+
+● Now wrap the connection rendering block in {#if showConnections}:
+                                                                                          
+● Update(src/routes/projects/[projectId]/maps/[mapId]/+page.svelte)
+  ⎿  Added 2 lines                                                                                                                     
+      930      <div class="canvas-container" style="{viewMode !== 'canvas' ? 'display: none;' : ''}">
+      931        <InfiniteCanvas {viewport} oncanvasclick={handleCanvasClick}>                                                         
+      932          <!-- Connections: draw edges between elements and their relation nodes -->
+      933 +        {#if showConnections}                                                                                               
+      934          {#each relations as rel}                 
+      935            {@const srcId = rel.directed_from || rel.part_source_id}                                                          
+      936            {@const tgtId = rel.directed_to || rel.part_target_id}
+     ...
+      956              />
+      957            {/if}
+      958          {/each}
+      959 +        {/if}                                                                                                        
+      960  
+      961          <!-- Element nodes -->
+      962          {#each elements as el}
+
+● Now the big one — replace the fixed list view sections with the flexible grouping system. First, let me replace the list view
+  content:                                                                                
+  ⎿  Error editing file
+                                                                                                                                       
+● Searched for 1 pattern (ctrl+o to expand)                                               
+                                                                                                                                       
+● Let me find the exact list view boundaries more carefully.                                                                           
+                                                                                          
+● Searched for 1 pattern, read 1 file (ctrl+o to expand)                                                                               
+                                                                                                                                       
+● Now I can see the full list view section goes from line 1216 to line 1555. Let me replace it with the unified grouping system.       
+                                                                                                                                       
+● Update(src/routes/projects/[projectId]/maps/[mapId]/+page.svelte)                                                                    
+  ⎿  Added 12 lines, removed 2 lines                                                                                                   
+      1213        {/if}                                                                                                                
+      1214                                                                                                                             
+      1215      </div>                                                                                                                 
+      1216 -    <!-- List view (original) -->                                                                                          
+      1216 +    <!-- List view -->                                                                                              
+      1217      <div class="main-area" style="{viewMode !== 'list' ? 'display: none;' : ''}">
+      1218 -      {#if elements.length === 0 && relations.length === 0}                                                         
+      1218 +      <div class="list-grouping-bar">                                                                               
+      1219 +        <span class="grouping-label">Group by</span>                                                                
+      1220 +        <select class="grouping-select" value={listGroupBy} onchange={e => { listGroupBy = (e.target as HTMLSelectEl
+           +ement).value as typeof listGroupBy; localStorage.setItem(`map:${data.map.id}:listGroupBy`, listGroupBy); }}>        
+      1221 +          <option value="mode">Mode (entity / relation / silence)</option>                                          
+      1222 +          <option value="designation">Designation (cue / char / spec)</option>                                      
+      1223 +          <option value="phase">Phase</option>                                                                      
+      1224 +          <option value="provenance">Provenance</option>                                                            
+      1225 +          <option value="flat">Flat (all mixed)</option>                                                            
+      1226 +        </select>                                                                                                   
+      1227 +      </div>                                                                                                        
+      1228 +      {#if allItems.length === 0}                                                                                   
+      1229          <p class="empty">Name what is in the situation. Everything is a cue at first.</p>
+      1230        {:else}
+      1231          <div class="element-list">
+
+● Now I need to replace the three fixed sections (Elements, Relations, Silences) with the unified grouped rendering. Let me find the
+  exact content to replace — from the first <div class="element-list"> after the {:else} to the closing </div> and {/if} before </div>
+  and the sidebar.
+                                                                                                                                       
+● Read 1 file (ctrl+o to expand)    
+                                                                                                                                       
+● Now I need to replace the entire block from <div class="element-list"> (line 1231) through the Silences section ending. Let me find
+  the exact end:                                                                          
+                                                                                          
+● Read 1 file (ctrl+o to expand)                                                                                                       
+                                                                                                                                       
+● Good. The block to replace is from line 1231 (<div class="element-list">) through line 1563 ({/if} closing the Silences conditional).
+   Let me replace it with the unified grouped rendering:                                                                               
+                                                                                          
+● Update(src/routes/projects/[projectId]/maps/[mapId]/+page.svelte)                                                                    
+  ⎿  Error editing file                                                                                                                
+                                                                                                                                       
+● The file may have shifted after earlier edits. Let me find the exact current content.                                                
+                                                                                          
+● Searched for 1 pattern (ctrl+o to expand)                                                                                            
+                                                                                                                                       
+● The sections are at lines 1231-1563. Given the file is very large, let me use a different approach — write out the entire list view  
+  section to a temp file, then replace it.                                                                                             
+                                                                                          
+● Read 1 file (ctrl+o to expand)                                                                                                       
+                                                                                                                                       
+● Let me try a smaller unique match for the start of the block:                                                                        
+                                                                                                                                       
+● Read 1 file (ctrl+o to expand)                                                          
+                                                                                                                                       
+● This is a massive block (333 lines). Given the difficulty of matching it exactly with the Edit tool, let me use a Bash command to do 
+  a line-range replacement instead.                                                                                                    
+                                                                                                                                       
+● Read 1 file (ctrl+o to expand)                                                                                                       
+                                                                                                                                       
+● I'll extract the file in three parts (before, replacement, after) and reassemble:                                                    
+                                                                                                                                       
+● Read 1 file (ctrl+o to expand)                                                          
+                                                                                                                                       
+● Given the massive size of this replacement, let me use a bash script to do the line-range replacement:                               
+                                                                                                                                       
+● Bash(python3 -c "                                                                                                                    
+      import sys…)                                                                                                                     
+  ⎿  Running…                                                                                                                          
+                                                                                                                                       
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Bash command                                                                                                                          
+                                                                                                                                     
+   python3 -c "
+   import sys
+   lines = open('src/routes/projects/[projectId]/maps/[mapId]/+page.svelte').readlines()
+
+   # Lines 1231-1563 (1-indexed) = indices 1230-1562
+   before = lines[:1230]  # lines 1-1230
+   after = lines[1563:]   # lines 1564+
+
+   replacement = '''                            {#each groupedItems as group}
+                                        {#if group.label}
+                                                <h3 class=\"section-header\">{group.label}</h3>
+                                        {/if}
+                                        <div class=\"element-list\">
+                                                {#each group.items as item}
+                                                        {#if item.mode === 'relation'}
+                                                                {@const srcId = item.directed_from || item.part_source_id}
+                                                                {@const tgtId = item.directed_to || item.part_target_id}
+                                                                <div class=\"element-card relation-card\" class:ai-suggested={item.prop
+   class:ai-withdrawn={isWithdrawn(item.properties)} title={item.properties?.aiReasoning || ''}>
+                                                                        <div class=\"el-main\">
+                                                                                {#if item.is_collapsed}<img class=\"collapsed-indicator
+   layer\" />{/if}
+                                                                                <span class=\"designation-dot\" style=\"background: {de
+                                                                                {#if item.has_document_anchor}
+                                                                                        <img class=\"provenance-indicator\" src=\"/icon
+                                                                                {:else if item.has_memo_link}
+                                                                                        <img class=\"provenance-indicator\" src=\"/icon
+                                                                                {:else}
+                                                                                        <img class=\"provenance-indicator\" src=\"/icon
+                                                                                {/if}
+                                                                                {#if listGroupBy !== 'mode'}<span class=\"mode-indicato
+                                                                                <span class=\"rel-source\">{findInscription(srcId)}</sp
+                                                                                <span class=\"rel-arrow\">
+                                                                                        {#if item.directed_from && item.directed_to}
+                                                                                                {#if item.valence}—{item.valence}→{:els
+                                                                                        {:else}
+                                                                                                {#if item.valence}—{item.valence}—{:els
+                                                                                        {/if}
+                                                                                </span>
+                                                                                <span class=\"rel-target\">{findInscription(tgtId)}</sp
+                                                                                {#if editingId === item.naming_id}
+                                                                                        <form class=\"inline-rename\" onsubmit={e => {
+                                                                                                <input type=\"text\" bind:value={editin
+                                                                                                <button type=\"submit\" class=\"btn-xs\
+                                                                                                <button type=\"button\" class=\"btn-xs\
+                                                                                        </form>
+                                                                                {:else if item.inscription}
+                                                                                        <!-- svelte-ignore a11y_click_events_have_key_e
+                                                                                        <!-- svelte-ignore a11y_no_static_element_inter
+                                                                                        <span class=\"rel-inscription editable\" onclic
+   item.inscription)}>
+                                                                                                {item.inscription}
+                                                                                        </span>
+                                                                                {:else}
+                                                                                        <!-- svelte-ignore a11y_click_events_have_key_e
+                                                                                        <!-- svelte-ignore a11y_no_static_element_inter
+                                                                                        <span class=\"rel-inscription editable unnamed\
+   ctxRename(item.naming_id, '')}>
+                                                                                                (name...)
+                                                                                        </span>
+                                                                                {/if}
+                                                                                {#if item.is_collapsed && item.current_inscription && i
+                                                                                        <span class=\"collapsed-current\">currently: {i
+                                                                                {/if}
+                                                                        </div>
+                                                                        <div class=\"el-actions\">
+                                                                                <select value={item.designation || 'cue'} onchange={e =
+   HTMLSelectElement).value)}>
+                                                                                        <option value=\"cue\">cue</option>
+                                                                                        <option value=\"characterization\">characteriza
+                                                                                        <option value=\"specification\">specification</
+                                                                                </select>
+                                                                                <button class=\"btn-xs\" title=\"naming stack\" onclick
+                                                                                <button class=\"btn-xs btn-withdraw\" onclick={() => to
+                                                                                        {isWithdrawn(item.properties) ? 'restore' : 'wi
+                                                                                </button>
+                                                                                {#if relatingFrom && !relatingTo && relatingFrom !== it
+                                                                                        <button class=\"btn-sm btn-relate\" onclick={()
+                                                                                {:else if !relatingFrom}
+                                                                                        <button class=\"btn-sm\" onclick={() => { relat
+                                                                                {/if}
+                                                                                {#if assigningToPhase}
+                                                                                        <button class=\"btn-sm btn-phase\" onclick={()
+                                                                                {/if}
+                                                                        </div>
+                                                                </div>
+                                                        {:else if item.mode === 'silence'}
+                                                                <div class=\"element-card silence-card\" class:ai-suggested={item.prope
+   class:ai-withdrawn={isWithdrawn(item.properties)} title={item.properties?.aiReasoning || ''}>
+                                                                        <div class=\"el-main\">
+                                                                                {#if item.has_document_anchor}
+                                                                                        <img class=\"provenance-indicator\" src=\"/icon
+                                                                                {:else if item.has_memo_link}
+                                                                                        <img class=\"provenance-indicator\" src=\"/icon
+                                                                                {:else}
+                                                                                        <img class=\"provenance-indicator\" src=\"/icon
+                                                                                {/if}
+                                                                                {#if listGroupBy !== 'mode'}<span class=\"mode-indicato
+                                                                                <!-- svelte-ignore a11y_click_events_have_key_events --
+                                                                                <!-- svelte-ignore a11y_no_static_element_interactions
+                                                                                <span class=\"el-inscription editable\" onclick={() =>
+   item.inscription)}>
+                                                                                        {item.inscription}
+                                                                                </span>
+                                                                        </div>
+                                                                        <div class=\"el-actions\">
+                                                                                <button class=\"btn-xs\" title=\"naming stack\" onclick
+                                                                                <button class=\"btn-xs btn-withdraw\" onclick={() => to
+                                                                                        {isWithdrawn(item.properties) ? 'restore' : 'wi
+                                                                                </button>
+                                                                                {#if relatingFrom && !relatingTo && relatingFrom !== it
+                                                                                        <button class=\"btn-sm btn-relate\" onclick={()
+                                                                                {:else if !relatingFrom}
+                                                                                        <button class=\"btn-sm\" onclick={() => { relat
+                                                                                {/if}
+                                                                        </div>
+                                                                </div>
+                                                        {:else}
+                                                                <!-- Entity (element) -->
+                                                                <div class=\"element-card\" class:ai-suggested={item.properties?.aiSugg
+   class:ai-withdrawn={isWithdrawn(item.properties)} title={item.properties?.aiReasoning || ''}>
+                                                                        <div class=\"el-main\">
+                                                                                {#if item.is_collapsed}<img class=\"collapsed-indicator
+   layer\" />{/if}
+                                                                                <span class=\"designation-dot\" style=\"background: {de
+   title={designationLabel(item.designation)}></span>
+                                                                                {#if item.has_document_anchor}
+                                                                                        <img class=\"provenance-indicator\" src=\"/icon
+                                                                                {:else if item.has_memo_link}
+                                                                                        <img class=\"provenance-indicator\" src=\"/icon
+                                                                                {:else}
+                                                                                        <img class=\"provenance-indicator\" src=\"/icon
+                                                                                {/if}
+                                                                                {#if editingId === item.naming_id}
+                                                                                        <form class=\"inline-rename\" onsubmit={e => {
+                                                                                                <input type=\"text\" bind:value={editin
+                                                                                                <button type=\"submit\" class=\"btn-xs\
+                                                                                                <button type=\"button\" class=\"btn-xs\
+                                                                                        </form>
+                                                                                {:else}
+                                                                                        <!-- svelte-ignore a11y_click_events_have_key_e
+                                                                                        <!-- svelte-ignore a11y_no_static_element_inter
+                                                                                        <span class=\"el-inscription editable\" onclick
+   item.inscription)}>
+                                                                                                {item.inscription}
+                                                                                        </span>
+                                                                                        {#if item.is_collapsed && item.current_inscript
+                                                                                                <span class=\"collapsed-current\">curre
+                                                                                        {/if}
+                                                                                {/if}
+                                                                        </div>
+                                                                        <div class=\"el-actions\">
+                                                                                <select value={item.designation || 'cue'} onchange={e =
+   HTMLSelectElement).value)}>
+                                                                                        <option value=\"cue\">cue</option>
+                                                                                        <option value=\"characterization\">characteriza
+                                                                                        <option value=\"specification\">specification</
+                                                                                </select>
+                                                                                <button class=\"btn-xs\" title=\"naming stack\" onclick
+                                                                                <button class=\"btn-xs btn-withdraw\" onclick={() => to
+                                                                                        {isWithdrawn(item.properties) ? 'restore' : 'wi
+                                                                                </button>
+                                                                                {#if relatingFrom && !relatingTo && relatingFrom !== it
+                                                                                        <button class=\"btn-sm btn-relate\" onclick={()
+                                                                                {:else if !relatingFrom}
+                                                                                        <button class=\"btn-sm\" onclick={() => { relat
+                                                                                {/if}
+                                                                                {#if assigningToPhase}
+                                                                                        <button class=\"btn-sm btn-phase\" onclick={()
+                                                                                {/if}
+                                                                        </div>
+                                                                </div>
+                                                        {/if}
+
+                                                        <!-- Stack panel (shared across all modes) -->
+                                                        {#if stackId === item.naming_id && stackData}
+                                                                <div class=\"history-panel\">
+                                                                        {#if item.is_collapsed}
+                                                                                <button class=\"btn-xs btn-unpin\" onclick={() => unpin
+                                                                        {/if}
+                                                                        {#if stackData.inscriptions.length > 1}
+                                                                                <div class=\"history-section\">
+                                                                                        <span class=\"history-label\">Inscriptions</spa
+                                                                                        {#each stackData.inscriptions as hi}
+                                                                                                <div class=\"history-entry\" class:pinn
+                                                                                                        <span class=\"he-value\">{hi.in
+                                                                                                        <span class=\"he-by\">{hi.by_in
+                                                                                                        <span class=\"he-date\">{new Da
+                                                                                                        <button class=\"btn-xs btn-pin\
+                                                                                                </div>
+                                                                                        {/each}
+                                                                                </div>
+                                                                        {/if}
+                                                                        <div class=\"history-section\">
+                                                                                <span class=\"history-label\">Designations</span>
+                                                                                {#each stackData.designations as hd}
+                                                                                        <div class=\"history-entry\">
+                                                                                                <span class=\"designation-dot-sm\" styl
+                                                                                                <span class=\"he-value\">{hd.designatio
+                                                                                                <span class=\"he-by\">{hd.by_inscriptio
+                                                                                                <span class=\"he-date\">{new Date(hd.cr
+                                                                                        </div>
+                                                                                {/each}
+                                                                        </div>
+                                                                        {#if stackData.memos?.length > 0}
+                                                                                <div class=\"history-section\">
+                                                                                        <span class=\"history-label\">Memos ({stackData
+                                                                                        {#each stackData.memos as memo}
+                                                                                                <div class=\"memo-entry\">
+                                                                                                        <span class=\"memo-label\">{mem
+                                                                                                        <span class=\"memo-content\">{m
+                                                                                                        <span class=\"he-date\">{new Da
+                                                                                                </div>
+                                                                                        {/each}
+                                                                                </div>
+                                                                        {/if}
+                                                                        {#if stackData.aiSuggested}
+                                                                                <div class=\"history-section ai-discussion-section\">
+                                                                                        <span class=\"history-label\">
+                                                                                                <img class=\"label-icon\" src=\"/icons/
+                                                                                                AI Cue {stackData.aiWithdrawn ? '(withd
+                                                                                        </span>
+                                                                                        {#if stackData.aiReasoning}
+                                                                                                <div class=\"ai-reasoning\">{stackData.
+                                                                                        {/if}
+                                                                                        {#if stackData.discussion && stackData.discussi
+                                                                                                <div class=\"discussion-thread\">
+                                                                                                        {#each stackData.discussion as
+                                                                                                                <div class=\"discussion
+                                                                                                                        <span class=\"t
+   'withdrawn' ? ' (withdrew)' : ''}</span>
+                                                                                                                        <span class=\"t
+                                                                                                                </div>
+                                                                                                        {/each}
+                                                                                                </div>
+                                                                                        {/if}
+                                                                                        {#if !stackData.aiWithdrawn}
+                                                                                                <form class=\"discuss-form\" onsubmit={
+                                                                                                        <input type=\"text\" placeholde
+                                                                                                        <button type=\"submit\" class=\
+                                                                                                                {discussLoading ? '...'
+                                                                                                        </button>
+                                                                                                </form>
+                                                                                        {/if}
+                                                                                </div>
+                                                                        {/if}
+                                                                </div>
+                                                        {/if}
+                                                {/each}
+                                        </div>
+                                {/each}
+   '''
+
+   with open('src/routes/projects/[projectId]/maps/[mapId]/+page.svelte', 'w') as f:
+       f.writelines(before)
+       f.write(replacement)
+       f.writelines(after)
+
+   print('Done - replaced lines 1231-1563')
+   "
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   Replace list view sections with unified grouped rendering
+
+ Command contains consecutive quote characters at word start (potential obfuscation)
+
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. No
+
+ Esc to cancel · Tab to amend · ctrl+e to explain
+
+

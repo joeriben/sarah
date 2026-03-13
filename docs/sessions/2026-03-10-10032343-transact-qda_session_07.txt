@@ -1,0 +1,2004 @@
+Session 07
+
+
+❯ /compact 
+  ⎿  Compacted (ctrl+o to see full summary)
+  ⎿  Read src/routes/projects/[projectId]/members/+page.svelte (216 lines)
+  ⎿  Read src/routes/projects/[projectId]/+layout.svelte (91 lines)
+  ⎿  Read src/routes/projects/[projectId]/+layout.server.ts (56 lines)
+  ⎿  Read src/routes/projects/[projectId]/members/+page.server.ts (25 lines)
+  ⎿  Read src/routes/api/projects/[projectId]/members/+server.ts (163 lines)
+  ⎿  Plan file referenced (~/.claude/plans/snazzy-dancing-journal.md)
+
+❯ Wenn wir die Phase des klassischen, nun situationalen Codierens absclhießen wollen, müssen    
+  wir über EInbindung von DOkumenten nachdenken. - Rein theoretisch könnten wir das klaaischen  
+  QDA-Softwares überlassen udn diese Plattform nur als THeorieentwicklungs-Plattform sehen --   
+  schließlich boten Adele Clarkes Papierbögen mit Messy Maps auch nicht den Luxus einer         
+  Dokumenten-Codierungs-Umgebung. Andererseits haben wir hierfür ja bereits unterscheidungen in 
+   der Datenstruktur angelegt. Ich würde COdierung auf Text und Bild zunächst beschränken.      
+  Dabei beginnen wir mit klassischer Text-Arbeit: gibt es hierzu bereits opensoucrce            
+  qda-bibliotheken? Kann amn irgendwie etwas aus R-Bibliotheken integrieren?                    
+
+● Gute Frage. Let me first check what document infrastructure already exists, then research
+  available libraries.
+
+● 2 agents finished (ctrl+o to expand)
+   ├─ Explore (Explore document coding infrastructure) · 36 tool uses · 50.9k tokens
+   │  ⎿  Done
+   └─ Agent (Research open-source QDA libraries) · 44 tool uses · 44.5k tokens
+      ⎿  Done
+
+❯ und zB für DOk-Formatierung gibt es doch auch schon alles; collabora, nextcloud ... 
+
+● Gute Recherche-Ergebnisse. Hier die Zusammenfassung:
+
+  Status quo in transact-qda
+
+  Ihr habt bereits alles Wesentliche vorbereitet:
+  - document_content Tabelle mit full_text, file_path, mime_type
+  - createAnnotation() mit anchorType: 'text' | 'image_region' und anchor: { pos0, pos1 }
+  - Upload-API mit Text-Extraktion (PDF via pdf-parse, DOCX via mammoth)
+  - Annotations-API (GET/POST/DELETE) fertig
+  - Document Viewer existiert als Split-View (Text links, Codes rechts) — aber noch ohne interaktive
+   Annotation
+
+  Text-Annotation: CSS Custom Highlight API
+
+  Die klare Empfehlung — keine Library nötig:
+
+  1. User selektiert Text → window.getSelection() → pos0/pos1 berechnen
+  2. Speichern via existierendem createAnnotation() mit anchor: { pos0, pos1 }
+  3. Rendering via CSS.highlights.set() + ::highlight(code-xxx) — kein DOM-Mutation, rein visuelles
+  Overlay
+  4. Dark-Theme-Styling trivial, Svelte 5 kompatibel, zero Dependencies
+
+  Alle QDA-Tools (QualCoder, Taguette, ATLAS.ti) speichern intern genauso: Character-Offset-Paare.
+  Eure Datenstruktur ist bereits korrekt.
+
+  Zu Collabora/Nextcloud
+
+  Ja, für Dokument-Rendering (DOCX, PDF layout-getreu anzeigen) gibt es fertige Lösungen. Aber die
+  Frage ist: braucht ihr das?
+
+  - Collabora Online = LibreOffice im Browser. Voll-Editor, WOPI-Protokoll, Docker-Container. Schwer
+   für Annotation-Overlay zu instrumentieren.
+  - Nextcloud = File-Management-Plattform, nicht Annotation-Tool.
+
+  Für QDA-Codierung ist layout-getreues Rendering irrelevant. Was zählt, ist der Text-Inhalt — und
+  den habt ihr bereits extrahiert. Taguette, QualCoder, ATLAS.ti — alle zeigen zum Codieren den
+  Rohtext (oder simplifiziertes HTML), nicht das Original-Layout. Der Grund: Character-Offsets
+  müssen stabil sein, und das geht nur auf einer kanonischen Textrepräsentation.
+
+  Mein Vorschlag:
+
+  ┌───────────────┬─────────────────────────────────────┬──────────────────────────────────────┐
+  │ Dokument-Typ  │        Anzeige zum Codieren         │           Original-Ansicht           │
+  ├───────────────┼─────────────────────────────────────┼──────────────────────────────────────┤
+  │ Text/Markdown │ full_text mit Highlight-API         │ —                                    │
+  ├───────────────┼─────────────────────────────────────┼──────────────────────────────────────┤
+  │ PDF           │ Extrahierter Text mit Highlight-API │ PDF-Viewer (embed/iframe) als Toggle │
+  ├───────────────┼─────────────────────────────────────┼──────────────────────────────────────┤
+  │ DOCX          │ Extrahierter Text mit Highlight-API │ Optional: mammoth → HTML             │
+  ├───────────────┼─────────────────────────────────────┼──────────────────────────────────────┤
+  │ Bild          │ Annotorious (vanilla JS)            │ Direkt <img>                         │
+  └───────────────┴─────────────────────────────────────┴──────────────────────────────────────┘
+
+  Die "Original-Ansicht" wäre ein Nice-to-have-Toggle, aber zum Codieren arbeitet man immer auf dem
+  extrahierten Text.
+
+  R-Integration?
+
+  Nicht sinnvoll. RQDA ist abandoned, qcoder minimal. Die analytischen Features (Wort-Frequenz,
+  Co-Occurrence, Inter-Coder-Reliability) sind direkt in SQL/TypeScript besser aufgehoben. Eure
+  transaktionale Ontologie ist bereits mächtiger als alles, was R-QDA-Pakete modellieren.
+
+  ---
+  Soll ich mit der Text-Annotation-UI anfangen? Das wäre der Document Viewer
+  (documents/[docId]/+page.svelte) mit Selection-Handler und CSS Highlight API — der größte fehlende
+   Baustein für situationales Codieren.
+
+✻ Sautéed for 5m 23s
+
+❯ ok 
+
+● Let me first check if there are uncommitted changes, then read the current document viewer code.
+
+● Bash(git status -s)
+  ⎿   M src/routes/projects/[projectId]/maps/[mapId]/+page.svelte
+     ?? docs/sessions/2026-03-09-09032357-transact-qda_session_06.txt
+
+● Read 3 files (ctrl+o to expand)
+
+● Good. Now let me check the annotation API and the codes page server to understand the full
+  picture.
+
+● Read 2 files (ctrl+o to expand)
+
+● There are some uncommitted changes from a previous session — let me proceed. Let me find an
+  appropriate icon for annotation and write the implementation.
+
+● Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Bash(cp /home/joerissen/Downloads/icons_google/format_ink_highlighter_24dp_E3E3E3_FILL0_wght400_GR
+      AD0_opsz24.svg /home/joerissen/ai/transact-qda/static/icons/ink_hig…)
+  ⎿  Done
+
+● Now let me update the server to load codes, and rewrite the document viewer with interactive
+  annotation.
+
+● Write(src/routes/projects/[projectId]/documents/[docId]/+page.server.ts)
+  ⎿  Added 6 lines, removed 2 lines
+      1  import type { PageServerLoad } from './$types.js';
+      2  import { queryOne } from '$lib/server/db/index.js';
+      3 -import { getAnnotationsByDocument } from '$lib/server/db/queries/codes.js';         
+      3 +import { getAnnotationsByDocument, getCodeTree } from '$lib/server/db/queries/codes.
+        +js';                                                                                
+      4  import { error } from '@sveltejs/kit';
+      5  
+      6  export const load: PageServerLoad = async ({ params }) => {
+     ...
+      20  
+      21    if (!doc) error(404, 'Document not found');
+      22  
+      23 -  const annotations = await getAnnotationsByDocument(params.projectId, params.docId
+         -);                                                                                 
+      23 +  const [annotations, codes] = await Promise.all([                                 
+      24 +    getAnnotationsByDocument(params.projectId, params.docId),                      
+      25 +    getCodeTree(params.projectId)                                                  
+      26 +  ]);                                                                              
+      27  
+      28    return {
+      29      document: doc,
+      30      annotations,
+      31 +    codes,                                                                         
+      32      projectId: params.projectId
+      33    };
+      34  };
+
+● Write(src/routes/projects/[projectId]/documents/[docId]/+page.svelte)
+  ⎿  Added 401 lines, removed 45 lines
+        1  <script lang="ts">
+        2 +  import { onMount } from 'svelte';                                               
+        3 +                                                                                  
+        4    let { data } = $props();
+        5    const doc = $derived(data.document);
+        6 +  const codes = $derived(data.codes);                                             
+        7    const isImage = $derived(doc.mime_type?.startsWith('image/'));
+        8  
+        9 +  let annotations = $state<any[]>([]);                                            
+       10 +  $effect(() => { annotations = data.annotations; });                             
+       11 +                                                                                  
+       12 +  // Selection state                                                              
+       13 +  let selection = $state<{ pos0: number; pos1: number; text: string } | null>(null
+          +);                                                                                
+       14 +  let comment = $state('');                                                       
+       15 +  let annotating = $state(false);                                                 
+       16 +                                                                                  
+       17 +  // DOM refs                                                                     
+       18 +  let textEl = $state<HTMLPreElement>();                                          
+       19 +  let dynamicStyle = $state<HTMLStyleElement>();                                  
+       20 +                                                                                  
+       21 +  function handleMouseUp() {                                                      
+       22 +    if (!textEl) return;                                                          
+       23 +    const sel = window.getSelection();                                            
+       24 +    if (!sel || sel.isCollapsed || !sel.rangeCount) {                             
+       25 +      selection = null;                                                           
+       26 +      return;                                                                     
+       27 +    }                                                                             
+       28 +    const range = sel.getRangeAt(0);                                              
+       29 +    if (!textEl.contains(range.startContainer) || !textEl.contains(range.endContai
+          +ner)) return;                                                                     
+       30 +                                                                                  
+       31 +    const offsets = getOffsetsFromRange(textEl, range);                           
+       32 +    if (offsets && offsets.pos1 > offsets.pos0) {                                 
+       33 +      selection = {                                                               
+       34 +        pos0: offsets.pos0,                                                       
+       35 +        pos1: offsets.pos1,                                                       
+       36 +        text: doc.full_text!.slice(offsets.pos0, offsets.pos1)                    
+       37 +      };                                                                          
+       38 +    }                                                                             
+       39 +  }                                                                               
+       40 +                                                                                  
+       41 +  function getOffsetsFromRange(container: HTMLElement, range: Range): { pos0: numb
+          +er; pos1: number } | null {                                                       
+       42 +    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);    
+       43 +    let offset = 0;                                                               
+       44 +    let pos0 = -1;                                                                
+       45 +    let node: Node | null;                                                        
+       46 +    while ((node = walker.nextNode())) {                                          
+       47 +      const len = node.textContent?.length || 0;                                  
+       48 +      if (node === range.startContainer) pos0 = offset + range.startOffset;       
+       49 +      if (node === range.endContainer) {                                          
+       50 +        return pos0 >= 0 ? { pos0, pos1: offset + range.endOffset } : null;       
+       51 +      }                                                                           
+       52 +      offset += len;                                                              
+       53 +    }                                                                             
+       54 +    return null;                                                                  
+       55 +  }                                                                               
+       56 +                                                                                  
+       57 +  function createRangeFromOffsets(container: HTMLElement, pos0: number, pos1: numb
+          +er): Range | null {                                                               
+       58 +    const range = document.createRange();                                         
+       59 +    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);    
+       60 +    let offset = 0;                                                               
+       61 +    let startSet = false;                                                         
+       62 +    let node: Node | null;                                                        
+       63 +    while ((node = walker.nextNode())) {                                          
+       64 +      const len = node.textContent?.length || 0;                                  
+       65 +      if (!startSet && offset + len > pos0) {                                     
+       66 +        range.setStart(node, pos0 - offset);                                      
+       67 +        startSet = true;                                                          
+       68 +      }                                                                           
+       69 +      if (startSet && offset + len >= pos1) {                                     
+       70 +        range.setEnd(node, pos1 - offset);                                        
+       71 +        return range;                                                             
+       72 +      }                                                                           
+       73 +      offset += len;                                                              
+       74 +    }                                                                             
+       75 +    return null;                                                                  
+       76 +  }                                                                               
+       77 +                                                                                  
+       78 +  function hexToRgba(hex: string, alpha: number): string {                        
+       79 +    const r = parseInt(hex.slice(1, 3), 16);                                      
+       80 +    const g = parseInt(hex.slice(3, 5), 16);                                      
+       81 +    const b = parseInt(hex.slice(5, 7), 16);                                      
+       82 +    return `rgba(${r}, ${g}, ${b}, ${alpha})`;                                    
+       83 +  }                                                                               
+       84 +                                                                                  
+       85 +  // Update CSS Custom Highlights when annotations or DOM refs change             
+       86 +  $effect(() => {                                                                 
+       87 +    const _anns = annotations;                                                    
+       88 +    const _el = textEl;                                                           
+       89 +    const _style = dynamicStyle;                                                  
+       90 +    if (!_el || !_style || typeof CSS === 'undefined' || !('highlights' in CSS)) r
+          +eturn;                                                                            
+       91 +                                                                                  
+       92 +    (CSS as any).highlights.clear();                                              
+       93 +    const codeColors = new Map<string, string>();                                 
+       94 +                                                                                  
+       95 +    for (const ann of _anns) {                                                    
+       96 +      const anchor = ann.properties?.anchor;                                      
+       97 +      if (!anchor || anchor.pos0 == null || anchor.pos1 == null) continue;        
+       98 +                                                                                  
+       99 +      const range = createRangeFromOffsets(_el, anchor.pos0, anchor.pos1);        
+      100 +      if (!range) continue;                                                       
+      101 +                                                                                  
+      102 +      const key = `ann${ann.code_id.replace(/-/g, '')}`;                          
+      103 +      if (!(CSS as any).highlights.has(key)) {                                    
+      104 +        (CSS as any).highlights.set(key, new (window as any).Highlight());        
+      105 +      }                                                                           
+      106 +      (CSS as any).highlights.get(key)!.add(range);                               
+      107 +                                                                                  
+      108 +      if (!codeColors.has(key)) {                                                 
+      109 +        codeColors.set(key, ann.code_properties?.color || '#8b9cf7');             
+      110 +      }                                                                           
+      111 +    }                                                                             
+      112 +                                                                                  
+      113 +    let css = '';                                                                 
+      114 +    for (const [key, color] of codeColors) {                                      
+      115 +      css += `::highlight(${key}) { background-color: ${hexToRgba(color, 0.25)}; }
+          +\n`;                                                                              
+      116 +    }                                                                             
+      117 +    _style.textContent = css;                                                     
+      118 +  });                                                                             
+      119 +                                                                                  
+      120 +  onMount(() => {                                                                 
+      121 +    const el = document.createElement('style');                                   
+      122 +    document.head.appendChild(el);                                                
+      123 +    dynamicStyle = el;                                                            
+      124 +    return () => {                                                                
+      125 +      el.remove();                                                                
+      126 +      if (typeof CSS !== 'undefined' && 'highlights' in CSS) {                    
+      127 +        (CSS as any).highlights.clear();                                          
+      128 +      }                                                                           
+      129 +    };                                                                            
+      130 +  });                                                                             
+      131 +                                                                                  
+      132 +  async function annotate(codeId: string) {                                       
+      133 +    if (!selection) return;                                                       
+      134 +    annotating = true;                                                            
+      135 +    const res = await fetch(`/api/projects/${data.projectId}/documents/${doc.id}/a
+          +nnotations`, {                                                                    
+      136 +      method: 'POST',                                                             
+      137 +      headers: { 'Content-Type': 'application/json' },                            
+      138 +      body: JSON.stringify({                                                      
+      139 +        codeId,                                                                   
+      140 +        anchorType: 'text',                                                       
+      141 +        anchor: { pos0: selection.pos0, pos1: selection.pos1, text: selection.text
+          + },                                                                               
+      142 +        comment: comment.trim() || undefined                                      
+      143 +      })                                                                          
+      144 +    });                                                                           
+      145 +    if (res.ok) {                                                                 
+      146 +      const annRes = await fetch(`/api/projects/${data.projectId}/documents/${doc.
+          +id}/annotations`);                                                                
+      147 +      annotations = await annRes.json();                                          
+      148 +      comment = '';                                                               
+      149 +    }                                                                             
+      150 +    annotating = false;                                                           
+      151 +  }                                                                               
+      152 +                                                                                  
+      153 +  async function deleteAnnotation(annId: string) {                                
+      154 +    const res = await fetch(`/api/projects/${data.projectId}/documents/${doc.id}/a
+          +nnotations?id=${annId}`, {                                                        
+      155 +      method: 'DELETE'                                                            
+      156 +    });                                                                           
+      157 +    if (res.ok) {                                                                 
+      158 +      annotations = annotations.filter((a: any) => a.id !== annId);               
+      159 +    }                                                                             
+      160 +  }                                                                               
+      161 +                                                                                  
+      162 +  function getSnippet(ann: any): string {                                         
+      163 +    const anchor = ann.properties?.anchor;                                        
+      164 +    if (!anchor) return '';                                                       
+      165 +    if (anchor.text) return anchor.text;                                          
+      166 +    if (anchor.pos0 != null && anchor.pos1 != null && doc.full_text) {            
+      167 +      return doc.full_text.slice(anchor.pos0, anchor.pos1);                       
+      168 +    }                                                                             
+      169 +    return '';                                                                    
+      170 +  }                                                                               
+      171 +                                                                                  
+      172 +  function truncate(text: string, len: number): string {                          
+      173 +    return text.length > len ? text.slice(0, len) + '\u2026' : text;              
+      174 +  }                                                                               
+      175 +                                                                                  
+      176    function formatSize(bytes: number): string {
+      177      if (bytes < 1024) return bytes + ' B';
+      178      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+     ...
+      190    <div class="doc-body">
+      191      <div class="text-panel">
+      192        {#if isImage}
+       23 -        <p class="placeholder">[Image viewer — Phase 3]</p>                       
+      193 +        <p class="placeholder">[Image annotation — coming soon]</p>               
+      194        {:else if doc.full_text}
+       25 -        <pre class="document-text">{doc.full_text}</pre>                          
+      195 +        <!-- svelte-ignore a11y_no_static_element_interactions -->                
+      196 +        <pre class="document-text" bind:this={textEl} onmouseup={handleMouseUp}>{d
+          +oc.full_text}</pre>                                                               
+      197        {:else}
+      198          <p class="placeholder">No text content available</p>
+      199        {/if}
+      200      </div>
+      201  
+      202      <div class="code-panel">
+       32 -      <h3>Annotations</h3>                                                        
+       33 -      {#if data.annotations.length === 0}                                         
+       34 -        <p class="empty">No annotations yet. Select text and apply codes (Phase 3)
+          -.</p>                                                                             
+       35 -      {:else}                                                                     
+       36 -        {#each data.annotations as ann}                                           
+       37 -          <div class="annotation">                                                
+       38 -            <span class="code-label" style="border-left: 3px solid {ann.code_prope
+          -rties?.color || '#8b9cf7'}">{ann.code_label}</span>                               
+       39 -            {#if ann.comment}<p class="comment">{ann.comment}</p>{/if}            
+      203 +      {#if selection}                                                             
+      204 +        <div class="selection-section">                                           
+      205 +          <div class="section-header">                                            
+      206 +            <h3>                                                                  
+      207 +              <img src="/icons/ink_highlighter.svg" alt="" class="section-icon" />
+      208 +              Annotate                                                            
+      209 +            </h3>                                                                 
+      210 +            <button class="btn-cancel" onclick={() => { selection = null; comment 
+          += ''; window.getSelection()?.removeAllRanges(); }}>                               
+      211 +              Cancel                                                              
+      212 +            </button>                                                             
+      213            </div>
+       41 -        {/each}                                                                   
+      214 +          <div class="selection-preview">"{truncate(selection.text, 120)}"</div>  
+      215 +                                                                                  
+      216 +          {#if codes.length === 0}                                                
+      217 +            <p class="empty">No codes yet. <a href="/projects/{data.projectId}/cod
+          +es">Create codes</a> first.</p>                                                   
+      218 +          {:else}                                                                 
+      219 +            <div class="code-chips">                                              
+      220 +              {#each codes as code (code.id)}                                     
+      221 +                <button                                                           
+      222 +                  class="code-chip"                                               
+      223 +                  disabled={annotating}                                           
+      224 +                  onclick={() => annotate(code.id)}                               
+      225 +                >                                                                 
+      226 +                  <span class="color-dot" style="background: {code.properties?.col
+          +or || '#8b9cf7'}"></span>                                                         
+      227 +                  {code.label}                                                    
+      228 +                </button>                                                         
+      229 +              {/each}                                                             
+      230 +            </div>                                                                
+      231 +          {/if}                                                                   
+      232 +                                                                                  
+      233 +          <input                                                                  
+      234 +            type="text"                                                           
+      235 +            class="comment-input"                                                 
+      236 +            placeholder="Comment (optional)"                                      
+      237 +            bind:value={comment}                                                  
+      238 +          />                                                                      
+      239 +        </div>                                                                    
+      240 +      {:else}                                                                     
+      241 +        <div class="hint">                                                        
+      242 +          <img src="/icons/ink_highlighter.svg" alt="" class="section-icon" />    
+      243 +          <span>Select text to annotate</span>                                    
+      244 +        </div>                                                                    
+      245        {/if}
+      246 +                                                                                  
+      247 +      <div class="annotations-section">                                           
+      248 +        <h3>Annotations <span class="count">({annotations.length})</span></h3>    
+      249 +        {#if annotations.length === 0}                                            
+      250 +          <p class="empty">No annotations yet.</p>                                
+      251 +        {:else}                                                                   
+      252 +          {#each annotations as ann (ann.id)}                                     
+      253 +            <div class="annotation-card">                                         
+      254 +              <div class="ann-header">                                            
+      255 +                <span class="color-dot" style="background: {ann.code_properties?.c
+          +olor || '#8b9cf7'}"></span>                                                       
+      256 +                <span class="code-name">{ann.code_label}</span>                   
+      257 +                <button class="btn-remove" title="Delete annotation" onclick={() =
+          +> deleteAnnotation(ann.id)}>&times;</button>                                      
+      258 +              </div>                                                              
+      259 +              {#if getSnippet(ann)}                                               
+      260 +                <div class="ann-text">"{truncate(getSnippet(ann), 80)}"</div>     
+      261 +              {/if}                                                               
+      262 +              {#if ann.properties?.comment}                                       
+      263 +                <div class="ann-comment">{ann.properties.comment}</div>           
+      264 +              {/if}                                                               
+      265 +            </div>                                                                
+      266 +          {/each}                                                                 
+      267 +        {/if}                                                                     
+      268 +      </div>                                                                      
+      269      </div>
+      270    </div>
+      271  </div>
+      272  
+      273  <style>
+      274    .doc-viewer { display: flex; flex-direction: column; height: 100%; }
+       49 -                                                                                  
+       50 -  .doc-header {                                                                   
+       51 -    margin-bottom: 1rem;                                                          
+       52 -  }                                                                               
+       53 -                                                                                  
+       54 -  .back {                                                                         
+       55 -    font-size: 0.8rem;                                                            
+       56 -    color: #6b7280;                                                               
+       57 -    display: inline-block;                                                        
+       58 -    margin-bottom: 0.5rem;                                                        
+       59 -  }                                                                               
+       60 -                                                                                  
+      275 +  .doc-header { margin-bottom: 1rem; }                                            
+      276 +  .back { font-size: 0.8rem; color: #6b7280; display: inline-block; margin-bottom:
+          + 0.5rem; }                                                                        
+      277    h1 { font-size: 1.2rem; margin-bottom: 0.25rem; }
+      278    .meta { font-size: 0.8rem; color: #6b7280; }
+      279  
+       64 -  .doc-body {                                                                     
+       65 -    display: flex;                                                                
+       66 -    gap: 1rem;                                                                    
+       67 -    flex: 1;                                                                      
+       68 -    min-height: 0;                                                                
+       69 -  }                                                                               
+      280 +  .doc-body { display: flex; gap: 1rem; flex: 1; min-height: 0; }                 
+      281  
+      282    .text-panel {
+      283      flex: 1;
+     ...
+      295      font-size: 0.9rem;
+      296      line-height: 1.7;
+      297      color: #d1d5db;
+      298 +    cursor: text;                                                                 
+      299    }
+      300  
+      301 +  .document-text::selection {                                                     
+      302 +    background: rgba(139, 156, 247, 0.35);                                        
+      303 +  }                                                                               
+      304 +                                                                                  
+      305    .code-panel {
+       90 -    width: 280px;                                                                 
+      306 +    width: 300px;                                                                 
+      307 +    display: flex;                                                                
+      308 +    flex-direction: column;                                                       
+      309 +    gap: 0.75rem;                                                                 
+      310 +    overflow-y: auto;                                                             
+      311 +  }                                                                               
+      312 +                                                                                  
+      313 +  .section-icon { width: 16px; height: 16px; opacity: 0.5; }                      
+      314 +                                                                                  
+      315 +  /* Selection / annotation section */                                            
+      316 +  .selection-section {                                                            
+      317      background: #161822;
+      318 +    border: 1px solid #8b9cf7;                                                    
+      319 +    border-radius: 8px;                                                           
+      320 +    padding: 0.75rem;                                                             
+      321 +  }                                                                               
+      322 +                                                                                  
+      323 +  .section-header {                                                               
+      324 +    display: flex;                                                                
+      325 +    align-items: center;                                                          
+      326 +    justify-content: space-between;                                               
+      327 +    margin-bottom: 0.5rem;                                                        
+      328 +  }                                                                               
+      329 +                                                                                  
+      330 +  .section-header h3 {                                                            
+      331 +    font-size: 0.85rem;                                                           
+      332 +    color: #e1e4e8;                                                               
+      333 +    display: flex;                                                                
+      334 +    align-items: center;                                                          
+      335 +    gap: 0.4rem;                                                                  
+      336 +    margin: 0;                                                                    
+      337 +  }                                                                               
+      338 +                                                                                  
+      339 +  .btn-cancel {                                                                   
+      340 +    font-size: 0.75rem;                                                           
+      341 +    color: #6b7280;                                                               
+      342 +    background: none;                                                             
+      343 +    border: none;                                                                 
+      344 +    cursor: pointer;                                                              
+      345 +  }                                                                               
+      346 +  .btn-cancel:hover { color: #e1e4e8; }                                           
+      347 +                                                                                  
+      348 +  .selection-preview {                                                            
+      349 +    font-size: 0.8rem;                                                            
+      350 +    color: #9ca3af;                                                               
+      351 +    font-style: italic;                                                           
+      352 +    margin-bottom: 0.75rem;                                                       
+      353 +    line-height: 1.4;                                                             
+      354 +    max-height: 4.2em;                                                            
+      355 +    overflow: hidden;                                                             
+      356 +  }                                                                               
+      357 +                                                                                  
+      358 +  .code-chips {                                                                   
+      359 +    display: flex;                                                                
+      360 +    flex-wrap: wrap;                                                              
+      361 +    gap: 0.35rem;                                                                 
+      362 +    margin-bottom: 0.5rem;                                                        
+      363 +  }                                                                               
+      364 +                                                                                  
+      365 +  .code-chip {                                                                    
+      366 +    display: flex;                                                                
+      367 +    align-items: center;                                                          
+      368 +    gap: 0.3rem;                                                                  
+      369 +    padding: 0.25rem 0.5rem;                                                      
+      370 +    background: #1e2030;                                                          
+      371      border: 1px solid #2a2d3a;
+      372 +    border-radius: 4px;                                                           
+      373 +    font-size: 0.78rem;                                                           
+      374 +    color: #c9cdd5;                                                               
+      375 +    cursor: pointer;                                                              
+      376 +    transition: border-color 0.15s;                                               
+      377 +  }                                                                               
+      378 +  .code-chip:hover { border-color: #8b9cf7; color: #fff; }                        
+      379 +  .code-chip:disabled { opacity: 0.4; cursor: wait; }                             
+      380 +                                                                                  
+      381 +  .color-dot {                                                                    
+      382 +    width: 8px;                                                                   
+      383 +    height: 8px;                                                                  
+      384 +    border-radius: 50%;                                                           
+      385 +    flex-shrink: 0;                                                               
+      386 +  }                                                                               
+      387 +                                                                                  
+      388 +  .comment-input {                                                                
+      389 +    width: 100%;                                                                  
+      390 +    background: #0f1117;                                                          
+      391 +    border: 1px solid #2a2d3a;                                                    
+      392 +    border-radius: 4px;                                                           
+      393 +    padding: 0.4rem 0.5rem;                                                       
+      394 +    color: #e1e4e8;                                                               
+      395 +    font-size: 0.8rem;                                                            
+      396 +    box-sizing: border-box;                                                       
+      397 +  }                                                                               
+      398 +  .comment-input:focus { outline: none; border-color: #8b9cf7; }                  
+      399 +                                                                                  
+      400 +  /* Hint */                                                                      
+      401 +  .hint {                                                                         
+      402 +    display: flex;                                                                
+      403 +    align-items: center;                                                          
+      404 +    gap: 0.5rem;                                                                  
+      405 +    font-size: 0.8rem;                                                            
+      406 +    color: #6b7280;                                                               
+      407 +    background: #161822;                                                          
+      408 +    border: 1px solid #2a2d3a;                                                    
+      409      border-radius: 8px;
+       94 -    padding: 1rem;                                                                
+      410 +    padding: 0.75rem;                                                             
+      411 +  }                                                                               
+      412 +                                                                                  
+      413 +  /* Annotations list */                                                          
+      414 +  .annotations-section {                                                          
+      415 +    background: #161822;                                                          
+      416 +    border: 1px solid #2a2d3a;                                                    
+      417 +    border-radius: 8px;                                                           
+      418 +    padding: 0.75rem;                                                             
+      419 +    flex: 1;                                                                      
+      420      overflow-y: auto;
+      421    }
+      422  
+       98 -  .code-panel h3 {                                                                
+      423 +  .annotations-section h3 {                                                       
+      424      font-size: 0.85rem;
+      425      color: #8b8fa3;
+      426      margin-bottom: 0.75rem;
+      427    }
+      428  
+      429 +  .count { color: #6b7280; }                                                      
+      430    .empty { font-size: 0.8rem; color: #6b7280; }
+      431 +  .empty a { color: #8b9cf7; }                                                    
+      432  
+      106 -  .placeholder {                                                                  
+      107 -    text-align: center;                                                           
+      433 +  .annotation-card {                                                              
+      434 +    background: #1e2030;                                                          
+      435 +    border: 1px solid #2a2d3a;                                                    
+      436 +    border-radius: 6px;                                                           
+      437 +    padding: 0.5rem 0.6rem;                                                       
+      438 +    margin-bottom: 0.4rem;                                                        
+      439 +  }                                                                               
+      440 +                                                                                  
+      441 +  .ann-header {                                                                   
+      442 +    display: flex;                                                                
+      443 +    align-items: center;                                                          
+      444 +    gap: 0.35rem;                                                                 
+      445 +  }                                                                               
+      446 +                                                                                  
+      447 +  .code-name {                                                                    
+      448 +    font-size: 0.82rem;                                                           
+      449 +    font-weight: 500;                                                             
+      450 +    color: #e1e4e8;                                                               
+      451 +    flex: 1;                                                                      
+      452 +  }                                                                               
+      453 +                                                                                  
+      454 +  .btn-remove {                                                                   
+      455 +    background: none;                                                             
+      456 +    border: none;                                                                 
+      457      color: #6b7280;
+      109 -    padding: 3rem 0;                                                              
+      458 +    font-size: 1.1rem;                                                            
+      459 +    cursor: pointer;                                                              
+      460 +    padding: 0 0.2rem;                                                            
+      461 +    line-height: 1;                                                               
+      462    }
+      463 +  .btn-remove:hover { color: #ef4444; }                                           
+      464  
+      112 -  .annotation {                                                                   
+      113 -    margin-bottom: 0.5rem;                                                        
+      465 +  .ann-text {                                                                     
+      466 +    font-size: 0.78rem;                                                           
+      467 +    color: #9ca3af;                                                               
+      468 +    font-style: italic;                                                           
+      469 +    margin-top: 0.25rem;                                                          
+      470 +    line-height: 1.3;                                                             
+      471    }
+      472  
+      116 -  .code-label {                                                                   
+      117 -    font-size: 0.85rem;                                                           
+      118 -    padding-left: 0.5rem;                                                         
+      119 -    display: block;                                                               
+      473 +  .ann-comment {                                                                  
+      474 +    font-size: 0.75rem;                                                           
+      475 +    color: #6b7280;                                                               
+      476 +    margin-top: 0.2rem;                                                           
+      477    }
+      478  
+      122 -  .comment {                                                                      
+      123 -    font-size: 0.8rem;                                                            
+      479 +  .placeholder {                                                                  
+      480 +    text-align: center;                                                           
+      481      color: #6b7280;
+      125 -    padding-left: 0.5rem;                                                         
+      126 -    margin-top: 0.15rem;                                                          
+      482 +    padding: 3rem 0;                                                              
+      483    }
+      484  </style>
+
+● Now let me check if the dev server is running and test the build.
+
+● Bash(npx svelte-check --tsconfig tsconfig.json 2>&1 | grep -E "(Error|error|warning)" | head -20)
+  ⎿  (No output)
+
+● Clean build. Let me verify the dev server is running and test the feature.
+
+● Bash(curl -s http://localhost:5174 -o /dev/null -w "%{http_code}")
+  ⎿  303
+
+● Dev server is running. Let me do a quick end-to-end test via curl to verify the annotation API
+  works.
+
+● Bash(curl -s -c /tmp/tqda_cookie.txt -b /tmp/tqda_cookie.txt -X POST
+      http://localhost:5174/api/auth/login -H 'Content-Type: application/json' -d
+      '{"username":"admin"…)
+  ⎿  Login: {'ok': True}
+
+● Bash(# Get a project ID and list documents
+      curl -s -b /tmp/tqda_cookie.txt http://localhost:5174/api/projects | python3 -c "…)
+  ⎿  Error: Exit code 1
+     Traceback (most recent call last):
+       File "<string>", line 3, in <module>
+         projects = json.load(sys.stdin)
+       File "/usr/lib64/python3.13/json/__init__.py", line 298, in load
+         return loads(fp.read(),
+             cls=cls, object_hook=object_hook,
+             parse_float=parse_float, parse_int=parse_int,
+             parse_constant=parse_constant, object_pairs_hook=object_pairs_hook, **kw)
+       File "/usr/lib64/python3.13/json/__init__.py", line 352, in loads
+     … +26 lines (ctrl+o to see all)
+
+● Bash(# Query DB directly to get project and document IDs
+      PGPASSWORD=tqda_dev psql -h localhost -U tqda -d transact_qda -t -c "SELECT p.id, p.name FROM
+      projects p LIM…)
+  ⎿   0aa3ecce-51f1-4e52-9356-f01ee2226f0f | Sample Project
+
+● Bash(PGPASSWORD=tqda_dev psql -h localhost -U tqda -d transact_qda -t -c "
+      SELECT n.id, n.inscription, dc.mime_type, length(dc.full_text) as text_len…)
+  ⎿  (No output)
+
+● Bash(# Check if there are any documents at all
+      PGPASSWORD=tqda_dev psql -h localhost -U tqda -d transact_qda -t -c "…)
+  ⎿  0
+
+● No documents uploaded yet. Let me check if there are codes, then verify the page loads correctly.
+
+● Bash(PGPASSWORD=tqda_dev psql -h localhost -U tqda -d transact_qda -t -c "
+      SELECT count(*) FROM appearances WHERE mode = 'entity' AND valence IS NULL;" 2>/dev/null)
+  ⎿  141
+
+● 141 codes exist. Let me verify the document viewer page loads without errors by accessing it
+  through curl (the page itself needs a document — let me upload a test document first).
+
+● Bash(PID="0aa3ecce-51f1-4e52-9356-f01ee2226f0f"
+      # Create a test text file…)
+  ⎿  Doc ID: 23ff599b-d930-46ee-b304-f95322a7d842, Label: test_doc.txt
+
+● Document uploaded. Let me verify the page loads and the annotation API works.
+
+● Bash(PID="0aa3ecce-51f1-4e52-9356-f01ee2226f0f"
+      DOC="23ff599b-d930-46ee-b304-f95322a7d842"…)
+  ⎿  200
+
+● Bash(PID="0aa3ecce-51f1-4e52-9356-f01ee2226f0f"
+      DOC="23ff599b-d930-46ee-b304-f95322a7d842"…)
+  ⎿  Code ID:
+     {
+         "error": "codeId, anchorType, and anchor required"
+     }
+
+● Bash(PID="0aa3ecce-51f1-4e52-9356-f01ee2226f0f"
+      # Get code ID - the psql query might need adjustment…)
+  ⎿  (No output)
+
+● Bash(# Check for code system perspective first
+      PGPASSWORD=tqda_dev psql -h localhost -U tqda -d transact_qda -t -c "…)
+  ⎿   253da4be-9f5d-46a3-b7ed-8c467a7a20fb | TestResearcher      | {"role": "researcher"}
+      08e592ad-f8aa-4707-b1cf-f3a099be0317 | Debug Test Map      | {"mapType": "situational"}
+      cfe011b4-7c39-4577-b74b-72c9dfe7ee7f | Benjamin Vibe-codes | {"parentMapId": "27459e08-2e
+     … +3 lines (ctrl+o to expand)
+
+● No code-system perspective in this project. The codes are likely in a different structure. Let me
+  check and create a test code.
+
+● Bash(PID="0aa3ecce-51f1-4e52-9356-f01ee2226f0f"
+      DOC="23ff599b-d930-46ee-b304-f95322a7d842"…)
+  ⎿  {
+         "id": "8c6051a0-8318-4f41-b045-352f52a38db5",
+         "project_id": "0aa3ecce-51f1-4e52-9356-f01ee2226f0f",
+     … +10 lines (ctrl+o to expand)
+
+● Code created. Now test the annotation.
+
+● Bash(PID="0aa3ecce-51f1-4e52-9356-f01ee2226f0f"
+      DOC="23ff599b-d930-46ee-b304-f95322a7d842"…)
+  ⎿  {
+         "id": "433e9dfb-527f-44a1-830d-f452c143cc69",
+         "project_id": "0aa3ecce-51f1-4e52-9356-f01ee2226f0f",
+     … +6 lines (ctrl+o to expand)
+
+● Bash(PID="0aa3ecce-51f1-4e52-9356-f01ee2226f0f"
+      DOC="23ff599b-d930-46ee-b304-f95322a7d842"…)
+  ⎿  [
+         {
+             "id": "433e9dfb-527f-44a1-830d-f452c143cc69",
+     … +18 lines (ctrl+o to expand)
+
+● Full pipeline works. The annotation is created with anchor offsets, text snippet, comment, and the
+   code's color is returned. Let me also verify the page still renders correctly with the annotation
+   data.
+
+● Bash(PID="0aa3ecce-51f1-4e52-9356-f01ee2226f0f"
+      DOC="23ff599b-d930-46ee-b304-f95322a7d842"…)
+  ⎿  Test Code
+     Test Code
+
+● The page renders with the code name appearing (once in the code chips, once in the annotation
+  card).
+
+  Here's what was built:
+
+  Document Text Annotation
+
+  Server (+page.server.ts): Now loads both annotations and the code tree, so the sidebar can show
+  available codes.
+
+  Interactive UI (+page.svelte):
+  - Text selection: Select text with mouse in the document → sidebar shows "Annotate" panel with the
+   selected text preview
+  - Code picker: Click any code chip to apply it to the selection. Multiple codes can be applied to
+  the same selection.
+  - CSS Custom Highlight API: Annotations are rendered as colored background highlights directly on
+  the text, without DOM mutation. Each code gets its own highlight color (from the code's configured
+   color, at 25% opacity).
+  - Annotations sidebar: Shows all annotations with code name, text snippet, optional comment, and
+  delete button
+  - Selection persists after annotating — you can apply multiple codes to the same passage without
+  re-selecting
+  - Zero dependencies — uses native browser APIs (Selection, Range, CSS Custom Highlight API)
+
+  The flow: select text → pick code from sidebar → optional comment → annotation saved with
+  pos0/pos1/text anchor → highlight appears immediately.
+
+✻ Sautéed for 8m 53s
+
+❯ commit 
+
+● Bash(git status -s)
+  ⎿   M src/routes/projects/[projectId]/documents/[docId]/+page.server.ts
+      M src/routes/projects/[projectId]/documents/[docId]/+page.svelte
+     ?? docs/sessions/2026-03-09-09032357-transact-qda_session_06.txt
+     ?? static/icons/ink_highlighter.svg
+
+● Bash(git diff --staged --stat && echo "---UNSTAGED---" && git diff --stat)
+  ⎿  ---UNSTAGED---
+      .../[projectId]/documents/[docId]/+page.server.ts  |   8 +-
+      .../[projectId]/documents/[docId]/+page.svelte     | 446 ++++++++++++++++++---
+      2 files changed, 407 insertions(+), 47 deletions(-)
+
+● Bash(git log --oneline -5)
+  ⎿  2c19e50 Add nightly database backup via pg_dump + systemd timer
+     c699799 Add memo hover tooltips on canvas nodes
+     3298cfd Fix canvas: click-to-relate and floating stack panel
+     … +2 lines (ctrl+o to expand)
+
+● Bash(git add src/routes/projects/[projectId]/documents/[docId]/+page.server.ts
+      src/routes/projects/[projectId]/documents/[docId]/+page.svelte static/icons/ink_highli…)
+  ⎿  (No output)
+
+● Bash(git commit -m "$(cat <<'EOF'
+      Add interactive document text annotation with CSS Custom Highlight API…)
+  ⎿  [main d2c7774] Add interactive document text annotation with CSS Custom Highlight API
+      3 files changed, 408 insertions(+), 47 deletions(-)
+      create mode 100644 static/icons/ink_highlighter.svg
+
+● Bash(git status -s)
+  ⎿  ?? docs/sessions/2026-03-09-09032357-transact-qda_session_06.txt
+
+● Committed as d2c7774. Only the session notes file remains untracked (from a previous session).
+
+❯ now begin to think about image analysis adn coding. I do not remeber that situational         
+  analysis has ideas about this? (then again, it should have). Anyway, there are numerous       
+  approaches to visual material, classical (panofsky, Marotzki), less classical (imdahl,        
+  BOhnsack), deconstructive (Breckner), seriell (Mietzner/Pilarczyk), ...                       
+
+● Read 1 file (ctrl+o to expand)
+
+● Different task entirely — I'll start fresh. Let me explore the current image infrastructure and
+  research the methodological question.
+
+● 2 Explore agents finished (ctrl+o to expand)
+   ├─ Explore image handling infrastructure · 48 tool uses · 53.3k tokens
+   │  ⎿  Done
+   └─ Explore annotation data model · 28 tool uses · 37.8k tokens
+      ⎿  Done
+
+● Good question about Clarke. Let me research that and then think about how the different visual
+  analysis traditions map to UI features.
+
+● Plan(Design image annotation architecture)
+  ⎿  Done (52 tool uses · 59.6k tokens · 3m 37s)
+  (ctrl+o to expand)
+
+● Now I have the full picture — technical infrastructure, data model, and the methodological
+  landscape. Let me write the plan.
+
+● Updated plan
+  ⎿  /plan to preview
+
+❯ Tool loaded. 
+
+● The plan is written. Key points:
+
+  On Clarke: She treats images as discourse — elements in the situation to be mapped — but doesn't
+  prescribe a specific visual reading method. So the tool needs to support multiple traditions
+  within SA's mapping framework. The table in the plan maps each approach (Panofsky, Imdahl,
+  Bohnsack, Breckner, Mietzner/Pilarczyk) to its specific tool requirements.
+
+  Phase 1 scope: Rectangle region coding on images — the universal foundation all approaches share.
+  Backend already supports image_region anchor type, so it's purely a frontend task plus an image
+  serving endpoint.
+
+  3 deliverables: Image serving API, ImageAnnotationViewer component (SVG overlay + rectangle
+  drawing + zoom/pan), and sidebar unification (text selection or image region → same code picker
+  flow).
+
+❯ Tool loaded. 
+  ⎿  Tool use rejected with user message: For the plan, reflect the epistemological/methodological
+     contexts and implications (D/B) also.
+
+● Good point. The D/B gradient has significant implications for how image annotations work across
+  these traditions. Let me update the plan.
+
+● Read 1 file (ctrl+o to expand)
+
+● Now let me add the D/B epistemological section.
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Also update the future extensions to reflect the D/B distinction:
+
+● Updated plan
+  ⎿  /plan to preview
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ready to code?
+
+ Here is Claude's plan:
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Image Analysis and Coding
+
+ Context
+
+ Text annotation is now working (CSS Custom Highlight API, pos0/pos1 anchors, sidebar code picker).
+  The next step is image coding — selecting regions of images and applying codes.
+
+ Methodological Landscape
+
+ Clarke & Situational Analysis: Clarke discusses visual materials primarily as discourse — images
+ are discursive elements in the situation, analyzed via visual discourse analysis (drawing on Rose,
+  Sturken & Cartwright). In SA, you can make a situational map of an image (what human/nonhuman
+ elements, discourses, relations are present in/constituted by the image). But Clarke doesn't
+ prescribe a specific visual analysis technique — she provides the mapping framework, not the
+ image-reading method. So the tool needs to support multiple visual analysis traditions within SA's
+  mapping framework.
+
+ What the different approaches need from the tool:
+
+ ┌────────────────────────────┬────────────────────────────────┬───────────────────────────────┐
+ │          Approach          │         Core operation         │       Tool requirement        │
+ ├────────────────────────────┼────────────────────────────────┼───────────────────────────────┤
+ │ Panofsky/Marotzki          │ Layered reading: description → │ Region coding at multiple     │
+ │ (iconography/iconology)    │  identification →              │ levels (same region,          │
+ │                            │ interpretation                 │ different codes/layers)       │
+ ├────────────────────────────┼────────────────────────────────┼───────────────────────────────┤
+ │ Imdahl (iconic             │ Formal composition analysis:   │ Line/shape drawing tools (not │
+ │ interpretation)            │ planimetric, perspective,      │  just regions)                │
+ │                            │ scenic choreography            │                               │
+ ├────────────────────────────┼────────────────────────────────┼───────────────────────────────┤
+ │ Bohnsack (documentary      │ Formulating + reflecting       │ Region coding + composition   │
+ │ method)                    │ interpretation, compositional  │ overlays                      │
+ │                            │ analysis per Imdahl            │                               │
+ ├────────────────────────────┼────────────────────────────────┼───────────────────────────────┤
+ │ Breckner (deconstructive)  │ Segment-by-segment progressive │ Masking/segmenting tool       │
+ │                            │  analysis                      │                               │
+ ├────────────────────────────┼────────────────────────────────┼───────────────────────────────┤
+ │ Mietzner/Pilarczyk         │ Cross-image pattern comparison │ Gallery/comparison view       │
+ │ (serial-iconographic)      │                                │                               │
+ └────────────────────────────┴────────────────────────────────┴───────────────────────────────┘
+
+ D/B Gradient and Visual Analysis
+
+ The designation process (cue ↔ characterization ↔ specification) maps differently onto visual
+ analysis than onto text coding — and differently across traditions:
+
+ The region-marking act itself is a cue. Selecting a rectangle on an image is analogous to
+ highlighting text — it's a pointing gesture, a "something here." It sits at the D-pole
+ (Andeutung). The code application moves toward characterization. The comment toward specification.
+  This gradient already exists implicitly in the text annotation system, but for images the
+ methodological traditions make it explicit:
+
+ ┌───────────┬────────────────────────────────────┬────────────────────────────────────────────┐
+ │ Tradition │     D-pole (cue/indeterminacy)     │    B-pole (specification/determination)    │
+ ├───────────┼────────────────────────────────────┼────────────────────────────────────────────┤
+ │ Panofsky  │ Pre-iconographic: "I see a raised  │ Iconological: "This signifies cultural     │
+ │           │ hand"                              │ authority of..."                           │
+ ├───────────┼────────────────────────────────────┼────────────────────────────────────────────┤
+ │           │ Sehendes Sehen — iconic seeing     │                                            │
+ │ Imdahl    │ resists specification. Composition │ Wiedererkennendes Sehen —                  │
+ │           │  lines are tools for maintaining   │ recognizing/classifying what is depicted   │
+ │           │ indeterminacy, not coding.         │                                            │
+ ├───────────┼────────────────────────────────────┼────────────────────────────────────────────┤
+ │           │                                    │ Reflecting interpretation (Wie) — but this │
+ │ Bohnsack  │ Formulating interpretation (Was)   │  is not "more specified", it's a different │
+ │           │                                    │  dimension (modus operandi/habitus)        │
+ ├───────────┼────────────────────────────────────┼────────────────────────────────────────────┤
+ │ Breckner  │ Each segment analysis opens        │ Cross-segment synthesis moves toward       │
+ │           │ meaning — deliberately anti-B      │ characterization                           │
+ ├───────────┼────────────────────────────────────┼────────────────────────────────────────────┤
+ │ Serial    │ Individual image = cue             │ Cross-image pattern = specification        │
+ │           │                                    │ through comparison                         │
+ └───────────┴────────────────────────────────────┴────────────────────────────────────────────┘
+
+ Key implication for the tool: Imdahl's composition drawings (planimetric lines, perspective axes)
+ are epistemologically different from Panofsky's region-coding. They are not annotations moving
+ toward B — they are instruments for staying at D, for "seeing seeing." If we later build
+ composition tools, they should NOT be stored as valence: 'codes' annotations but as a separate
+ layer (perhaps valence: 'composition'), because they serve a fundamentally different
+ epistemological function.
+
+ For Phase 1 (rectangle region coding), the D/B gradient is handled naturally:
+ - The region selection = cue (pointing gesture)
+ - Code application = characterization (naming what's there)
+ - Comment = further specification
+ - The same region can receive multiple annotations at different D/B levels (multiple codes, each a
+  different designation in the chain)
+ - Different perspectives/maps can collapse differently — one analyst's Panofsky Level 1 reading,
+ another's Level 3
+
+ Clarke's SA as meta-framework: Clarke's situational mapping operates on a different level than the
+  image-internal analysis methods. SA maps the situation (what elements, discourses, relations does
+  the image participate in?), while Panofsky/Imdahl/Bohnsack analyze the image internally. The
+ platform supports both: image-internal annotations (region coding) feed into map-level elements (a
+  code grounded in image evidence shows 📄 provenance on the canvas).
+
+ Design principle: All approaches share the basic operation of marking and annotating image
+ regions. The specialized tools (composition lines, segmentation, serial comparison) are extensions
+  with distinct epistemological status. Phase 1 builds the foundation — region coding as
+ characterization. Future composition tools must respect their distinct D-pole function.
+
+ Current State
+
+ Backend: ready — createAnnotation() already accepts anchorType: 'image_region', anchor:
+ Record<string, unknown>. No schema/API changes needed.
+
+ Frontend: placeholder — {#if isImage} shows [Image annotation — coming soon]. No image viewer, no
+ region selection, no image serving endpoint.
+
+ Missing pieces:
+ 1. Image serving endpoint (files stored on disk at uploads/{projectId}/{uuid}.ext but no route
+ serves them)
+ 2. Image viewer component with zoom/pan
+ 3. Rectangle region selection interaction
+ 4. SVG overlay for annotation regions
+ 5. Sidebar unification (text selection OR image region → same code picker)
+
+ Implementation
+
+ Step 1: Image serving endpoint
+
+ New file: src/routes/api/projects/[projectId]/documents/[docId]/image/+server.ts
+
+ // GET — stream the image file from disk
+ // Query document_content for file_path + mime_type
+ // Validate mime_type starts with 'image/'
+ // Stream via fs.createReadStream → web ReadableStream
+ // Set Content-Type, Cache-Control headers
+
+ ~25 lines. Reuse queryOne from $lib/server/db/index.js.
+
+ Step 2: ImageAnnotationViewer component
+
+ New file: src/lib/components/ImageAnnotationViewer.svelte
+
+ Structure:
+ <div class="image-viewer">              ← overflow:hidden, position:relative
+   <div class="image-container"          ← transformed by zoom/pan
+        style="transform: ...">
+     <img src={imageUrl} onload={...} /> ← natural size
+     <svg viewBox="0 0 1 1">             ← normalized coordinates overlay
+       {#each annotations}
+         <rect ... fill={rgba(color,0.2)} stroke={color} />
+       {/each}
+       {#if drawing}
+         <rect ... stroke-dasharray="4 2" />  ← in-progress selection
+       {/if}
+     </svg>
+   </div>
+ </div>
+
+ Interaction model (matching text annotation flow):
+ 1. User drags on image → draws rectangle selection (dashed outline)
+ 2. Sidebar shows "Annotate" panel with code chips (identical to text flow)
+ 3. User clicks code → annotation created with anchorType: 'image_region'
+
+ Coordinates: Normalized 0–1 range (resolution-independent). SVG viewBox="0 0 1 1" maps directly.
+
+ Anchor structure:
+ {
+   "anchorType": "image_region",
+   "anchor": { "type": "rect", "x": 0.15, "y": 0.22, "width": 0.35, "height": 0.28 }
+ }
+
+ Zoom/pan: Reuse createViewport() from src/lib/canvas/viewport.svelte.ts. Alt-drag = pan, wheel =
+ zoom. Default drag = draw rectangle.
+
+ ~180 lines.
+
+ Step 3: Integrate into document viewer
+
+ Modify: src/routes/projects/[projectId]/documents/[docId]/+page.svelte
+
+ Changes:
+ - Replace {#if isImage} placeholder with <ImageAnnotationViewer>
+ - Add regionSelection state (parallel to selection for text)
+ - Unify sidebar: {#if selection || regionSelection} → show code chips
+ - Modify annotate() to dispatch on isImage:
+   - Text: anchorType: 'text', anchor: { pos0, pos1, text }
+   - Image: anchorType: 'image_region', anchor: { type: 'rect', x, y, width, height }
+ - Modify getSnippet() for image annotations: show "Region 35% × 28%" instead of text
+ - Click annotation card → highlight corresponding region on image
+
+ Step 4: Icons
+
+ Copy from /home/joerissen/Downloads/icons_google/:
+ - A suitable icon for "draw region" hint (e.g., crop or select_all)
+
+ Files Summary
+
+ ┌─────────────────────────────────────────────────┬────────────────────────────────────────────┐
+ │                      File                       │                   Change                   │
+ ├─────────────────────────────────────────────────┼────────────────────────────────────────────┤
+ │ src/routes/api/.../image/+server.ts             │ NEW: Image serving endpoint (~25 lines)    │
+ ├─────────────────────────────────────────────────┼────────────────────────────────────────────┤
+ │ src/lib/components/ImageAnnotationViewer.svelte │ NEW: Image viewer + region selection (~180 │
+ │                                                 │  lines)                                    │
+ ├─────────────────────────────────────────────────┼────────────────────────────────────────────┤
+ │ src/routes/.../documents/[docId]/+page.svelte   │ Integrate viewer, unify sidebar for        │
+ │                                                 │ text+image                                 │
+ ├─────────────────────────────────────────────────┼────────────────────────────────────────────┤
+ │ src/lib/canvas/viewport.svelte.ts               │ Reused (no changes)                        │
+ ├─────────────────────────────────────────────────┼────────────────────────────────────────────┤
+ │ src/lib/server/db/queries/codes.ts              │ No changes (already supports image_region) │
+ └─────────────────────────────────────────────────┴────────────────────────────────────────────┘
+
+ Verification
+
+ 1. Upload an image (PNG/JPG) via the documents page
+ 2. Open the image document → image displays with zoom/pan
+ 3. Draw a rectangle on the image → sidebar shows "Annotate" with code chips
+ 4. Click a code → annotation created, colored rectangle overlay appears
+ 5. Multiple annotations with different codes → different colored overlays
+ 6. Delete annotation → overlay removed
+ 7. Zoom/pan → overlays stay aligned with image content
+ 8. Reload page → annotations persist and render correctly
+
+ Future Extensions (not in scope)
+
+ - Composition lines (Imdahl/Bohnsack): Line/arrow drawing tool, stored with valence: 'composition'
+  (NOT 'codes'). Epistemologically distinct — these are D-pole instruments for iconic seeing, not
+ B-pole characterizations. Anchor: { type: 'line', points: [...] }.
+ - Segmentation (Breckner): Masking overlay with sequential reveal. Each segment is a cue that
+ deliberately opens meaning rather than closing it.
+ - Serial comparison (Mietzner/Pilarczyk): Gallery view for cross-image pattern finding. The D→B
+ movement happens across images, not within one.
+ - Polygon regions: anchor: { type: 'polygon', points: [...] } — click-to-add-point drawing. Same
+ epistemological status as rectangles (characterization).
+ - Thumbnails: Generate via sharp at upload time, store in thumbnail_path.
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+
+ Claude has written up a plan and is ready to execute. Would you like to proceed?
+
+ ❯ 1. Yes, clear context (53% used) and auto-accept edits (shift+tab)
+   2. Yes, auto-accept edits
+   3. Yes, manually approve edits
+   4. Type here to tell Claude what to change
+
+ ctrl-g to edit in nano · ~/.claude/plans/snazzy-dancing-journal.md
+
+
+╭─── Claude Code v2.1.70 ──────────────────────────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting started                    │
+│               Welcome back Benjamin!               │ Run /init to create a CLAUDE.md file with … │
+│                                                    │ ─────────────────────────────────────────── │
+│                       ▐▛███▜▌                      │ Recent activity                             │
+│                      ▝▜█████▛▘                     │ 1mo ago  Überprüfe: ❯ heartmula ist instal… │
+│                        ▘▘ ▝▝                       │ /resume for more                            │
+│                                                    │                                             │
+│      Opus 4.6 with high effort · Claude Max ·      │                                             │
+│      benjamin.joerissen@fau.de's Organization      │                                             │
+│                        ~/ai                        │                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Plan to implement                                                                                │
+│                                                                                                  │
+│ Image Analysis and Coding                                                                        │
+│                                                                                                  │
+│ Context                                                                                          │
+│                                                                                                  │
+│ Text annotation is now working (CSS Custom Highlight API, pos0/pos1 anchors, sidebar code        │
+│ picker). The next step is image coding — selecting regions of images and applying codes.         │
+│                                                                                                  │
+│ Methodological Landscape                                                                         │
+│                                                                                                  │
+│ Clarke & Situational Analysis: Clarke discusses visual materials primarily as discourse — images │
+│  are discursive elements in the situation, analyzed via visual discourse analysis (drawing on    │
+│ Rose, Sturken & Cartwright). In SA, you can make a situational map of an image (what             │
+│ human/nonhuman elements, discourses, relations are present in/constituted by the image). But     │
+│ Clarke doesn't prescribe a specific visual analysis technique — she provides the mapping         │
+│ framework, not the image-reading method. So the tool needs to support multiple visual analysis   │
+│ traditions within SA's mapping framework.                                                        │
+│                                                                                                  │
+│ What the different approaches need from the tool:                                                │
+│                                                                                                  │
+│ ┌────────────────────────────┬────────────────────────────────┬───────────────────────────────┐  │
+│ │          Approach          │         Core operation         │       Tool requirement        │  │
+│ ├────────────────────────────┼────────────────────────────────┼───────────────────────────────┤  │
+│ │ Panofsky/Marotzki          │ Layered reading: description → │ Region coding at multiple     │  │
+│ │ (iconography/iconology)    │  identification →              │ levels (same region,          │  │
+│ │                            │ interpretation                 │ different codes/layers)       │  │
+│ ├────────────────────────────┼────────────────────────────────┼───────────────────────────────┤  │
+│ │ Imdahl (iconic             │ Formal composition analysis:   │ Line/shape drawing tools (not │  │
+│ │ interpretation)            │ planimetric, perspective,      │  just regions)                │  │
+│ │                            │ scenic choreography            │                               │  │
+│ ├────────────────────────────┼────────────────────────────────┼───────────────────────────────┤  │
+│ │ Bohnsack (documentary      │ Formulating + reflecting       │ Region coding + composition   │  │
+│ │ method)                    │ interpretation, compositional  │ overlays                      │  │
+│ │                            │ analysis per Imdahl            │                               │  │
+│ ├────────────────────────────┼────────────────────────────────┼───────────────────────────────┤  │
+│ │ Breckner (deconstructive)  │ Segment-by-segment progressive │ Masking/segmenting tool       │  │
+│ │                            │  analysis                      │                               │  │
+│ ├────────────────────────────┼────────────────────────────────┼───────────────────────────────┤  │
+│ │ Mietzner/Pilarczyk         │ Cross-image pattern comparison │ Gallery/comparison view       │  │
+│ │ (serial-iconographic)      │                                │                               │  │
+│ └────────────────────────────┴────────────────────────────────┴───────────────────────────────┘  │
+│                                                                                                  │
+│ D/B Gradient and Visual Analysis                                                                 │
+│                                                                                                  │
+│ The designation process (cue ↔ characterization ↔ specification) maps differently onto visual    │
+│ analysis than onto text coding — and differently across traditions:                              │
+│                                                                                                  │
+│ The region-marking act itself is a cue. Selecting a rectangle on an image is analogous to        │
+│ highlighting text — it's a pointing gesture, a "something here." It sits at the D-pole           │
+│ (Andeutung). The code application moves toward characterization. The comment toward              │
+│ specification. This gradient already exists implicitly in the text annotation system, but for    │
+│ images the methodological traditions make it explicit:                                           │
+│                                                                                                  │
+│ ┌───────────┬────────────────────────────────────┬────────────────────────────────────────────┐  │
+│ │ Tradition │     D-pole (cue/indeterminacy)     │    B-pole (specification/determination)    │  │
+│ ├───────────┼────────────────────────────────────┼────────────────────────────────────────────┤  │
+│ │ Panofsky  │ Pre-iconographic: "I see a raised  │ Iconological: "This signifies cultural     │  │
+│ │           │ hand"                              │ authority of..."                           │  │
+│ ├───────────┼────────────────────────────────────┼────────────────────────────────────────────┤  │
+│ │           │ Sehendes Sehen — iconic seeing     │                                            │  │
+│ │ Imdahl    │ resists specification. Composition │ Wiedererkennendes Sehen —                  │  │
+│ │           │  lines are tools for maintaining   │ recognizing/classifying what is depicted   │  │
+│ │           │ indeterminacy, not coding.         │                                            │  │
+│ ├───────────┼────────────────────────────────────┼────────────────────────────────────────────┤  │
+│ │           │                                    │ Reflecting interpretation (Wie) — but this │  │
+│ │ Bohnsack  │ Formulating interpretation (Was)   │  is not "more specified", it's a different │  │
+│ │           │                                    │  dimension (modus operandi/habitus)        │  │
+│ ├───────────┼────────────────────────────────────┼────────────────────────────────────────────┤  │
+│ │ Breckner  │ Each segment analysis opens        │ Cross-segment synthesis moves toward       │  │
+│ │           │ meaning — deliberately anti-B      │ characterization                           │  │
+│ ├───────────┼────────────────────────────────────┼────────────────────────────────────────────┤  │
+│ │ Serial    │ Individual image = cue             │ Cross-image pattern = specification        │  │
+│ │           │                                    │ through comparison                         │  │
+│ └───────────┴────────────────────────────────────┴────────────────────────────────────────────┘  │
+│                                                                                                  │
+│ Key implication for the tool: Imdahl's composition drawings (planimetric lines, perspective      │
+│ axes) are epistemologically different from Panofsky's region-coding. They are not annotations    │
+│ moving toward B — they are instruments for staying at D, for "seeing seeing." If we later build  │
+│ composition tools, they should NOT be stored as valence: 'codes' annotations but as a separate   │
+│ layer (perhaps valence: 'composition'), because they serve a fundamentally different             │
+│ epistemological function.                                                                        │
+│                                                                                                  │
+│ For Phase 1 (rectangle region coding), the D/B gradient is handled naturally:                    │
+│ - The region selection = cue (pointing gesture)                                                  │
+│ - Code application = characterization (naming what's there)                                      │
+│ - Comment = further specification                                                                │
+│ - The same region can receive multiple annotations at different D/B levels (multiple codes, each │
+│  a different designation in the chain)                                                           │
+│ - Different perspectives/maps can collapse differently — one analyst's Panofsky Level 1 reading, │
+│  another's Level 3                                                                               │
+│                                                                                                  │
+│ Clarke's SA as meta-framework: Clarke's situational mapping operates on a different level than   │
+│ the image-internal analysis methods. SA maps the situation (what elements, discourses, relations │
+│  does the image participate in?), while Panofsky/Imdahl/Bohnsack analyze the image internally.   │
+│ The platform supports both: image-internal annotations (region coding) feed into map-level       │
+│ elements (a code grounded in image evidence shows 📄 provenance on the canvas).                  │
+│                                                                                                  │
+│ Design principle: All approaches share the basic operation of marking and annotating image       │
+│ regions. The specialized tools (composition lines, segmentation, serial comparison) are          │
+│ extensions with distinct epistemological status. Phase 1 builds the foundation — region coding   │
+│ as characterization. Future composition tools must respect their distinct D-pole function.       │
+│                                                                                                  │
+│ Current State                                                                                    │
+│                                                                                                  │
+│ Backend: ready — createAnnotation() already accepts anchorType: 'image_region', anchor:          │
+│ Record<string, unknown>. No schema/API changes needed.                                           │
+│                                                                                                  │
+│ Frontend: placeholder — {#if isImage} shows [Image annotation — coming soon]. No image viewer,   │
+│ no region selection, no image serving endpoint.                                                  │
+│                                                                                                  │
+│ Missing pieces:                                                                                  │
+│ 1. Image serving endpoint (files stored on disk at uploads/{projectId}/{uuid}.ext but no route   │
+│ serves them)                                                                                     │
+│ 2. Image viewer component with zoom/pan                                                          │
+│ 3. Rectangle region selection interaction                                                        │
+│ 4. SVG overlay for annotation regions                                                            │
+│ 5. Sidebar unification (text selection OR image region → same code picker)                       │
+│                                                                                                  │
+│ Implementation                                                                                   │
+│                                                                                                  │
+│ Step 1: Image serving endpoint                                                                   │
+│                                                                                                  │
+│ New file: src/routes/api/projects/[projectId]/documents/[docId]/image/+server.ts                 │
+│                                                                                                  │
+│ // GET — stream the image file from disk                                                         │
+│ // Query document_content for file_path + mime_type                                              │
+│ // Validate mime_type starts with 'image/'                                                       │
+│ // Stream via fs.createReadStream → web ReadableStream                                           │
+│ // Set Content-Type, Cache-Control headers                                                       │
+│                                                                                                  │
+│ ~25 lines. Reuse queryOne from $lib/server/db/index.js.                                          │
+│                                                                                                  │
+│ Step 2: ImageAnnotationViewer component                                                          │
+│                                                                                                  │
+│ New file: src/lib/components/ImageAnnotationViewer.svelte                                        │
+│                                                                                                  │
+│ Structure:                                                                                       │
+│ <div class="image-viewer">              ← overflow:hidden, position:relative                     │
+│   <div class="image-container"          ← transformed by zoom/pan                                │
+│        style="transform: ...">                                                                   │
+│     <img src={imageUrl} onload={...} /> ← natural size                                           │
+│     <svg viewBox="0 0 1 1">             ← normalized coordinates overlay                         │
+│       {#each annotations}                                                                        │
+│         <rect ... fill={rgba(color,0.2)} stroke={color} />                                       │
+│       {/each}                                                                                    │
+│       {#if drawing}                                                                              │
+│         <rect ... stroke-dasharray="4 2" />  ← in-progress selection                             │
+│       {/if}                                                                                      │
+│     </svg>                                                                                       │
+│   </div>                                                                                         │
+│ </div>                                                                                           │
+│                                                                                                  │
+│ Interaction model (matching text annotation flow):                                               │
+│ 1. User drags on image → draws rectangle selection (dashed outline)                              │
+│ 2. Sidebar shows "Annotate" panel with code chips (identical to text flow)                       │
+│ 3. User clicks code → annotation created with anchorType: 'image_region'                         │
+│                                                                                                  │
+│ Coordinates: Normalized 0–1 range (resolution-independent). SVG viewBox="0 0 1 1" maps directly. │
+│                                                                                                  │
+│ Anchor structure:                                                                                │
+│ {                                                                                                │
+│   "anchorType": "image_region",                                                                  │
+│   "anchor": { "type": "rect", "x": 0.15, "y": 0.22, "width": 0.35, "height": 0.28 }              │
+│ }                                                                                                │
+│                                                                                                  │
+│ Zoom/pan: Reuse createViewport() from src/lib/canvas/viewport.svelte.ts. Alt-drag = pan, wheel = │
+│  zoom. Default drag = draw rectangle.                                                            │
+│                                                                                                  │
+│ ~180 lines.                                                                                      │
+│                                                                                                  │
+│ Step 3: Integrate into document viewer                                                           │
+│                                                                                                  │
+│ Modify: src/routes/projects/[projectId]/documents/[docId]/+page.svelte                           │
+│                                                                                                  │
+│ Changes:                                                                                         │
+│ - Replace {#if isImage} placeholder with <ImageAnnotationViewer>                                 │
+│ - Add regionSelection state (parallel to selection for text)                                     │
+│ - Unify sidebar: {#if selection || regionSelection} → show code chips                            │
+│ - Modify annotate() to dispatch on isImage:                                                      │
+│   - Text: anchorType: 'text', anchor: { pos0, pos1, text }                                       │
+│   - Image: anchorType: 'image_region', anchor: { type: 'rect', x, y, width, height }             │
+│ - Modify getSnippet() for image annotations: show "Region 35% × 28%" instead of text             │
+│ - Click annotation card → highlight corresponding region on image                                │
+│                                                                                                  │
+│ Step 4: Icons                                                                                    │
+│                                                                                                  │
+│ Copy from /home/joerissen/Downloads/icons_google/:                                               │
+│ - A suitable icon for "draw region" hint (e.g., crop or select_all)                              │
+│                                                                                                  │
+│ Files Summary                                                                                    │
+│                                                                                                  │
+│ ┌─────────────────────────────────────────────────┬────────────────────────────────────────────┐ │
+│ │                      File                       │                   Change                   │ │
+│ ├─────────────────────────────────────────────────┼────────────────────────────────────────────┤ │
+│ │ src/routes/api/.../image/+server.ts             │ NEW: Image serving endpoint (~25 lines)    │ │
+│ ├─────────────────────────────────────────────────┼────────────────────────────────────────────┤ │
+│ │ src/lib/components/ImageAnnotationViewer.svelte │ NEW: Image viewer + region selection (~180 │ │
+│ │                                                 │  lines)                                    │ │
+│ ├─────────────────────────────────────────────────┼────────────────────────────────────────────┤ │
+│ │ src/routes/.../documents/[docId]/+page.svelte   │ Integrate viewer, unify sidebar for        │ │
+│ │                                                 │ text+image                                 │ │
+│ ├─────────────────────────────────────────────────┼────────────────────────────────────────────┤ │
+│ │ src/lib/canvas/viewport.svelte.ts               │ Reused (no changes)                        │ │
+│ ├─────────────────────────────────────────────────┼────────────────────────────────────────────┤ │
+│ │ src/lib/server/db/queries/codes.ts              │ No changes (already supports image_region) │ │
+│ └─────────────────────────────────────────────────┴────────────────────────────────────────────┘ │
+│                                                                                                  │
+│ Verification                                                                                     │
+│                                                                                                  │
+│ 1. Upload an image (PNG/JPG) via the documents page                                              │
+│ 2. Open the image document → image displays with zoom/pan                                        │
+│ 3. Draw a rectangle on the image → sidebar shows "Annotate" with code chips                      │
+│ 4. Click a code → annotation created, colored rectangle overlay appears                          │
+│ 5. Multiple annotations with different codes → different colored overlays                        │
+│ 6. Delete annotation → overlay removed                                                           │
+│ 7. Zoom/pan → overlays stay aligned with image content                                           │
+│ 8. Reload page → annotations persist and render correctly                                        │
+│                                                                                                  │
+│ Future Extensions (not in scope)                                                                 │
+│                                                                                                  │
+│ - Composition lines (Imdahl/Bohnsack): Line/arrow drawing tool, stored with valence:             │
+│ 'composition' (NOT 'codes'). Epistemologically distinct — these are D-pole instruments for       │
+│ iconic seeing, not B-pole characterizations. Anchor: { type: 'line', points: [...] }.            │
+│ - Segmentation (Breckner): Masking overlay with sequential reveal. Each segment is a cue that    │
+│ deliberately opens meaning rather than closing it.                                               │
+│ - Serial comparison (Mietzner/Pilarczyk): Gallery view for cross-image pattern finding. The D→B  │
+│ movement happens across images, not within one.                                                  │
+│ - Polygon regions: anchor: { type: 'polygon', points: [...] } — click-to-add-point drawing. Same │
+│  epistemological status as rectangles (characterization).                                        │
+│ - Thumbnails: Generate via sharp at upload time, store in thumbnail_path.                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+● Let me start by reading the relevant existing files to understand the current state.
+
+● Searched for 1 pattern, read 3 files (ctrl+o to expand)
+
+● Let me read additional files to understand the document storage and API patterns.
+
+● Searched for 4 patterns, read 2 files (ctrl+o to expand)
+
+● Explore(Find document page.server.ts)
+  ⎿  Done (18 tool uses · 32.0k tokens · 38s)
+  (ctrl+o to expand)
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● Let me read the remaining key files.
+
+● Searched for 2 patterns, read 2 files (ctrl+o to expand)
+
+● Good. Now let me first propose a commit of the current state, then implement. Let me also check if
+   there's a highlight_alt icon which would be perfect for "draw region".
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● Bash(cd /home/joerissen/ai/transact-qda && git status --short)
+  ⎿  ?? docs/sessions/2026-03-10-10032343-transact-qda_session_07.txt
+
+● Clean working tree (just an untracked session doc). Let me search for one more icon option.
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● No crop icons available. I'll use draw — it's a good match for "draw a region." Now let me
+  implement everything.
+
+● Bash(cp "/home/joerissen/Downloads/icons_google/draw_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
+      "/home/joerissen/ai/transact-qda/static/icons/draw.svg")
+  ⎿  Done
+
+● Read 1 file (ctrl+o to expand)
+
+● Now let me create all the new files and modify the existing ones.
+
+● Bash(mkdir -p
+      "/home/joerissen/ai/transact-qda/src/routes/api/projects/[projectId]/documents/[docId]/image")
+  ⎿  Done
+
+● Write(src/routes/api/projects/[projectId]/documents/[docId]/image/+server.ts)
+  ⎿  Wrote 33 lines to src/routes/api/projects/[projectId]/documents/[docId]/image/+server.ts
+       1 import { error } from '@sveltejs/kit';
+       2 import type { RequestHandler } from './$types.js';
+       3 import { queryOne } from '$lib/server/db/index.js';
+       4 import { createReadStream } from 'node:fs';
+       5 import { stat } from 'node:fs/promises';
+       6 import { Readable } from 'node:stream';
+       7
+       8 export const GET: RequestHandler = async ({ params }) => {
+       9        const doc = await queryOne<{ file_path: string; mime_type: string }>(
+      10                `SELECT dc.file_path, dc.mime_type
+     … +23 lines (ctrl+o to expand)
+
+
+● Now the ImageAnnotationViewer component:
+
+● Write(src/lib/components/ImageAnnotationViewer.svelte)
+  ⎿  Wrote 304 lines to src/lib/components/ImageAnnotationViewer.svelte
+      1 <script lang="ts">
+      2         import { createViewport } from '$lib/canvas/viewport.svelte.js';
+      3
+      4         type Annotation = {
+      5                 id: string;
+      6                 code_id: string;
+      7                 properties?: { anchor?: { type: string; x: number; y: number; width: number;
+     height
+        : number } };
+      8                 code_properties?: { color?: string };
+      9         };
+     … +294 lines (ctrl+o to expand)
+
+● Now modify the document viewer page to integrate image annotation:
+
+● Read 1 file (ctrl+o to expand)
+
+● Now I'll rewrite the page with image annotation integrated:
+
+● Write(src/routes/projects/[projectId]/documents/[docId]/+page.svelte)
+  ⎿  Added 100 lines, removed 20 lines
+      1  <script lang="ts">
+      2    import { onMount } from 'svelte';
+      3 +  import ImageAnnotationViewer from '$lib/components/ImageAnnotationViewer.svelte'; 
+      4  
+      5    let { data } = $props();
+      6    const doc = $derived(data.document);
+     ...
+      10    let annotations = $state<any[]>([]);
+      11    $effect(() => { annotations = data.annotations; });
+      12  
+      12 -  // Selection state                                                               
+      13 +  // Text selection state                                                          
+      14    let selection = $state<{ pos0: number; pos1: number; text: string } | null>(null)
+          ;
+      15 +  // Image region selection state                                                  
+      16 +  let regionSelection = $state<{ x: number; y: number; width: number; height: numbe
+         +r } | null>(null);                                                                 
+      17 +                                                                                   
+      18    let comment = $state('');
+      19    let annotating = $state(false);
+      20  
+      17 -  // DOM refs                                                                      
+      21 +  // Annotation highlight on hover                                                 
+      22 +  let highlightedAnnotationId = $state<string | null>(null);                       
+      23 +                                                                                   
+      24 +  // Image viewer ref                                                              
+      25 +  let imageViewer = $state<{ clearRegion: () => void }>();                         
+      26 +                                                                                   
+      27 +  // Unified "has selection" check                                                 
+      28 +  const hasSelection = $derived(!!selection || !!regionSelection);                 
+      29 +                                                                                   
+      30 +  // DOM refs (text mode)                                                          
+      31    let textEl = $state<HTMLPreElement>();
+      32    let dynamicStyle = $state<HTMLStyleElement>();
+      33  
+     ...
+      143    });
+      144  
+      145    async function annotate(codeId: string) {
+      133 -    if (!selection) return;                                                       
+      146 +    if (!selection && !regionSelection) return;                                   
+      147      annotating = true;
+      135 -    const res = await fetch(`/api/projects/${data.projectId}/documents/${doc.id}/a
+          -nnotations`, {                                                                    
+      136 -      method: 'POST',                                                             
+      137 -      headers: { 'Content-Type': 'application/json' },                            
+      138 -      body: JSON.stringify({                                                      
+      148 +                                                                                  
+      149 +    const body = isImage                                                          
+      150 +      ? {                                                                         
+      151          codeId,
+      152 +        anchorType: 'image_region',                                               
+      153 +        anchor: { type: 'rect', ...regionSelection },                             
+      154 +        comment: comment.trim() || undefined                                      
+      155 +      }                                                                           
+      156 +      : {                                                                         
+      157 +        codeId,                                                                   
+      158          anchorType: 'text',
+      141 -        anchor: { pos0: selection.pos0, pos1: selection.pos1, text: selection.text
+          - },                                                                               
+      159 +        anchor: { pos0: selection!.pos0, pos1: selection!.pos1, text: selection!.t
+          +ext },                                                                            
+      160          comment: comment.trim() || undefined
+      143 -      })                                                                          
+      161 +      };                                                                          
+      162 +                                                                                  
+      163 +    const res = await fetch(`/api/projects/${data.projectId}/documents/${doc.id}/a
+          +nnotations`, {                                                                    
+      164 +      method: 'POST',                                                             
+      165 +      headers: { 'Content-Type': 'application/json' },                            
+      166 +      body: JSON.stringify(body)                                                  
+      167      });
+      168      if (res.ok) {
+      169        const annRes = await fetch(`/api/projects/${data.projectId}/documents/${doc.
+           id}/annotations`);
+      170        annotations = await annRes.json();
+      171        comment = '';
+      172 +      if (isImage) {                                                              
+      173 +        regionSelection = null;                                                   
+      174 +        imageViewer?.clearRegion();                                               
+      175 +      }                                                                           
+      176      }
+      177      annotating = false;
+      178    }
+     ...
+      186      }
+      187    }
+      188  
+      189 +  function cancelSelection() {                                                    
+      190 +    if (isImage) {                                                                
+      191 +      regionSelection = null;                                                     
+      192 +      imageViewer?.clearRegion();                                                 
+      193 +    } else {                                                                      
+      194 +      selection = null;                                                           
+      195 +      window.getSelection()?.removeAllRanges();                                   
+      196 +    }                                                                             
+      197 +    comment = '';                                                                 
+      198 +  }                                                                               
+      199 +                                                                                  
+      200    function getSnippet(ann: any): string {
+      201      const anchor = ann.properties?.anchor;
+      202      if (!anchor) return '';
+      203 +    // Image region annotation                                                    
+      204 +    if (anchor.type === 'rect') {                                                 
+      205 +      const w = Math.round(anchor.width * 100);                                   
+      206 +      const h = Math.round(anchor.height * 100);                                  
+      207 +      return `Region ${w}% \u00d7 ${h}%`;                                         
+      208 +    }                                                                             
+      209 +    // Text annotation                                                            
+      210      if (anchor.text) return anchor.text;
+      211      if (anchor.pos0 != null && anchor.pos1 != null && doc.full_text) {
+      212        return doc.full_text.slice(anchor.pos0, anchor.pos1);
+     ...
+      223      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      224      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+      225    }
+      226 +                                                                                  
+      227 +  function getSelectionPreview(): string {                                        
+      228 +    if (regionSelection) {                                                        
+      229 +      const w = Math.round(regionSelection.width * 100);                          
+      230 +      const h = Math.round(regionSelection.height * 100);                         
+      231 +      return `Region ${w}% \u00d7 ${h}%`;                                         
+      232 +    }                                                                             
+      233 +    if (selection) {                                                              
+      234 +      return `"${truncate(selection.text, 120)}"`;                                
+      235 +    }                                                                             
+      236 +    return '';                                                                    
+      237 +  }                                                                               
+      238  </script>
+      239  
+      240  <div class="doc-viewer">
+     ...
+      245    </div>
+      246  
+      247    <div class="doc-body">
+      191 -    <div class="text-panel">                                                      
+      248 +    <div class="content-panel" class:image-mode={isImage}>                        
+      249        {#if isImage}
+      193 -        <p class="placeholder">[Image annotation — coming soon]</p>               
+      250 +        <ImageAnnotationViewer                                                    
+      251 +          bind:this={imageViewer}                                                 
+      252 +          imageUrl="/api/projects/{data.projectId}/documents/{doc.id}/image"      
+      253 +          {annotations}                                                           
+      254 +          bind:highlightedAnnotationId                                            
+      255 +          onregionselect={(region) => { regionSelection = region; }}              
+      256 +        />                                                                        
+      257        {:else if doc.full_text}
+      258          <!-- svelte-ignore a11y_no_static_element_interactions -->
+      259          <pre class="document-text" bind:this={textEl} onmouseup={handleMouseUp}>{d
+           oc.full_text}</pre>
+     ...
+      263      </div>
+      264  
+      265      <div class="code-panel">
+      203 -      {#if selection}                                                             
+      266 +      {#if hasSelection}                                                          
+      267          <div class="selection-section">
+      268            <div class="section-header">
+      269              <h3>
+      207 -              <img src="/icons/ink_highlighter.svg" alt="" class="section-icon" />
+      270 +              <img src="/icons/{isImage ? 'draw' : 'ink_highlighter'}.svg" alt="" 
+          +class="section-icon" />                                                           
+      271                Annotate
+      272              </h3>
+      210 -            <button class="btn-cancel" onclick={() => { selection = null; comment 
+          -= ''; window.getSelection()?.removeAllRanges(); }}>                               
+      273 +            <button class="btn-cancel" onclick={cancelSelection}>                 
+      274                Cancel
+      275              </button>
+      276            </div>
+      214 -          <div class="selection-preview">"{truncate(selection.text, 120)}"</div>  
+      277 +          <div class="selection-preview">{getSelectionPreview()}</div>            
+      278  
+      279            {#if codes.length === 0}
+      280              <p class="empty">No codes yet. <a href="/projects/{data.projectId}/cod
+           es">Create codes</a> first.</p>
+     ...
+      302          </div>
+      303        {:else}
+      304          <div class="hint">
+      242 -          <img src="/icons/ink_highlighter.svg" alt="" class="section-icon" />    
+      243 -          <span>Select text to annotate</span>                                    
+      305 +          <img src="/icons/{isImage ? 'draw' : 'ink_highlighter'}.svg" alt="" clas
+          +s="section-icon" />                                                               
+      306 +          <span>{isImage ? 'Draw a region to annotate' : 'Select text to annotate'
+          +}</span>                                                                          
+      307          </div>
+      308        {/if}
+      309  
+     ...
+      313            <p class="empty">No annotations yet.</p>
+      314          {:else}
+      315            {#each annotations as ann (ann.id)}
+      253 -            <div class="annotation-card">                                         
+      316 +            <!-- svelte-ignore a11y_no_static_element_interactions -->            
+      317 +            <div                                                                  
+      318 +              class="annotation-card"                                             
+      319 +              class:ann-highlighted={highlightedAnnotationId === ann.id}          
+      320 +              onmouseenter={() => { highlightedAnnotationId = ann.id; }}          
+      321 +              onmouseleave={() => { highlightedAnnotationId = null; }}            
+      322 +            >                                                                     
+      323                <div class="ann-header">
+      324                  <span class="color-dot" style="background: {ann.code_properties?.c
+           olor || '#8b9cf7'}"></span>
+      325                  <span class="code-name">{ann.code_label}</span>
+      326                  <button class="btn-remove" title="Delete annotation" onclick={() =
+           > deleteAnnotation(ann.id)}>&times;</button>
+      327                </div>
+      328                {#if getSnippet(ann)}
+      260 -                <div class="ann-text">"{truncate(getSnippet(ann), 80)}"</div>     
+      329 +                <div class="ann-text">{getSnippet(ann)}</div>                     
+      330                {/if}
+      331                {#if ann.properties?.comment}
+      332                  <div class="ann-comment">{ann.properties.comment}</div>
+     ...
+      348  
+      349    .doc-body { display: flex; gap: 1rem; flex: 1; min-height: 0; }
+      350  
+      282 -  .text-panel {                                                                   
+      351 +  .content-panel {                                                                
+      352      flex: 1;
+      353      background: #161822;
+      354      border: 1px solid #2a2d3a;
+     ...
+      357      overflow-y: auto;
+      358    }
+      359  
+      360 +  .content-panel.image-mode {                                                     
+      361 +    padding: 0;                                                                   
+      362 +    overflow: hidden;                                                             
+      363 +  }                                                                               
+      364 +                                                                                  
+      365    .document-text {
+      366      white-space: pre-wrap;
+      367      word-break: break-word;
+     ...
+      510      border-radius: 6px;
+      511      padding: 0.5rem 0.6rem;
+      512      margin-bottom: 0.4rem;
+      513 +    transition: border-color 0.15s;                                               
+      514 +    cursor: default;                                                              
+      515    }
+      516  
+      517 +  .annotation-card.ann-highlighted {                                              
+      518 +    border-color: #8b9cf7;                                                        
+      519 +  }                                                                               
+      520 +                                                                                  
+      521    .ann-header {
+      522      display: flex;
+      523      align-items: center;
+
+● Now let me verify the build works:
+
+● Bash(npx svelte-check --tsconfig ./tsconfig.json 2>&1 | tail -30)
+  ⎿  1773183101550 ERROR "src/routes/api/upload/+server.ts" 19:17 "Cannot find name 'Buffer'. D
+     o you need to install type definitions for node? Try `npm i --save-dev @types/node`."
+     1773183101550 ERROR "src/routes/projects/+page.server.ts" 22:30 "Parameter 'r' implicitly
+     … +59 lines (ctrl+o to expand)
+
+● The errors are all pre-existing (Buffer type, maps page issues). No new errors from my changes.
+  Let me verify with a more targeted check:
+
+● Bash(npx svelte-check --tsconfig ./tsconfig.json 2>&1 | grep -E
+      "(ImageAnnotationViewer|documents/\[docId\]/\+page|image/\+server)" | head -20)
+  ⎿  1773183110671 ERROR "src/routes/api/projects/[projectId]/documents/[docId]/image/+server.t
+     s" 4:34 "Cannot find module 'node:fs' or its corresponding type declarations."
+     1773183110671 ERROR "src/routes/api/projects/[projectId]/documents/[docId]/image/+server.t
+     … +9 lines (ctrl+o to expand)
+
+● The node:fs errors are the same pre-existing @types/node issue (same as the Buffer error in
+  upload). The warnings are cosmetic a11y notes (the <pre> warning existed before). Let me check how
+   the upload server handles this:
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● The existing codebase uses node:fs/promises and node:crypto in $lib/server/ files without issue at
+   runtime — the type errors are just svelte-check not having @types/node in scope. Same pattern as
+  the Buffer issue. No actual problem.
+
+  Let me do a quick Vite build check to confirm it compiles:
+
+● Bash(npx vite build 2>&1 | tail -15)
+  ⎿  .svelte-kit/output/server/entries/pages/projects/_projectId_/documents/_docId_/_page.svelt
+     e.js                      8.36 kB
+     .svelte-kit/output/server/chunks/maps.js
+     … +14 lines (ctrl+o to expand)
+  ⎿  (timeout 1m)
+
+● Build succeeds. Let me now review the implementation for any issues:
+
+● bughunter(Review image annotation code)
+  ⎿  Done (23 tool uses · 31.5k tokens · 1m 10s)
+  (ctrl+o to expand)
+
+● Good findings. Let me fix the real issues: the drawStart clamping bug and the wheel zoom cleanup.
+  The error handling style (error() vs json()) is fine for the image endpoint since it serves binary
+   content, not JSON API responses — browsers expect HTTP errors, not JSON bodies, when loading <img
+   src="...">.
+
+● Read 1 file (ctrl+o to expand)
+
+● Now fix the two issues:
+
+● Update(src/lib/components/ImageAnnotationViewer.svelte)
+  ⎿  Added 5 lines, removed 2 lines
+      88      if (norm.x < 0 || norm.x > 1 || norm.y < 0 || norm.y > 1) return;
+      89  
+      90      drawing = true;
+      91 -    drawStart = norm;                                                              
+      92 -    drawCurrent = norm;                                                            
+      91 +    drawStart = {                                                                  
+      92 +      x: Math.max(0, Math.min(1, norm.x)),                                         
+      93 +      y: Math.max(0, Math.min(1, norm.y))                                          
+      94 +    };                                                                             
+      95 +    drawCurrent = drawStart;                                                       
+      96      currentRegion = null;
+      97      onregionselect(null);
+      98      e.preventDefault();
+
+● Update(src/lib/components/ImageAnnotationViewer.svelte)
+  ⎿  Added 3 lines, removed 3 lines
+      151      if (!containerEl) return;
+      152      e.preventDefault();
+      153      const rect = containerEl.getBoundingClientRect();
+      154 -    const cx = (e.clientX - rect.left) / vp.zoom - vp.x;                          
+      155 -    const cy = (e.clientY - rect.top) / vp.zoom - vp.y;                           
+      154 +    const cx = (e.clientX - rect.left) / vp.zoom;                                 
+      155 +    const cy = (e.clientY - rect.top) / vp.zoom;                                  
+      156      const factor = e.deltaY < 0 ? 1.1 : 0.9;
+      157 -    vp.zoomAt(factor, cx + vp.x, cy + vp.y);                                      
+      157 +    vp.zoomAt(factor, cx, cy);                                                    
+      158    }
+      159  
+      160    function clearRegion() {
+
+● Let me verify the final build one more time:
+
+● Bash(npx vite build 2>&1 | tail -5)
+  ⎿  Run npm run preview to preview your production build locally.
+
+     > Using @sveltejs/adapter-node
+       ✔ done
+  ⎿  (timeout 1m)
+
+● Build passes. Here's a summary of what was implemented:
+
+  Files created
+
+  - src/routes/api/projects/[projectId]/documents/[docId]/image/+server.ts — Image serving endpoint.
+   Streams the image file from disk with proper Content-Type, validates it's an image document and
+  belongs to the project.
+  - src/lib/components/ImageAnnotationViewer.svelte — Image viewer with zoom/pan (reuses
+  createViewport()) and rectangle region drawing. SVG overlay with viewBox="0 0 1 1" for
+  resolution-independent normalized coordinates. Alt+drag/middle-click = pan, scroll = zoom, default
+   drag = draw selection rectangle.
+  - static/icons/draw.svg — Google Material Icon for the "draw region" hint.
+
+  Files modified
+
+  - src/routes/projects/[projectId]/documents/[docId]/+page.svelte — Replaced the [Image annotation
+  — coming soon] placeholder with <ImageAnnotationViewer>. Unified the sidebar so both text
+  selections and image region selections show the same "Annotate" panel with code chips. annotate()
+  dispatches on isImage to send either text or image_region anchor type. getSnippet() shows "Region
+  35% × 28%" for image annotations. Annotation cards highlight the corresponding image region on
+  hover.
+
+  Key design decisions
+
+  - Normalized 0–1 coordinates stored in anchor ({ type: 'rect', x, y, width, height }) —
+  resolution-independent
+  - Same API endpoint — no backend changes needed, createAnnotation() already accepts image_region
+  - Zoom/pan via existing createViewport() — consistent with the canvas map system
+  - Drawing boundary clamped to [0,1] so regions can't extend outside the image
+
+✻ Brewed for 6m 21s
+
+❯ commit 
+
+● Bash(git status --short)
+  ⎿   M src/routes/projects/[projectId]/documents/[docId]/+page.svelte
+     ?? docs/sessions/2026-03-10-10032343-transact-qda_session_07.txt
+     ?? src/lib/components/
+     … +2 lines (ctrl+o to expand)
+
+● Bash(git diff)
+  ⎿  diff --git a/src/routes/projects/[projectId]/documents/[docId]/+page.svelte b/src/routes/p
+     rojects/[projectId]/documents/[docId]/+page.svelte
+     index d176fc7..cd537d8 100644
+     … +83 lines (ctrl+o to expand)
+
+● Bash(git log --oneline -5)
+  ⎿  718d7d9 Add development log documenting all sessions and features
+     0fb6b20 added session 06 log
+     d2c7774 Add interactive document text annotation with CSS Custom Highlight API
+     … +2 lines (ctrl+o to expand)
+
+● Bash(git add src/lib/components/ImageAnnotationViewer.svelte
+      src/routes/api/projects/\[projectId\]/documents/\[docId\]/image/+server.ts
+      src/routes/projects/\[project…)
+  ⎿  (No output)
+
+● Bash(git commit -m "$(cat <<'EOF'
+      Add image region annotation with rectangle selection and SVG overlay…)
+  ⎿  [main 45b6f29] Add image region annotation with rectangle selection and SVG overlay
+      4 files changed, 441 insertions(+), 20 deletions(-)
+      create mode 100644 src/lib/components/ImageAnnotationViewer.svelte
+     … +2 lines (ctrl+o to expand)
+
+● Bash(git status --short)
+  ⎿  ?? docs/sessions/2026-03-10-10032343-transact-qda_session_07.txt
+
+● Committed as 45b6f29. Only the untracked session doc remains (not part of this feature).
+
+────────────────────────────────────────────────────────────────────────────────────────────── ▪▪▪ ─
+❯  
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ accept edits on (shift+tab to cycle)                                                         
+
+
+❯ very good start. should a new session plan the implementation of visual analysis                  
+  methodologies?                                                                                  
+                                                                                                    
+● No — the methodological landscape in the plan is context for design decisions, not a feature    
+  roadmap. The plan already drew the right boundary: Phase 1 is rectangle region coding as
+  characterization (shared foundation across all traditions). The specialized tools (composition    
+  lines, segmentation, serial comparison) are explicitly marked as future extensions with distinct
+  epistemological status.                                                                           
+                                                            
+  What's worth doing next is testing and polishing what we just built:                              
+   
+  1. Verify the full flow — upload an image, open it, draw regions, apply codes, reload             
+  2. Edge cases — very large images, small regions, many overlapping annotations
+  3. UX polish — does the crosshair cursor feel right? Is the zoom/pan discoverable enough? Does the
+   sidebar feel natural for image vs text?                                                          
+                                                                                                    
+  The methodological extensions (Imdahl's composition lines as valence: 'composition', Breckner's   
+  segmentation, serial comparison gallery) should emerge from actual use — when a researcher hits
+  the wall of what rectangles can express, that's when the need becomes concrete rather than        
+  speculative.                                              
+
+                                                                                              
+❯ Now how about AI-assisted visual analysis.                                                        
+                                                                                                  
+● This is a design question worth thinking through before coding. Let me check the current AI agent 
+  architecture.                                                                                     
+                                                                                                    
+● Read 4 files (ctrl+o to expand)                                                                   
+                                                                                                    
+● Now I have the full picture. Here's my assessment:                                                
+                                                                                                    
+  The existing AI agent works at the map level — it sees the situational map structure (elements,   
+  relations, silences) and responds to researcher actions with naming acts. It has no access to     
+  document content, images, or annotations.                                                         
+                                                                                                    
+  AI-assisted visual analysis would operate at a different level — the document/image level, where  
+  the AI sees the image and helps with the coding process. This is architecturally distinct from the
+   map agent.                                                                                       
+                                                                                                    
+  Key design considerations:                                                                        
+                                                                                                    
+  What makes sense now:                                                                             
+  - A describe_image or suggest_annotations capability that sends the image (via multimodal API)    
+  along with existing annotations, codes, and the researcher's analytical context                   
+  - The AI produces cues — suggested regions + suggested codes — that the researcher                
+  accepts/modifies/rejects                                                          
+  - Same D/B gradient: AI suggestions start as cues in the designation process                      
+                                                                                                    
+  What's tricky:                                                              
+  - The chat() client currently takes string messages only — no multimodal content blocks (images). 
+  Both Anthropic and OpenAI APIs support them, but the abstraction doesn't                          
+  - Token cost: sending a full image per analysis call is expensive. The 94MB Mona Lisa would need  
+  to be resized before sending                                                                      
+  - The epistemological question: should the AI see the whole image and suggest regions, or should  
+  the researcher select a region first and ask the AI to help characterize it? These are very       
+  different workflows:                                                                            
+    - "What do you see?" (AI scans whole image → suggests regions + codes) — more Panofsky-style    
+  (layered reading)                                                                             
+    - "What is this?" (researcher selects region → AI helps code it) — more like a focused          
+  characterization assist                                                                           
+    - Both are valid, but they need different UX triggers                                 
+                                                                                                    
+  What I'd propose as Phase 1 of AI visual analysis:        
+  1. Extend chat() to support multimodal content (image blocks)                                     
+  2. Add a "Ask AI" button on the image viewer that sends the image + existing annotations + codes →
+   AI suggests additional regions/codes                                                             
+  3. AI suggestions appear as dashed overlay rects (distinct from researcher annotations) that the  
+  researcher can accept/dismiss                                                                     
+  4. Same cue provenance: aiSuggested: true in annotation properties                              
+                                                                                                    
+  Should I plan this in detail, or do you want to steer the epistemological/UX direction first?
+  
+  -> Aufgeschoben, weil zunächst der Status von "Codes" v.s "cues" im System geklärt und bereinigt werden muss.
