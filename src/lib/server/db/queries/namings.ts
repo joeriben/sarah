@@ -1,5 +1,6 @@
 import { query, queryOne, transaction } from '../index.js';
 import type { CollapseMode } from '$lib/shared/types/index.js';
+import { createMemo } from './memos.js';
 
 // ---- Researcher-naming: the user as naming in the data space ----
 
@@ -462,6 +463,36 @@ export async function mergeNamings(
 		}
 
 		const mergedInscription = merged.rows[0].inscription;
+		const survivorInscription = survivor.rows[0].inscription;
+
+		// Collect details about the merged naming BEFORE surgery
+		const mergedDesignation = await client.query(
+			`SELECT designation FROM naming_acts
+			 WHERE naming_id = $1 AND designation IS NOT NULL
+			 ORDER BY seq DESC LIMIT 1`,
+			[mergedId]
+		);
+		const mergedParts = await client.query(
+			`SELECT n.inscription as partner_inscription
+			 FROM participations p
+			 JOIN namings n ON n.id = CASE
+			   WHEN p.naming_id = $1 THEN p.participant_id
+			   ELSE p.naming_id END
+			 JOIN namings pn ON pn.id = p.id AND pn.deleted_at IS NULL
+			 WHERE (p.naming_id = $1 OR p.participant_id = $1)
+			   AND n.deleted_at IS NULL AND n.id != $1`,
+			[mergedId]
+		);
+		const mergedMaps = await client.query(
+			`SELECT m.inscription as map_label
+			 FROM appearances a
+			 JOIN namings m ON m.id = a.perspective_id AND m.deleted_at IS NULL
+			 WHERE a.naming_id = $1 AND a.naming_id != a.perspective_id
+			   AND EXISTS (SELECT 1 FROM appearances self
+			     WHERE self.naming_id = m.id AND self.perspective_id = m.id
+			       AND self.mode = 'perspective' AND self.properties ? 'mapType')`,
+			[mergedId]
+		);
 
 		// 1. Transfer participations (as endpoint)
 		// Update naming_id where merged is the first endpoint
@@ -539,11 +570,31 @@ export async function mergeNamings(
 			[mergedId]
 		);
 
+		// 7. Create a memo documenting the merge (linked to survivor)
+		const desig = mergedDesignation.rows[0]?.designation || 'cue';
+		const partners = mergedParts.rows.map((r: any) => r.partner_inscription).join(', ');
+		const maps = mergedMaps.rows.map((r: any) => r.map_label).join(', ');
+		const memoLines = [
+			`Merged "${mergedInscription}" into "${survivorInscription}".`,
+			``,
+			`Absorbed naming:`,
+			`- Inscription: ${mergedInscription}`,
+			`- Designation: ${desig}`,
+			partners ? `- Participations with: ${partners}` : `- No participations`,
+			maps ? `- Appeared on: ${maps}` : `- Not on any map`,
+		];
+		// createMemo needs userId (not researcherNamingId) and runs its own transaction,
+		// so we do it after the main transaction commits.
+		// Store the memo content for post-commit creation.
+		const memoContent = memoLines.join('\n');
+
 		return {
 			survivorId,
 			mergedId,
 			mergedInscription,
-			survivorInscription: survivor.rows[0].inscription
+			survivorInscription,
+			_memoContent: memoContent,
+			_userId: userId,
 		};
 	});
 }

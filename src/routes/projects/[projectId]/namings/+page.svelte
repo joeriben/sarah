@@ -103,7 +103,7 @@
 	// ---- Escape key handler ----
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
-			if (mergeSurvivorId) { mergeSurvivorId = null; e.preventDefault(); return; }
+			if (mergeSurvivorId) { cancelMerge(); e.preventDefault(); return; }
 			if (actTarget) { cancelAct(); e.preventDefault(); return; }
 			if (reifyNamingId) { cancelReify(); e.preventDefault(); return; }
 			if (relateSource || relateTarget) { cancelRelate(); e.preventDefault(); return; }
@@ -318,19 +318,33 @@
 	}
 
 	// ---- Merge ----
+	let mergeTargetId = $state<string | null>(null);
+
 	function startMerge(survivorId: string) {
 		mergeSurvivorId = survivorId;
+		mergeTargetId = null;
 	}
 
-	async function completeMerge(mergedId: string) {
+	function selectMergeTarget(mergedId: string) {
 		if (!mergeSurvivorId || mergedId === mergeSurvivorId) return;
-		const result = await apiAction('merge', { survivorId: mergeSurvivorId, mergedId });
+		mergeTargetId = mergedId;
+	}
+
+	async function confirmMerge() {
+		if (!mergeSurvivorId || !mergeTargetId) return;
+		const result = await apiAction('merge', { survivorId: mergeSurvivorId, mergedId: mergeTargetId });
 		if (result.error) {
 			alert(result.error);
 		}
 		mergeSurvivorId = null;
+		mergeTargetId = null;
 		const module = await import('$app/navigation');
 		module.invalidateAll();
+	}
+
+	function cancelMerge() {
+		mergeSurvivorId = null;
+		mergeTargetId = null;
 	}
 
 	// ---- Mode switching ----
@@ -483,8 +497,16 @@
 	{#if mergeSurvivorId}
 		{@const survNaming = findNaming(mergeSurvivorId)}
 		<div class="relate-banner merge-banner">
-			Merge into <strong>{survNaming?.current_inscription || survNaming?.inscription}</strong> — click the naming to absorb
-			<button class="btn-xs" onclick={() => mergeSurvivorId = null}>cancel</button>
+			{#if mergeTargetId}
+				{@const tgtNaming = findNaming(mergeTargetId)}
+				Merge <strong>"{tgtNaming?.current_inscription || tgtNaming?.inscription}"</strong> into <strong>"{survNaming?.current_inscription || survNaming?.inscription}"</strong>?
+				All participations, appearances, and annotations transfer to the survivor.
+				<button class="btn-xs btn-confirm" onclick={confirmMerge}>merge</button>
+				<button class="btn-xs" onclick={cancelMerge}>cancel</button>
+			{:else}
+				Merge into <strong>"{survNaming?.current_inscription || survNaming?.inscription}"</strong> — click the naming to absorb
+				<button class="btn-xs" onclick={cancelMerge}>cancel</button>
+			{/if}
 		</div>
 	{/if}
 
@@ -548,7 +570,7 @@
 					{@const withdrawn = isWithdrawn(n.naming_id, n.properties)}
 					<div class="naming-card" class:withdrawn class:relate-target={(relateSource && relateSource !== n.naming_id) || (reifyNamingId && reifyNamingId !== n.naming_id)} class:merge-target={mergeSurvivorId && mergeSurvivorId !== n.naming_id} class:merge-survivor={mergeSurvivorId === n.naming_id}
 						onclick={() => {
-							if (mergeSurvivorId && mergeSurvivorId !== n.naming_id) { completeMerge(n.naming_id); return; }
+							if (mergeSurvivorId && mergeSurvivorId !== n.naming_id) { selectMergeTarget(n.naming_id); return; }
 							if (relateSource && !relateTarget && relateSource !== n.naming_id) { startRelate(n.naming_id); return; }
 							if (reifyNamingId && reifyNamingId !== n.naming_id) {
 								if (!reifySourceId) { reifyPickSource(n.naming_id); return; }

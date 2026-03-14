@@ -171,7 +171,21 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			if (survivorId === mergedId) return json({ error: 'Cannot merge a naming with itself' }, { status: 400 });
 			try {
 				const result = await mergeNamings(projectId, userId, survivorId, mergedId);
-				return json(result);
+				// Create memo after transaction (createMemo runs its own transaction)
+				if (result._memoContent) {
+					await createMemo(
+						projectId, userId,
+						`Merge: ${result.mergedInscription} → ${result.survivorInscription}`,
+						result._memoContent,
+						[result.survivorId]
+					);
+				}
+				return json({
+					survivorId: result.survivorId,
+					mergedId: result.mergedId,
+					mergedInscription: result.mergedInscription,
+					survivorInscription: result.survivorInscription
+				});
 			} catch (error) {
 				const msg = error instanceof Error ? error.message : String(error);
 				return json({ error: msg }, { status: 400 });
