@@ -331,6 +331,28 @@ Core principle: the fundamental unit is the event (naming/relating act), not the
 
 ---
 
+## Session 14b — 2026-03-15
+
+**Focus**: Interactive resize and rotation for SWA formation elements
+
+- **Resize handles**: 4 cardinal handles (N/S/E/W) appear when a formation is selected; drag to change rx/ry
+- **Rotation handle**: stem + circle above north edge; custom rotation cursor icon on hover/drag
+- **Shift modifiers**: Shift+resize locks aspect ratio (proportional scaling); Shift+rotate snaps to 15° increments
+- Rotation applied via SVG `<g transform="rotate(...)">` — no CSS transform conflicts
+- Resize/rotate deltas corrected for viewport zoom and current rotation angle (2D rotation matrix)
+- Generic `updateProperties` API action: merges arbitrary props into `appearances.properties` JSONB — reusable beyond formations
+- **Svelte 5 event delegation workaround**: SVG handle events use native `addEventListener` via Svelte actions (`use:resizeHandle`, `use:rotateHandle`) + `stopImmediatePropagation` to prevent CanvasElement drag from intercepting handle interactions
+
+| Commit | Description |
+|--------|-------------|
+| `e8fd4d9` | Add resize and rotation handles for SWA formation elements |
+| `e38783c` | Fix handles: window-level listeners instead of SVG pointer capture |
+| `ad8aa77` | Fix handles: Svelte actions with native listeners to bypass delegation |
+| `c67e853` | Improve rotation handle: larger hit area and rotation cursor icon |
+| `68a2390` | Add Shift+drag for proportional resize |
+
+---
+
 ## Bugfixes — 2026-03-15
 
 | Commit | Description |
