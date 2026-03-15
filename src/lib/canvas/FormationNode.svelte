@@ -62,6 +62,9 @@
 	const fillColor = $derived(style.fillOpacity > 0 ? color : 'transparent');
 	const fillOp = $derived(style.fillOpacity);
 
+	// Custom rotation cursor (SVG data URI)
+	const rotateCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8'/%3E%3Cpath d='M21 3v5h-5'/%3E%3C/svg%3E") 12 12, crosshair`;
+
 	// --- Svelte action: attach native pointerdown to SVG elements (bypasses Svelte 5 delegation) ---
 	function resizeHandle(node: SVGElement, dir: 'e' | 'w' | 's' | 'n') {
 		function handler(e: PointerEvent) {
@@ -89,6 +92,7 @@
 			const centerX = rect.left + rect.width / 2;
 			const centerY = rect.top + topExtra * zoom / 2 + (rect.height - topExtra * zoom) / 2;
 			rotStartAngle = Math.atan2(e.clientX - centerX, -(e.clientY - centerY)) * 180 / Math.PI;
+			document.body.style.cursor = rotateCursor;
 			window.addEventListener('pointermove', onRotateMove);
 			window.addEventListener('pointerup', onRotateUp);
 		}
@@ -145,6 +149,7 @@
 
 	function onRotateUp() {
 		isRotating = false;
+		document.body.style.cursor = '';
 		window.removeEventListener('pointermove', onRotateMove);
 		window.removeEventListener('pointerup', onRotateUp);
 		onrotateend?.(Math.round(localRotation * 10) / 10);
@@ -249,12 +254,22 @@
 					opacity="0.5"
 					style="pointer-events: none;"
 				/>
+				<!-- Invisible larger hit area -->
+				<circle
+					cx={cx} cy={cy - localRy - rotStemLen}
+					r="14"
+					fill="transparent"
+					stroke="none"
+					class="handle"
+					style="cursor: {rotateCursor};"
+					use:rotateHandle
+				/>
+				<!-- Visible rotation handle -->
 				<circle
 					cx={cx} cy={cy - localRy - rotStemLen}
 					r="7"
-					class="handle rotate-handle"
-					style="cursor: grab;"
-					use:rotateHandle
+					class="rotate-handle"
+					style="pointer-events: none;"
 				/>
 			{/if}
 		</g>
