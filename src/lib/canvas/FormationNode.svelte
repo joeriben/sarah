@@ -112,14 +112,20 @@
 		const dxLocal = dxScreen * Math.cos(rad) - dyScreen * Math.sin(rad);
 		const dyLocal = dxScreen * Math.sin(rad) + dyScreen * Math.cos(rad);
 
+		const aspect = resizeStart.rx / resizeStart.ry;
+
 		if (resizeDirection === 'e') {
 			localRx = Math.max(40, resizeStart.rx + dxLocal);
+			if (e.shiftKey) localRy = Math.max(30, localRx / aspect);
 		} else if (resizeDirection === 'w') {
 			localRx = Math.max(40, resizeStart.rx - dxLocal);
+			if (e.shiftKey) localRy = Math.max(30, localRx / aspect);
 		} else if (resizeDirection === 's') {
 			localRy = Math.max(30, resizeStart.ry + dyLocal);
+			if (e.shiftKey) localRx = Math.max(40, localRy * aspect);
 		} else {
 			localRy = Math.max(30, resizeStart.ry - dyLocal);
+			if (e.shiftKey) localRx = Math.max(40, localRy * aspect);
 		}
 	}
 
