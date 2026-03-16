@@ -1,6 +1,7 @@
 // ELK-based automatic layout for map namings.
 // Converts map data → ELK graph → computes positions → returns position map.
-// Relations are modeled as intermediate nodes (first-class objects, not edges).
+// ELK positions entities and silences; relation nodes are placed at the midpoint
+// of their endpoints after layout.
 
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk-api';
@@ -43,7 +44,7 @@ function estimateWidth(text: string): number {
 
 // Build an ELK graph from map data.
 // Elements → full-size nodes
-// Relations → small intermediate nodes with edges to their participants
+// Relations → edges between endpoints (nodes placed post-layout at midpoints)
 // Silences → peripheral nodes
 function buildElkGraph(
 	elements: LayoutNode[],
@@ -71,9 +72,6 @@ function buildElkGraph(
 		graph.layoutOptions!['elk.stress.desiredEdgeLength'] = '250';
 	}
 
-	// Track which naming_ids are elements vs relations (for meta-relation detection)
-	const relationIds = new Set(relations.map(r => r.naming_id));
-
 	// Build set of all node IDs in this graph (for orphan edge detection)
 	const allNodeIds = new Set<string>();
 
@@ -92,42 +90,19 @@ function buildElkGraph(
 		allNodeIds.add(s.naming_id);
 	}
 
-	// Relations as intermediate nodes + edges to participants
-	// Skip edges whose endpoints aren't on this map (partial perspective)
+	// Relations: add edges directly between their endpoints (source→target)
+	// so ELK considers connectivity for entity placement, but don't add
+	// relation nodes — those get midpoint-placed after layout.
 	for (const rel of relations) {
-		const relNodeId = `rel:${rel.naming_id}`;
-		const relWidth = rel.inscription ? estimateWidth(rel.inscription) : 36;
-
-		allNodeIds.add(relNodeId);
-		graph.children!.push({
-			id: relNodeId,
-			width: relWidth,
-			height: 36,
-		});
-
 		const sourceId = rel.directed_from || rel.part_source_id;
 		const targetId = rel.directed_to || rel.part_target_id;
 
-		if (sourceId) {
-			// If source is a relation, point to its intermediate node
-			const srcElkId = relationIds.has(sourceId) ? `rel:${sourceId}` : sourceId;
-			// Only add edge if the source node exists in this graph
-			if (allNodeIds.has(srcElkId)) {
+		if (sourceId && targetId) {
+			if (allNodeIds.has(sourceId) && allNodeIds.has(targetId)) {
 				graph.edges!.push({
-					id: `e:${rel.naming_id}:in`,
-					sources: [srcElkId],
-					targets: [relNodeId]
-				} as ElkExtendedEdge);
-			}
-		}
-
-		if (targetId) {
-			const tgtElkId = relationIds.has(targetId) ? `rel:${targetId}` : targetId;
-			if (allNodeIds.has(tgtElkId)) {
-				graph.edges!.push({
-					id: `e:${rel.naming_id}:out`,
-					sources: [relNodeId],
-					targets: [tgtElkId]
+					id: `e:${rel.naming_id}`,
+					sources: [sourceId],
+					targets: [targetId]
 				} as ElkExtendedEdge);
 			}
 		}
@@ -230,14 +205,23 @@ export async function computeLayout(
 	const positions = collectPositions(layouted, 0, 0);
 	const edges = collectEdges(layouted, 0, 0);
 
-	// Map relation node IDs back: "rel:xxx" → "xxx"
-	const normalizedPositions = new Map<string, LayoutPosition>();
-	for (const [id, pos] of positions) {
-		const normalId = id.startsWith('rel:') ? id.slice(4) : id;
-		normalizedPositions.set(normalId, pos);
+	// Place relation nodes at midpoint of their endpoints
+	for (const rel of relations) {
+		const sourceId = rel.directed_from || rel.part_source_id;
+		const targetId = rel.directed_to || rel.part_target_id;
+		const srcPos = sourceId ? positions.get(sourceId) : undefined;
+		const tgtPos = targetId ? positions.get(targetId) : undefined;
+		if (srcPos && tgtPos) {
+			positions.set(rel.naming_id, {
+				x: (srcPos.x + tgtPos.x) / 2,
+				y: (srcPos.y + tgtPos.y) / 2,
+				width: rel.inscription ? estimateWidth(rel.inscription) : 36,
+				height: 36
+			});
+		}
 	}
 
-	return { positions: normalizedPositions, edges };
+	return { positions, edges };
 }
 
 // Radial layout centered on a selected naming.

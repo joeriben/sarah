@@ -32,14 +32,14 @@
 	const selection = createSelection();
 
 	let viewMode = $state<'canvas' | 'list'>('list');
-	let showConnections = $state(true);
+	let displayMode = $state<'entities' | 'relations' | 'full'>('full');
 	let listGroupBy = $state<'mode' | 'designation' | 'phase' | 'provenance' | 'flat'>('mode');
 
 	// Restore preferences from localStorage
 	$effect(() => {
 		const mapId = data.map.id;
-		const savedConn = localStorage.getItem(`map:${mapId}:showConnections`);
-		if (savedConn !== null) showConnections = savedConn !== 'false';
+		const savedMode = localStorage.getItem(`map:${mapId}:displayMode`);
+		if (savedMode === 'entities' || savedMode === 'relations' || savedMode === 'full') displayMode = savedMode;
 		const savedGroup = localStorage.getItem(`map:${mapId}:listGroupBy`);
 		if (savedGroup) listGroupBy = savedGroup as typeof listGroupBy;
 	});
@@ -80,16 +80,36 @@
 						merged.set(id, { x: p.x, y: p.y });
 					}
 				}
+				// Place any remaining unpositioned relations at endpoint midpoints
+				placeRelationMidpoints(merged);
 				positions = merged;
 				await saveAllPositions(merged);
 			} catch (err) {
 				// ELK layout can fail on partial perspectives (orphan edges).
 				// Fall back to stored positions; unpositioned nodes get scatter-placed.
 				console.warn('ELK layout failed, using stored positions:', err);
+				placeRelationMidpoints(stored);
 				positions = stored;
 			}
 		} else {
 			positions = stored;
+		}
+	}
+
+	// Place unpositioned relation nodes at the midpoint of their endpoints
+	function placeRelationMidpoints(pos: Map<string, { x: number; y: number }>) {
+		for (const rel of relations) {
+			if (pos.has(rel.naming_id)) continue;
+			const srcId = rel.directed_from || rel.part_source_id;
+			const tgtId = rel.directed_to || rel.part_target_id;
+			const srcPos = srcId ? pos.get(srcId) : undefined;
+			const tgtPos = tgtId ? pos.get(tgtId) : undefined;
+			if (srcPos && tgtPos) {
+				pos.set(rel.naming_id, {
+					x: (srcPos.x + tgtPos.x) / 2,
+					y: (srcPos.y + tgtPos.y) / 2
+				});
+			}
 		}
 	}
 
@@ -102,15 +122,35 @@
 		if (unpositioned.length === 0) return;
 
 		if (unpositioned.length <= 2 && positions.size > 0) {
-			// Scatter placement: near viewport center with random offset
 			const merged = new Map(positions);
+			// Relation nodes: midpoint placement
+			const nonRelations = unpositioned.filter(n => n.mode !== 'relation');
+			for (const node of unpositioned) {
+				if (node.mode === 'relation') {
+					const srcId = node.directed_from || node.part_source_id;
+					const tgtId = node.directed_to || node.part_target_id;
+					const srcPos = srcId ? merged.get(srcId) : undefined;
+					const tgtPos = tgtId ? merged.get(tgtId) : undefined;
+					if (srcPos && tgtPos) {
+						merged.set(node.naming_id, {
+							x: (srcPos.x + tgtPos.x) / 2,
+							y: (srcPos.y + tgtPos.y) / 2
+						});
+						continue;
+					}
+				}
+			}
+			// Non-relation scatter placement
 			const cx = viewport.x ? -viewport.x / viewport.zoom + 400 : 400;
 			const cy = viewport.y ? -viewport.y / viewport.zoom + 300 : 300;
-			for (const node of unpositioned) {
+			for (const node of nonRelations) {
+				if (merged.has(node.naming_id)) continue;
 				const ox = (Math.random() - 0.5) * 200;
 				const oy = (Math.random() - 0.5) * 200;
 				merged.set(node.naming_id, { x: cx + ox, y: cy + oy });
 			}
+			// Fallback for relations whose endpoints weren't positioned
+			placeRelationMidpoints(merged);
 			positions = merged;
 			await saveAllPositions(merged);
 		} else {
@@ -125,6 +165,7 @@
 					merged.set(id, { x: p.x, y: p.y });
 				}
 			}
+			placeRelationMidpoints(merged);
 			positions = merged;
 			await saveAllPositions(merged);
 		}
@@ -1163,12 +1204,17 @@
 					</div>
 				{/if}
 			</div>
-			<button class="btn-sm btn-connections" class:connections-off={!showConnections}
-				onclick={() => { showConnections = !showConnections; localStorage.setItem(`map:${data.map.id}:showConnections`, String(showConnections)); }}
-				title={showConnections ? 'Hide connection lines' : 'Show connection lines'}
-				disabled={viewMode !== 'canvas'} style="{viewMode !== 'canvas' ? 'opacity: 0.3;' : ''}">
-				<img src="/icons/hub.svg" alt="connections" class="toolbar-icon" />
-			</button>
+			<div class="display-mode-group" style="{viewMode !== 'canvas' ? 'opacity: 0.3; pointer-events: none;' : ''}">
+				<button class="btn-mode" class:active={displayMode === 'entities'}
+					onclick={() => { displayMode = 'entities'; localStorage.setItem(`map:${data.map.id}:displayMode`, 'entities'); }}
+					title="Entities only (messy map)">Entities</button>
+				<button class="btn-mode" class:active={displayMode === 'relations'}
+					onclick={() => { displayMode = 'relations'; localStorage.setItem(`map:${data.map.id}:displayMode`, 'relations'); }}
+					title="Relations only (relational map)">Relations</button>
+				<button class="btn-mode" class:active={displayMode === 'full'}
+					onclick={() => { displayMode = 'full'; localStorage.setItem(`map:${data.map.id}:displayMode`, 'full'); }}
+					title="Full view: entities + relations + connections">Full</button>
+			</div>
 			<button class="btn-sm" onclick={runAutoLayout} title="Re-compute layout"
 				disabled={viewMode !== 'canvas'} style="{viewMode !== 'canvas' ? 'opacity: 0.3;' : ''}">Layout</button>
 			<button class="btn-sm" onclick={() => { showTopoPanel = !showTopoPanel; if (showTopoPanel) loadTopoSnapshots(); }}
@@ -1300,27 +1346,19 @@
 		<!-- Canvas -->
 		<div class="canvas-container" style="{viewMode !== 'canvas' ? 'display: none;' : ''}">
 			<InfiniteCanvas {viewport} oncanvasclick={handleCanvasClick}>
-				<!-- Connections: draw edges between elements and their relation nodes -->
+				<!-- Connections: single direct line source→target -->
 				<!-- Skip spatially derived relations (contains/overlaps) — the spatial arrangement IS the visual -->
-				{#if showConnections}
+				{#if displayMode === 'full'}
 				{#each relations.filter((r: any) => !r.properties?.spatiallyDerived) as rel}
 					{@const srcId = rel.directed_from || rel.part_source_id}
 					{@const tgtId = rel.directed_to || rel.part_target_id}
 					{@const isDirected = !!(rel.directed_from && rel.directed_to)}
-					{#if srcId && tgtId && findNode(srcId) && findNode(tgtId) && positions.has(srcId) && positions.has(rel.naming_id) && positions.has(tgtId)}
+					{#if srcId && tgtId && findNode(srcId) && findNode(tgtId) && positions.has(srcId) && positions.has(tgtId)}
 						{@const srcCenter = nodeCenter(srcId)}
-						{@const relCenter = nodeCenter(rel.naming_id)}
 						{@const tgtCenter = nodeCenter(tgtId)}
 						{@const lineOpacity = connectionOpacity(rel, findNode(srcId), findNode(tgtId))}
 						<CanvasConnection
 							x1={srcCenter.x} y1={srcCenter.y}
-							x2={relCenter.x} y2={relCenter.y}
-							color={designationColor(rel.designation)}
-							directed={isDirected}
-							opacity={lineOpacity}
-						/>
-						<CanvasConnection
-							x1={relCenter.x} y1={relCenter.y}
 							x2={tgtCenter.x} y2={tgtCenter.y}
 							color={designationColor(rel.designation)}
 							directed={isDirected}
@@ -1330,10 +1368,10 @@
 				{/each}
 				{/if}
 
-				<!-- Element nodes -->
+				<!-- Element nodes (hidden in 'relations' mode) -->
 				{#each elements as el}
 					{@const pos = positions.get(el.naming_id)}
-					{#if pos && !isHiddenByFilter(el)}
+					{#if pos && !isHiddenByFilter(el) && displayMode !== 'relations'}
 						<CanvasElement
 							id={el.naming_id}
 							x={pos.x} y={pos.y}
@@ -1419,7 +1457,8 @@
 					{/if}
 				{/each}
 
-				<!-- Relation nodes (first-class, smaller) — skip spatially derived -->
+				<!-- Relation nodes as edge labels (hidden in 'entities' mode) — skip spatially derived -->
+				{#if displayMode !== 'entities'}
 				{#each relations.filter((r: any) => !r.properties?.spatiallyDerived) as rel}
 					{@const pos = positions.get(rel.naming_id)}
 					{#if pos && !isHiddenByFilter(rel)}
@@ -1433,43 +1472,21 @@
 							onclick={handleNodeClick}
 							oncontextmenu={handleNodeContextMenu}
 						>
-							<div class="map-node relation-node" class:ai-suggested={rel.properties?.aiSuggested} class:ai-withdrawn={isWithdrawn(rel.properties)} class:phase-member={highlightedPhase && isPhaseHighlighted(rel)} class:phase-dimmed={highlightedPhase && !isPhaseHighlighted(rel)} class:centered-dim={centeredConnections && !centeredConnections.has(rel.naming_id)} class:centered-anchor={centeredId === rel.naming_id}
+							<div class="relation-label" class:ai-suggested={rel.properties?.aiSuggested} class:ai-withdrawn={isWithdrawn(rel.properties)} class:phase-member={highlightedPhase && isPhaseHighlighted(rel)} class:phase-dimmed={highlightedPhase && !isPhaseHighlighted(rel)} class:centered-dim={centeredConnections && !centeredConnections.has(rel.naming_id)} class:centered-anchor={centeredId === rel.naming_id}
 								style="{highlightedPhase && isPhaseHighlighted(rel) ? `--phase-color: ${phaseColorMap.get(highlightedPhase)};` : ''}">
-								{#if rel.valence}
-									<span class="rel-valence">{rel.valence}</span>
-								{/if}
+								{#if rel.valence}<span class="rl-valence">{rel.valence}</span>{/if}
 								{#if rel.inscription}
-									<span class="node-label rel-label">{rel.inscription}</span>
+									<span class="rl-text">{rel.inscription}</span>
 								{:else}
-									<span class="rel-label unnamed">
+									<span class="rl-text unnamed">
 										{findInscription(rel.directed_from || rel.part_source_id)} -> {findInscription(rel.directed_to || rel.part_target_id)}
 									</span>
-								{/if}
-								{#if rel.phase_ids?.length}
-									<span class="phase-dots">
-										{#each rel.phase_ids as pid}
-											{@const c = phaseColorMap.get(pid)}
-											{#if c}<span class="phase-dot" style="background: {c}"></span>{/if}
-										{/each}
-									</span>
-								{/if}
-								{#if rel.memo_previews?.length}
-									<div class="memo-tooltip">
-										{#each rel.memo_previews.slice(0, 3) as mp}
-											<div class="memo-tip-entry">
-												<span class="memo-tip-label">{mp.label}</span>
-												{#if mp.content}<span class="memo-tip-content">{mp.content.slice(0, 120)}{mp.content.length > 120 ? '…' : ''}</span>{/if}
-											</div>
-										{/each}
-										{#if rel.memo_previews.length > 3}
-											<span class="memo-tip-more">+{rel.memo_previews.length - 3} more</span>
-										{/if}
-									</div>
 								{/if}
 							</div>
 						</CanvasElement>
 					{/if}
 				{/each}
+				{/if}
 
 				<!-- Silence nodes -->
 				{#each silences as s}
@@ -2118,11 +2135,20 @@
 	.map-workspace { display: flex; flex: 1; min-height: 0; }
 	.canvas-container { flex: 1; position: relative; overflow: hidden; }
 
-	/* Connection toggle */
-	.btn-connections { display: flex; align-items: center; padding: 0.2rem 0.4rem; }
-	.btn-connections .toolbar-icon { width: 16px; height: 16px; opacity: 0.7; }
-	.btn-connections.connections-off { opacity: 0.4; }
-	.btn-connections.connections-off .toolbar-icon { opacity: 0.4; }
+	/* Display mode selector */
+	.display-mode-group {
+		display: flex; border: 1px solid #2a2d3a; border-radius: 5px; overflow: hidden;
+	}
+	.btn-mode {
+		background: #1e2030; border: none; color: #6b7280;
+		font-size: 0.7rem; padding: 0.2rem 0.5rem; cursor: pointer;
+		border-right: 1px solid #2a2d3a; white-space: nowrap;
+	}
+	.btn-mode:last-child { border-right: none; }
+	.btn-mode:hover { color: #c9cdd5; }
+	.btn-mode.active {
+		background: rgba(139, 156, 247, 0.15); color: #8b9cf7; font-weight: 600;
+	}
 
 	.btn-centered {
 		display: flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.5rem;
@@ -2432,23 +2458,35 @@
 		font-size: 0.65rem; color: #4b5563; font-style: italic;
 	}
 
-	/* Relation nodes */
-	.relation-node {
-		border-radius: 16px;
-		padding: 0.25rem 0.6rem;
-		min-width: 80px;
-		max-width: 200px;
+	/* Relation labels (edge labels) */
+	.relation-label {
+		background: rgba(20, 22, 32, 0.85);
+		border: 1px dashed rgba(139, 156, 247, 0.3);
+		border-radius: 12px;
+		padding: 0.2rem 0.6rem;
+		font-size: 0.75rem;
+		font-style: italic;
+		color: #8b8fa3;
 		text-align: center;
-		background: #141620;
+		max-width: 160px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
-	.rel-valence {
-		font-size: 0.7rem; color: #8b8fa3; display: block;
+	.relation-label.ai-suggested { border-color: rgba(139, 156, 247, 0.5); }
+	.relation-label.ai-withdrawn { opacity: 0.3; text-decoration: line-through; }
+	.relation-label.phase-member { box-shadow: 0 0 0 2px var(--phase-color); }
+	.relation-label.phase-dimmed { opacity: 0.25; }
+	.relation-label.centered-dim { opacity: 0.15; }
+	.relation-label.centered-anchor { border-color: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.3); }
+	.rl-valence {
+		font-size: 0.65rem; color: #6b7280; margin-right: 0.3rem;
 	}
-	.rel-label {
-		font-size: 0.75rem; color: #c9cdd5;
+	.rl-text {
+		color: #c9cdd5; font-size: 0.75rem;
 	}
-	.rel-label.unnamed {
-		color: #4b5563; font-style: italic; font-size: 0.65rem;
+	.rl-text.unnamed {
+		color: #4b5563; font-size: 0.65rem;
 	}
 
 	/* Silence nodes */
