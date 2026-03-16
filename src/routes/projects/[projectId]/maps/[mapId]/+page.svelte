@@ -2435,8 +2435,9 @@
 	/* Relation nodes */
 	.relation-node {
 		border-radius: 16px;
-		padding: 0.25rem 0.5rem;
-		min-width: 36px;
+		padding: 0.25rem 0.6rem;
+		min-width: 80px;
+		max-width: 200px;
 		text-align: center;
 		background: #141620;
 	}
