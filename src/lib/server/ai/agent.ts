@@ -11,7 +11,7 @@ import { SYSTEM_PROMPT, DISCUSSION_SYSTEM_PROMPT, buildContextMessage, buildDisc
 import { AI_TOOLS, DISCUSSION_TOOLS, type SuggestElementInput, type SuggestRelationInput, type IdentifySilenceInput, type WriteMemoInput, type CreatePhaseInput, type RewriteCueInput, type RespondInput, type WithdrawCueInput } from './tools.js';
 import { query } from '../db/index.js';
 
-// Check if AI is enabled for a map
+// Check if AI is enabled for a map (also respects readOnly)
 async function isAiEnabled(mapId: string): Promise<boolean> {
 	const map = await query(
 		`SELECT a.properties FROM appearances a
@@ -20,6 +20,8 @@ async function isAiEnabled(mapId: string): Promise<boolean> {
 	);
 	if (map.rows.length === 0) return false;
 	const props = map.rows[0].properties;
+	// Read-only maps: AI must not write
+	if (props?.readOnly) return false;
 	// Default: enabled. Only disabled if explicitly set to false.
 	return props?.aiEnabled !== false;
 }
