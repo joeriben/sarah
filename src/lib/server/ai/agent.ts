@@ -708,13 +708,18 @@ export async function discussMemo(
 		previousDiscussion.push({ role, content: entry.content });
 	}
 
+	// Get map context for the AI
+	const map = await getMap(mapId, projectId);
+
 	const discussionCtx: MemoDiscussionContext = {
 		memoId,
 		memoTitle: memo.label,
 		memoContent: memo.content,
 		memoAuthor,
 		linkedElements,
-		previousDiscussion
+		previousDiscussion,
+		mapLabel: map?.label || '',
+		mapType: map?.properties?.mapType || 'situational',
 	};
 
 	const contextMessage = buildMemoDiscussionMessage(discussionCtx, researcherMessage);

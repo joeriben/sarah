@@ -260,13 +260,17 @@ export interface MemoDiscussionContext {
 	memoAuthor: 'ai' | 'researcher';
 	linkedElements: Array<{ id: string; inscription: string }>;
 	previousDiscussion: Array<{ role: 'researcher' | 'ai'; content: string }>;
+	mapLabel: string;
+	mapType: string;
 }
 
 export function buildMemoDiscussionMessage(ctx: MemoDiscussionContext, researcherMessage: string): string {
 	const parts: string[] = [];
 
+	parts.push(`MAP CONTEXT: "${ctx.mapLabel}" (${ctx.mapType})`);
+
 	const authorLabel = ctx.memoAuthor === 'ai' ? 'AI-authored' : 'Researcher-authored';
-	parts.push(`MEMO UNDER DISCUSSION (id: ${ctx.memoId}, ${authorLabel}):`);
+	parts.push(`\nMEMO UNDER DISCUSSION (id: ${ctx.memoId}, ${authorLabel}):`);
 	parts.push(`  Title: "${ctx.memoTitle}"`);
 	parts.push(`  Content: ${ctx.memoContent}`);
 
