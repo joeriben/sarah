@@ -379,6 +379,27 @@ Core principle: the fundamental unit is the event (naming/relating act), not the
 
 ---
 
+## Session 17 — 2026-03-16
+
+**Focus**: Map page decomposition, type error fixes, displayMode restoration
+
+- **Map page decomposition**: monolith `+page.svelte` (2881 lines) decomposed into 11 components + shared state factory (805 lines remaining)
+  - `mapState.svelte.ts`: factory function with reactive getters/setters, distributed via `setContext`/`getContext`
+  - Extracted: MapToolbar, StackPanel (unified floating+inline), ListItemCard, PhasesSidebar, NamingActPrompt, RelationForm, MemoPanel, ContextMenu, TopoPanel, OutsidePanel
+  - StackPanel eliminates duplication between canvas floating panel and list inline panel
+- **Type error fixes** (24 → 0): installed `@types/node` + `@types/pg`, typed query generics in codes/memos/namings queries, fixed role cast, pdf-parse import, layout param types
+- **Dead CSS removal**: 20 unused selectors across 4 files
+- **displayMode restoration**: discovered that the 3-way canvas display filter (Entities/Relations/Full) was silently dropped in commit `3deb477` (Session 15 WIP) — the feature had been implemented in `a5e9c66` but was replaced with a simpler `showConnections` toggle during a large rewrite. Restored from git history.
+
+**Regression root cause**: Session 15 Claude rewrote the map page to add spatial containment + diamond shapes and silently replaced `displayMode` (3 modes: entities-only, relations-only, full+lines) with `showConnections` (binary toggle). No mention in session docs, no user confirmation. Prevention: pre-rewrite feature inventory rule added to memory.
+
+| Commit | Description |
+|--------|-------------|
+| `afe270b` | Decompose map page monolith (2881→805 lines) + fix all type errors |
+| `pending` | Restore displayMode 3-way canvas filter (Entities/Relations/Full) |
+
+---
+
 ## Bugfixes — 2026-03-15
 
 | Commit | Description |

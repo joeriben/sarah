@@ -5,19 +5,19 @@
 
 	let {
 		viewMode,
-		showConnections,
+		displayMode,
 		centeredId,
 		onswitchview,
-		ontoggleconnections,
+		onsetdisplaymode,
 		onrunautolayout,
 		onuncenter,
 		onopentopo,
 	}: {
 		viewMode: 'canvas' | 'list';
-		showConnections: boolean;
+		displayMode: 'entities' | 'relations' | 'full';
 		centeredId: string | null;
 		onswitchview: (mode: 'canvas' | 'list') => void;
-		ontoggleconnections: () => void;
+		onsetdisplaymode: (mode: 'entities' | 'relations' | 'full') => void;
 		onrunautolayout: () => void;
 		onuncenter: () => void;
 		onopentopo: () => void;
@@ -198,12 +198,17 @@
 				</div>
 			{/if}
 		</div>
-		<button class="btn-sm btn-connections" class:connections-off={!showConnections}
-			onclick={ontoggleconnections}
-			title={showConnections ? 'Hide connection lines' : 'Show connection lines'}
-			disabled={viewMode !== 'canvas'} style="{viewMode !== 'canvas' ? 'opacity: 0.3;' : ''}">
-			<img src="/icons/hub.svg" alt="connections" class="toolbar-icon" />
-		</button>
+		<div class="display-mode-group" style="{viewMode !== 'canvas' ? 'opacity: 0.3; pointer-events: none;' : ''}">
+			<button class="btn-mode" class:active={displayMode === 'entities'}
+				onclick={() => onsetdisplaymode('entities')}
+				title="Entities only (messy map)">Entities</button>
+			<button class="btn-mode" class:active={displayMode === 'relations'}
+				onclick={() => onsetdisplaymode('relations')}
+				title="Relations only (relational map)">Relations</button>
+			<button class="btn-mode" class:active={displayMode === 'full'}
+				onclick={() => onsetdisplaymode('full')}
+				title="Full view: entities + relations + connections">Full</button>
+		</div>
 		<button class="btn-sm" onclick={onrunautolayout} title="Re-compute layout"
 			disabled={viewMode !== 'canvas'} style="{viewMode !== 'canvas' ? 'opacity: 0.3;' : ''}">Layout</button>
 		<button class="btn-sm" onclick={onopentopo}
@@ -329,10 +334,20 @@
 	.btn-ai-toggle.ai-active {
 		background: rgba(139, 156, 247, 0.15); border-color: #8b9cf7; color: #8b9cf7;
 	}
-	.btn-connections { display: flex; align-items: center; padding: 0.2rem 0.4rem; }
-	.btn-connections .toolbar-icon { width: 16px; height: 16px; opacity: 0.7; }
-	.btn-connections.connections-off { opacity: 0.4; }
-	.btn-connections.connections-off .toolbar-icon { opacity: 0.4; }
+	/* Display mode selector */
+	.display-mode-group {
+		display: flex; border: 1px solid #2a2d3a; border-radius: 5px; overflow: hidden;
+	}
+	.btn-mode {
+		background: #1e2030; border: none; color: #6b7280;
+		font-size: 0.7rem; padding: 0.2rem 0.5rem; cursor: pointer;
+		border-right: 1px solid #2a2d3a; white-space: nowrap;
+	}
+	.btn-mode:last-child { border-right: none; }
+	.btn-mode:hover { color: #c9cdd5; }
+	.btn-mode.active {
+		background: rgba(139, 156, 247, 0.15); color: #8b9cf7; font-weight: 600;
+	}
 	.btn-centered {
 		display: flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.5rem;
 		border-color: #f59e0b; color: #f59e0b; background: rgba(245, 158, 11, 0.1);

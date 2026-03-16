@@ -33,14 +33,14 @@
 	$effect(() => { ms.syncData(data); });
 
 	let viewMode = $state<'canvas' | 'list'>('list');
-	let showConnections = $state(true);
+	let displayMode = $state<'entities' | 'relations' | 'full'>('full');
 	let listGroupBy = $state<'mode' | 'designation' | 'phase' | 'provenance' | 'flat'>('mode');
 
 	// Restore preferences from localStorage
 	$effect(() => {
 		const mapId = data.map.id;
-		const savedConn = localStorage.getItem(`map:${mapId}:showConnections`);
-		if (savedConn !== null) showConnections = savedConn !== 'false';
+		const savedMode = localStorage.getItem(`map:${mapId}:displayMode`);
+		if (savedMode === 'entities' || savedMode === 'relations' || savedMode === 'full') displayMode = savedMode;
 		const savedGroup = localStorage.getItem(`map:${mapId}:listGroupBy`);
 		if (savedGroup) listGroupBy = savedGroup as typeof listGroupBy;
 	});
@@ -436,10 +436,10 @@
 	<MapToolbar
 		bind:this={toolbarRef}
 		{viewMode}
-		{showConnections}
+		{displayMode}
 		{centeredId}
 		onswitchview={switchView}
-		ontoggleconnections={() => { showConnections = !showConnections; localStorage.setItem(`map:${data.map.id}:showConnections`, String(showConnections)); }}
+		onsetdisplaymode={(mode) => { displayMode = mode; localStorage.setItem(`map:${data.map.id}:displayMode`, mode); }}
 		onrunautolayout={runAutoLayout}
 		onuncenter={uncenter}
 		onopentopo={() => { showTopoPanel = !showTopoPanel; if (showTopoPanel) loadTopoSnapshots(); }}
@@ -473,7 +473,7 @@
 		<!-- Canvas -->
 		<div class="canvas-container" style="{viewMode !== 'canvas' ? 'display: none;' : ''}">
 			<InfiniteCanvas {viewport} oncanvasclick={handleCanvasClick}>
-				{#if showConnections}
+				{#if displayMode === 'full'}
 				{#each ms.relations.filter((r: any) => !r.properties?.spatiallyDerived) as rel}
 					{@const srcId = rel.directed_from || rel.part_source_id}
 					{@const tgtId = rel.directed_to || rel.part_target_id}
@@ -493,9 +493,10 @@
 				{/each}
 				{/if}
 
+				<!-- Element nodes (hidden in 'relations' mode) -->
 				{#each ms.elements as el}
 					{@const pos = positions.get(el.naming_id)}
-					{#if pos && !ms.isHiddenByFilter(el)}
+					{#if pos && !ms.isHiddenByFilter(el) && displayMode !== 'relations'}
 						<CanvasElement
 							id={el.naming_id}
 							x={pos.x} y={pos.y}
@@ -579,6 +580,8 @@
 					{/if}
 				{/each}
 
+				<!-- Relation nodes as inline diamonds (hidden in 'entities' mode) — skip spatially derived -->
+				{#if displayMode !== 'entities'}
 				{#each ms.relations.filter((r: any) => !r.properties?.spatiallyDerived) as rel}
 					{@const pos = positions.get(rel.naming_id)}
 					{#if pos && !ms.isHiddenByFilter(rel)}
@@ -611,6 +614,7 @@
 						</CanvasElement>
 					{/if}
 				{/each}
+				{/if}
 
 				{#each ms.silences as s}
 					{@const pos = positions.get(s.naming_id)}
