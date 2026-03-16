@@ -17,10 +17,15 @@
 	let ctxMenuPos = $state({ x: 0, y: 0 });
 	let ctxMap = $derived(data.maps.find((m: any) => m.id === ctxMenuId));
 
-	function handleContextMenu(mapId: string, e: MouseEvent) {
-		e.preventDefault();
-		ctxMenuId = mapId;
-		ctxMenuPos = { x: e.clientX, y: e.clientY };
+	function mapCardCtx(node: HTMLElement, mapId: string) {
+		function handler(e: MouseEvent) {
+			e.preventDefault();
+			e.stopPropagation();
+			ctxMenuId = mapId;
+			ctxMenuPos = { x: e.clientX, y: e.clientY };
+		}
+		node.addEventListener('contextmenu', handler);
+		return { destroy() { node.removeEventListener('contextmenu', handler); } };
 	}
 
 	function closeCtxMenu() {
@@ -85,7 +90,7 @@
 		<div class="map-grid">
 			{#each data.maps as map}
 				<a href="/projects/{data.projectId}/maps/{map.id}" class="map-card"
-					oncontextmenu={(e) => handleContextMenu(map.id, e)}>
+					use:mapCardCtx={map.id}>
 					<div class="map-type">{mapTypeLabels[map.properties?.mapType] || map.properties?.mapType}</div>
 					<h3>{map.label}</h3>
 					<span class="meta">{new Date(map.created_at).toLocaleDateString()}</span>
