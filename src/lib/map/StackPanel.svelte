@@ -52,25 +52,38 @@
 			<div class="history-section">
 				<span class="history-label">Memos ({ms.stackData.memos.length})</span>
 				{#each ms.stackData.memos as memo}
-					<div class="memo-entry" class:memo-ai={memo.isAiAuthored}>
+					<div class="memo-entry" class:memo-ai={memo.isAiAuthored} class:memo-dismissed={memo.status === 'dismissed'}>
 						<div class="memo-entry-header">
 							<span class="memo-author-badge" class:badge-ai={memo.isAiAuthored}>
 								{memo.isAiAuthored ? 'AI' : 'R'}
 							</span>
+							{#if memo.status && memo.status !== 'active'}
+								<span class="memo-status-badge status-{memo.status}">{memo.status}</span>
+							{/if}
 							<span class="memo-label">{memo.label}</span>
 							<span class="he-date">{new Date(memo.created_at).toLocaleString()}</span>
 						</div>
 						<span class="memo-content">{memo.content}</span>
-						{#if ms.memoDiscussTarget === memo.id}
-							<form class="discuss-form" onsubmit={e => { e.preventDefault(); ms.submitMemoDiscussion(memo.id); }}>
-								<input type="text" placeholder="Discuss this memo..." bind:value={ms.memoDiscussInput} disabled={ms.memoDiscussLoading} />
-								<button type="submit" class="btn-xs" disabled={ms.memoDiscussLoading || !ms.memoDiscussInput.trim()}>
-									{ms.memoDiscussLoading ? '...' : 'send'}
-								</button>
-							</form>
-						{:else}
-							<button class="btn-xs btn-discuss" onclick={() => { ms.memoDiscussTarget = memo.id; ms.memoDiscussInput = ''; }}>discuss</button>
-						{/if}
+						<div class="memo-actions">
+							{#if memo.status === 'presented' || memo.status === 'discussed'}
+								<button class="btn-xs" onclick={() => ms.updateMemoStatus(memo.id, 'acknowledged')}>ack</button>
+								<button class="btn-xs" onclick={() => ms.updateMemoStatus(memo.id, 'dismissed')}>dismiss</button>
+								<button class="btn-xs btn-promote" onclick={() => ms.promoteMemo(memo.id)}>promote</button>
+							{/if}
+							{#if memo.status === 'dismissed'}
+								<button class="btn-xs" onclick={() => ms.updateMemoStatus(memo.id, 'presented')}>restore</button>
+							{/if}
+							{#if ms.memoDiscussTarget === memo.id}
+								<form class="discuss-form" onsubmit={e => { e.preventDefault(); ms.submitMemoDiscussion(memo.id); }}>
+									<input type="text" placeholder="Discuss this memo..." bind:value={ms.memoDiscussInput} disabled={ms.memoDiscussLoading} />
+									<button type="submit" class="btn-xs" disabled={ms.memoDiscussLoading || !ms.memoDiscussInput.trim()}>
+										{ms.memoDiscussLoading ? '...' : 'send'}
+									</button>
+								</form>
+							{:else if memo.status !== 'dismissed'}
+								<button class="btn-xs btn-discuss" onclick={() => { ms.memoDiscussTarget = memo.id; ms.memoDiscussInput = ''; }}>discuss</button>
+							{/if}
+						</div>
 					</div>
 				{/each}
 			</div>
@@ -120,7 +133,9 @@
 						</summary>
 						<ol class="aq-list">
 							{#each questions as q}
-								<li class="aq-item">{q}</li>
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+								<li class="aq-item aq-clickable" onclick={() => { ms.clarkeFormOpen = true; ms.clarkeFormQuestion = q; ms.clarkeFormContent = ''; }}>{q}</li>
 							{/each}
 						</ol>
 						<div class="aq-deepening">
@@ -133,6 +148,18 @@
 							{/each}
 						</div>
 					</details>
+					{#if ms.clarkeFormOpen}
+						<div class="clarke-memo-form">
+							<div class="clarke-form-header">
+								<span class="clarke-form-q">{ms.clarkeFormQuestion}</span>
+								<button class="btn-link" onclick={() => { ms.clarkeFormOpen = false; }}>cancel</button>
+							</div>
+							<textarea placeholder="Your analytical reflection on this question..." bind:value={ms.clarkeFormContent} rows="3"></textarea>
+							<button class="btn-xs" disabled={!ms.clarkeFormContent.trim()} onclick={() => ms.createClarkeQuestionMemo(ms.clarkeFormQuestion, ms.clarkeFormContent)}>
+								Save memo
+							</button>
+						</div>
+					{/if}
 				</div>
 			{/if}
 		{/if}
@@ -202,6 +229,21 @@
 		padding-left: 0.4rem;
 	}
 
+	/* Memo status */
+	.memo-status-badge {
+		font-size: 0.58rem; font-weight: 600; text-transform: uppercase;
+		padding: 0.05rem 0.3rem; border-radius: 3px; flex-shrink: 0;
+	}
+	.status-presented { background: rgba(139, 156, 247, 0.15); color: #8b9cf7; }
+	.status-discussed { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+	.status-acknowledged { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+	.status-promoted { background: rgba(16, 185, 129, 0.25); color: #10b981; }
+	.status-dismissed { background: rgba(107, 114, 128, 0.15); color: #6b7280; }
+	.memo-dismissed { opacity: 0.5; }
+	.memo-actions { display: flex; gap: 0.3rem; margin-top: 0.25rem; flex-wrap: wrap; align-items: center; }
+	.btn-promote { border-color: #10b981; color: #10b981; }
+	.btn-promote:hover { background: rgba(16, 185, 129, 0.1); }
+
 	/* Pin/unpin */
 	.btn-pin { margin-left: auto; border-color: #f59e0b; color: #f59e0b; }
 	.btn-pin:hover { background: rgba(245, 158, 11, 0.1); }
@@ -266,6 +308,24 @@
 	.aq-deepening-item { margin-bottom: 0.2rem; }
 	.aq-deepening-key { font-size: 0.7rem; font-weight: 600; color: #e1b54a; display: block; }
 	.aq-deepening-q { font-size: 0.7rem; color: #9ca3af; }
+
+	/* Clarke question -> memo */
+	.aq-clickable { cursor: pointer; border-radius: 3px; padding: 0.1rem 0.2rem; margin: 0 -0.2rem; }
+	.aq-clickable:hover { background: rgba(139, 156, 247, 0.1); }
+	.clarke-memo-form {
+		margin-top: 0.5rem; padding: 0.5rem;
+		background: rgba(139, 156, 247, 0.04); border: 1px solid rgba(139, 156, 247, 0.15);
+		border-radius: 6px;
+	}
+	.clarke-form-header { display: flex; align-items: flex-start; gap: 0.4rem; margin-bottom: 0.4rem; }
+	.clarke-form-q { font-size: 0.75rem; color: #c9cdd5; font-style: italic; flex: 1; }
+	.clarke-memo-form textarea {
+		width: 100%; background: #0f1117; border: 1px solid #2a2d3a; border-radius: 4px;
+		padding: 0.4rem 0.5rem; color: #c9cdd5; font-size: 0.78rem; resize: vertical;
+		font-family: inherit;
+	}
+	.clarke-memo-form textarea:focus { border-color: #8b9cf7; outline: none; }
+	.clarke-memo-form > .btn-xs { margin-top: 0.3rem; }
 
 	/* Shared button styles */
 	.btn-xs {

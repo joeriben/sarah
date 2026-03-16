@@ -588,7 +588,7 @@ export async function getNamingStack(namingId: string) {
 		),
 		query(
 			`SELECT DISTINCT m.id, m.inscription as label, mc.content, m.created_at,
-			        m.created_by
+			        m.created_by, mc.status
 			 FROM participations p
 			 JOIN namings pn ON pn.id = p.id AND pn.deleted_at IS NULL
 			 JOIN namings m ON m.id = CASE WHEN p.naming_id = $1 THEN p.participant_id ELSE p.naming_id END
@@ -628,6 +628,7 @@ export async function getNamingStack(namingId: string) {
 		created_at: m.created_at,
 		authorId: m.created_by,
 		isAiAuthored: m.created_by === AI_SYSTEM_UUID,
+		status: m.status || 'active',
 	}));
 
 	// Memo discussion entries (linked via participations, label prefix "MemoDiscussion:")

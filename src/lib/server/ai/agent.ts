@@ -205,7 +205,7 @@ async function executeTool(
 			case 'write_memo': {
 				const { title, content, linked_element_ids } = input as unknown as WriteMemoInput;
 				// Create memo with AI as author — use a system user placeholder
-				const memo = await createMemo(projectId, '00000000-0000-0000-0000-000000000000', `AI: ${title}`, content, linked_element_ids || []);
+				const memo = await createMemo(projectId, '00000000-0000-0000-0000-000000000000', `AI: ${title}`, content, linked_element_ids || [], 'presented');
 				emit(mapId, 'ai:memo', {
 					memo,
 					title,

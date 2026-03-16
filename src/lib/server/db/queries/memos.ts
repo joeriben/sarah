@@ -1,5 +1,5 @@
 import { query, queryOne, transaction } from '../index.js';
-import { createNaming, setAppearance } from './namings.js';
+import { createNaming, setAppearance, getOrCreateResearcherNaming } from './namings.js';
 
 // The "memo system" perspective — lazily created per project
 async function getOrCreateMemoSystemPerspective(projectId: string, userId: string) {
@@ -29,7 +29,8 @@ export async function createMemo(
 	userId: string,
 	label: string,
 	content: string = '',
-	linkedNamingIds: string[] = []
+	linkedNamingIds: string[] = [],
+	status: string = 'active'
 ) {
 	return transaction(async (client) => {
 		const perspectiveId = await getOrCreateMemoSystemPerspective(projectId, userId);
@@ -51,8 +52,8 @@ export async function createMemo(
 
 		// Store content
 		await client.query(
-			`INSERT INTO memo_content (naming_id, content, format) VALUES ($1, $2, 'html')`,
-			[memo.id, content]
+			`INSERT INTO memo_content (naming_id, content, format, status) VALUES ($1, $2, 'html', $3)`,
+			[memo.id, content, status]
 		);
 
 		// Create participations for links
@@ -82,7 +83,7 @@ export async function createMemo(
 export async function getMemosByProject(projectId: string) {
 	return (
 		await query(
-			`SELECT n.id, n.inscription as label, n.created_at, mc.content, mc.format,
+			`SELECT n.id, n.inscription as label, n.created_at, n.created_by, mc.content, mc.format, mc.status,
 			        (SELECT COUNT(*) FROM participations p
 			         JOIN namings pn ON pn.id = p.id AND pn.deleted_at IS NULL
 			         WHERE p.naming_id = n.id OR p.participant_id = n.id) as link_count
@@ -93,6 +94,74 @@ export async function getMemosByProject(projectId: string) {
 			[projectId]
 		)
 	).rows;
+}
+
+export async function updateMemoStatus(memoId: string, status: string) {
+	await query(
+		`UPDATE memo_content SET status = $1 WHERE naming_id = $2`,
+		[status, memoId]
+	);
+}
+
+export async function promoteMemoToNaming(
+	projectId: string,
+	userId: string,
+	memoId: string,
+	mapId: string
+) {
+	return transaction(async (client) => {
+		// Get memo content
+		const memo = await client.query(
+			`SELECT n.inscription, mc.content FROM namings n
+			 JOIN memo_content mc ON mc.naming_id = n.id
+			 WHERE n.id = $1 AND n.project_id = $2 AND n.deleted_at IS NULL`,
+			[memoId, projectId]
+		);
+		if (memo.rows.length === 0) throw new Error('Memo not found');
+
+		// Create a new naming from the memo title
+		const namingRes = await client.query(
+			`INSERT INTO namings (project_id, inscription, created_by)
+			 VALUES ($1, $2, $3) RETURNING *`,
+			[projectId, memo.rows[0].inscription, userId]
+		);
+		const naming = namingRes.rows[0];
+
+		// Place it on the map as entity
+		await client.query(
+			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
+			 VALUES ($1, $2, 'entity', '{}')`,
+			[naming.id, mapId]
+		);
+
+		// Initial designation act: cue
+		const researcherNamingId = await getOrCreateResearcherNaming(projectId, userId);
+		await client.query(
+			`INSERT INTO naming_acts (naming_id, designation, by)
+			 VALUES ($1, 'cue', $2)`,
+			[naming.id, researcherNamingId]
+		);
+
+		// Link the original memo to the new naming via participation
+		const partRes = await client.query(
+			`INSERT INTO namings (project_id, inscription, created_by)
+			 VALUES ($1, $2, $3) RETURNING id`,
+			[projectId, `promoted memo ${memoId} → ${naming.id}`, userId]
+		);
+		await client.query(
+			`INSERT INTO participations (id, naming_id, participant_id)
+			 VALUES ($1, $2, $3)`,
+			[partRes.rows[0].id, memoId, naming.id]
+		);
+
+		// Update memo status to 'promoted'
+		await client.query(
+			`UPDATE memo_content SET status = 'promoted' WHERE naming_id = $1`,
+			[memoId]
+		);
+
+		return naming;
+	});
 }
 
 export async function getMemo(memoId: string, projectId: string) {

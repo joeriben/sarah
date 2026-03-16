@@ -26,7 +26,7 @@ import {
 	getDesignationHistory,
 	getNaming
 } from '$lib/server/db/queries/namings.js';
-import { createMemo, getMemosForNaming } from '$lib/server/db/queries/memos.js';
+import { createMemo, getMemosForNaming, updateMemoStatus, promoteMemoToNaming } from '$lib/server/db/queries/memos.js';
 import { runMapAgent, setAiEnabled, discussCue, discussMemo } from '$lib/server/ai/agent.js';
 import { saveTopologyBuffer, saveTopologySnapshot, restoreTopologySnapshot, listTopologySnapshots } from '$lib/server/db/queries/topology.js';
 import { SW_ROLE_DEFAULTS } from '$lib/shared/constants.js';
@@ -403,6 +403,22 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		case 'listTopologySnapshots': {
 			const snapshots = await listTopologySnapshots(mapId);
 			return json({ snapshots });
+		}
+
+		case 'updateMemoStatus': {
+			const { memoId, status } = body;
+			if (!memoId || !status) return json({ error: 'memoId and status required' }, { status: 400 });
+			const validStatuses = ['active', 'presented', 'discussed', 'acknowledged', 'promoted', 'dismissed'];
+			if (!validStatuses.includes(status)) return json({ error: 'Invalid status' }, { status: 400 });
+			await updateMemoStatus(memoId, status);
+			return json({ ok: true, status });
+		}
+
+		case 'promoteMemo': {
+			const { memoId } = body;
+			if (!memoId) return json({ error: 'memoId required' }, { status: 400 });
+			const naming = await promoteMemoToNaming(projectId, userId, memoId, mapId);
+			return json(naming, { status: 201 });
 		}
 
 		default:

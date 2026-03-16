@@ -88,6 +88,9 @@ export function createMapState(
 	let memoDiscussInput = $state('');
 	let memoDiscussLoading = $state(false);
 	let memoDiscussTarget = $state<string | null>(null);
+	let clarkeFormOpen = $state(false);
+	let clarkeFormQuestion = $state('');
+	let clarkeFormContent = $state('');
 
 	// Phase sidebar state
 	let showPhaseForm = $state(false);
@@ -357,6 +360,46 @@ export function createMapState(
 		}
 	}
 
+	async function updateMemoStatus(memoId: string, status: string) {
+		await mapAction('updateMemoStatus', { memoId, status });
+		// Refresh stack to show updated status
+		if (stackId) {
+			const freshStack = await mapAction('getStack', { namingId: stackId });
+			if (freshStack) stackData = freshStack;
+		}
+	}
+
+	async function promoteMemo(memoId: string) {
+		const result = await mapAction('promoteMemo', { memoId });
+		if (!result) { showAiNotification('Promote failed'); return; }
+		// Refresh stack and reload map (new naming on map)
+		if (stackId) {
+			const freshStack = await mapAction('getStack', { namingId: stackId });
+			if (freshStack) stackData = freshStack;
+		}
+		await reload();
+	}
+
+	async function createClarkeQuestionMemo(question: string, content: string) {
+		if (!stackId || !content.trim()) return;
+		// Create a memo linked to the element whose stack is open
+		await fetch(`/api/projects/${initialData.projectId}/memos`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				label: question.length > 80 ? question.slice(0, 77) + '...' : question,
+				content: content.trim(),
+				linkedElementIds: [stackId]
+			})
+		});
+		// Refresh stack to show new memo
+		const freshStack = await mapAction('getStack', { namingId: stackId });
+		if (freshStack) stackData = freshStack;
+		clarkeFormOpen = false;
+		clarkeFormQuestion = '';
+		clarkeFormContent = '';
+	}
+
 	function dismissMemoPanel() {
 		memoPanel = null;
 	}
@@ -511,6 +554,12 @@ export function createMapState(
 		get memoDiscussLoading() { return memoDiscussLoading; },
 		get memoDiscussTarget() { return memoDiscussTarget; },
 		set memoDiscussTarget(v) { memoDiscussTarget = v; },
+		get clarkeFormOpen() { return clarkeFormOpen; },
+		set clarkeFormOpen(v) { clarkeFormOpen = v; },
+		get clarkeFormQuestion() { return clarkeFormQuestion; },
+		set clarkeFormQuestion(v) { clarkeFormQuestion = v; },
+		get clarkeFormContent() { return clarkeFormContent; },
+		set clarkeFormContent(v) { clarkeFormContent = v; },
 
 		// Phase sidebar state
 		get showPhaseForm() { return showPhaseForm; },
@@ -555,6 +604,9 @@ export function createMapState(
 		requestAnalysis,
 		submitDiscussion,
 		submitMemoDiscussion,
+		updateMemoStatus,
+		promoteMemo,
+		createClarkeQuestionMemo,
 		dismissMemoPanel,
 		showOutsideParticipations,
 		pullOntoMap,
