@@ -353,6 +353,32 @@ Core principle: the fundamental unit is the event (naming/relating act), not the
 
 ---
 
+## Session 15 — 2026-03-16
+
+**Focus**: SW/A map interaction polish, spatial relations, map duplication
+
+- **Automatic spatial relation derivation** for SW/A maps: detects containment and overlap between formations based on position/size, syncs relations on drag/resize/rotate via `syncSpatialRelations`
+- **Map duplication**: right-click context menu on maps listing page → "Duplicate". Creates new map with shared elements (same namings, new appearances with copied positions), cloned phases with memberships. Aligns with multi-map architecture — same naming, independent perspectival collapse
+- **Withdraw/Restore in context menu**: all map types now offer withdraw/restore via right-click; FormationNode shows withdrawn state at 30% opacity
+- Spatial/AI relations skip designation advance (`skipDesignationAdvance`) — provisional relations are not positive analytical acts
+- Re-queue mechanism for spatial sync during concurrent drags
+- Read-only map support and Clarke demo project restore
+- **Bugfix**: relation node min-width increased (36px → 80px) to prevent single-character wrapping
+- **Bugfix**: declined filter hint shows "hidden" instead of "showing"
+
+| Commit | Description |
+|--------|-------------|
+| `5ad10c6` | Add automatic spatial relation derivation for SW/A maps |
+| `be07a58` | Fix spatial sync: re-queue mechanism for concurrent drags |
+| `e06448c` | Add withdraw/restore to context menu and withdrawn state on formations |
+| `08f8301` | Add map duplication via context menu on maps listing page |
+| `2165427` | Fix: spatial/AI relations must not advance endpoint designations |
+| `9239229` | Fix declined filter hint: show 'hidden' instead of 'showing' |
+| `98b01c8` | Fix relation node width: prevent single-char wrapping |
+| `bfc055f` | Add read-only map support and restore Clarke demo project |
+
+---
+
 ## Bugfixes — 2026-03-15
 
 | Commit | Description |
