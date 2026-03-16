@@ -1354,6 +1354,7 @@
 									ry={el.properties?.ry || 100}
 									rotation={el.properties?.rotation || 0}
 									selected={selection.isSelected(el.naming_id)}
+									withdrawn={isWithdrawn(el.properties)}
 									zoom={viewport.zoom}
 									onresizeend={async (newRx, newRy) => {
 										await mapAction('updateProperties', { namingId: el.naming_id, properties: { rx: newRx, ry: newRy } });
@@ -1525,6 +1526,10 @@
 							+ Phase
 						</button>
 					{/if}
+					<div class="ctx-separator"></div>
+					<button class="ctx-item" onclick={() => { toggleWithdraw(ctxMenuId!, isWithdrawn(ctxNode?.properties)); ctxMenuId = null; }}>
+						{isWithdrawn(ctxNode?.properties) ? 'Restore' : 'Withdraw'}
+					</button>
 				</div>
 			{/if}
 

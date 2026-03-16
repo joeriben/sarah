@@ -11,6 +11,7 @@
 		ry: ryProp = 100,
 		rotation: rotationProp = 0,
 		selected = false,
+		withdrawn = false,
 		zoom = 1,
 		onresizeend,
 		onrotateend,
@@ -23,6 +24,7 @@
 		ry?: number;
 		rotation?: number;
 		selected?: boolean;
+		withdrawn?: boolean;
 		zoom?: number;
 		onresizeend?: (rx: number, ry: number) => void;
 		onrotateend?: (rotation: number) => void;
@@ -162,7 +164,7 @@
 	}
 </script>
 
-<div class="formation-node" class:selected style="margin-top: -{topExtra}px;">
+<div class="formation-node" class:selected class:withdrawn style="margin-top: -{topExtra}px;">
 	<svg bind:this={svgEl} width={svgW} height={svgH} viewBox="0 0 {svgW} {svgH}" style="overflow: visible;">
 		<g transform="rotate({localRotation}, {cx}, {cy})">
 			{#if isRect}
@@ -285,6 +287,10 @@
 <style>
 	.formation-node {
 		cursor: grab;
+	}
+
+	.formation-node.withdrawn {
+		opacity: 0.3;
 	}
 
 	.formation-node.selected :global(ellipse),
