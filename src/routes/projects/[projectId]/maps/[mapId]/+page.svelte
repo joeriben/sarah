@@ -34,6 +34,17 @@
 	$effect(() => { ms.syncData(data); });
 
 	let viewMode = $state<'canvas' | 'list'>('list');
+	let canvasContainerEl = $state<HTMLDivElement | null>(null);
+
+	// Positional maps: set initial viewport so origin is at bottom-left
+	$effect(() => {
+		if (ms.mapType !== 'positional' || !canvasContainerEl) return;
+		const h = canvasContainerEl.clientHeight;
+		if (h > 0 && viewport.x === 0 && viewport.y === 0) {
+			viewport.x = 60;
+			viewport.y = h - 80;
+		}
+	});
 	let displayMode = $state<'entities' | 'relations' | 'full'>('full');
 	let listGroupBy = $state<'mode' | 'designation' | 'phase' | 'provenance' | 'flat'>('mode');
 
@@ -70,19 +81,33 @@
 			} else { needsLayout = true; }
 		}
 		if (needsLayout) {
-			try {
-				const result = await computeLayout(ms.elements as any, ms.relations as any, ms.silences as any);
+			if (ms.mapType === 'positional') {
+				// Positional maps: no auto-layout, place unpositioned nodes in a scatter near origin
 				const merged = new Map(stored);
-				for (const [id, p] of result.positions) {
-					if (!merged.has(id)) merged.set(id, { x: p.x, y: p.y });
+				let offset = 0;
+				for (const node of allNodes) {
+					if (!merged.has(node.naming_id)) {
+						merged.set(node.naming_id, { x: 50 + (offset % 4) * 120, y: -50 - Math.floor(offset / 4) * 100 });
+						offset++;
+					}
 				}
-				placeRelationMidpoints(merged);
 				positions = merged;
 				await saveAllPositions(merged);
-			} catch (err) {
-				console.warn('ELK layout failed, using stored positions:', err);
-				placeRelationMidpoints(stored);
-				positions = stored;
+			} else {
+				try {
+					const result = await computeLayout(ms.elements as any, ms.relations as any, ms.silences as any);
+					const merged = new Map(stored);
+					for (const [id, p] of result.positions) {
+						if (!merged.has(id)) merged.set(id, { x: p.x, y: p.y });
+					}
+					placeRelationMidpoints(merged);
+					positions = merged;
+					await saveAllPositions(merged);
+				} catch (err) {
+					console.warn('ELK layout failed, using stored positions:', err);
+					placeRelationMidpoints(stored);
+					positions = stored;
+				}
 			}
 		} else { positions = stored; }
 	}
@@ -480,7 +505,7 @@
 
 	<div class="map-workspace">
 		<!-- Canvas -->
-		<div class="canvas-container" style="{viewMode !== 'canvas' ? 'display: none;' : ''}">
+		<div class="canvas-container" bind:this={canvasContainerEl} style="{viewMode !== 'canvas' ? 'display: none;' : ''}">
 			<InfiniteCanvas {viewport} oncanvasclick={handleCanvasClick} oncanvascontextmenu={handleCanvasContextMenu}>
 				{#if displayMode === 'full'}
 				{#each ms.relations.filter((r: any) => !r.properties?.spatiallyDerived) as rel}
@@ -502,6 +527,63 @@
 				{/each}
 				{/if}
 
+				<!-- Positional Map: axis overlay (L-shape from origin, Clarke convention) -->
+				{#if ms.mapType === 'positional'}
+					{@const AL = 1600}
+					{@const OX = 40}
+					{@const OY = AL + 40}
+					{@const axisX = ms.axes.find((a: any) => a.properties?.axisDimension === 'x')}
+					{@const axisY = ms.axes.find((a: any) => a.properties?.axisDimension === 'y')}
+					<!-- Origin at canvas (0,0). X goes right, Y goes up (negative canvas-y). -->
+					<svg class="pos-axis-overlay" style="position:absolute; left:-{OX}px; top:-{OY}px; width:{AL + OX * 2}px; height:{AL + OY}px; pointer-events:none; overflow:visible;">
+						<!-- X axis: origin → right -->
+						<line x1={OX} y1={OY} x2={OX + AL} y2={OY} stroke="#3a3d4a" stroke-width="2" />
+						<line x1={OX + AL - 8} y1={OY - 5} x2={OX + AL} y2={OY} stroke="#3a3d4a" stroke-width="2" />
+						<line x1={OX + AL - 8} y1={OY + 5} x2={OX + AL} y2={OY} stroke="#3a3d4a" stroke-width="2" />
+						<!-- Y axis: origin → up -->
+						<line x1={OX} y1={OY} x2={OX} y2={OY - AL} stroke="#3a3d4a" stroke-width="2" />
+						<line x1={OX - 5} y1={OY - AL + 8} x2={OX} y2={OY - AL} stroke="#3a3d4a" stroke-width="2" />
+						<line x1={OX + 5} y1={OY - AL + 8} x2={OX} y2={OY - AL} stroke="#3a3d4a" stroke-width="2" />
+						<!-- X axis gradient: --- near origin, +++ at end -->
+						<text x={OX + 6} y={OY + 28} fill="#6b7280" font-size="16" font-family="monospace">- - -</text>
+						<text x={OX + AL - 60} y={OY + 28} fill="#6b7280" font-size="16" font-family="monospace">+ + +</text>
+						<!-- Y axis gradient: --- near origin, +++ at top -->
+						<text x={OX - 10} y={OY - 8} fill="#6b7280" font-size="16" font-family="monospace" text-anchor="end">- - -</text>
+						<text x={OX - 10} y={OY - AL + 22} fill="#6b7280" font-size="16" font-family="monospace" text-anchor="end">+ + +</text>
+					</svg>
+					<!-- Axis labels as interactive divs -->
+					{#if axisX}
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div class="pos-axis-label pos-axis-x" style="position:absolute; left:{AL / 2 - 100}px; top:30px; width:200px; text-align:center;"
+							onclick={() => { ms.editingId = axisX.naming_id; ms.editingValue = axisX.inscription; }}>
+							{#if ms.editingId === axisX.naming_id}
+								<form class="inline-rename" onsubmit={e => { e.preventDefault(); ms.confirmRename(); }}>
+									<input type="text" bind:value={ms.editingValue} style="width:180px;" />
+									<button type="submit" class="btn-xs">ok</button>
+								</form>
+							{:else}
+								{axisX.inscription}
+							{/if}
+						</div>
+					{/if}
+					{#if axisY}
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div class="pos-axis-label pos-axis-y" style="position:absolute; left:-50px; top:{-AL / 2 - 10}px; white-space:nowrap; transform:rotate(-90deg);"
+							onclick={() => { ms.editingId = axisY.naming_id; ms.editingValue = axisY.inscription; }}>
+							{#if ms.editingId === axisY.naming_id}
+								<form class="inline-rename" onsubmit={e => { e.preventDefault(); ms.confirmRename(); }}>
+									<input type="text" bind:value={ms.editingValue} style="width:180px;" />
+									<button type="submit" class="btn-xs">ok</button>
+								</form>
+							{:else}
+								{axisY.inscription}
+							{/if}
+						</div>
+					{/if}
+				{/if}
+
 				<!-- Element nodes (hidden in 'relations' mode) -->
 				{#each ms.elements as el}
 					{@const pos = positions.get(el.naming_id)}
@@ -516,7 +598,34 @@
 							onclick={handleNodeClick}
 							oncontextmenu={handleNodeContextMenu}
 						>
-							{#if ms.mapType === 'social-worlds' && el.sw_role}
+							{#if ms.mapType === 'positional'}
+								<div class="pos-node" class:absent={el.properties?.absent}
+									class:ai-suggested={el.properties?.aiSuggested}
+									class:ai-withdrawn={ms.isWithdrawn(el.properties)}>
+									<div class="node-header">
+										<span class="designation-dot" style="background: {ms.designationColor(el.designation)}"></span>
+										<span class="node-designation">{ms.designationLabel(el.designation)}</span>
+										{#if el.memo_previews?.length > 0}
+											<!-- svelte-ignore a11y_click_events_have_key_events -->
+											<!-- svelte-ignore a11y_no_static_element_interactions -->
+											<span class="memo-badge" title="{el.memo_previews.length} memo(s)" onclick={(e) => { e.stopPropagation(); ms.showStack(el.naming_id); }}>
+												{el.memo_previews.length}
+											</span>
+										{/if}
+									</div>
+									{#if ms.editingId === el.naming_id}
+										<form class="inline-rename" onsubmit={e => { e.preventDefault(); ms.confirmRename(); }}>
+											<input type="text" bind:value={ms.editingValue} />
+											<button type="submit" class="btn-xs">ok</button>
+										</form>
+									{:else}
+										<span class="node-label">{el.inscription}</span>
+									{/if}
+									{#if el.properties?.absent}
+										<span class="absent-badge">Missing in Data</span>
+									{/if}
+								</div>
+							{:else if ms.mapType === 'social-worlds' && el.sw_role}
 								<FormationNode
 									label={el.inscription}
 									swRole={el.sw_role}
@@ -775,6 +884,30 @@
 		border: 2px solid var(--el-color, #8b9cf7); border-radius: 8px;
 		padding: 0.4rem 0.6rem; min-width: 80px; max-width: 220px;
 	}
+
+	/* Positional Map nodes */
+	.pos-node {
+		position: relative; background: #161822;
+		border: 2px solid var(--el-color, #8b9cf7); border-radius: 6px;
+		padding: 0.5rem 0.75rem; min-width: 100px; max-width: 280px;
+	}
+	.pos-node.absent {
+		border-style: dashed; border-color: #4b5563;
+		background: rgba(22, 24, 34, 0.6); opacity: 0.7;
+	}
+	.pos-node .node-label { font-size: 0.85rem; color: #e1e4e8; line-height: 1.3; }
+	.pos-node.absent .node-label { color: #6b7280; font-style: italic; }
+	.absent-badge {
+		display: block; font-size: 0.65rem; color: #4b5563;
+		text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.2rem;
+	}
+
+	/* Positional Map axis labels */
+	.pos-axis-label {
+		font-size: 1.1rem; color: #8b8fa3; cursor: pointer;
+		padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 500;
+	}
+	.pos-axis-label:hover { color: #e1e4e8; background: rgba(139, 156, 247, 0.1); }
 	.memo-badge {
 		font-size: 0.6rem; font-weight: 700; color: #f59e0b; background: rgba(245, 158, 11, 0.15);
 		border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px;

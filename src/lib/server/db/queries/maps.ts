@@ -41,6 +41,27 @@ export async function createMap(
 			[map.id, researcherNamingId]
 		);
 
+		// Positional maps: create two axis namings
+		if (mapType === 'positional') {
+			for (const dim of ['x', 'y'] as const) {
+				const axisRes = await client.query(
+					`INSERT INTO namings (project_id, inscription, created_by)
+					 VALUES ($1, $2, $3) RETURNING *`,
+					[projectId, dim === 'x' ? 'Axis 1' : 'Axis 2', userId]
+				);
+				await client.query(
+					`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
+					 VALUES ($1, $2, 'entity', $3)`,
+					[axisRes.rows[0].id, map.id, JSON.stringify({ isAxis: true, axisDimension: dim })]
+				);
+				await client.query(
+					`INSERT INTO naming_acts (naming_id, designation, by)
+					 VALUES ($1, 'cue', $2)`,
+					[axisRes.rows[0].id, researcherNamingId]
+				);
+			}
+		}
+
 		return { ...map, properties: { mapType, ...properties } };
 	});
 }
@@ -997,13 +1018,15 @@ export async function getMapStructure(mapId: string, projectId: string) {
 		getMapDesignationProfile(mapId, projectId)
 	]);
 
-	const elements = appearances.filter((a: any) => a.mode === 'entity');
+	const axes = appearances.filter((a: any) => a.mode === 'entity' && a.properties?.isAxis);
+	const elements = appearances.filter((a: any) => a.mode === 'entity' && !a.properties?.isAxis);
 	const relations = appearances.filter((a: any) => a.mode === 'relation');
 	const silences = appearances.filter((a: any) => a.mode === 'silence');
 	const processes = appearances.filter((a: any) => a.mode === 'process');
 	const constellations = appearances.filter((a: any) => a.mode === 'constellation');
 
 	return {
+		axes,
 		elements,
 		relations,
 		silences,

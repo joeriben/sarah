@@ -29,6 +29,7 @@ export function createMapState(
 	viewport: { x: number; y: number; zoom: number },
 ) {
 	// ─── Core data ───
+	let axes = $state<any[]>(initialData.axes || []);
 	let elements = $state<any[]>(initialData.elements);
 	let relations = $state<any[]>(initialData.relations);
 	let silences = $state<any[]>(initialData.silences);
@@ -179,6 +180,7 @@ export function createMapState(
 		const res = await fetch(`/api/projects/${initialData.projectId}/maps/${initialData.map.id}`);
 		if (!res.ok) return;
 		const fresh = await res.json();
+		axes = fresh.axes || [];
 		elements = fresh.elements;
 		relations = fresh.relations;
 		silences = fresh.silences;
@@ -566,6 +568,7 @@ export function createMapState(
 
 	// ─── Sync data from page props ───
 	function syncData(data: any) {
+		axes = data.axes || [];
 		elements = data.elements;
 		relations = data.relations;
 		silences = data.silences;
@@ -575,6 +578,7 @@ export function createMapState(
 
 	return {
 		// Data (getters)
+		get axes() { return axes; },
 		get elements() { return elements; },
 		get relations() { return relations; },
 		get silences() { return silences; },

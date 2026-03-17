@@ -27,6 +27,7 @@
 
 	let newInscription = $state('');
 	let newSwRole = $state<SwRole>('social-world');
+	let newPosAbsent = $state(false);
 	let adding = $state(false);
 	let addInputRef = $state<HTMLInputElement | null>(null);
 
@@ -47,6 +48,9 @@
 		closePlacementDropdown();
 		if (ms.mapType === 'social-worlds') {
 			await ms.mapAction('addFormation', { inscription: newInscription.trim(), swRole: newSwRole });
+		} else if (ms.mapType === 'positional' && newPosAbsent) {
+			const res = await ms.mapAction('addElement', { inscription: newInscription.trim(), properties: { absent: true } });
+			newPosAbsent = false;
 		} else {
 			await ms.mapAction('addElement', { inscription: newInscription.trim() });
 		}
@@ -135,8 +139,13 @@
 							<option value={role}>{role}</option>
 						{/each}
 					</select>
+				{:else if ms.mapType === 'positional'}
+					<label class="pos-absent-toggle" title="Mark as missing/absent position">
+						<input type="checkbox" bind:checked={newPosAbsent} />
+						<span>absent</span>
+					</label>
 				{/if}
-				<input type="text" placeholder={ms.mapType === 'social-worlds' ? 'Formation name...' : 'Name or search...'} bind:value={newInscription} bind:this={addInputRef} disabled={adding}
+				<input type="text" placeholder={ms.mapType === 'social-worlds' ? 'Formation name...' : ms.mapType === 'positional' ? 'Position...' : 'Name or search...'} bind:value={newInscription} bind:this={addInputRef} disabled={adding}
 					oninput={(e) => onAddInputChange((e.target as HTMLInputElement).value)}
 					onfocus={() => { if (newInscription.trim().length >= 2) onAddInputChange(newInscription); }}
 					onblur={() => { setTimeout(() => closePlacementDropdown(), 200); }}
@@ -264,6 +273,14 @@
 		padding: 0.3rem 0.4rem; color: #c9cdd5; font-size: 0.75rem; cursor: pointer;
 	}
 	.sw-role-select:focus { outline: none; border-color: #8b9cf7; }
+	.pos-absent-toggle {
+		display: flex; align-items: center; gap: 0.3rem;
+		font-size: 0.75rem; color: #6b7280; cursor: pointer;
+	}
+	.pos-absent-toggle input[type="checkbox"] {
+		width: 14px; height: 14px; accent-color: #8b9cf7;
+	}
+	.pos-absent-toggle:has(input:checked) { color: #f59e0b; }
 	.add-form-wrapper { position: relative; }
 
 	/* Placement dropdown */
