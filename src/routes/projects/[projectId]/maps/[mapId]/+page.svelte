@@ -571,7 +571,7 @@
 					{#if axisX}
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div class="pos-axis-label pos-axis-x" style="position:absolute; left:{AL / 2}px; top:80px; white-space:nowrap; transform:translateX(-50%);"
+						<div class="pos-axis-label pos-axis-x" style="position:absolute; left:{AL / 2}px; top:38px; white-space:nowrap; transform:translateX(-50%);"
 							onclick={() => { if (ms.editingId !== axisX.naming_id) { ms.editingId = axisX.naming_id; ms.editingValue = axisX.inscription; } }}>
 							{#if ms.editingId === axisX.naming_id}
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -623,34 +623,7 @@
 							onclick={handleNodeClick}
 							oncontextmenu={handleNodeContextMenu}
 						>
-							{#if ms.mapType === 'positional'}
-								<div class="pos-node" class:absent={el.properties?.absent}
-									class:ai-suggested={el.properties?.aiSuggested}
-									class:ai-withdrawn={ms.isWithdrawn(el.properties)}>
-									<div class="node-header">
-										<span class="designation-dot" style="background: {ms.designationColor(el.designation)}"></span>
-										<span class="node-designation">{ms.designationLabel(el.designation)}</span>
-										{#if el.memo_previews?.length > 0}
-											<!-- svelte-ignore a11y_click_events_have_key_events -->
-											<!-- svelte-ignore a11y_no_static_element_interactions -->
-											<span class="memo-badge" title="{el.memo_previews.length} memo(s)" onclick={(e) => { e.stopPropagation(); ms.showStack(el.naming_id); }}>
-												{el.memo_previews.length}
-											</span>
-										{/if}
-									</div>
-									{#if ms.editingId === el.naming_id}
-										<form class="inline-rename" onsubmit={e => { e.preventDefault(); ms.confirmRename(); }}>
-											<input type="text" bind:value={ms.editingValue} />
-											<button type="submit" class="btn-xs">ok</button>
-										</form>
-									{:else}
-										<span class="node-label">{el.inscription}</span>
-									{/if}
-									{#if el.properties?.absent}
-										<span class="absent-badge">Missing in Data</span>
-									{/if}
-								</div>
-							{:else if ms.mapType === 'social-worlds' && el.sw_role}
+							{#if ms.mapType === 'social-worlds' && el.sw_role}
 								<FormationNode
 									label={el.inscription}
 									swRole={el.sw_role}
@@ -673,7 +646,7 @@
 									}}
 								/>
 							{:else}
-							<div class="map-node" class:ai-suggested={el.properties?.aiSuggested} class:ai-withdrawn={ms.isWithdrawn(el.properties)} class:phase-member={ms.highlightedPhase && ms.isPhaseHighlighted(el)} class:phase-dimmed={ms.highlightedPhase && !ms.isPhaseHighlighted(el)} class:centered-dim={centeredConnections && !centeredConnections.has(el.naming_id)} class:centered-anchor={centeredId === el.naming_id}
+							<div class="map-node" class:absent={el.properties?.absent} class:ai-suggested={el.properties?.aiSuggested} class:ai-withdrawn={ms.isWithdrawn(el.properties)} class:phase-member={ms.highlightedPhase && ms.isPhaseHighlighted(el)} class:phase-dimmed={ms.highlightedPhase && !ms.isPhaseHighlighted(el)} class:centered-dim={centeredConnections && !centeredConnections.has(el.naming_id)} class:centered-anchor={centeredId === el.naming_id}
 								style="{ms.highlightedPhase && ms.isPhaseHighlighted(el) ? `--phase-color: ${ms.phaseColorMap.get(ms.highlightedPhase)};` : ''}">
 								<div class="node-header">
 									<span class="designation-dot" style="background: {ms.designationColor(el.designation)}"></span>
@@ -910,22 +883,12 @@
 		padding: 0.4rem 0.6rem; min-width: 80px; max-width: 220px;
 	}
 
-	/* Positional Map nodes */
-	.pos-node {
-		position: relative; background: #161822;
-		border: 2px solid var(--el-color, #8b9cf7); border-radius: 6px;
-		padding: 0.5rem 0.75rem; min-width: 100px; max-width: 280px;
-	}
-	.pos-node.absent {
+	/* Absent position modifier (positional maps) */
+	.map-node.absent {
 		border-style: dashed; border-color: #4b5563;
 		background: rgba(22, 24, 34, 0.6); opacity: 0.7;
 	}
-	.pos-node .node-label { font-size: 0.85rem; color: #e1e4e8; line-height: 1.3; }
-	.pos-node.absent .node-label { color: #6b7280; font-style: italic; }
-	.absent-badge {
-		display: block; font-size: 0.65rem; color: #4b5563;
-		text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.2rem;
-	}
+	.map-node.absent .node-label { color: #6b7280; font-style: italic; }
 
 	/* Positional Map axis labels */
 	.pos-axis-label {
