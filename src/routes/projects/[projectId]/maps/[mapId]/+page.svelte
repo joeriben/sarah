@@ -561,21 +561,23 @@
 						<line x1={OX - 5} y1={OY - AL + 8} x2={OX} y2={OY - AL} stroke="#3a3d4a" stroke-width="2" />
 						<line x1={OX + 5} y1={OY - AL + 8} x2={OX} y2={OY - AL} stroke="#3a3d4a" stroke-width="2" />
 						<!-- X axis gradient: --- near origin, +++ at end -->
-						<text x={OX + 6} y={OY + 28} fill="#6b7280" font-size="16" font-family="monospace">- - -</text>
-						<text x={OX + AL - 60} y={OY + 28} fill="#6b7280" font-size="16" font-family="monospace">+ + +</text>
+						<text x={OX + 6} y={OY + 36} fill="#6b7280" font-size="24" font-family="monospace">- - -</text>
+						<text x={OX + AL - 90} y={OY + 36} fill="#6b7280" font-size="24" font-family="monospace">+ + +</text>
 						<!-- Y axis gradient: --- near origin, +++ at top -->
-						<text x={OX - 10} y={OY - 8} fill="#6b7280" font-size="16" font-family="monospace" text-anchor="end">- - -</text>
-						<text x={OX - 10} y={OY - AL + 22} fill="#6b7280" font-size="16" font-family="monospace" text-anchor="end">+ + +</text>
+						<text x={OX - 14} y={OY - 12} fill="#6b7280" font-size="24" font-family="monospace" text-anchor="end">- - -</text>
+						<text x={OX - 14} y={OY - AL + 28} fill="#6b7280" font-size="24" font-family="monospace" text-anchor="end">+ + +</text>
 					</svg>
 					<!-- Axis labels as interactive divs -->
 					{#if axisX}
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div class="pos-axis-label pos-axis-x" style="position:absolute; left:{AL / 2 - 100}px; top:30px; width:200px; text-align:center;"
-							onclick={() => { ms.editingId = axisX.naming_id; ms.editingValue = axisX.inscription; }}>
+						<div class="pos-axis-label pos-axis-x" style="position:absolute; left:{AL / 2 - 150}px; top:30px; width:300px; text-align:center;"
+							onclick={() => { if (ms.editingId !== axisX.naming_id) { ms.editingId = axisX.naming_id; ms.editingValue = axisX.inscription; } }}>
 							{#if ms.editingId === axisX.naming_id}
-								<form class="inline-rename" onsubmit={e => { e.preventDefault(); ms.confirmRename(); }}>
-									<input type="text" bind:value={ms.editingValue} style="width:180px;" />
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
+								<form class="inline-rename" onclick={(e) => e.stopPropagation()} onsubmit={e => { e.preventDefault(); ms.confirmRename(); }}>
+									<input type="text" bind:value={ms.editingValue} style="width:260px; font-size:1.1rem;" />
 									<button type="submit" class="btn-xs">ok</button>
 								</form>
 							{:else}
@@ -586,11 +588,13 @@
 					{#if axisY}
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div class="pos-axis-label pos-axis-y" style="position:absolute; left:-50px; top:{-AL / 2 - 10}px; white-space:nowrap; transform:rotate(-90deg);"
-							onclick={() => { ms.editingId = axisY.naming_id; ms.editingValue = axisY.inscription; }}>
+						<div class="pos-axis-label pos-axis-y" style="position:absolute; left:-60px; top:{-AL / 2 - 10}px; white-space:nowrap; transform:rotate(-90deg);"
+							onclick={() => { if (ms.editingId !== axisY.naming_id) { ms.editingId = axisY.naming_id; ms.editingValue = axisY.inscription; } }}>
 							{#if ms.editingId === axisY.naming_id}
-								<form class="inline-rename" onsubmit={e => { e.preventDefault(); ms.confirmRename(); }}>
-									<input type="text" bind:value={ms.editingValue} style="width:180px;" />
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
+								<form class="inline-rename" onclick={(e) => e.stopPropagation()} onsubmit={e => { e.preventDefault(); ms.confirmRename(); }}>
+									<input type="text" bind:value={ms.editingValue} style="width:260px; font-size:1.1rem;" />
 									<button type="submit" class="btn-xs">ok</button>
 								</form>
 							{:else}
@@ -920,8 +924,8 @@
 
 	/* Positional Map axis labels */
 	.pos-axis-label {
-		font-size: 1.1rem; color: #8b8fa3; cursor: pointer;
-		padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 500;
+		font-size: 1.4rem; color: #8b8fa3; cursor: pointer;
+		padding: 0.3rem 0.6rem; border-radius: 4px; font-weight: 500;
 	}
 	.pos-axis-label:hover { color: #e1e4e8; background: rgba(139, 156, 247, 0.1); }
 	.memo-badge {
