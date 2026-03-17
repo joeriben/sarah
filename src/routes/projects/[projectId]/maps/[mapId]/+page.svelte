@@ -37,7 +37,7 @@
 	let canvasContainerEl = $state<HTMLDivElement | null>(null);
 	let posMapFitted = false;
 
-	const POS_AXIS_LEN = 1600;
+	const POS_AXIS_LEN = 800;
 
 	// Fit positional map: origin at bottom-left, zoom to show full axis extent
 	function fitPosMap() {
@@ -545,7 +545,7 @@
 
 				<!-- Positional Map: axis overlay (L-shape from origin, Clarke convention) -->
 				{#if ms.mapType === 'positional'}
-					{@const AL = 1600}
+					{@const AL = POS_AXIS_LEN}
 					{@const OX = 40}
 					{@const OY = AL + 40}
 					{@const axisX = ms.axes.find((a: any) => a.properties?.axisDimension === 'x')}
