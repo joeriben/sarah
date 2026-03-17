@@ -571,13 +571,13 @@
 					{#if axisX}
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div class="pos-axis-label pos-axis-x" style="position:absolute; left:{AL / 2 - 150}px; top:30px; width:300px; text-align:center;"
+						<div class="pos-axis-label pos-axis-x" style="position:absolute; left:{AL / 2}px; top:36px; white-space:nowrap; transform:translateX(-50%);"
 							onclick={() => { if (ms.editingId !== axisX.naming_id) { ms.editingId = axisX.naming_id; ms.editingValue = axisX.inscription; } }}>
 							{#if ms.editingId === axisX.naming_id}
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<form class="inline-rename" onclick={(e) => e.stopPropagation()} onsubmit={e => { e.preventDefault(); ms.confirmRename(); }}>
-									<input type="text" bind:value={ms.editingValue} style="width:260px; font-size:1.1rem;" />
+									<input type="text" bind:value={ms.editingValue} style="width:360px; font-size:1.3rem;" />
 									<button type="submit" class="btn-xs">ok</button>
 								</form>
 							{:else}
@@ -594,7 +594,7 @@
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<form class="inline-rename" onclick={(e) => e.stopPropagation()} onsubmit={e => { e.preventDefault(); ms.confirmRename(); }}>
-									<input type="text" bind:value={ms.editingValue} style="width:260px; font-size:1.1rem;" />
+									<input type="text" bind:value={ms.editingValue} style="width:360px; font-size:1.3rem;" />
 									<button type="submit" class="btn-xs">ok</button>
 								</form>
 							{:else}
