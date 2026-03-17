@@ -420,7 +420,14 @@ Core principle: the fundamental unit is the event (naming/relating act), not the
 
 **Design decision**: No toolbar memo button. Memo creation is always contextual (right-click on element or empty canvas), never a toolbar-level operation. The toolbar is for map operations; memos are analytical actions.
 
-**Files**: `maps.ts` (query), `+page.svelte` (badges + tooltip + canvas ctx menu), `FormationNode.svelte` (SVG badge), `ListItemCard.svelte` (list badge), `InfiniteCanvas.svelte` (context menu callback), `mapState.svelte.ts` (state + actions), `MemoCreateForm.svelte` (new), `ContextMenu.svelte` ("Write memo"), `StackPanel.svelte` (memo-to-memo link)
+**Memos inbox page upgrade**: Rewrote the flat memos list into expandable cards matching StackPanel functionality:
+- Click to expand → full content, linked element chips (with mode icons), discussion threads inline
+- Full action set: ack, dismiss, promote, restore, discuss (AI), edit (link to detail page)
+- AI memos visually distinguished (left border)
+- Discussion count badge + link count in collapsed header
+- `getMemosByProject()` rewritten: returns linked element names, discussion threads, provenance per memo (3 queries instead of 1)
+
+**Files**: `maps.ts` (query), `+page.svelte` (badges + tooltip + canvas ctx menu), `FormationNode.svelte` (SVG badge), `ListItemCard.svelte` (list badge), `InfiniteCanvas.svelte` (context menu callback), `mapState.svelte.ts` (state + actions), `MemoCreateForm.svelte` (new), `ContextMenu.svelte` ("Write memo"), `StackPanel.svelte` (memo-to-memo link), `memos.ts` (enriched query), `memos/+page.svelte` (expandable cards)
 
 ---
 

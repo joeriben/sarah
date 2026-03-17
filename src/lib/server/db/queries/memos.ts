@@ -81,19 +81,89 @@ export async function createMemo(
 }
 
 export async function getMemosByProject(projectId: string) {
-	return (
+	const AI_SYSTEM_UUID = '00000000-0000-0000-0000-000000000000';
+
+	// Get all memos (excluding discussion entries)
+	const memos = (
 		await query(
-			`SELECT n.id, n.inscription as label, n.created_at, n.created_by, mc.content, mc.format, mc.status,
-			        (SELECT COUNT(*) FROM participations p
-			         JOIN namings pn ON pn.id = p.id AND pn.deleted_at IS NULL
-			         WHERE p.naming_id = n.id OR p.participant_id = n.id) as link_count
+			`SELECT n.id, n.inscription as label, n.created_at, n.created_by, mc.content, mc.format, mc.status
 			 FROM namings n
 			 JOIN memo_content mc ON mc.naming_id = n.id
 			 WHERE n.project_id = $1 AND n.deleted_at IS NULL
+			   AND n.inscription NOT LIKE 'MemoDiscussion:%'
+			   AND n.inscription NOT LIKE 'Discussion:%'
 			 ORDER BY n.created_at DESC`,
 			[projectId]
 		)
 	).rows;
+
+	const memoIds = memos.map((m: any) => m.id);
+	if (memoIds.length === 0) return [];
+
+	// Get linked elements for all memos (element name + mode)
+	const links = await query(
+		`SELECT
+			CASE WHEN p.naming_id = ANY($1::uuid[]) THEN p.naming_id ELSE p.participant_id END as memo_id,
+			t.id as target_id, t.inscription as target_label,
+			COALESCE((SELECT a.mode FROM appearances a WHERE a.naming_id = t.id LIMIT 1), 'entity') as target_mode
+		 FROM participations p
+		 JOIN namings pn ON pn.id = p.id AND pn.deleted_at IS NULL
+		 JOIN namings t ON t.id = CASE WHEN p.naming_id = ANY($1::uuid[]) THEN p.participant_id ELSE p.naming_id END
+		 WHERE (p.naming_id = ANY($1::uuid[]) OR p.participant_id = ANY($1::uuid[]))
+		   AND t.deleted_at IS NULL AND NOT (t.id = ANY($1::uuid[]))
+		   AND t.inscription NOT LIKE 'MemoDiscussion:%'
+		   AND t.inscription NOT LIKE 'Discussion:%'
+		   AND NOT EXISTS (SELECT 1 FROM memo_content mc2 WHERE mc2.naming_id = t.id)`,
+		[memoIds]
+	);
+	const linkMap = new Map<string, any[]>();
+	for (const row of links.rows) {
+		if (!linkMap.has(row.memo_id)) linkMap.set(row.memo_id, []);
+		linkMap.get(row.memo_id)!.push({ id: row.target_id, label: row.target_label, mode: row.target_mode });
+	}
+
+	// Get discussion threads for all memos
+	const discRows = await query(
+		`SELECT DISTINCT d.id, d.inscription as label, dc.content, d.created_at, d.created_by,
+		        CASE WHEN p.naming_id = ANY($1::uuid[]) THEN p.naming_id ELSE p.participant_id END as parent_memo_id
+		 FROM participations p
+		 JOIN namings pn ON pn.id = p.id AND pn.deleted_at IS NULL
+		 JOIN namings d ON d.id = CASE WHEN p.naming_id = ANY($1::uuid[]) THEN p.participant_id ELSE p.naming_id END
+		 JOIN memo_content dc ON dc.naming_id = d.id
+		 WHERE (p.naming_id = ANY($1::uuid[]) OR p.participant_id = ANY($1::uuid[]))
+		   AND d.deleted_at IS NULL
+		   AND NOT (d.id = ANY($1::uuid[]))
+		   AND d.inscription LIKE 'MemoDiscussion:%'
+		 ORDER BY d.created_at ASC`,
+		[memoIds]
+	);
+	const discMap = new Map<string, any[]>();
+	for (const row of discRows.rows) {
+		const parentId = row.parent_memo_id;
+		if (!discMap.has(parentId)) discMap.set(parentId, []);
+		discMap.get(parentId)!.push({
+			id: row.id,
+			role: row.created_by === AI_SYSTEM_UUID ? 'ai' as const : 'researcher' as const,
+			type: row.label?.includes(': researcher') ? 'researcher'
+				: row.label?.includes(': revise') ? 'revise'
+				: 'response',
+			content: row.content,
+			created_at: row.created_at,
+		});
+	}
+
+	return memos.map((m: any) => ({
+		id: m.id,
+		label: m.label,
+		content: m.content,
+		format: m.format,
+		status: m.status || 'active',
+		created_at: m.created_at,
+		created_by: m.created_by,
+		isAiAuthored: m.created_by === AI_SYSTEM_UUID,
+		links: linkMap.get(m.id) || [],
+		discussion: discMap.get(m.id) || [],
+	}));
 }
 
 export async function updateMemoStatus(memoId: string, status: string) {
