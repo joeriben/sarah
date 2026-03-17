@@ -38,7 +38,7 @@ export function createMapState(
 
 	// ─── Derived ───
 	const mapType = $derived(initialData.map.properties?.mapType || 'situational');
-	const allItems = $derived([...elements, ...relations, ...silences]);
+	const allItems = $derived([...axes, ...elements, ...relations, ...silences]);
 	const phaseColorMap = $derived(
 		new Map(phases.map((p: any, i: number) => [p.id, regionColor(i)]))
 	);
