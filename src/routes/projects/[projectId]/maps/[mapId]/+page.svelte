@@ -147,6 +147,13 @@
 		if (unpositioned.length <= 2 && positions.size > 0) {
 			const merged = new Map(positions);
 			for (const node of unpositioned) {
+				// Use stored properties.x/y if available (e.g. AI-suggested positions)
+				const px = node.properties?.x;
+				const py = node.properties?.y;
+				if (typeof px === 'number' && typeof py === 'number') {
+					merged.set(node.naming_id, { x: px, y: py });
+					continue;
+				}
 				if (node.mode === 'relation') {
 					const srcId = node.directed_from || node.part_source_id;
 					const tgtId = node.directed_to || node.part_target_id;
@@ -168,10 +175,21 @@
 			positions = merged;
 			await saveAllPositions(merged);
 		} else {
-			const result = await computeLayout(ms.elements as any, ms.relations as any, ms.silences as any);
 			const merged = new Map(positions);
-			for (const [id, p] of result.positions) {
-				if (!merged.has(id)) merged.set(id, { x: p.x, y: p.y });
+			// First, adopt any stored properties.x/y (from AI suggestions etc.)
+			for (const node of unpositioned) {
+				const px = node.properties?.x;
+				const py = node.properties?.y;
+				if (typeof px === 'number' && typeof py === 'number') {
+					merged.set(node.naming_id, { x: px, y: py });
+				}
+			}
+			const stillUnpositioned = unpositioned.filter((n: any) => !merged.has(n.naming_id));
+			if (stillUnpositioned.length > 0) {
+				const result = await computeLayout(ms.elements as any, ms.relations as any, ms.silences as any);
+				for (const [id, p] of result.positions) {
+					if (!merged.has(id)) merged.set(id, { x: p.x, y: p.y });
+				}
 			}
 			placeRelationMidpoints(merged);
 			positions = merged;
