@@ -25,6 +25,7 @@
 		inscriptions: any[];
 		designations: any[];
 		memos: any[];
+		annotations?: any[];
 		discussion?: any[];
 		aiReasoning?: string | null;
 		aiSuggested?: boolean;
@@ -670,6 +671,26 @@
 										{/each}
 									</div>
 								{/if}
+								{#if (stackData.annotations ?? []).length > 0}
+									{@const annots = stackData.annotations ?? []}
+									<div class="stack-section">
+										<h4>Material ({annots.length})</h4>
+										{#each Object.entries(annots.reduce((groups: Record<string, any>, a: any) => {
+											const key = a.document_id;
+											if (!groups[key]) groups[key] = { docLabel: a.document_label, docId: a.document_id, items: [] };
+											groups[key].items.push(a);
+											return groups;
+										}, {})) as [docId, group]}
+											{@const g = group as any}
+											<div class="material-group">
+												<a class="material-doc-link" href="/projects/{data.projectId}/documents/{g.docId}">{g.docLabel}</a>
+												{#each g.items as p}
+													<div class="material-passage">{p.properties?.anchor?.text || '(no text)'}</div>
+												{/each}
+											</div>
+										{/each}
+									</div>
+								{/if}
 								{#if stackData.discussion && stackData.discussion.length > 0}
 									<div class="stack-section">
 										<h4>AI Discussion</h4>
@@ -804,6 +825,26 @@
 										{/each}
 									</div>
 								{/if}
+								{#if (stackData.annotations ?? []).length > 0}
+									{@const annots = stackData.annotations ?? []}
+									<div class="stack-section">
+										<h4>Material ({annots.length})</h4>
+										{#each Object.entries(annots.reduce((groups: Record<string, any>, a: any) => {
+											const key = a.document_id;
+											if (!groups[key]) groups[key] = { docLabel: a.document_label, docId: a.document_id, items: [] };
+											groups[key].items.push(a);
+											return groups;
+										}, {})) as [docId, group]}
+											{@const g = group as any}
+											<div class="material-group">
+												<a class="material-doc-link" href="/projects/{data.projectId}/documents/{g.docId}">{g.docLabel}</a>
+												{#each g.items as p}
+													<div class="material-passage">{p.properties?.anchor?.text || '(no text)'}</div>
+												{/each}
+											</div>
+										{/each}
+									</div>
+								{/if}
 							</div>
 						{/if}
 					</div>
@@ -851,6 +892,26 @@
 												<span class="he-value" style="color: {designationColor(hd.designation)}">{hd.designation}</span>
 												<span class="he-by">{hd.by_inscription}</span>
 												<span class="he-date">{new Date(hd.created_at).toLocaleString()}</span>
+											</div>
+										{/each}
+									</div>
+								{/if}
+								{#if (stackData.annotations ?? []).length > 0}
+									{@const annots = stackData.annotations ?? []}
+									<div class="stack-section">
+										<h4>Material ({annots.length})</h4>
+										{#each Object.entries(annots.reduce((groups: Record<string, any>, a: any) => {
+											const key = a.document_id;
+											if (!groups[key]) groups[key] = { docLabel: a.document_label, docId: a.document_id, items: [] };
+											groups[key].items.push(a);
+											return groups;
+										}, {})) as [docId, group]}
+											{@const g = group as any}
+											<div class="material-group">
+												<a class="material-doc-link" href="/projects/{data.projectId}/documents/{g.docId}">{g.docLabel}</a>
+												{#each g.items as p}
+													<div class="material-passage">{p.properties?.anchor?.text || '(no text)'}</div>
+												{/each}
 											</div>
 										{/each}
 									</div>
@@ -1241,6 +1302,20 @@
 	}
 	.discussion-msg .msg-content { color: #c9cdd5; }
 	.discussion-msg.ai .msg-role { color: #8b9cf7; }
+
+	/* Material */
+	.material-group { margin-bottom: 0.3rem; }
+	.material-doc-link {
+		font-size: 0.72rem; color: #10b981; display: block;
+		margin-bottom: 0.1rem; text-decoration: none;
+	}
+	.material-doc-link:hover { text-decoration: underline; }
+	.material-passage {
+		font-size: 0.72rem; color: #c9cdd5; padding: 0.15rem 0.3rem;
+		margin: 0.05rem 0; background: rgba(16, 185, 129, 0.04);
+		border-left: 2px solid rgba(16, 185, 129, 0.2); border-radius: 3px;
+		white-space: pre-wrap; max-height: 3em; overflow-y: auto;
+	}
 
 	/* Silence */
 	.silence-card { border-left: 2px solid #4b5563; }
