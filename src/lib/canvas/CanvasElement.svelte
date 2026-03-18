@@ -44,7 +44,7 @@
 
 	function onPointerDown(e: PointerEvent) {
 		if (e.button !== 0 || e.altKey) return;
-		if ((e.target as Element).closest('.handle')) return;
+		if ((e.target as Element).closest('.handle, .inline-rename')) return;
 		e.stopPropagation();
 		isDragging = true;
 		didDrag = false;

@@ -590,45 +590,23 @@
 						<text x={OX - 10} y={OY - 8} fill="#6b7280" font-size="16" font-family="monospace" text-anchor="end">- - -</text>
 						<text x={OX - 10} y={OY - AL + 18} fill="#6b7280" font-size="16" font-family="monospace" text-anchor="end">+ + +</text>
 					</svg>
-					<!-- Axis labels as interactive divs -->
+					<!-- Axis labels: click opens standard NamingActPrompt rename dialog -->
 					{#if axisX}
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<!-- svelte-ignore a11y_no_static_element_interactions -->
 						<div class="pos-axis-label pos-axis-x" style="position:absolute; left:{AL / 2}px; top:28px; white-space:nowrap; transform:translateX(-50%);"
-							onclick={() => { if (ms.editingId !== axisX.naming_id) { ms.editingId = axisX.naming_id; ms.editingValue = axisX.inscription; } }}>
-							{#if ms.editingId === axisX.naming_id}
-								<!-- svelte-ignore a11y_click_events_have_key_events -->
-								<!-- svelte-ignore a11y_no_static_element_interactions -->
-								<form class="inline-rename" onclick={(e) => e.stopPropagation()} onsubmit={e => { e.preventDefault(); ms.confirmRename(); }}>
-									<input type="text" bind:value={ms.editingValue} style="width:280px;" />
-									<button type="submit" class="btn-xs">ok</button>
-								</form>
-							{:else}
-								{axisX.inscription}
-							{/if}
+							ondblclick={() => { ms.editingId = axisX.naming_id; ms.editingValue = axisX.inscription; }}>
+							{axisX.inscription}
 						</div>
 					{/if}
 					{#if axisY}
-						{#if ms.editingId === axisY.naming_id}
-							<!-- Y-axis edit form: horizontal, floated left of axis -->
-							<!-- svelte-ignore a11y_click_events_have_key_events -->
-							<!-- svelte-ignore a11y_no_static_element_interactions -->
-							<form class="inline-rename" style="position:absolute; left:30px; top:{-AL / 2 - 10}px; white-space:nowrap; z-index:10;"
-								onclick={(e) => e.stopPropagation()} onsubmit={e => { e.preventDefault(); ms.confirmRename(); }}>
-								<input type="text" bind:value={ms.editingValue} style="width:280px;" />
-								<button type="submit" class="btn-xs">ok</button>
-								<button type="button" class="btn-xs" onclick={() => ms.editingId = null}>×</button>
-							</form>
-						{:else}
-							<!-- Y-axis label: vertical text via writing-mode, no rotation math -->
-							<!-- svelte-ignore a11y_click_events_have_key_events -->
-							<!-- svelte-ignore a11y_no_static_element_interactions -->
-							<div class="pos-axis-label pos-axis-y"
-								style="position:absolute; left:-50px; top:{-AL}px; height:{AL}px; writing-mode:vertical-rl; transform:rotate(180deg); display:flex; align-items:center; justify-content:center;"
-								onclick={() => { ms.editingId = axisY.naming_id; ms.editingValue = axisY.inscription; }}>
-								{axisY.inscription}
-							</div>
-						{/if}
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div class="pos-axis-label pos-axis-y"
+							style="position:absolute; left:-50px; top:{-AL}px; height:{AL}px; writing-mode:vertical-rl; transform:rotate(180deg); display:flex; align-items:center; justify-content:center;"
+							ondblclick={() => { ms.editingId = axisY.naming_id; ms.editingValue = axisY.inscription; }}>
+							{axisY.inscription}
+						</div>
 					{/if}
 				{/if}
 
