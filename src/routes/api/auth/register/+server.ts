@@ -9,7 +9,16 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	const body = await request.json();
 	const parsed = registerSchema.safeParse(body);
 	if (!parsed.success) {
-		return json({ error: 'Invalid input', details: parsed.error.flatten() }, { status: 400 });
+		const fieldErrors = parsed.error.flatten().fieldErrors;
+		let error = 'Invalid input';
+		if (fieldErrors.username) {
+			error = 'Username must be 3–50 characters and contain only letters, numbers, hyphens, or underscores';
+		} else if (fieldErrors.password) {
+			error = 'Password must be at least 8 characters';
+		} else if (fieldErrors.email) {
+			error = 'Please enter a valid email address';
+		}
+		return json({ error, details: parsed.error.flatten() }, { status: 400 });
 	}
 
 	const { username, email, password, displayName } = parsed.data;

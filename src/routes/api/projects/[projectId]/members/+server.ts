@@ -52,9 +52,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		return json({ error: 'Only owners can add admins' }, { status: 403 });
 	}
 
-	// Find user by username
+	// Find user by username (case-insensitive)
 	const targetUser = await queryOne<{ id: string; username: string; display_name: string | null }>(
-		`SELECT id, username, display_name FROM users WHERE username = $1`,
+		`SELECT id, username, display_name FROM users WHERE LOWER(username) = LOWER($1)`,
 		[username]
 	);
 	if (!targetUser) return json({ error: `User "${username}" not found` }, { status: 404 });

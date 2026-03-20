@@ -51,6 +51,9 @@
 			<label>
 				Username
 				<input type="text" bind:value={username} required autocomplete="username" />
+				{#if mode === 'register'}
+					<span class="hint">Letters, numbers, hyphens and underscores only</span>
+				{/if}
 			</label>
 
 			{#if mode === 'register'}
@@ -160,6 +163,12 @@
 	input:focus {
 		outline: none;
 		border-color: #8b9cf7;
+	}
+
+	.hint {
+		font-size: 0.75rem;
+		color: #6b7280;
+		margin-top: -0.1rem;
 	}
 
 	.error {
