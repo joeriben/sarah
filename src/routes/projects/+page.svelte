@@ -7,6 +7,29 @@
 	let description = $state('');
 	let creating = $state(false);
 
+	// Import
+	let importing = $state(false);
+	let importError = $state<string | null>(null);
+
+	async function importQdpx(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		importing = true;
+		importError = null;
+		const form = new FormData();
+		form.append('file', file);
+		const res = await fetch('/api/projects/import', { method: 'POST', body: form });
+		const result = await res.json();
+		if (res.ok) {
+			goto(`/projects/${result.projectId}`);
+		} else {
+			importError = result.error || 'Import failed';
+		}
+		importing = false;
+		input.value = '';
+	}
+
 	// Context menu
 	let ctxMenuId = $state<string | null>(null);
 	let ctxMenuPos = $state({ x: 0, y: 0 });
@@ -53,10 +76,20 @@
 <div class="projects-page" onclick={() => { ctxMenuId = null; }}>
 	<div class="header">
 		<h1>Projects</h1>
-		<button class="btn-primary" onclick={() => showCreate = !showCreate}>
-			{showCreate ? 'Cancel' : 'New project'}
-		</button>
+		<div class="header-actions">
+			<label class="btn-import" class:disabled={importing}>
+				{importing ? 'Importing...' : 'Import .qdpx'}
+				<input type="file" accept=".qdpx" onchange={importQdpx} hidden disabled={importing} />
+			</label>
+			<button class="btn-primary" onclick={() => showCreate = !showCreate}>
+				{showCreate ? 'Cancel' : 'New project'}
+			</button>
+		</div>
 	</div>
+
+	{#if importError}
+		<div class="import-error">{importError}</div>
+	{/if}
 
 	{#if showCreate}
 		<form class="create-form" onsubmit={e => { e.preventDefault(); createProject(); }}>
@@ -126,6 +159,22 @@
 	}
 	.btn-primary:hover { background: #a5b4fc; }
 	.btn-primary:disabled { opacity: 0.5; }
+
+	.header-actions { display: flex; gap: 0.75rem; align-items: center; }
+
+	.btn-import {
+		background: none; border: 1px solid #10b981; border-radius: 6px;
+		padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 600;
+		color: #10b981; cursor: pointer;
+	}
+	.btn-import:hover { background: rgba(16, 185, 129, 0.1); }
+	.btn-import.disabled { opacity: 0.5; pointer-events: none; }
+
+	.import-error {
+		background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);
+		color: #ef4444; padding: 0.6rem 1rem; border-radius: 6px;
+		margin-bottom: 1rem; font-size: 0.85rem;
+	}
 
 	.create-form {
 		display: flex;
