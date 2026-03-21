@@ -31,7 +31,7 @@
 
 			{#each mapTypeOrder as type}
 				{#if mapsByType[type]?.length}
-					<span class="map-group-label">{mapTypeLabels[type]}</span>
+					<a href="{base}/maps" class="map-group-label">{mapTypeLabels[type]}</a>
 					{#each mapsByType[type] as map}
 						<a
 							href="{base}/maps/{map.id}"
@@ -103,11 +103,15 @@
 
 	.map-group-label {
 		font-size: 0.75rem;
-		color: #6b7280;
+		color: #6b7280 !important;
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
 		padding: 0.5rem 0.65rem 0.15rem;
 		margin-top: 0.15rem;
+		text-decoration: none;
+	}
+	.map-group-label:hover {
+		color: #a5b4fc !important;
 	}
 
 	.map-group-label:first-child {
