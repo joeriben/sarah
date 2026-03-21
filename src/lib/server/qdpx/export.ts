@@ -307,10 +307,13 @@ function buildQDE(data: Awaited<ReturnType<typeof fetchProjectData>>): string {
 		const dc = documents.find((d: any) => d.naming_id === doc.id);
 		if (!dc) continue;
 
+		const ext = dc.file_path ? dc.file_path.split('.').pop()?.toLowerCase() : 'txt';
+		// Detect media type from MIME or file extension (octet-stream fallback)
 		const mime = dc.mime_type || 'text/plain';
-		const isImage = mime.startsWith('image/');
-		const isPdf = mime === 'application/pdf';
-		const ext = dc.file_path ? dc.file_path.split('.').pop() : 'txt';
+		const isImage = mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '');
+		const isPdf = mime === 'application/pdf' || ext === 'pdf';
+		const isAudio = mime.startsWith('audio/') || ['wav', 'mp3', 'm4a', 'ogg', 'flac', 'aac'].includes(ext || '');
+		const isVideo = mime.startsWith('video/') || ['mp4', 'webm', 'avi', 'mov', 'mkv'].includes(ext || '');
 
 		if (isImage) {
 			w(`    <PictureSource guid="${doc.id}" name="${esc(doc.inscription)}" path="internal://${doc.id}.${ext}">`);
@@ -332,6 +335,12 @@ function buildQDE(data: Awaited<ReturnType<typeof fetchProjectData>>): string {
 			}
 
 			w(`    </PictureSource>`);
+		} else if (isAudio) {
+			w(`    <AudioSource guid="${doc.id}" name="${esc(doc.inscription)}" path="internal://${doc.id}.${ext}">`);
+			w(`    </AudioSource>`);
+		} else if (isVideo) {
+			w(`    <VideoSource guid="${doc.id}" name="${esc(doc.inscription)}" path="internal://${doc.id}.${ext}">`);
+			w(`    </VideoSource>`);
 		} else if (isPdf) {
 			w(`    <PDFSource guid="${doc.id}" name="${esc(doc.inscription)}" path="internal://${doc.id}.${ext}">`);
 			if (dc.full_text) {
@@ -355,8 +364,9 @@ function buildQDE(data: Awaited<ReturnType<typeof fetchProjectData>>): string {
 			}
 			w(`    </PDFSource>`);
 		} else {
-			// TextSource
-			w(`    <TextSource guid="${doc.id}" name="${esc(doc.inscription)}" plainTextPath="internal://${doc.id}.txt">`);
+			// TextSource — use original extension for file reference, plainTextPath for the text
+			const textExt = ext || 'txt';
+			w(`    <TextSource guid="${doc.id}" name="${esc(doc.inscription)}" plainTextPath="internal://${doc.id}.${textExt}">`);
 
 			// Text annotations
 			const textAnnotations = appearances.filter(
