@@ -50,8 +50,8 @@
 	}
 
 	async function refreshMemos() {
-		const res = await fetch(`/api/projects/${data.projectId}/memos`);
-		if (res.ok) data.memos = await res.json();
+		const module = await import('$app/navigation');
+		module.invalidateAll();
 	}
 
 	async function setStatus(memoId: string, status: string) {
