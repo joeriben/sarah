@@ -616,6 +616,7 @@
 								<option value="specification">specification</option>
 							</select>
 							<button class="btn-xs" onclick={() => showStack(n.naming_id)}>stack</button>
+							<a class="btn-xs btn-detail" href="/projects/{data.projectId}/namings/{n.naming_id}">detail</a>
 							<button class="btn-xs" onclick={() => startRelate(n.naming_id)}>relate</button>
 							<button class="btn-xs btn-mode" onclick={() => startReifyAsRelation(n.naming_id)}>→ relation</button>
 							<button class="btn-xs btn-merge" onclick={(e) => { e.stopPropagation(); startMerge(n.naming_id); }}>merge</button>
@@ -774,6 +775,7 @@
 								<option value="specification">specification</option>
 							</select>
 							<button class="btn-xs" onclick={() => showStack(n.naming_id)}>stack</button>
+							<a class="btn-xs btn-detail" href="/projects/{data.projectId}/namings/{n.naming_id}">detail</a>
 							<button class="btn-xs btn-mode" onclick={() => switchToEntity(n.naming_id)}>→ entity</button>
 							<button class="btn-xs btn-withdraw" onclick={() => withdraw(n.naming_id)}>
 								{withdrawn ? 'restore' : 'withdraw'}
@@ -868,6 +870,7 @@
 						</div>
 						<div class="naming-actions">
 							<button class="btn-xs" onclick={() => showStack(n.naming_id)}>stack</button>
+							<a class="btn-xs btn-detail" href="/projects/{data.projectId}/namings/{n.naming_id}">detail</a>
 						</div>
 
 						{#if stackId === n.naming_id && stackData}
@@ -1190,6 +1193,8 @@
 	.btn-confirm:hover { background: rgba(139, 156, 247, 0.12); color: #e1e4e8; }
 	.btn-withdraw { border-color: #6b7280; color: #6b7280; font-size: 0.65rem; }
 	.btn-withdraw:hover { background: rgba(107, 114, 128, 0.1); }
+	.btn-detail { text-decoration: none; border-color: #10b981; color: #10b981; font-size: 0.65rem; }
+	.btn-detail:hover { background: rgba(16, 185, 129, 0.1); }
 	.btn-mode { border-color: #8b9cf7; color: #8b9cf7; font-size: 0.65rem; opacity: 0.6; }
 	.btn-mode:hover { opacity: 1; background: rgba(139, 156, 247, 0.08); }
 

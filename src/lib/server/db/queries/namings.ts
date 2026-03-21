@@ -361,6 +361,127 @@ export async function getDesignationHistory(namingId: string) {
 	).rows;
 }
 
+// ---- Aggregated view: everything known about a single naming ----
+
+export async function getAggregatedNaming(namingId: string, projectId: string) {
+	const { getNamingStack } = await import('./maps.js');
+
+	const [naming, stack, appearances, participations] = await Promise.all([
+		queryOne<{
+			id: string; inscription: string; created_at: string; seq: string; created_by: string;
+		}>(
+			`SELECT id, inscription, created_at, seq, created_by FROM namings
+			 WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL`,
+			[namingId, projectId]
+		),
+		getNamingStack(namingId, projectId),
+		// All map perspectives this naming appears on (excluding self-refs and infrastructure)
+		query<{
+			perspective_id: string; perspective_label: string; map_type: string;
+			mode: string; valence: string | null; properties: Record<string, any>;
+			directed_from: string | null; directed_to: string | null;
+			phase_id: string | null; phase_label: string | null;
+		}>(
+			`SELECT a.perspective_id, m.inscription as perspective_label,
+			        ma.properties->>'mapType' as map_type,
+			        a.mode, a.valence, a.properties,
+			        a.directed_from, a.directed_to,
+			        -- Phase membership (if any)
+			        (SELECT ph.naming_id FROM phase_memberships ph
+			         JOIN appearances pha ON pha.naming_id = ph.phase_id AND pha.perspective_id = a.perspective_id
+			         WHERE ph.naming_id = $1 AND ph.action = 'add'
+			           AND NOT EXISTS (SELECT 1 FROM phase_memberships ph2
+			             WHERE ph2.phase_id = ph.phase_id AND ph2.naming_id = ph.naming_id
+			               AND ph2.action = 'remove' AND ph2.seq > ph.seq)
+			         ORDER BY ph.seq DESC LIMIT 1) as phase_id,
+			        (SELECT phn.inscription FROM phase_memberships ph
+			         JOIN namings phn ON phn.id = ph.phase_id
+			         JOIN appearances pha ON pha.naming_id = ph.phase_id AND pha.perspective_id = a.perspective_id
+			         WHERE ph.naming_id = $1 AND ph.action = 'add'
+			           AND NOT EXISTS (SELECT 1 FROM phase_memberships ph2
+			             WHERE ph2.phase_id = ph.phase_id AND ph2.naming_id = ph.naming_id
+			               AND ph2.action = 'remove' AND ph2.seq > ph.seq)
+			         ORDER BY ph.seq DESC LIMIT 1) as phase_label
+			 FROM appearances a
+			 JOIN namings m ON m.id = a.perspective_id AND m.deleted_at IS NULL
+			 JOIN appearances ma ON ma.naming_id = m.id AND ma.perspective_id = m.id
+			   AND ma.mode = 'perspective' AND ma.properties ? 'mapType'
+			 WHERE a.naming_id = $1 AND a.perspective_id != $1`,
+			[namingId]
+		),
+		// All participations (relations this naming is involved in)
+		query<{
+			relation_id: string; relation_inscription: string;
+			partner_id: string; partner_inscription: string;
+			partner_designation: string | null;
+			role: 'source' | 'target';
+			valence: string | null;
+			map_labels: string | null;
+		}>(
+			`SELECT p.id as relation_id, pn.inscription as relation_inscription,
+			        partner.id as partner_id, partner.inscription as partner_inscription,
+			        (SELECT na.designation FROM naming_acts na
+			         WHERE na.naming_id = partner.id AND na.designation IS NOT NULL
+			         ORDER BY na.seq DESC LIMIT 1) as partner_designation,
+			        CASE WHEN p.naming_id = $1 THEN 'source' ELSE 'target' END as role,
+			        (SELECT a.valence FROM appearances a WHERE a.naming_id = p.id AND a.mode = 'relation' LIMIT 1) as valence,
+			        (SELECT string_agg(DISTINCT mp.inscription, ', ')
+			         FROM appearances ra
+			         JOIN namings mp ON mp.id = ra.perspective_id AND mp.deleted_at IS NULL
+			         JOIN appearances mpa ON mpa.naming_id = mp.id AND mpa.perspective_id = mp.id
+			           AND mpa.mode = 'perspective' AND mpa.properties ? 'mapType'
+			         WHERE ra.naming_id = p.id AND ra.perspective_id != p.id) as map_labels
+			 FROM participations p
+			 JOIN namings pn ON pn.id = p.id AND pn.deleted_at IS NULL
+			 JOIN namings partner ON partner.id = CASE WHEN p.naming_id = $1 THEN p.participant_id ELSE p.naming_id END
+			   AND partner.deleted_at IS NULL
+			 WHERE (p.naming_id = $1 OR p.participant_id = $1)
+			 ORDER BY pn.created_at DESC`,
+			[namingId]
+		)
+	]);
+
+	if (!naming) return null;
+
+	// Current designation
+	const currentDesignation = stack.designations.length > 0
+		? stack.designations[stack.designations.length - 1].designation
+		: 'cue';
+
+	// Grounding status
+	const hasDocumentAnchor = (stack.annotations?.length ?? 0) > 0;
+	const hasMemoLink = (stack.memos?.length ?? 0) > 0;
+
+	// Mode (from any appearance)
+	const primaryMode = appearances.rows.find(a => ['entity', 'relation', 'silence'].includes(a.mode))?.mode || 'entity';
+
+	// Relation endpoints (if this naming IS a relation via participations table)
+	const relationEndpoints = await queryOne<{
+		source_id: string; target_id: string;
+		source_inscription: string; target_inscription: string;
+	}>(
+		`SELECT p.naming_id as source_id, p.participant_id as target_id,
+		        src.inscription as source_inscription, tgt.inscription as target_inscription
+		 FROM participations p
+		 JOIN namings src ON src.id = p.naming_id
+		 JOIN namings tgt ON tgt.id = p.participant_id
+		 WHERE p.id = $1`,
+		[namingId]
+	);
+
+	return {
+		naming,
+		currentDesignation,
+		primaryMode,
+		hasDocumentAnchor,
+		hasMemoLink,
+		relationEndpoints,
+		stack,
+		appearances: appearances.rows,
+		participations: participations.rows
+	};
+}
+
 // ---- All project namings (uncollapsed, for Namings workspace) ----
 
 export async function getAllProjectNamings(projectId: string) {
