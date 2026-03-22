@@ -131,7 +131,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="projects-page" onclick={(e) => { if (!(e.target as HTMLElement).closest('.load-dropdown')) showLoadMenu = false; }}
+<div class="projects-page" onclick={(e) => { if (!(e.target as HTMLElement).closest('.load-dropdown')) showLoadMenu = false; }}>
 	<div class="header">
 		<h1>Projects</h1>
 		<div class="header-actions">
