@@ -218,6 +218,10 @@
 							onclick={() => duplicateProject(project.id, project.name)} disabled={syncing}>
 							📋
 						</button>
+						<a class="action-btn" title="Export as .qdpx (ATLAS.ti, MAXQDA, ...)"
+							href="/api/projects/{project.id}/export" download>
+							📦
+						</a>
 						<button class="action-btn" title="Unload from database"
 							onclick={() => unloadProject(project.id, projectSlugs.get(project.id) || slugify(project.name), project.name)}
 							disabled={syncing}>
