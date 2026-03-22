@@ -1,11 +1,97 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 
 	let { data } = $props();
 	let showCreate = $state(false);
 	let name = $state('');
 	let description = $state('');
 	let creating = $state(false);
+
+	// Sync status
+	let syncing = $state(false);
+	let syncMessage = $state<string | null>(null);
+
+	async function syncAction(action: string, body: Record<string, any> = {}) {
+		syncing = true;
+		syncMessage = null;
+		try {
+			const res = await fetch('/api/projects/sync', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action, ...body })
+			});
+			const result = await res.json();
+			if (!res.ok) throw new Error(result.error);
+			return result;
+		} catch (e: any) {
+			syncMessage = e.message;
+			return null;
+		} finally {
+			syncing = false;
+		}
+	}
+
+	async function exportProject(projectId: string) {
+		const result = await syncAction('export', { projectId });
+		if (result) {
+			syncMessage = `Exported to projekte/${result.slug}/`;
+			await invalidateAll();
+		}
+	}
+
+	async function exportAll() {
+		const result = await syncAction('export-all');
+		if (result) {
+			syncMessage = `Exported ${result.exported.length} projects`;
+			await invalidateAll();
+		}
+	}
+
+	async function unloadProject(projectId: string, slug: string, projectName: string) {
+		if (!confirm(`Unload "${projectName}" from database? Data stays safe in project directory.`)) return;
+		const result = await syncAction('unload', { projectId, slug });
+		if (result) {
+			syncMessage = `Unloaded "${projectName}"`;
+			await invalidateAll();
+		}
+	}
+
+	async function loadProject(slug: string) {
+		const result = await syncAction('load', { slug });
+		if (result) {
+			goto(`/projects/${result.projectId}`);
+		}
+	}
+
+	async function deleteProject(projectId: string, slug: string | null, projectName: string) {
+		if (!confirm(`Permanently delete "${projectName}"? This cannot be undone.`)) return;
+		if (!confirm(`Are you sure? ALL data for "${projectName}" will be destroyed.`)) return;
+		const result = await syncAction('delete', { projectId, slug });
+		if (result) {
+			syncMessage = `Deleted "${projectName}"`;
+			await invalidateAll();
+		}
+	}
+
+	async function createProject() {
+		if (!name.trim()) return;
+		creating = true;
+		const res = await fetch('/api/projects', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined })
+		});
+		if (res.ok) {
+			const project = await res.json();
+			// Auto-export new project to directory
+			await syncAction('export', { projectId: project.id });
+			await invalidateAll();
+			showCreate = false;
+			name = '';
+			description = '';
+		}
+		creating = false;
+	}
 
 	// Import
 	let importing = $state(false);
@@ -30,53 +116,35 @@
 		input.value = '';
 	}
 
-	// Context menu
-	let ctxMenuId = $state<string | null>(null);
-	let ctxMenuPos = $state({ x: 0, y: 0 });
-	let ctxProject = $derived(data.projects.find((p: any) => p.id === ctxMenuId));
-
-	function onCardContext(projectId: string, e: MouseEvent) {
-		e.preventDefault();
-		ctxMenuId = projectId;
-		ctxMenuPos = { x: e.clientX, y: e.clientY };
+	// Derive which loaded projects have a directory slug
+	function slugify(n: string): string {
+		return n.toLowerCase()
+			.replace(/[äöüß]/g, (c) => ({ ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss' } as Record<string, string>)[c] || c)
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/^-|-$/g, '');
 	}
 
-	async function createProject() {
-		if (!name.trim()) return;
-		creating = true;
-		const res = await fetch('/api/projects', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined })
-		});
-		if (res.ok) {
-			window.location.reload();
-		}
-		creating = false;
-	}
+	const projectSlugs = $derived(
+		new Map(data.projects.map((p: any) => [p.id, slugify(p.name)]))
+	);
 
-	async function saveProjectAs(projectId: string) {
-		const project = data.projects.find((p: any) => p.id === projectId);
-		const newName = prompt('Save project as:', project ? `${project.name} (copy)` : 'Copy');
-		if (newName === null) { ctxMenuId = null; return; }
-		ctxMenuId = null;
-		const res = await fetch('/api/projects', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ action: 'duplicate', sourceProjectId: projectId, name: newName.trim() || undefined })
-		});
-		if (res.ok) {
-			window.location.reload();
-		}
-	}
+	// Directories that are NOT loaded (available to load)
+	const unloadedDirs = $derived(
+		(data.directories || []).filter((d: any) =>
+			d.hasData && !data.projects.some((p: any) => slugify(p.name) === d.slug)
+		)
+	);
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="projects-page" onclick={() => { ctxMenuId = null; }}>
+<div class="projects-page">
 	<div class="header">
 		<h1>Projects</h1>
 		<div class="header-actions">
+			{#if data.projects.length > 0}
+				<button class="btn-secondary" onclick={exportAll} disabled={syncing}>
+					{syncing ? 'Syncing...' : 'Save all'}
+				</button>
+			{/if}
 			<label class="btn-import" class:disabled={importing}>
 				{importing ? 'Importing...' : 'Import .qdpx'}
 				<input type="file" accept=".qdpx" onchange={importQdpx} hidden disabled={importing} />
@@ -86,6 +154,10 @@
 			</button>
 		</div>
 	</div>
+
+	{#if syncMessage}
+		<div class="sync-message">{syncMessage}</div>
+	{/if}
 
 	{#if importError}
 		<div class="import-error">{importError}</div>
@@ -99,34 +171,67 @@
 		</form>
 	{/if}
 
-	{#if data.projects.length === 0}
-		<p class="empty">No projects yet. Create one to get started.</p>
-	{:else}
+	<!-- Loaded projects (in database) -->
+	{#if data.projects.length > 0}
+		<h2 class="section-label">Loaded</h2>
 		<div class="project-grid">
 			{#each data.projects as project}
-				<div class="project-card" role="button" tabindex="0"
-					onclick={() => goto(`/projects/${project.id}`)}
-					oncontextmenu={(e) => onCardContext(project.id, e)}
-					onkeydown={(e) => { if (e.key === 'Enter') goto(`/projects/${project.id}`); }}>
-					<h2>{project.name}</h2>
-					{#if project.description}
-						<p>{project.description}</p>
-					{/if}
-					<span class="meta">{project.role}</span>
+				<div class="project-card">
+					<div class="card-main" role="button" tabindex="0"
+						onclick={() => goto(`/projects/${project.id}`)}
+						onkeydown={(e) => { if (e.key === 'Enter') goto(`/projects/${project.id}`); }}>
+						<h3>{project.name}</h3>
+						{#if project.description}
+							<p>{project.description}</p>
+						{/if}
+						<span class="meta">{project.role}</span>
+					</div>
+					<div class="card-actions">
+						<button class="action-btn" title="Save to directory"
+							onclick={() => exportProject(project.id)} disabled={syncing}>
+							💾
+						</button>
+						<button class="action-btn" title="Unload from database"
+							onclick={() => unloadProject(project.id, projectSlugs.get(project.id) || slugify(project.name), project.name)}
+							disabled={syncing}>
+							📤
+						</button>
+						<button class="action-btn action-delete" title="Delete permanently"
+							onclick={() => deleteProject(project.id, projectSlugs.get(project.id) || null, project.name)}
+							disabled={syncing}>
+							🗑
+						</button>
+					</div>
 				</div>
 			{/each}
 		</div>
 	{/if}
 
-	{#if ctxMenuId && ctxProject}
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="context-menu" style="left: {ctxMenuPos.x}px; top: {ctxMenuPos.y}px;"
-			onclick={(e) => e.stopPropagation()}>
-			<div class="ctx-header">{ctxProject.name}</div>
-			<button class="ctx-item" onclick={() => saveProjectAs(ctxMenuId!)}>
-				Save As...
-			</button>
+	<!-- Unloaded projects (on disk, not in DB) -->
+	{#if unloadedDirs.length > 0}
+		<h2 class="section-label">On disk (not loaded)</h2>
+		<div class="project-grid">
+			{#each unloadedDirs as dir}
+				<div class="project-card project-card-unloaded">
+					<div class="card-main" role="button" tabindex="0"
+						onclick={() => loadProject(dir.slug)}
+						onkeydown={(e) => { if (e.key === 'Enter') loadProject(dir.slug); }}>
+						<h3>{dir.slug}</h3>
+						<p class="meta">Click to load</p>
+					</div>
+					<div class="card-actions">
+						<button class="action-btn" title="Load into database"
+							onclick={() => loadProject(dir.slug)} disabled={syncing}>
+							📥
+						</button>
+					</div>
+				</div>
+			{/each}
 		</div>
+	{/if}
+
+	{#if data.projects.length === 0 && unloadedDirs.length === 0}
+		<p class="empty">No projects yet. Create one to get started.</p>
 	{/if}
 </div>
 
@@ -148,6 +253,14 @@
 		font-weight: 600;
 	}
 
+	.section-label {
+		font-size: 0.8rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: #6b7280;
+		margin: 1.5rem 0 0.75rem;
+	}
+
 	.btn-primary {
 		background: #8b9cf7;
 		color: #0f1117;
@@ -161,6 +274,19 @@
 	.btn-primary:hover { background: #a5b4fc; }
 	.btn-primary:disabled { opacity: 0.5; }
 
+	.btn-secondary {
+		background: none;
+		border: 1px solid #2a2d3a;
+		border-radius: 6px;
+		padding: 0.5rem 1rem;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: #c9cdd5;
+		cursor: pointer;
+	}
+	.btn-secondary:hover { background: #1e2030; }
+	.btn-secondary:disabled { opacity: 0.5; }
+
 	.header-actions { display: flex; gap: 0.75rem; align-items: center; }
 
 	.btn-import {
@@ -170,6 +296,16 @@
 	}
 	.btn-import:hover { background: rgba(16, 185, 129, 0.1); }
 	.btn-import.disabled { opacity: 0.5; pointer-events: none; }
+
+	.sync-message {
+		background: rgba(139, 156, 247, 0.1);
+		border: 1px solid rgba(139, 156, 247, 0.3);
+		color: #a5b4fc;
+		padding: 0.6rem 1rem;
+		border-radius: 6px;
+		margin-bottom: 1rem;
+		font-size: 0.85rem;
+	}
 
 	.import-error {
 		background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);
@@ -220,28 +356,41 @@
 		background: #161822;
 		border: 1px solid #2a2d3a;
 		border-radius: 8px;
-		padding: 1.25rem;
-		display: block;
+		display: flex;
+		flex-direction: column;
 		transition: border-color 0.15s;
-		cursor: pointer;
 	}
 	.project-card:hover {
 		border-color: #8b9cf7;
-		color: #e1e4e8;
 	}
-	.project-card:focus-visible { outline: 2px solid #8b9cf7; outline-offset: 2px; }
 
-	.project-card h2 {
+	.project-card-unloaded {
+		opacity: 0.7;
+		border-style: dashed;
+	}
+	.project-card-unloaded:hover {
+		opacity: 1;
+		border-color: #10b981;
+	}
+
+	.card-main {
+		padding: 1.25rem;
+		cursor: pointer;
+		flex: 1;
+	}
+	.card-main:focus-visible { outline: 2px solid #8b9cf7; outline-offset: -2px; border-radius: 8px 8px 0 0; }
+
+	.card-main h3 {
 		font-size: 1.05rem;
 		font-weight: 600;
 		color: #e1e4e8;
 		margin-bottom: 0.4rem;
 	}
 
-	.project-card p {
+	.card-main p {
 		font-size: 0.85rem;
 		color: #8b8fa3;
-		margin-bottom: 0.75rem;
+		margin-bottom: 0.5rem;
 	}
 
 	.meta {
@@ -251,33 +400,24 @@
 		letter-spacing: 0.05em;
 	}
 
-	.context-menu {
-		position: fixed;
-		background: #1a1c2e;
-		border: 1px solid #2a2d3a;
-		border-radius: 8px;
-		padding: 0.35rem 0;
-		min-width: 160px;
-		z-index: 1000;
-		box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+	.card-actions {
+		display: flex;
+		border-top: 1px solid #2a2d3a;
+		padding: 0.35rem 0.5rem;
+		gap: 0.25rem;
 	}
 
-	.ctx-header {
-		padding: 0.4rem 0.75rem;
-		font-size: 0.75rem;
-		color: #6b7280;
-		border-bottom: 1px solid #2a2d3a;
-		margin-bottom: 0.2rem;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		max-width: 200px;
+	.action-btn {
+		background: none;
+		border: none;
+		padding: 0.3rem 0.5rem;
+		border-radius: 4px;
+		cursor: pointer;
+		font-size: 0.85rem;
+		opacity: 0.6;
 	}
+	.action-btn:hover { background: #1e2030; opacity: 1; }
+	.action-btn:disabled { opacity: 0.3; pointer-events: none; }
 
-	.ctx-item {
-		display: block; width: 100%; text-align: left;
-		padding: 0.4rem 0.75rem; font-size: 0.85rem;
-		background: none; border: none; color: #e1e4e8; cursor: pointer;
-	}
-	.ctx-item:hover { background: #2a2d3a; }
+	.action-delete:hover { background: rgba(239, 68, 68, 0.15); }
 </style>
