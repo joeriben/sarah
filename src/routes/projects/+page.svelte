@@ -52,7 +52,8 @@
 	async function loadProject(slug: string) {
 		const result = await syncAction('load', { slug });
 		if (result) {
-			goto(`/projects/${result.projectId}`);
+			syncMessage = `Loaded "${slug}"`;
+			await invalidateAll();
 		}
 	}
 
