@@ -226,14 +226,11 @@ export async function importProjectFromDir(dir: string): Promise<string> {
 			}
 		}
 
-		// Extract project ID from the projects.copy we just loaded
-		const result = await client.query(`
-			SELECT id FROM projects
-			WHERE id NOT IN (SELECT id FROM projects WHERE true)
-		`);
-		// Simpler: just read from the newly loaded data
+		// Read back the project ID we just loaded
+		// The projects.copy contains exactly one row — find it by reading the file
 		const projectResult = await client.query(`SELECT id FROM projects ORDER BY created_at DESC LIMIT 1`);
 		const projectId = projectResult.rows[0]?.id;
+		if (!projectId) throw new Error('No project found after import');
 
 		await client.query('COMMIT');
 		return projectId;
