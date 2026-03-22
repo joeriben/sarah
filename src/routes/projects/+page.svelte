@@ -39,14 +39,6 @@
 		}
 	}
 
-	async function exportAll() {
-		const result = await syncAction('export-all');
-		if (result) {
-			syncMessage = `Exported ${result.exported.length} projects`;
-			await invalidateAll();
-		}
-	}
-
 	async function unloadProject(projectId: string, slug: string, projectName: string) {
 		if (!confirm(`Unload "${projectName}" from database? Data stays safe in project directory.`)) return;
 		const result = await syncAction('unload', { projectId, slug });
@@ -140,12 +132,7 @@
 	<div class="header">
 		<h1>Projects</h1>
 		<div class="header-actions">
-			{#if data.projects.length > 0}
-				<button class="btn-secondary" onclick={exportAll} disabled={syncing}>
-					{syncing ? 'Syncing...' : 'Save all'}
-				</button>
-			{/if}
-			<label class="btn-import" class:disabled={importing}>
+			<label class="btn-secondary" class:disabled={importing}>
 				{importing ? 'Importing...' : 'Import .qdpx'}
 				<input type="file" accept=".qdpx" onchange={importQdpx} hidden disabled={importing} />
 			</label>
@@ -217,7 +204,7 @@
 						onclick={() => loadProject(dir.slug)}
 						onkeydown={(e) => { if (e.key === 'Enter') loadProject(dir.slug); }}>
 						<h3>{dir.slug}</h3>
-						<p class="meta">Click to load</p>
+						<p class="dir-path">{data.projectsDir}/{dir.slug}/</p>
 					</div>
 					<div class="card-actions">
 						<button class="action-btn" title="Load into database"
@@ -233,6 +220,8 @@
 	{#if data.projects.length === 0 && unloadedDirs.length === 0}
 		<p class="empty">No projects yet. Create one to get started.</p>
 	{/if}
+
+	<p class="dir-info">Project data: <code>{data.projectsDir}/</code></p>
 </div>
 
 <style>
@@ -288,14 +277,6 @@
 	.btn-secondary:disabled { opacity: 0.5; }
 
 	.header-actions { display: flex; gap: 0.75rem; align-items: center; }
-
-	.btn-import {
-		background: none; border: 1px solid #10b981; border-radius: 6px;
-		padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 600;
-		color: #10b981; cursor: pointer;
-	}
-	.btn-import:hover { background: rgba(16, 185, 129, 0.1); }
-	.btn-import.disabled { opacity: 0.5; pointer-events: none; }
 
 	.sync-message {
 		background: rgba(139, 156, 247, 0.1);
@@ -420,4 +401,25 @@
 	.action-btn:disabled { opacity: 0.3; pointer-events: none; }
 
 	.action-delete:hover { background: rgba(239, 68, 68, 0.15); }
+
+	.dir-path {
+		font-size: 0.75rem;
+		color: #4b5563;
+		font-family: monospace;
+		word-break: break-all;
+	}
+
+	.dir-info {
+		margin-top: 2rem;
+		padding-top: 1rem;
+		border-top: 1px solid #1e2030;
+		font-size: 0.75rem;
+		color: #4b5563;
+	}
+	.dir-info code {
+		color: #6b7280;
+		font-size: 0.75rem;
+	}
+
+	.disabled { opacity: 0.5; pointer-events: none; }
 </style>

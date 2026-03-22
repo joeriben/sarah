@@ -47,6 +47,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			createdAt: r.created_at,
 			role: r.role
 		})),
-		directories
+		directories,
+		projectsDir: getProjectsBaseDir()
 	};
 };
