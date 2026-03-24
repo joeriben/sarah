@@ -550,7 +550,17 @@ export async function importProject(
 	// ---- Phase 2: Insert in dependency order ----
 
 	const result = await transaction(async (client) => {
-		const pName = projectName || project['@_name'] || 'Imported Project';
+		let pName = projectName || project['@_name'] || 'Imported Project';
+
+		// Ensure unique project name
+		const existing = await client.query('SELECT 1 FROM projects WHERE name = $1', [pName]);
+		if (existing.rows.length > 0) {
+			let suffix = 2;
+			while ((await client.query('SELECT 1 FROM projects WHERE name = $1', [`${pName} (${suffix})`])).rows.length > 0) {
+				suffix++;
+			}
+			pName = `${pName} (${suffix})`;
+		}
 
 		// 1. Project
 		const projRes = await client.query(
