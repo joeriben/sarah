@@ -35,6 +35,16 @@
 		if (m === 'silence') return '∅';
 		return '◆';
 	}
+
+	async function setMemoStatus(memoId: string, status: string) {
+		await fetch(`/api/projects/${data.projectId}/memos/${memoId}/status`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ status })
+		});
+		const module = await import('$app/navigation');
+		module.invalidateAll();
+	}
 </script>
 
 <div class="naming-detail">
@@ -122,6 +132,20 @@
 									{/each}
 								</div>
 							{/if}
+							<div class="memo-actions">
+								<a href="/projects/{data.projectId}/memos/{memo.id}" class="btn-xs btn-edit">edit</a>
+								{#if memo.status === 'active' || memo.status === 'presented' || memo.status === 'discussed'}
+									<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'acknowledged')}>ack</button>
+									<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'dismissed')}>dismiss</button>
+									<button class="btn-xs btn-promote" onclick={() => setMemoStatus(memo.id, 'promoted')}>promote</button>
+								{/if}
+								{#if memo.status === 'acknowledged'}
+									<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'dismissed')}>dismiss</button>
+								{/if}
+								{#if memo.status === 'dismissed'}
+									<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'presented')}>restore</button>
+								{/if}
+							</div>
 						</div>
 					{/each}
 				</section>
@@ -326,6 +350,22 @@
 		font-size: 0.8rem; color: #a0a4b0; white-space: pre-wrap;
 		max-height: 8em; overflow-y: auto;
 	}
+
+	/* Memo actions */
+	.memo-actions {
+		display: flex; gap: 0.3rem; margin-top: 0.4rem;
+		padding-top: 0.3rem; border-top: 1px solid #1e2030;
+	}
+	.btn-xs {
+		background: none; border: 1px solid #2a2d3a; border-radius: 4px;
+		color: #8b8fa3; font-size: 0.7rem; padding: 0.15rem 0.4rem; cursor: pointer;
+		text-decoration: none;
+	}
+	.btn-xs:hover { border-color: #8b9cf7; }
+	.btn-edit { color: #8b9cf7; border-color: rgba(139, 156, 247, 0.3); }
+	.btn-edit:hover { background: rgba(139, 156, 247, 0.1); }
+	.btn-promote { border-color: #10b981; color: #10b981; }
+	.btn-promote:hover { background: rgba(16, 185, 129, 0.1); }
 
 	/* Discussion */
 	.discussion-thread { margin-top: 0.4rem; }

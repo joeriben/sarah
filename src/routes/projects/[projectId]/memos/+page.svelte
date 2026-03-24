@@ -201,7 +201,7 @@
 						<!-- Actions -->
 						<div class="memo-actions">
 							<a href="/projects/{data.projectId}/memos/{memo.id}" class="btn-xs btn-edit">edit</a>
-							{#if memo.status === 'presented' || memo.status === 'discussed'}
+							{#if memo.status === 'active' || memo.status === 'presented' || memo.status === 'discussed'}
 								<button class="btn-xs" onclick={() => setStatus(memo.id, 'acknowledged')}>ack</button>
 								<button class="btn-xs" onclick={() => setStatus(memo.id, 'dismissed')}>dismiss</button>
 								<button class="btn-xs btn-promote" onclick={() => setStatus(memo.id, 'promoted')}>promote</button>
@@ -228,7 +228,7 @@
 						<!-- Collapsed actions -->
 						<div class="memo-card-meta">
 							<div class="quick-actions">
-								{#if memo.status === 'presented' || memo.status === 'discussed'}
+								{#if memo.status === 'active' || memo.status === 'presented' || memo.status === 'discussed'}
 									<button class="btn-xs" onclick={() => setStatus(memo.id, 'acknowledged')}>ack</button>
 									<button class="btn-xs" onclick={() => setStatus(memo.id, 'dismissed')}>dismiss</button>
 								{/if}

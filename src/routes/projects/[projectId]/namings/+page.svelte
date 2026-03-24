@@ -310,6 +310,19 @@
 		actLinkedIds = [];
 	}
 
+	// ---- Memo Status ----
+	async function setMemoStatus(memoId: string, status: string) {
+		await fetch(`/api/projects/${data.projectId}/memos/${memoId}/status`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ status })
+		});
+		// Refresh the stack to show updated status
+		if (stackId) {
+			stackData = await apiAction('getStack', { namingId: stackId });
+		}
+	}
+
 	// ---- Withdraw ----
 	async function withdraw(namingId: string) {
 		// Mark locally first so the item stays in place with visual feedback
@@ -665,9 +678,29 @@
 									<div class="stack-section">
 										<h4>Memos</h4>
 										{#each stackData.memos as memo}
-											<div class="memo-entry">
-												<span class="memo-label">{memo.label}</span>
+											<div class="memo-entry" class:memo-dismissed={memo.status === 'dismissed'}>
+												<div class="memo-entry-header">
+													<span class="memo-author-badge" class:badge-ai={memo.isAiAuthored}>
+														{memo.isAiAuthored ? 'AI' : 'R'}
+													</span>
+													{#if memo.status && memo.status !== 'active'}
+														<span class="memo-status-badge status-{memo.status}">{memo.status}</span>
+													{/if}
+													<span class="memo-label">{memo.label}</span>
+												</div>
 												<div class="memo-content">{@html memo.content}</div>
+												<div class="memo-entry-actions">
+													{#if memo.status === 'active' || memo.status === 'presented' || memo.status === 'discussed'}
+														<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'dismissed')}>dismiss</button>
+														<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'acknowledged')}>ack</button>
+													{/if}
+													{#if memo.status === 'acknowledged'}
+														<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'dismissed')}>dismiss</button>
+													{/if}
+													{#if memo.status === 'dismissed'}
+														<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'presented')}>restore</button>
+													{/if}
+												</div>
 											</div>
 										{/each}
 									</div>
@@ -820,9 +853,29 @@
 									<div class="stack-section">
 										<h4>Memos</h4>
 										{#each stackData.memos as memo}
-											<div class="memo-entry">
-												<span class="memo-label">{memo.label}</span>
+											<div class="memo-entry" class:memo-dismissed={memo.status === 'dismissed'}>
+												<div class="memo-entry-header">
+													<span class="memo-author-badge" class:badge-ai={memo.isAiAuthored}>
+														{memo.isAiAuthored ? 'AI' : 'R'}
+													</span>
+													{#if memo.status && memo.status !== 'active'}
+														<span class="memo-status-badge status-{memo.status}">{memo.status}</span>
+													{/if}
+													<span class="memo-label">{memo.label}</span>
+												</div>
 												<div class="memo-content">{@html memo.content}</div>
+												<div class="memo-entry-actions">
+													{#if memo.status === 'active' || memo.status === 'presented' || memo.status === 'discussed'}
+														<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'dismissed')}>dismiss</button>
+														<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'acknowledged')}>ack</button>
+													{/if}
+													{#if memo.status === 'acknowledged'}
+														<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'dismissed')}>dismiss</button>
+													{/if}
+													{#if memo.status === 'dismissed'}
+														<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'presented')}>restore</button>
+													{/if}
+												</div>
 											</div>
 										{/each}
 									</div>
@@ -1292,9 +1345,27 @@
 	.he-by::before { content: '— '; }
 	.he-date { color: #4b5563; margin-left: auto; font-size: 0.7rem; }
 
-	.memo-entry { margin-bottom: 0.3rem; }
+	.memo-entry { margin-bottom: 0.5rem; padding: 0.3rem 0.4rem; border: 1px solid #1e2030; border-radius: 4px; }
+	.memo-entry.memo-dismissed { opacity: 0.5; }
+	.memo-entry-header { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.15rem; }
+	.memo-author-badge {
+		font-size: 0.55rem; font-weight: 700; text-transform: uppercase;
+		background: rgba(107, 114, 128, 0.2); color: #9ca3af;
+		padding: 0.02rem 0.25rem; border-radius: 3px; flex-shrink: 0;
+	}
+	.memo-author-badge.badge-ai { background: rgba(139, 156, 247, 0.15); color: #8b9cf7; }
+	.memo-status-badge {
+		font-size: 0.52rem; font-weight: 600; text-transform: uppercase;
+		padding: 0.02rem 0.25rem; border-radius: 3px; flex-shrink: 0;
+	}
+	.memo-status-badge.status-presented { background: rgba(139, 156, 247, 0.15); color: #8b9cf7; }
+	.memo-status-badge.status-discussed { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+	.memo-status-badge.status-acknowledged { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+	.memo-status-badge.status-promoted { background: rgba(16, 185, 129, 0.25); color: #10b981; }
+	.memo-status-badge.status-dismissed { background: rgba(107, 114, 128, 0.15); color: #6b7280; }
 	.memo-label { font-size: 0.75rem; color: #f59e0b; }
 	.memo-content { font-size: 0.75rem; color: #8b8fa3; margin-top: 0.1rem; }
+	.memo-entry-actions { display: flex; gap: 0.25rem; margin-top: 0.25rem; }
 
 	.discussion-msg {
 		padding: 0.2rem 0;
