@@ -16,7 +16,9 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 
-const UPLOAD_DIR = join(process.cwd(), 'uploads');
+import { slugify } from '../files/index.js';
+
+const PROJECTS_DIR = join(process.cwd(), 'projekte');
 
 // ---- ZIP extraction ----
 
@@ -626,8 +628,8 @@ export async function importProject(
 		}
 
 		// 6. Document content + files
-		const uploadDir = join(UPLOAD_DIR, projectId);
-		await mkdir(uploadDir, { recursive: true });
+		const filesDir = join(PROJECTS_DIR, slugify(pName), 'files');
+		await mkdir(filesDir, { recursive: true });
 
 		for (const dc of docContents) {
 			const pending = pendingFiles.find(f => f.namingId === dc.namingId);
@@ -636,9 +638,9 @@ export async function importProject(
 				if (sourceFile) {
 					const fileData = await sourceFile.getData();
 					const diskName = `${randomUUID()}.${pending.ext}`;
-					dc.filePath = join(uploadDir, diskName);
+					dc.filePath = `files/${diskName}`;
 					dc.fileSize = fileData.length;
-					await writeFile(dc.filePath, fileData);
+					await writeFile(join(filesDir, diskName), fileData);
 					if (!dc.fullText && ['txt', 'md'].includes(pending.ext)) {
 						dc.fullText = fileData.toString('utf-8');
 					}

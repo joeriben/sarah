@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
 import { queryOne } from '$lib/server/db/index.js';
+import { resolveFilePath } from '$lib/server/files/index.js';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
@@ -17,10 +18,11 @@ export const GET: RequestHandler = async ({ params }) => {
 	if (!doc) error(404, 'Document not found');
 	if (!doc.mime_type.startsWith('image/')) error(400, 'Not an image document');
 
-	const fileStat = await stat(doc.file_path).catch(() => null);
-	if (!fileStat) error(404, 'File not found on disk');
+	const absolutePath = await resolveFilePath(params.projectId, doc.file_path);
+	if (!absolutePath) error(404, 'File not found on disk');
 
-	const stream = createReadStream(doc.file_path);
+	const fileStat = await stat(absolutePath);
+	const stream = createReadStream(absolutePath);
 	const webStream = Readable.toWeb(stream) as ReadableStream;
 
 	return new Response(webStream, {

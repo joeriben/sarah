@@ -10,17 +10,10 @@ import {
 	getProjectDir,
 	getProjectsBaseDir
 } from '$lib/server/project-sync/index.js';
+import { slugify } from '$lib/server/files/index.js';
 import { query } from '$lib/server/db/index.js';
 import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
-
-function slugify(name: string): string {
-	return name
-		.toLowerCase()
-		.replace(/[äöüß]/g, (c) => ({ ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss' })[c] || c)
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-|-$/g, '');
-}
 
 /**
  * POST /api/projects/sync

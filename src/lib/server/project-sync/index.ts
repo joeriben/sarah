@@ -9,8 +9,8 @@
 import { pool } from '$lib/server/db';
 import { pipeline } from 'stream/promises';
 import { createWriteStream, createReadStream } from 'fs';
-import { mkdir, rename, readdir, stat, rm } from 'fs/promises';
-import { join } from 'path';
+import { mkdir, rename, readdir, stat, rm, copyFile } from 'fs/promises';
+import { join, basename } from 'path';
 import { from as copyFrom, to as copyTo } from 'pg-copy-streams';
 import type pg from 'pg';
 
@@ -168,6 +168,20 @@ export async function exportProjectToDir(projectId: string, projectSlug: string)
 			const pgStream = client.query(copyTo(table.copyToQuery(projectId)));
 			await pipeline(pgStream, outStream);
 			await rename(tmpPath, finalPath);
+		}
+
+		// Sync files from legacy uploads/ to project dir if needed
+		const legacyDir = join(process.cwd(), 'uploads', projectId);
+		const legacyExists = await stat(legacyDir).catch(() => null);
+		if (legacyExists?.isDirectory()) {
+			const files = await readdir(legacyDir);
+			for (const file of files) {
+				const dest = join(dir, 'files', file);
+				const destExists = await stat(dest).catch(() => null);
+				if (!destExists) {
+					await copyFile(join(legacyDir, file), dest);
+				}
+			}
 		}
 	} finally {
 		client.release();

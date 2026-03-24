@@ -2,6 +2,9 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
 import { transaction } from '$lib/server/db/index.js';
 import { projectSchema } from '$lib/shared/validation.js';
+import { slugify, resolveFilePath } from '$lib/server/files/index.js';
+import { mkdir, copyFile } from 'fs/promises';
+import { join, basename } from 'path';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const body = await request.json();
@@ -135,7 +138,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				);
 			}
 
-			// Copy document_content
+			// Copy document_content (with physical file copies)
 			const docs = (await client.query(
 				`SELECT dc.naming_id, dc.full_text, dc.file_path, dc.mime_type, dc.file_size, dc.thumbnail_path
 				 FROM document_content dc
@@ -144,11 +147,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				[sourceProjectId]
 			)).rows;
 
+			const newFilesDir = join(process.cwd(), 'projekte', slugify(newName), 'files');
+			await mkdir(newFilesDir, { recursive: true });
+
 			for (const d of docs) {
+				let newFilePath = d.file_path;
+				if (d.file_path) {
+					const resolved = await resolveFilePath(sourceProjectId, d.file_path);
+					if (resolved) {
+						const fname = basename(resolved);
+						await copyFile(resolved, join(newFilesDir, fname));
+						newFilePath = `files/${fname}`;
+					}
+				}
 				await client.query(
 					`INSERT INTO document_content (naming_id, full_text, file_path, mime_type, file_size, thumbnail_path)
 					 VALUES ($1, $2, $3, $4, $5, $6)`,
-					[remap(d.naming_id), d.full_text, d.file_path, d.mime_type, d.file_size, d.thumbnail_path]
+					[remap(d.naming_id), d.full_text, newFilePath, d.mime_type, d.file_size, d.thumbnail_path]
 				);
 			}
 

@@ -10,6 +10,7 @@
 
 import archiver from 'archiver';
 import { query } from '../db/index.js';
+import { resolveFilePath } from '../files/index.js';
 import { readFile } from 'fs/promises';
 import { Writable } from 'stream';
 
@@ -582,6 +583,18 @@ export async function exportProject(projectId: string): Promise<Buffer> {
 	const data = await fetchProjectData(projectId);
 	const qde = buildQDE(data);
 
+	// Resolve all file paths before entering the archive stream
+	const resolvedDocs: Array<{ namingId: string; ext: string; absolutePath: string | null; fullText: string | null }> = [];
+	for (const doc of data.documents) {
+		if (doc.file_path) {
+			const ext = doc.file_path.split('.').pop() || 'txt';
+			const absolutePath = await resolveFilePath(projectId, doc.file_path);
+			resolvedDocs.push({ namingId: doc.naming_id, ext, absolutePath, fullText: doc.full_text });
+		} else if (doc.full_text) {
+			resolvedDocs.push({ namingId: doc.naming_id, ext: 'txt', absolutePath: null, fullText: doc.full_text });
+		}
+	}
+
 	return new Promise((resolve, reject) => {
 		const chunks: Buffer[] = [];
 		const writable = new Writable({
@@ -601,18 +614,16 @@ export async function exportProject(projectId: string): Promise<Buffer> {
 		archive.append(qde, { name: 'project.qde' });
 
 		// Add source files
-		for (const doc of data.documents) {
-			if (doc.file_path) {
-				const ext = doc.file_path.split('.').pop() || 'txt';
-				const internalName = `Sources/${doc.naming_id}.${ext}`;
+		for (const doc of resolvedDocs) {
+			const internalName = `Sources/${doc.namingId}.${doc.ext}`;
+			if (doc.absolutePath) {
 				try {
-					archive.file(doc.file_path, { name: internalName });
+					archive.file(doc.absolutePath, { name: internalName });
 				} catch {
 					// File not found on disk — skip
 				}
-			} else if (doc.full_text) {
-				// Text-only document without file
-				archive.append(doc.full_text, { name: `Sources/${doc.naming_id}.txt` });
+			} else if (doc.fullText) {
+				archive.append(doc.fullText, { name: internalName });
 			}
 		}
 
