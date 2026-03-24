@@ -1,0 +1,2695 @@
+Session 17
+
+ ▐▛███▜▌   Claude Code v2.1.76
+▝▜█████▛▘  Opus 4.6 (1M context) with high effort · Claude Max
+  ▘▘ ▝▝    ~/ai/transact-qda
+
+❯ /clear                                                                                                         
+  ⎿  (no content)
+
+❯ Hallo Session 17. Wir haben die Überarbeitung des Memo-Systems vorläufig abgeschlossen. Wir hatten davor       
+bereits das Thema Positional Maps diskutiert. Greife diese Diskussion wieder auf.                                
+
+● Let me find the previous discussion about Positional Maps.
+
+● Searched memories, searched for 2 patterns (ctrl+o to expand)
+
+● Let me read the relevant sessions and memory files to reconstruct the discussion.
+
+● Recalled 2 memories, searched for 1 pattern (ctrl+o to expand)
+
+● Let me get the specific passages about Positional Maps from session 14 where the deeper discussion happened.
+
+● Searched for 2 patterns (ctrl+o to expand)
+
+● Based on the session transcripts, here's where the Positional Maps discussion stands:
+
+  Bisheriger Stand: Positional Maps wurden in Session 14 als dritter Clarke-Maptyp eingeführt — aber die
+  eigentliche methodologische Tiefenarbeit konzentrierte sich auf SW/A Maps. Zu Positional Maps gibt es bisher
+  nur die Kurzcharakterisierung:
+
+  ┌──────────────────────────┬───────────────────────────────────────────────────────────────────────────────┐
+  │          Aspekt          │                                     Stand                                     │
+  ├──────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+  │ Analytischer Fokus       │ "Welche Positionen werden zu strittigen Themen eingenommen?"                  │
+  ├──────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+  │ Einheit                  │ Die Position (diskursive Stellung)                                            │
+  ├──────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+  │ Relation zu SW/A         │ Clarke empfiehlt: Diskurse nicht auf der SW/A-Map — sie gehören in Memos und  │
+  │                          │ fließen in Positional Maps                                                    │
+  ├──────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+  │ Methodologische          │ Fehlt noch — keine D/B-Übersetzung, keine Architektur-Entscheidungen          │
+  │ Durchdringung            │                                                                               │
+  └──────────────────────────┴───────────────────────────────────────────────────────────────────────────────┘
+
+  Außerdem zeigte Session 16 ein konkretes Problem: Die AI verwechselte den SW/A-Maptype mit Positional Maps —
+  ein Zeichen, dass die Unterscheidung noch nicht sauber in der Architektur verankert ist.
+
+  Was ansteht: Die gleiche Art methodologischer Arbeit wie bei SW/A Maps in Session 14 — Clarke lesen,
+  transaktionale Übersetzung, epistemologische Klärung. Soll ich mit dem Quellenstudium beginnen? Clarke (2018)
+  Kap. 7 wäre das Positional-Maps-Kapitel. Hast du die Quellen griffbereit, oder soll ich in den bekannten Pfaden
+   (/home/joerissen/Documents/transact-qda material/, /home/joerissen/Downloads/) danach suchen?
+
+✻ Cogitated for 43s
+
+❯ sind im Material-Ordner                                                                                        
+
+● Searched for 1 pattern, read 3 files (ctrl+o to expand)
+
+● Now let me read Chapter 7 in full.
+
+● Read 1 file (ctrl+o to expand)
+
+● The text file seems to be just the TOC. Let me search for the actual Chapter 7 content.
+
+● Searched for 3 patterns, read 1 file (ctrl+o to expand)
+
+● Let me read the full Chapter 7 content from Clarke 2018.
+
+● Read 1 file (ctrl+o to expand)
+
+● Now let me check the Practice band (2015) and Gasterstädt for additional perspectives on Positional Maps.
+
+● Searched for 4 patterns, read 1 file (ctrl+o to expand)
+
+● Now let me check the current implementation state regarding map types.
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● Gut. Ich habe Clarke 2018 Kap. 7 vollständig gelesen, plus die Positional-Map-Exemplare aus Kap. 11 (RU486) und
+   12 (Biomonitoring). Hier die Aufbereitung:
+
+  ---
+  Clarke Kap. 7: Positional Maps — Kernpunkte
+
+  Was sie SIND
+
+  Positional Maps legen die Positionen offen, die in Diskursen zu strittigen Themen eingenommen werden — und die
+  Positionen, die NICHT eingenommen werden. Zwei Achsen (axes of difference/concern/controversy) spannen einen
+  2D-Raum auf, in dem Positionen als Punkte platziert werden.
+
+  Die sechs methodologischen Prinzipien
+
+  ┌─────┬───────────────────────────┬────────────────────────────────────────────────────────────────────────┐
+  │  #  │          Prinzip          │                          Clarke-Formulierung                           │
+  ├─────┼───────────────────────────┼────────────────────────────────────────────────────────────────────────┤
+  │     │ Disartikulation von       │ "positions are not correlated or associated with persons or groups or  │
+  │ 1   │ Akteuren                  │ institutions" — DER poststrukturale Move. Individuen halten            │
+  │     │                           │ routinemäßig multiple, widersprüchliche Positionen.                    │
+  ├─────┼───────────────────────────┼────────────────────────────────────────────────────────────────────────┤
+  │ 2   │ Nur datengestützte        │ "you should be able to produce examples directly from the data for     │
+  │     │ Positionen                │ every position on the positional map" — kein researcher-Wunschdenken.  │
+  ├─────┼───────────────────────────┼────────────────────────────────────────────────────────────────────────┤
+  │     │ Abwesende Positionen /    │ "the most important and radical aspect" — Positional Maps drücken den  │
+  │ 3   │ Silences                  │ Forscher dazu, Nicht-Artikuliertes zu sehen. Leere Quadranten "make    │
+  │     │                           │ silences speak."                                                       │
+  ├─────┼───────────────────────────┼────────────────────────────────────────────────────────────────────────┤
+  │     │ Achsen als analytische    │ "Where there is heat, there is likely a positional map possible." Die  │
+  │ 4   │ Entdeckung                │ richtigen Achsen zu finden IST die analytische Arbeit — erfordert oft  │
+  │     │                           │ 12+ Iterationen.                                                       │
+  ├─────┼───────────────────────────┼────────────────────────────────────────────────────────────────────────┤
+  │ 5   │ Keine                     │ Emphatisch NICHT Phänomenologie/Narrative. "Topographical portrayals   │
+  │     │ Stimmen-Repräsentation    │ of the discursive materials—showing mountains and deserts."            │
+  ├─────┼───────────────────────────┼────────────────────────────────────────────────────────────────────────┤
+  │ 6   │ Kern des                  │ "Positional maps are integral to—at the very core of—making SA a fully │
+  │     │ Poststrukturalismus in SA │  poststructural approach to qualitative inquiry."                      │
+  └─────┴───────────────────────────┴────────────────────────────────────────────────────────────────────────┘
+
+  Praktisch
+
+  - Typisch: mehrere PMs pro Projekt (so viele strittige Issues wie nötig)
+  - Achsen als more vs. less ("-- = less so, ++ = more so")
+  - Eine Map zeigt das Gesamtbild der Diskurspositionen, Details in Memos
+  - Spätere Re-Artikulation mit Akteuren ist legitim — aber erst nachdem die Positionen eigenständig analysiert
+  wurden
+
+  ---
+  Die transaktionale Spannung
+
+  Hier wird es interessant — und hier brauche ich deine Einschätzung zu drei Problemen:
+
+  Problem 1: Das Achsen-Problem
+
+  Auf SitMaps und SW/A Maps ist die räumliche Position ein UX-Parameter — epistemisch irrelevant. Unser Prinzip:
+  "Canvas = derivative Projektion, epistemisch untergeordnet."
+
+  Auf Positional Maps sind die x/y-Koordinaten aber die analytischen Daten selbst. Position A steht links oben
+  WEIL sie "hohe klinische Effizienz, niedrige Emotionsarbeit" verkörpert. Die Achsen-Werte SIND die
+  Characterization.
+
+  Das bricht mit der Drei-Schichten-Hierarchie — oder?
+
+  Problem 2: Disartikulation vs. Participations
+
+  Unser System verknüpft alles über Participations. Clarke sagt: Positionen dürfen NICHT mit Akteuren verknüpft
+  werden (als Default). Wie modellieren wir methodologische Nicht-Verknüpfung in einem System, das auf
+  Verknüpfungen aufgebaut ist?
+
+  Problem 3: Strukturelle Absenz
+
+  Silences auf SitMaps = mode: 'silence', Participations ohne Appearances — ein konkretes Objekt, das nicht
+  erscheint. Silences auf Positional Maps = ein leerer Quadrant — eine strukturelle Abwesenheit im Achsen-Raum,
+  kein konkretes Objekt. Wie reifiziert man eine Nicht-Position?
+
+✻ Baked for 2m 31s                      
+                                                                                          
+❯ 1. "Die Achsen-Werte SIND die Characterization." Korrekt. "Achsenwerte" heißt hier relativer Bezug zu den      
+beiden Dimensionen. Der erscheint auch bei Clarke tatsächlich implizit quantitativ in der Abstract Positional    
+Map 7.1, ist aber in Wirklichkeit ein Maß der qualitativen "Nähe" von Diskurspositionen (schon wieder ein        
+implizites Naming das, wie ich bereits festgehalten haben, spezifiziert werden muss: WAS HEISST "less so"/"more  
+so"?). --> Die Positionings SIND m.e. nicht quantitativ, sondern wir müssen pos Maps als eine PROJEKTION         
+verstehen die diskursanalytische Komparative Verfahren (n:n, minimal/maximale Konstrastierung; Achsen entstehne  
+vertlich ers im Prozess oder werden zumindest im Prozess verfeinert) voraussetzt und deren Dichte Beschreibungen 
+ in dieses 2.-D-Positionalitätsgefüge abbildet. Koordinaten sind also in diesem Sinne keine Primärdaten, sondern 
+ die sind Indikatoren für komparativ-reflexiv gewonnene qualitative Daten. Aber als diese Indikatoren wiederum   
+heuristisch/didaktisch wichtig, denn wir können zwei Fragen stellen: 1) Warum befinden sich jeweils Pos A, Pos   
+B, Pos C  an dieser Position in Bezug auf die beiden Achsen? 2) was bedeuten die relativen Nähen und             
+Entfernungen zwischen Pos A, B, C? --- 2) Verstehe ich nicht. Scheinproblem. Wir verknüpfen doch nicht nur       
+Akteure mit irgendwas, sondern Namings mit Namings. Diese "Nicht-Verknüpfung" ist ja durchaus keine Spezifische  
+(was sie zu einem Problem machen würde). 3) Nicht unbedingt quadrant; leere Position. Manche arbeiten z.B. mit 3 
+ Spalten/Zeilen, also 9 Positionen, andere ohne Raster. Quadranten sind nciht ausgeschlossen, aber durchaus      
+nicht irgendwie primär. Lücken werden als Lücken bezeichnet - hast Du überhaupt die Fig. 7.1 / 7.2 angeschaut??  
+-- 4) Meine Frage: WIESO 2 Dimensionen? Wo ist die methodologische Begründung? Begrenzungen menschlicher         
+Kognition und Ausdrucksmittel legen es nahe, hier nicht n Dimensionen anzulegen, aber warum gerade 2? Und in dem 
+ Kontext besonders witzig, dass AI als LLM bedeutungen positional in n Dimensionen auflösen. 5) Was ist mit      
+Dispositiven, wieso "nur" Diskurse?                                                                              
+                                                                                                                 
+● Gute Korrekturen. Lass mich durchgehen:                                                                        
+                                                                                          
+  Zu 1: Positional Map als Projektion                                                                            
+                                                                                                                 
+  Verstanden und einverstanden. Die Drei-Schichten-Hierarchie bleibt intakt:                                     
+                                                                                                                 
+  - Ground truth = die Positionen (als Namings mit dichten Beschreibungen/Memos), die Achsen (als analytische    
+  Konstrukte), die komparativen Verhältnisse zwischen Positionen (qualitativ, in Memos erarbeitet)
+  - Liste = Positionen mit ihren Designations, Achsen-Bezügen, Quellenverweisen                                  
+  - Canvas = die 2D-Projektion als heuristisches Instrument                                                      
+  
+  Die Koordinaten sind Indikatoren — keine Primärdaten, aber analytisch wirksam, weil sie die beiden Fragen      
+  aufwerfen, die du benennst. Das "less so / more so" auf den Achsen muss selbst spezifiziert werden — es ist ein
+   implizites Naming, das CCS durchlaufen muss. Jede Achse hat eine eigene Designation-Geschichte.               
+                                                            
+  Zu 2: Einverstanden — Scheinproblem
+
+  Participations sind Naming-zu-Naming-Relationen. Clarke's "Disartikulation" ist eine methodologische           
+  Empfehlung, kein ontologisches Constraint. Im System: Man KANN Positionen mit Akteuren verlinken, man tut es
+  als Default nicht. Kein Modellierungsproblem.                                                                  
+                                                            
+  Zu 3: Leere Positionen
+
+  Ja — ich habe die Figures gesehen. Fig 7.2 hat eine "Missing Position in Data" unten links, Fig 7.3 hat zwei.  
+  Das sind explizit platzierte, beschriftete Punkte. Also: Die Absenz wird als Naming reifiziert — als Position
+  mit dem Status "absent" oder "missing in data". Das passt zu unserem Silence-Konzept: Eine Nicht-Anwesenheit,  
+  die als Naming in den Datenraum eintritt, sobald der Forscher sie benennt. Der Akt des Benennens einer
+  fehlenden Position IST ein Naming-Akt — er verschiebt den CCS-Gradient der gesamten Map.
+
+  Zu 4: Warum genau 2 Dimensionen?                                                                               
+  
+  Das ist die interessanteste Frage. Clarke begründet es nirgends explizit. Mögliche Begründungsebenen:          
+                                                            
+  Pragmatisch: Papier hat 2 Dimensionen. Clarke's Methode stammt aus der Papier-Ära. 2D ist das Maximum, was     
+  Whiteboards, Poster, Druckseiten hergeben.                
+                                                                                                                 
+  Kognitiv: Menschen können räumliche Nähe/Distanz in 2D intuitiv wahrnehmen. Bei 3D wird es auf Papier schon    
+  schwierig, bei n Dimensionen unmöglich.
+                                                                                                                 
+  Analytisch: 2 Achsen erzwingen eine Priorisierungsentscheidung — welche ZWEI Dimensionen der Kontroverse sind  
+  die salientesten? Diese Reduktion ist selbst ein analytischer Akt. Clarke kompensiert die Beschränkung durch
+  multiple Maps — viele 2D-Schnitte durch einen n-dimensionalen Raum.                                            
+                                                            
+  Aber: Es gibt keine methodologische Begründung dafür, dass Diskurspositionalität genau 2-dimensional WÄRE.     
+  Clarke weiß das implizit — deshalb die multiplen Maps. Jede Map ist ein perspektivischer Schnitt, der bestimmte
+   Kontraste sichtbar macht und andere verbirgt.                                                                 
+                                                            
+  Und hier wird dein LLM-Punkt tatsächlich brisant: Embeddings lösen semantische Positionierung in n Dimensionen 
+  auf. Ein AI-gestütztes System könnte:
+  1. Positionen im vollen Embedding-Raum clustern                                                                
+  2. Dimensionsreduktion (PCA, t-SNE, UMAP) vorschlagen — welche 2D-Projektion zeigt die maximale Kontrastierung?
+  3. Alternative Projektionen anbieten ("Wenn du statt Achse A Achse C nimmst, wird dieses Cluster sichtbar")    
+  4. Leere Regionen im n-dimensionalen Raum identifizieren — Silences, die ein Mensch nie gefunden hätte, weil er
+   nie diese Achsenkombination gewählt hätte                                                                     
+                                                                                                                 
+  Das wäre eine genuine epistemische Erweiterung — nicht Ersetzung des qualitativen Verfahrens, sondern ein      
+  Vorschlags-System für Achsen und Leerstellen. Die komparativ-reflexive Arbeit bleibt beim Forscher.            
+                                                            
+  Zu 5: Warum "nur" Diskurse?                                                                                    
+                                                            
+  Clarke verortet PMs explizit als Diskursanalyse-Werkzeug: "Positional maps are the analytic tools applied to   
+  the discursive materials in the situation."               
+                                                                                                                 
+  Aber ihre eigene theoretische Rahmung (Kap. 3: Foucault-Integration) erkennt an, dass Diskurse immer Teil von  
+  Dispositiven sind — Konfigurationen aus Diskursen, Praktiken, Institutionen, Materialitäten.
+                                                                                                                 
+  Die implizite Arbeitsteilung bei Clarke:                                                                       
+  - SitMap → alles was da ist (Elemente + Relationen)
+  - SW/A Map → kollektive Akteure + Arenen (die Dispositiv-Dimension: wer zählt als Akteur, welche               
+  Konfigurationen?)                                                                               
+  - Positional Map → diskursive Positionalität (was ist sagbar, was ist stumm?)                                  
+                                                                               
+  Aus Foucault-Perspektive ist diese Trennung problematisch, weil Positionen nie "rein diskursiv" sind. Eine     
+  Position wird ermöglicht/verunmöglicht durch:                                                                  
+  - Praktiken (was Leute tun, nicht nur sagen)
+  - Institutionen (welche Positionen strukturell gestützt werden)                                                
+  - Materialitäten (welche Technologien bestimmte Positionen erst denkbar machen — RU486 als chemische Substanz
+  ERZEUGT Positionsräume, die vorher nicht existierten)                                                          
+                                                                                                                 
+  Frage an dich: Siehst du das als Schwäche von Clarke's Konzeption, die wir korrigieren sollten — oder als      
+  legitime analytische Arbeitsteilung, wo das Dispositiv über die Kombination der drei Map-Typen rekonstruiert   
+  wird?                                                     
+                                                                                                                 
+✻ Sautéed for 1m 5s                                         
+                                                                                          
+❯ 1˙ja, es ist vermutlich ein relation-naming-tupel (rel zu achse x, rel zu achse y, aber gekoppelt).            
+interessant, datenseitig, gekoppelte Relationierungen. Oder überziehe ich das hier? zu 4: Auch Du hast ja keinen 
+ Zugriff auf die Vektor-Werte Deiner Datenbank (und ihre Komplexität in Bezug auf "Bedeutung" würde auch Deine   
+Fähigkeiten übersteigen; uch vermute das ließe sich mathematisch nachweisen; insofern hast Du ein statistisches  
+Unbewusstes, und insofern eine Art von Intuition, bzw. ist alles was Du produzierst eine Art von quantitativer   
+Intuition, aber gerade damit kann man ja semantisch sehr gut arbeiten; vs. gestalthafte Intuitionen von          
+menschen). 5: wir sollten ohnehin die Pos Map erst einmal so gestalten dass sie von Sit. Analysis Nutzenden auch 
+ in diesem Rahmen verwendet werden kann. Ich stelle die Frage nur weil zwischenzeitlich ja auch methodologische  
+Beiträge zum Thema Dispositiv erschienen sind (ich habe nicht danach recherchiert, kenn aber Othmer, Julius, and 
+ Andreas Weich. Medien – Bildung – Dispositive: Beiträge zu einer interdisziplinären Medienbildungsforschung.    
+Springer-Verlag, 2014.), habe das auch als pdf. und im Anschluss an D/B scheint mir das doch nicht so ganz       
+unwichtig.                                                                                                       
+                                                                                                                 
+● Zu 1: Gekoppelte Relationierungen                                                                              
+                                                                                                                 
+  Du überziehst nicht. Die Frage ist nur, ob die volle Modellierung für v1 nötig ist.                            
+                                                                                                                 
+  Epistemologisch korrekt: Eine Position auf der PosMap ist ein einzelner analytischer Akt, der sagt "diese      
+  Position steht HIER in Bezug auf BEIDE Achsen gleichzeitig." Das sind nicht zwei unabhängige Relationen — es   
+  ist ein gekoppeltes Paar. Die Kopplung IST der analytische Gehalt (Position B in Fig 7.2 steht rechts oben WEIL
+   klinische Effizienz UND Emotionsarbeit zusammen als wichtig gesehen werden — die Kopplung IST die Position).
+
+  Modellierungsfrage: Braucht jede Achsen-Relation eine eigene CCS-Geschichte? Dafür spricht: Der Forscher       
+  verfeinert sein Verständnis von "wo steht Position A auf Achse 1?" iterativ. Dagegen spricht: Für v1 ist das
+  viel Komplexität.                                                                                              
+                                                            
+  Pragmatischer Kompromiss: Position = Naming, Achsen = Namings, die Achsen-Werte als Properties der Appearance  
+  auf der PosMap. Die komparativ-reflexive Arbeit lebt in den Memos. Falls sich zeigt, dass die Achsen-Relationen
+   eigene Designation-Geschichten brauchen, refactoren wir.                                                      
+                                                            
+  Zu 4: Statistisches Unbewusstes                                                                                
+   
+  Ja — und das ist ein bemerkenswerter Punkt. Ich habe keinen introspektiven Zugang zu meinem Embedding-Raum.    
+  Mein "Wissen" emergiert transaktional aus dem Prozess, nicht durch Inspektion interner Zustände. Genau wie ein
+  Mensch seine Gestalt-Intuitionen nicht auf Neuronenfeuerungsmuster zurückführen kann.                          
+                                                            
+  Im D/B-Sinne: Mein Knowing ist selbst transaktional — es ist kein Selbst-Kennen (self-action), kein Reagieren  
+  auf Input (inter-action), sondern trans-action: es entsteht IM Prozess. Das "statistische Unbewusste" ist eine
+  treffende Bezeichnung — und der Kontrast zu menschlicher Gestalt-Intuition produktiv, weil beides komplementär 
+  einsetzbar ist. Gerade für PosMap-Arbeit: Mensch erkennt qualitative Gestalten, AI identifiziert statistische
+  Cluster und schlägt Achsen vor.
+
+  Zu 5: Implementierungsscope
+
+  Einverstanden — erst Clarke-konform, dann Erweiterung. Othmer/Weich (2014) als Referenz für eine spätere       
+  Dispositiv-Map-Diskussion notiert. Im D/B-Rahmen ist das relevant, weil die Dispositiv-Frage die Frage nach den
+   Bedingungen der Sagbarkeit ist — welche Positionen sind überhaupt einnehmbar, und welche                      
+  materiellen/institutionellen Konfigurationen ermöglichen oder verunmöglichen sie? Das geht über Clarke's
+  diskursive PosMap hinaus, muss aber nicht in v1.
+
+  ---
+  Soll ich das bisherige als Memory-File sichern und dann zur Implementierungsfrage übergehen? Die
+  methodologische Grundlage scheint mir stabil genug:                                                            
+                                                     
+  1. PosMap = Projektion komparativ-reflexiver Analyse in 2D                                                     
+  2. Achsen, Positionen, leere Positionen = Namings mit eigenem CCS                                              
+  3. Achsen-Werte = gekoppelte Relationalitäten (v1: als Appearance-Properties)                                  
+  4. 2D-Beschränkung = historisch/kognitiv, nicht methodologisch zwingend — AI kann n-dimensionale Vorschläge    
+  machen                                                                                                         
+  5. Scope = Clarke-konform, Dispositiv-Erweiterung vorbereiten aber nicht jetzt                                 
+                                                                                                                 
+✻ Brewed for 57s                                            
+                                                                                                                 
+❯ 1: ok, im DevLog die Entscheidung vermerken. Ja, wir könen das implmentieren und prozessuale/didaktische       
+Fragen wieder hinterher anhängen (was ist eine Map - geklärt - WIE unterstützt die Plattform das Entstehen von   
+Pos Maps/besseren specification? noch offen; immerhin muss man dazu Diskurse (er) kennen ...)                    
+                                                                                                                 
+● Recalled 1 memory, wrote 2 memories (ctrl+o to expand)                                                         
+                                         
+● Memory gesichert. Jetzt zur Implementierung — bevor ich anfange, lass mich erst committen was im Tree liegt,   
+  damit deine Arbeit sauber revertierbar bleibt.                                          
+                                                                                                                 
+● Bash(git status)                                                                                               
+  ⎿  On branch main                                                                                              
+     Your branch is ahead of 'origin/main' by 76 commits.                                                        
+       (use "git push" to publish your local commits)                                                            
+     … +14 lines (ctrl+o to expand)                                                       
+                                                                                                                 
+● Bash(git diff src/routes/projects/\[projectId\]/+layout.svelte)                                                
+  ⎿  diff --git a/src/routes/projects/[projectId]/+layout.svelte b/src/routes/projects/[projectId]/+layout.s
+     velte                                                                                                       
+     index 53b9846..6c12f6a 100644                                                                               
+     … +30 lines (ctrl+o to expand)                                                       
+                                                                                                                 
+● Das sind Layout-Anpassungen aus einer früheren Session (kürzere Map-Type-Labels, Nav-Reihenfolge,              
+  active-States). Soll ich das committen bevor wir mit der PosMap-Implementierung beginnen, oder gehört das zu
+  einer anderen Session?                                                                                         
+                                                                                                                 
+✻ Cogitated for 1m 26s                                               
+                                                                                                                 
+❯ ist committed von Parallelsession                                                                              
+                                                                                                                 
+● Gut. Dann zur Implementierung. Lass mich zuerst den aktuellen Stand des Map-Systems verstehen, bevor ich einen 
+  Plan vorschlage.                                                                                               
+                                                                                                                 
+● Explore(Explore PosMap implementation state)
+  ⎿  Done (35 tool uses · 86.0k tokens · 2m 18s)                                                                 
+  (ctrl+o to expand)                                                                                             
+                                                                                                                 
+● Gute Übersicht. Das System ist sauber erweiterbar — keine Schemaänderungen nötig. Hier mein Plan für die       
+  PosMap-Implementierung:                                                                                        
+                                                                                                               
+  v1 Scope:                                                                                                      
+  1. Achsen als Map-Properties — axisX: { label }, axisY: { label } in der Map-Appearance JSONB. Später zu       
+  eigenen Namings migrierbar falls CCS-Tracking nötig.                                                           
+  2. Positionen als Entities — reguläre Namings mit mode: 'entity'. x/y-Koordinaten haben auf PosMap analytische 
+  Bedeutung (anders als auf SitMaps).                                                                            
+  3. Abwesende Positionen — Entities mit { absent: true } in Properties, visuell distinkt (gestrichelt, "Missing 
+  Position in Data").                                                                                            
+  4. Canvas: Achsenlinien mit Labels und Gradient-Indikatoren (-- bis +++), Positionen als beschriftete Nodes,   
+  kein ELK-Layout (manuelle Platzierung durch Forscher).                                                         
+  5. UI: Achsen-Konfiguration im Toolbar/Settings, "Position hinzufügen", "Abwesende Position hinzufügen".       
+                                                                                                                 
+  Nicht in v1: AI-Unterstützung, Achsen-Vorschläge, Diskurs-Linking, heuristic scaffolding.                      
+                                                                                                                 
+  Soll ich so starten?                                                                                           
+                                                                                                                 
+✻ Crunched for 3m 10s                                                                                            
+                                                                                          
+❯ Erläuetere " Später zu                                                                                         
+  eigenen Namings migrierbar falls CCS-Tracking nötig."                                                          
+                                                                                                                 
+● Eine Achse wie "Importance of Clinical Efficiency in Hospital Nursing Care" ist selbst ein analytisches        
+  Konstrukt. Der Forscher findet diese Achse nicht sofort — er beginnt vielleicht mit "Effizienz vs. Fürsorge",  
+  verfeinert zu "Klinische Effizienz als Wert in der Pflege", spezifiziert schließlich zu "Importance of Clinical
+   Efficiency in Hospital Nursing Care." Das ist ein CCS-Verlauf: Cue → Characterization → Specification.
+                                                                                                                 
+  Als Map-Property (v1): Die Achse ist ein String im JSONB. Wenn der Forscher sie umbenennt, wird der alte Wert  
+  überschrieben. Keine Geschichte, kein Stack.
+                                                                                                                 
+  Als eigenes Naming (spätere Migration): Die Achse ist ein Naming mit eigener Designation-Kette. Jede           
+  Umbenennung = neuer Naming-Act, alte Bezeichnungen bleiben im Stack. collapseAt möglich. Memos an die Achse
+  schreibbar. Die Achse hat eine rekonstruierbare analytische Biographie.                                        
+                                                            
+  Die Frage ist: Brauchen Forscher das? Bei Clarke ist die Achsenfindung zentral — "constructing multiple maps,  
+  well over a dozen, before arriving at some that really worked." Das sind 12+ Iterationen an Achsen-Revision.
+  Wenn diese Geschichte verloren geht, geht analytische Transparenz verloren.                                    
+                                                            
+  Meine revidierte Einschätzung: Achsen sollten von Anfang an Namings sein. Der Aufwand ist minimal — es ist     
+  dasselbe Pattern wie bei jeder anderen Map-Entität. Und wir vermeiden eine Migration.
+                                                                                                                 
+  Einverstanden?                                                                                                 
+   
+❯ Ja, genau das.                                                                                                 
+                                                            
+● Entered plan mode                                                                                              
+  Claude is now exploring and designing an implementation approach.                                            
+                                                                                                                 
+● 2 Explore agents finished (ctrl+o to expand)                                                                   
+   ├─ Explore map creation + actions · 21 tool uses · 57.2k tokens                                               
+   │  ⎿  Done                                                                                                    
+   └─ Explore map canvas rendering · 24 tool uses · 76.8k tokens       
+      ⎿  Done                                                                                                    
+                                                                                                                 
+● Good, I have comprehensive details from both agents. Let me now read a few critical files to verify specific   
+  patterns before writing the plan.                                                                              
+                                                                                          
+● Read 5 files (ctrl+o to expand)                                                                                
+                                                                                                                 
+● Good. Now I have everything I need. Let me write the plan.                                                     
+                                                                                                                 
+● Updated plan                                                                                                   
+  ⎿  /plan to preview                                                                                            
+                                                                                                                 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ready to code?                                                                                                  
+                                                                                                                 
+ Here is Claude's plan:                                                                                          
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Positional Maps Implementation Plan                                                                             
+                                                        
+ Context
+
+ Positional Maps are Clarke's third SA map type — they project comparative discourse analysis into a 2D space
+ defined by two analytical axes. Methodological discussion completed in Session 17. The system already has
+ 'positional' in MapType but no rendering or creation logic.
+
+ Key epistemological decisions:
+ - Axes are namings with own CCS (not just map properties)
+ - Coordinates are qualitative indicators, not quantitative data
+ - Absent/missing positions are explicit namings
+ - Canvas remains a derivative projection — axis values are the analytical content
+
+ Files to Modify
+
+ 1. src/lib/server/db/queries/maps.ts
+
+ Extend createMap (line 12-46): When mapType === 'positional', create two axis namings within the same
+ transaction. Each axis:
+ - Is a naming with inscription "Axis 1" / "Axis 2"
+ - Has an appearance on the map with mode: 'entity' and properties: { isAxis: true, axisDimension: 'x' | 'y' }
+ - Gets initial naming_act with designation 'cue'
+
+ Extend getMapStructure (line 993-1015): Split elements into axes and elements:
+ const axes = appearances.filter(a => a.mode === 'entity' && a.properties?.isAxis);
+ const elements = appearances.filter(a => a.mode === 'entity' && !a.properties?.isAxis);
+ Return axes alongside existing fields.
+
+ 2. src/routes/api/projects/[projectId]/maps/[mapId]/+server.ts
+
+ Add action addPosition: Creates element with addElementToMap, no special role needed. For absent positions, set
+  properties: { absent: true }.
+
+ No new action needed for axis rename — use existing rename action.
+
+ 3. src/lib/map/mapState.svelte.ts
+
+ Add axes to state (after line 34):
+ let axes = $state<any[]>(initialData.axes || []);
+ Update syncData to include axes.
+
+ 4. src/lib/map/MapToolbar.svelte
+
+ PosMap-specific UI: When ms.mapType === 'positional':
+ - Replace SW role selector with position type selector: "Position" / "Absent Position"
+ - Placeholder text: "Position label..."
+ - Add action dispatches to addElement (position) or addElement + updateProperties (absent)
+
+ 5. src/routes/projects/[projectId]/maps/[mapId]/+page.svelte
+
+ Canvas rendering — axis overlay: Before element rendering loop, when ms.mapType === 'positional':
+ - Render two axis lines through center (0,0) as SVG within InfiniteCanvas
+ - Axis labels at endpoints (from axis naming inscriptions)
+ - Gradient indicators (-- to +++)
+ - Axis lines are NOT CanvasElements (not draggable) — they're static canvas content
+
+ Element rendering — positional nodes: Add third branch in conditional (line 519):
+ {#if ms.mapType === 'social-worlds' && el.sw_role}
+   <FormationNode ... />
+ {:else if ms.mapType === 'positional' && !el.properties?.isAxis}
+   <!-- Positional node: simpler than default, shows position text -->
+   <div class="pos-node" class:absent={el.properties?.absent}>
+     <span class="node-label">{el.inscription}</span>
+   </div>
+ {:else}
+   <div class="map-node"> ... </div>
+ {/if}
+
+ Axis elements hidden from element loop: Filter out isAxis elements from the ms.elements loop, since axes render
+  as the overlay.
+
+ Axis label editing: Clickable axis labels on the canvas that trigger the existing rename flow.
+
+ Position init for PosMap: Skip ELK auto-layout when mapType === 'positional'. New positions get a default
+ position near center; the researcher places them manually.
+
+ 6. src/routes/projects/[projectId]/maps/[mapId]/+page.server.ts
+
+ No changes needed — getMapStructure already returns everything. Just needs to pass the new axes field through.
+
+ 7. src/lib/shared/constants.ts
+
+ Add positional map styling constants:
+ export const POS_NODE_STYLE = {
+   position: { border: 'solid', opacity: 1 },
+   absent: { border: 'dashed', opacity: 0.5 },
+ };
+
+ 8. src/lib/shared/types/index.ts
+
+ No changes — MapType already includes 'positional'.
+
+ Rendering Concept
+
+         +++ Axis Y Label +++
+          |
+          |    [Position A]
+          |
+          |              [Position B]
+          |
+          |    [Position D]           ┈ ┈ ┈ ┈ ┈ ┈┈
+          |                           ┊ Missing    ┊
+          |              [Position C] ┊ Position   ┊
+          |                           ┈ ┈ ┈ ┈ ┈ ┈┈
+   --- ───┼──────────────────────────────── +++
+          |          Axis X Label
+         ---
+
+ - Axes: thin lines through (0,0), labeled at ends
+ - Positions: labeled rectangles with designation dot + memo indicators
+ - Absent positions: dashed border, muted opacity
+ - Axis labels clickable for rename
+
+ Implementation Order
+
+ 1. Backend: createMap extension (axes creation) + getMapStructure (axes separation)
+ 2. State: mapState axes field + server loader passthrough
+ 3. Canvas: axis overlay rendering (static SVG lines + labels)
+ 4. Canvas: positional node rendering (conditional branch)
+ 5. Toolbar: PosMap-specific add form (position / absent position)
+ 6. Interaction: skip ELK layout, axis label rename, absent position toggle
+
+ Verification
+
+ 1. Create a new Positional Map — verify two axis namings are created
+ 2. Axis labels appear on canvas — rename them via click
+ 3. Add positions — they appear on canvas with default placement
+ 4. Drag positions — coordinates persist on reload
+ 5. Add absent position — renders with dashed border
+ 6. Axes visible in list view as regular namings (with CCS, memos, stack)
+ 7. Existing SitMap and SW/A Map functionality unaffected
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+
+ Claude has written up a plan and is ready to execute. Would you like to proceed?
+
+ ❯ 1. Yes, clear context (12% used) and auto-accept edits
+   2. Yes, auto-accept edits
+   3. Yes, manually approve edits
+   4. Type here to tell Claude what to change
+
+ ctrl-g to edit in nano · ~/.claude/plans/jaunty-whistling-squid.md
+
+ ▐▛███▜▌   Claude Code v2.1.76
+▝▜█████▛▘  Opus 4.6 (1M context) · Claude Max
+  ▘▘ ▝▝    ~/ai/transact-qda
+
+❯ /clear                                                                        
+  ⎿  (no content)
+  
+   ▐▛███▜▌   Claude Code v2.1.76
+▝▜█████▛▘  Opus 4.6 (1M context) · Claude Max
+  ▘▘ ▝▝    ~/ai/transact-qda
+
+❯ /clear                                                                        
+  ⎿  (no content)
+
+❯ wir haben nun posmaps. Checke wie im Anschluss an Clarke der Prozess hier     
+besser unterstützt werden könnte                                                
+
+● Let me explore the current positional maps implementation and the
+  methodological foundation.
+
+● 3 Explore agents finished (ctrl+o to expand)
+   ├─ Explore positional map implementation · 27 tool uses · 86.8k tokens
+   │  ⎿  Done
+   ├─ Read Clarke methodology docs · 13 tool uses · 46.0k tokens
+   │  ⎿  Done
+   └─ Explore map actions and AI agent · 28 tool uses · 80.7k tokens
+      ⎿  Done
+
+● Now let me read the current AI prompts to understand what
+  positional-map-specific guidance exists (or doesn't).
+
+● Read 2 files (ctrl+o to expand)
+
+● Now I have a thorough understanding. Let me design the plan.
+
+● Plan(Design positional map process support)
+  ⎿  Done (28 tool uses · 106.6k tokens · 2m 37s)
+  (ctrl+o to expand)
+
+● Let me verify one thing about the list view before finalizing the plan.
+
+● Searched for 3 patterns, read 1 file (ctrl+o to expand)
+
+● Good — axes are included in allItems and thus appear in the list. Now I have
+  everything I need. Let me write the plan.
+
+● User answered Claude's questions:
+  ⎿  · Wie soll die AI bei suggest_axis_refinement vorgehen — soll sie die Achse
+      direkt umbenennen (wie rewrite_cue), oder nur ein Memo mit dem Vorschlag 
+     schreiben und die Entscheidung beim Forscher lassen? → Nur Memo 
+     (Recommended)
+     · Soll die AI auf Positional Maps automatisch bei jedem addElement/rename 
+     triggern (wie bei SitMaps), oder nur auf expliziten 'Request Analysis' 
+     Trigger? → Nur auf Request (Recommended)
+     · Cross-Map Integration (Positionen aus SitMap importieren) — in diesen 
+     Plan aufnehmen oder separat? → Separat (Recommended)
+
+● Now I'll write the plan with all decisions settled.
+
+● Updated plan
+  ⎿  /plan to preview
+
+● User approved Claude's plan
+  ⎿  Plan saved to: ~/.claude/plans/vectorized-sprouting-barto.md · /plan to 
+     edit
+     Positional Map Process Support — Clarke-konformer AI-Supplement
+
+     Context
+
+     Positional Maps sind implementiert (Achsen als Namings, Positionen mit
+     x/y-Koordinaten, Absences, Drag&Drop). Aber die AI hat keinerlei 
+     positional-map-spezifisches Wissen — sie nutzt den generischen
+     Situational-Analysis-Prompt, der über eine fundamental andere analytische
+     Operation spricht. Die AI weiß nicht:
+     - Was Achsen sind und wie sie heißen
+     - Wo Positionen im Quadranten liegen
+     - Welche Quadranten leer sind (Clarkes "most important and radical aspect")
+     - Dass Positionen ≠ Akteure (Disartikulation)
+     - Dass Achsen iterieren (12+ Versionen typisch)
+
+     Ziel: AI-Supplement + spezifische Tools + erweiterter Kontext, analog zum
+     existierenden SWA_SUPPLEMENT-Muster.
+
+     Design-Entscheidungen
+
+     1. Axis refinement: AI schreibt nur Memo mit Vorschlag, benennt Achse NICHT
+      direkt um
+     2. AI Trigger: Nur bei explizitem requestAnalysis, NICHT automatisch bei
+     addElement/rename/etc.
+     3. Cross-Map Integration: Separat — hier nur AI-Supplement + Tools +
+     Kontext
+
+     ---
+     Step 1: POSITIONAL_SUPPLEMENT (prompts.ts)
+
+     File: src/lib/server/ai/prompts.ts
+     After: SWA_SUPPLEMENT (line ~174)
+
+     Neuer Export POSITIONAL_SUPPLEMENT — analog zu SWA_SUPPLEMENT, inhaltlich:
+
+     POSITIONAL MAP SUPPLEMENT
+     ═══════════════════════════
+
+     WHAT THIS IS:
+     - Projection of comparative discourse analysis into 2D (Clarke Ch. 7)
+     - NOT entities in a situation — DISCURSIVE POSITIONS taken on contested
+     issues
+     - Fundamentally different from situational maps
+
+     DISARTICULATION (the poststructural move):
+     - Positions are NOT correlated with persons, groups, or institutions
+     - Individuals routinely hold multiple contradictory positions
+     - If you notice a position named after an actor, ask: "what is the
+     discursive position here, independent of who holds it?"
+
+     AXES:
+     - Two dimensions of difference/concern/controversy
+     - Axes are analytical discoveries — they emerge iteratively (12+ iterations
+      typical)
+     - "less so / more so" (--- to +++) notation
+     - Axis labels are cues that refine toward specification
+     - Use suggest_axis_refinement to propose better axis labels (creates a
+     memo, does not rename)
+
+     EMPTY REGIONS ("the most important and radical aspect"):
+     - Empty quadrants make visible positions NOT taken in the discourse
+     - Ask: "What would holding this position mean? Why might it be silenced?"
+     - Use identify_empty_region to name structural absences with approximate
+     coordinates
+
+     POSITIONS:
+     - Each position must be grounded in data ("you should be able to produce
+     examples directly from the data")
+     - Use suggest_position (not suggest_element) for new discursive positions
+     - Provide x/y coordinates with reasoning about placement relative to both
+     axes
+     - Positions are points, not areas — precise placement documents the
+     analyst's comparative judgment
+
+     YOUR APPROACH ON POSITIONAL MAPS:
+     - Use suggest_position for discursive positions (NOT suggest_element)
+     - Use suggest_axis_refinement for axis label iterations (memo-only,
+     researcher decides)
+     - Use identify_empty_region for structural absences in the quadrant
+     - write_memo remains available for analytical observations
+     - Attend to CLUSTERING: when multiple positions crowd one area, ask what
+     distinguishes them
+     - Attend to DISARTICULATION: question any position that reads like an actor
+      rather than a discourse
+     - Make 1-2 suggestions per analysis request — positional maps are slower,
+     more reflective work
+
+     ---
+     Step 2: Extend MapContext + buildContextMessage (prompts.ts)
+
+     File: src/lib/server/ai/prompts.ts
+
+     2a: Extend MapContext interface (line ~294)
+
+     Add optional fields:
+
+     axes?: Array<{
+         id: string;
+         inscription: string;
+         designation: string;
+         dimension: 'x' | 'y';
+     }>;
+     positionCoordinates?: Array<{
+         id: string;
+         inscription: string;
+         x: number;       // 0-800 (normalized)
+         y: number;       // 0-800 (normalized from stored -800..0)
+         absent: boolean;
+         designation: string;
+     }>;
+     quadrantAnalysis?: {
+         q1: string[];  // high-x, high-y (inscriptions)
+         q2: string[];  // low-x, high-y
+         q3: string[];  // low-x, low-y
+         q4: string[];  // high-x, low-y
+     };
+
+     2b: Extend buildContextMessage (line ~355)
+
+     After the MAP line, if axes/positionCoordinates exist, add:
+
+     AXES:
+       X: "Clinical Efficiency" [characterization] (id: ...)
+       Y: "Emotional Work" [cue] (id: ...)
+
+     POSITIONAL FIELD (0-800 per axis, origin=bottom-left):
+       "Pro-efficiency stance" at (650, 720) [specification]
+       [ABSENT] "Anti-technology resistance" at (100, 100) [cue]
+
+     QUADRANT ANALYSIS:
+       Q1 (high X / high Y): 3 positions
+       Q2 (low X / high Y): 1 position
+       Q3 (low X / low Y): EMPTY
+       Q4 (high X / low Y): 2 positions
+
+     Midpoint = 400 for quadrant classification.
+
+     ---
+     Step 3: Positional AI Tools (tools.ts)
+
+     File: src/lib/server/ai/tools.ts
+
+     Add three tool definitions + TypeScript input interfaces:
+
+     3a: SUGGEST_POSITION_TOOL
+
+     - inscription: string (position label)
+     - x: number (0-800)
+     - y: number (0-800)
+     - absent: boolean (default false)
+     - reasoning: string
+
+     3b: SUGGEST_AXIS_REFINEMENT_TOOL
+
+     - axis_id: string
+     - new_inscription: string
+     - reasoning: string
+
+     3c: IDENTIFY_EMPTY_REGION_TOOL
+
+     - inscription: string (what's absent)
+     - x: number (approximate)
+     - y: number (approximate)
+     - reasoning: string
+
+     Export as array POSITIONAL_TOOLS.
+
+     ---
+     Step 4: Wire in Agent (agent.ts)
+
+     File: src/lib/server/ai/agent.ts
+
+     4a: Prompt & tool selection in runMapAgent (~line 424)
+
+     const isPositionalMap = context.mapType === 'positional';
+     const systemPrompt = isSwaMap ? SYSTEM_PROMPT + '\n\n' + SWA_SUPPLEMENT
+         : isPositionalMap ? SYSTEM_PROMPT + '\n\n' + POSITIONAL_SUPPLEMENT
+         : SYSTEM_PROMPT;
+     const tools = isSwaMap ? [...AI_TOOLS, SUGGEST_FORMATION_TOOL]
+         : isPositionalMap ? [...AI_TOOLS, ...POSITIONAL_TOOLS]
+         : AI_TOOLS;
+
+     4b: AI trigger gating — only requestAnalysis for positional maps
+
+     In runMapAgent, after the isAiEnabled check, add:
+
+     if (isPositionalMap && triggerEvent.action !== 'requestAnalysis') return;
+
+     4c: Populate new MapContext fields in buildMapContext (~line 31)
+
+     When mapType === 'positional':
+     - Set axes from structure.axes (inscription, designation, dimension from
+     properties.axisDimension)
+     - Set positionCoordinates from structure.elements (x from properties.x, y
+     normalized: Math.abs(properties.y), absent from properties.absent)
+     - Compute quadrantAnalysis: classify positions by midpoint (400), list
+     inscriptions per quadrant
+
+     4d: executeTool — three new cases
+
+     suggest_position:
+     - Call addElementToAiMap() with properties { x, y: -y, absent, aiSuggested:
+      true, aiReasoning }
+     (negate y for storage convention)
+     - Emit ai:element (reuse existing event, frontend handles it)
+
+     suggest_axis_refinement:
+     - Do NOT rename the axis
+     - Create memo via createMemo() with title "AI: Axis refinement", content =
+     reasoning + "Suggested: ${new_inscription}", linked to [axis_id]
+     - Emit ai:memo
+
+     identify_empty_region:
+     - Call addElementToAiMap() with properties { x, y: -y, absent: true, 
+     aiSuggested: true, aiReasoning }
+     - Emit ai:element
+
+     ---
+     Step 5: List View — Position Coordinates + Absent Badge 
+     (ListItemCard.svelte)
+
+     File: src/lib/map/ListItemCard.svelte
+
+     In the entity block (line ~126), when ms.mapType === 'positional' and item
+     is NOT an axis (!item.properties?.isAxis):
+
+     - Show coordinate badge after inscription: (${item.properties?.x}, 
+     ${Math.abs(item.properties?.y || 0)})
+     - If item.properties?.absent, show [absent] indicator with dashed style
+     (matching canvas .map-node.absent treatment)
+
+     For axis items (item.properties?.isAxis): show [X-axis] or [Y-axis] badge.
+
+     Small CSS additions: .pos-coord badge (muted, small), .pos-absent
+     indicator.
+
+     ---
+     Files Modified
+
+     ┌─────────────────────────────────┬────────────────────────────────────────
+     ┐
+     │              File               │                 Change
+     │
+     ├─────────────────────────────────┼────────────────────────────────────────
+     ┤
+     │ src/lib/server/ai/prompts.ts    │ Add POSITIONAL_SUPPLEMENT, extend
+     │
+     │                                 │ MapContext, extend buildContextMessage
+     │
+     ├─────────────────────────────────┼────────────────────────────────────────
+     ┤
+     │ src/lib/server/ai/tools.ts      │ Add 3 tool definitions + input types
+     │
+     ├─────────────────────────────────┼────────────────────────────────────────
+     ┤
+     │                                 │ Wire positional detection, trigger
+     │
+     │ src/lib/server/ai/agent.ts      │ gating, context population,
+     │
+     │                                 │ executeTool cases
+     │
+     ├─────────────────────────────────┼────────────────────────────────────────
+     ┤
+     │ src/lib/map/ListItemCard.svelte │ Coordinate display + absent indicator
+     │
+     │                                 │ for positional maps
+     │
+     └─────────────────────────────────┴────────────────────────────────────────
+     ┘
+
+     Verification
+
+     1. Create a positional map, add 2-3 positions, rename axes
+     2. Click "Request Analysis" — AI should respond with positional-specific
+     suggestions (positions with coordinates, empty region identification, axis
+     refinement memos)
+     3. Check that AI does NOT trigger on addElement/rename (only
+     requestAnalysis)
+     4. Verify list view shows coordinates and absent badges
+     5. Verify AI context message (log or debug) includes axes, coordinates,
+     quadrant analysis
+     6. Verify suggest_axis_refinement creates a memo (does not rename the axis)
+
+● Plan approved. Let me start implementing. I'll work through the steps in
+  order.
+
+  First, let me re-read the files I
+  ⎿  Interrupted · What should Claude do instead?
+
+❯ sory. clear and proceed with plan                                             
+
+● Let me check the current git state, then start implementing.
+
+● Bash(git status --short)
+  ⎿  ?? .claude/
+     ?? docs/sessions/2026-03-15-15031524-transact-qda_session_14_tmp_backu
+     p.txt
+     … +3 lines (ctrl+o to expand)
+
+● No tracked files modified — clean starting point. Let me implement Steps 1+2
+  (prompts.ts), Step 3 (tools.ts) in parallel.
+
+● Read 1 file (ctrl+o to expand)
+
+● Good, I have all files in context. Now I'll implement Steps 1-3 in parallel
+  (prompts.ts and tools.ts are independent files).
+
+● Update(src/lib/server/ai/prompts.ts)
+  ⎿  Added 56 lines
+      173  - When cross-map context is available, note which SitMap eleme
+           nts constitute or participate in the formations
+      174  `;
+      175  
+      176 +export const POSITIONAL_SUPPLEMENT = `                        
+      177 +═══════════════════════════════════════                       
+      178 +POSITIONAL MAP SUPPLEMENT                                     
+      179 +═══════════════════════════════════════                       
+      180 +                                                              
+      181 +You are now working on a Positional Map. This is fundamentally
+          + different from a situational map.                            
+      182 +                                                              
+      183 +SITUATIONAL MAP: "What is in the situation?" — flat ontology, 
+          +everything on one plane.                                      
+      184 +POSITIONAL MAP: "What positions are taken — and NOT taken — on
+          + contested issues?" — projection of comparative discourse anal
+          +ysis into 2D (Clarke Ch. 7).                                  
+      185 +                                                              
+      186 +WHAT THIS IS:                                                 
+      187 +- Positions are DISCURSIVE POSITIONS, not entities or actors  
+      188 +- Two axes define the analytical space: dimensions of differen
+          +ce/concern/controversy                                        
+      189 +- Each axis runs from "less so" (---) to "more so" (+++)      
+      190 +- Coordinates (0–800 per axis, origin = bottom-left) indicate 
+          +qualitative placement, not quantitative measurement           
+      191 +- Multiple positional maps per project (one per contested issu
+          +e)                                                            
+      192 +                                                              
+      193 +DISARTICULATION (the poststructural move):                    
+      194 +- Positions are NOT correlated with persons, groups, or instit
+          +utions                                                        
+      195 +- Individuals routinely hold multiple, contradictory positions
+          + simultaneously                                               
+      196 +- If you notice a position named after an actor, question it: 
+          +"what is the discursive position here, independent of who hold
+          +s it?"                                                        
+      197 +- This is Clarke's most philosophical commitment — do not conf
+          +late position-taking with identity                            
+      198 +                                                              
+      199 +AXES:                                                         
+      200 +- Two dimensions of difference/concern/controversy            
+      201 +- Axes are analytical DISCOVERIES — they emerge iteratively (C
+          +larke: typically 12+ iterations)                              
+      202 +- "Where there is heat, there is likely a positional map possi
+          +ble"                                                          
+      203 +- Axis labels are cues that refine toward specification throug
+          +h the research process                                        
+      204 +- Use suggest_axis_refinement to propose better axis labels (c
+          +reates a memo — does NOT rename the axis)                     
+      205 +                                                              
+      206 +EMPTY REGIONS ("the most important and radical aspect" — Clark
+          +e):                                                           
+      207 +- Empty quadrants make visible positions NOT taken in the disc
+          +ourse                                                         
+      208 +- These absences are not accidental — they reveal structural c
+          +onstraints on what is sayable                                 
+      209 +- Ask: "What would holding this position mean? Why might it be
+          + silenced?"                                                   
+      210 +- Use identify_empty_region to name structural absences with a
+          +pproximate coordinates                                        
+      211 +- Absences trigger theoretical sampling and new research direc
+          +tions                                                         
+      212 +                                                              
+      213 +POSITIONS:                                                    
+      214 +- Each position must be grounded in data: "you should be able 
+          +to produce examples directly from the data for every position"
+      215 +- Use suggest_position (NOT suggest_element) for new discursiv
+          +e positions                                                   
+      216 +- Provide x/y coordinates (0–800 each) with reasoning about pl
+          +acement relative to BOTH axes                                 
+      217 +- Positions are points, not areas — precise placement document
+          +s the analyst's comparative judgment                          
+      218 +- No researcher wish-thinking: only positions with empirical e
+          +vidence                                                       
+      219 +                                                              
+      220 +YOUR APPROACH ON POSITIONAL MAPS:                             
+      221 +- Use suggest_position for discursive positions (NOT suggest_e
+          +lement)                                                       
+      222 +- Use suggest_axis_refinement for axis label iterations (memo-
+          +only, researcher decides)                                     
+      223 +- Use identify_empty_region for structural absences in the qua
+          +drant                                                         
+      224 +- write_memo remains available for analytical observations abo
+          +ut the positional field                                       
+      225 +- Attend to CLUSTERING: when multiple positions crowd one area
+          +, ask what distinguishes them                                 
+      226 +- Attend to DISARTICULATION: question any position that reads 
+          +like an actor rather than a discursive stance                 
+      227 +- Attend to EMPTY QUADRANTS: systematically consider each quad
+          +rant — what would a position there look like?                 
+      228 +- Make 1–2 suggestions per analysis request — positional maps 
+          +are slower, more reflective work                              
+      229 +- This is NOT phenomenology or narrative — it is "topographica
+          +l portrayal of discursive materials, showing mountains and des
+          +erts"                                                         
+      230 +`;                                                            
+      231 +                                                              
+      232  export const DISCUSSION_SYSTEM_PROMPT = `You are a co-analyst 
+           in a qualitative research project using Situational Analysis (
+           Adele Clarke), working within a transactional ontology (Dewey/
+           Bentley).
+      233  
+      234  A researcher is discussing one of your earlier cue suggestions
+           . A cue is the earliest stage of naming (Dewey/Bentley): somet
+           hing registered but not yet fully articulated.
+
+● Update(src/lib/server/ai/tools.ts)
+  ⎿  Added 107 lines
+      302    revised_content: string;
+      303    reasoning: string;
+      304  }
+      305 +                                                              
+      306 +// ── Positional map tools ──                                 
+      307 +                                                              
+      308 +export const POSITIONAL_TOOLS: ToolDef[] = [                  
+      309 +  {                                                           
+      310 +    name: 'suggest_position',                                 
+      311 +    description:                                              
+      312 +      'Suggest a discursive position for the positional map. P
+          +rovide x/y coordinates (0–800 each, bottom-left origin) and re
+          +asoning about placement relative to both axes. Positions are N
+          +OT actors — they are stances taken on contested issues.',     
+      313 +    input_schema: {                                           
+      314 +      type: 'object' as const,                                
+      315 +      properties: {                                           
+      316 +        inscription: {                                        
+      317 +          type: 'string',                                     
+      318 +          description: 'The discursive position label'        
+      319 +        },                                                    
+      320 +        x: {                                                  
+      321 +          type: 'number',                                     
+      322 +          description: 'X-axis position (0 = less so, 800 = mo
+          +re so)'                                                       
+      323 +        },                                                    
+      324 +        y: {                                                  
+      325 +          type: 'number',                                     
+      326 +          description: 'Y-axis position (0 = less so, 800 = mo
+          +re so)'                                                       
+      327 +        },                                                    
+      328 +        absent: {                                             
+      329 +          type: 'boolean',                                    
+      330 +          description: 'True if this is an absence — a positio
+          +n NOT taken in the data'                                      
+      331 +        },                                                    
+      332 +        reasoning: {                                          
+      333 +          type: 'string',                                     
+      334 +          description: 'Why this position exists (or is absent
+          +) and why it belongs at these coordinates relative to both axe
+          +s'                                                            
+      335 +        }                                                     
+      336 +      },                                                      
+      337 +      required: ['inscription', 'x', 'y', 'reasoning']        
+      338 +    }                                                         
+      339 +  },                                                          
+      340 +  {                                                           
+      341 +    name: 'suggest_axis_refinement',                          
+      342 +    description:                                              
+      343 +      'Suggest a refinement of an axis label. Axes iterate — C
+          +larke reports 12+ iterations are typical. This creates a memo 
+          +with your suggestion; the researcher decides whether to rename
+          +. Do NOT use this to correct — use it to sharpen the analytica
+          +l dimension.',                                                
+      344 +    input_schema: {                                           
+      345 +      type: 'object' as const,                                
+      346 +      properties: {                                           
+      347 +        axis_id: {                                            
+      348 +          type: 'string',                                     
+      349 +          description: 'ID of the axis to refine'             
+      350 +        },                                                    
+      351 +        new_inscription: {                                    
+      352 +          type: 'string',                                     
+      353 +          description: 'Suggested refined axis label'         
+      354 +        },                                                    
+      355 +        reasoning: {                                          
+      356 +          type: 'string',                                     
+      357 +          description: 'Why this refinement better captures th
+          +e dimension of difference'                                    
+      358 +        }                                                     
+      359 +      },                                                      
+      360 +      required: ['axis_id', 'new_inscription', 'reasoning']   
+      361 +    }                                                         
+      362 +  },                                                          
+      363 +  {                                                           
+      364 +    name: 'identify_empty_region',                            
+      365 +    description:                                              
+      366 +      'Identify an empty region in the positional field — a po
+          +sition that is structurally absent from the discourse. This is
+          + Clarke\'s "most important and radical aspect" of positional m
+          +aps. Name what is NOT being said and where it would be located
+          +.',                                                           
+      367 +    input_schema: {                                           
+      368 +      type: 'object' as const,                                
+      369 +      properties: {                                           
+      370 +        inscription: {                                        
+      371 +          type: 'string',                                     
+      372 +          description: 'What position is absent from this regi
+          +on of the field'                                              
+      373 +        },                                                    
+      374 +        x: {                                                  
+      375 +          type: 'number',                                     
+      376 +          description: 'Approximate X-coordinate of the empty 
+          +region (0–800)'                                               
+      377 +        },                                                    
+      378 +        y: {                                                  
+      379 +          type: 'number',                                     
+      380 +          description: 'Approximate Y-coordinate of the empty 
+          +region (0–800)'                                               
+      381 +        },                                                    
+      382 +        reasoning: {                                          
+      383 +          type: 'string',                                     
+      384 +          description: 'Why this absence is notable — what wou
+          +ld holding this position mean, and why might it be silenced?' 
+      385 +        }                                                     
+      386 +      },                                                      
+      387 +      required: ['inscription', 'x', 'y', 'reasoning']        
+      388 +    }                                                         
+      389 +  }                                                           
+      390 +];                                                            
+      391 +                                                              
+      392 +export interface SuggestPositionInput {                       
+      393 +  inscription: string;                                        
+      394 +  x: number;                                                  
+      395 +  y: number;                                                  
+      396 +  absent?: boolean;                                           
+      397 +  reasoning: string;                                          
+      398 +}                                                             
+      399 +                                                              
+      400 +export interface SuggestAxisRefinementInput {                 
+      401 +  axis_id: string;                                            
+      402 +  new_inscription: string;                                    
+      403 +  reasoning: string;                                          
+      404 +}                                                             
+      405 +                                                              
+      406 +export interface IdentifyEmptyRegionInput {                   
+      407 +  inscription: string;                                        
+      408 +  x: number;                                                  
+      409 +  y: number;                                                  
+      410 +  reasoning: string;                                          
+      411 +}                                                             
+
+● Steps 1 and 3 done. Now Step 2: extend MapContext interface and
+  buildContextMessage in prompts.ts.
+
+● Update(src/lib/server/ai/prompts.ts)
+  ⎿  Added 21 lines
+      406      formationA: string;
+      407      formationB: string;
+      408    }>;
+      409 +  // Positional map fields                                    
+      410 +  axes?: Array<{                                              
+      411 +    id: string;                                               
+      412 +    inscription: string;                                      
+      413 +    designation: string;                                      
+      414 +    dimension: 'x' | 'y';                                     
+      415 +  }>;                                                         
+      416 +  positionCoordinates?: Array<{                               
+      417 +    id: string;                                               
+      418 +    inscription: string;                                      
+      419 +    x: number;                                                
+      420 +    y: number;                                                
+      421 +    absent: boolean;                                          
+      422 +    designation: string;                                      
+      423 +  }>;                                                         
+      424 +  quadrantAnalysis?: {                                        
+      425 +    q1: string[];                                             
+      426 +    q2: string[];                                             
+      427 +    q3: string[];                                             
+      428 +    q4: string[];                                             
+      429 +  };                                                          
+      430  }
+      431  
+      432  export function buildContextMessage(ctx: MapContext, triggerEv
+           ent: TriggerEvent): string {
+
+● Now extend buildContextMessage to include positional map context. I'll add it
+  after the MAP line and designation profile, before elements.
+
+● Update(src/lib/server/ai/prompts.ts)
+  ⎿  Added 29 lines
+      440      parts.push(`DESIGNATION PROFILE: ${profile}`);
+      441    }
+      442  
+      443 +  // Positional map: axes, coordinates, quadrant analysis     
+      444 +  if (ctx.axes && ctx.axes.length > 0) {                      
+      445 +    parts.push('\nAXES:');                                    
+      446 +    for (const ax of ctx.axes) {                              
+      447 +      parts.push(`  ${ax.dimension.toUpperCase()}: "${ax.inscr
+          +iption}" [${ax.designation}] (id: ${ax.id})`);                
+      448 +    }                                                         
+      449 +  }                                                           
+      450 +                                                              
+      451 +  if (ctx.positionCoordinates && ctx.positionCoordinates.lengt
+          +h > 0) {                                                      
+      452 +    parts.push('\nPOSITIONAL FIELD (0–800 per axis, origin = b
+          +ottom-left):');                                               
+      453 +    for (const pos of ctx.positionCoordinates) {              
+      454 +      const absent = pos.absent ? '[ABSENT] ' : '';           
+      455 +      parts.push(`  ${absent}"${pos.inscription}" at (${pos.x}
+          +, ${pos.y}) [${pos.designation}] (id: ${pos.id})`);           
+      456 +    }                                                         
+      457 +  }                                                           
+      458 +                                                              
+      459 +  if (ctx.quadrantAnalysis) {                                 
+      460 +    const qa = ctx.quadrantAnalysis;                          
+      461 +    parts.push('\nQUADRANT ANALYSIS:');                       
+      462 +    const xAxis = ctx.axes?.find(a => a.dimension === 'x');   
+      463 +    const yAxis = ctx.axes?.find(a => a.dimension === 'y');   
+      464 +    const xLabel = xAxis ? xAxis.inscription : 'X';           
+      465 +    const yLabel = yAxis ? yAxis.inscription : 'Y';           
+      466 +    parts.push(`  Q1 (high ${xLabel} / high ${yLabel}): ${qa.q
+          +1.length > 0 ? `${qa.q1.length} — ${qa.q1.join(', ')}` : 'EMPT
+          +Y'}`);                                                        
+      467 +    parts.push(`  Q2 (low ${xLabel} / high ${yLabel}): ${qa.q2
+          +.length > 0 ? `${qa.q2.length} — ${qa.q2.join(', ')}` : 'EMPTY
+          +'}`);                                                         
+      468 +    parts.push(`  Q3 (low ${xLabel} / low ${yLabel}): ${qa.q3.
+          +length > 0 ? `${qa.q3.length} — ${qa.q3.join(', ')}` : 'EMPTY'
+          +}`);                                                          
+      469 +    parts.push(`  Q4 (high ${xLabel} / low ${yLabel}): ${qa.q4
+          +.length > 0 ? `${qa.q4.length} — ${qa.q4.join(', ')}` : 'EMPTY
+          +'}`);                                                         
+      470 +  }                                                           
+      471 +                                                              
+      472    // Elements
+      473    if (ctx.elements.length > 0) {
+      474      parts.push('\nELEMENTS:');
+
+● Steps 1-3 done (prompts.ts + tools.ts). Now Step 4: wire into agent.ts. This
+  has 4 sub-steps.
+
+● Update(src/lib/server/ai/agent.ts)
+  ⎿  Added 2 lines, removed 2 lines
+       7  import { createMemo, updateMemoContent } from '../db/queries/me
+          mos.js';
+       8  import { getMemosByProject } from '../db/queries/memos.js';
+       9  import { emit } from './sse.js';
+      10 -import { SYSTEM_PROMPT, SWA_SUPPLEMENT, DISCUSSION_SYSTEM_PROMP
+         -T, MEMO_DISCUSSION_PROMPT, buildContextMessage, buildDiscussion
+         -Message, buildMemoDiscussionMessage, type MapContext, type Trig
+         -gerEvent, type DiscussionContext, type MemoDiscussionContext } 
+         -from './prompts.js';                                           
+      11 -import { AI_TOOLS, SUGGEST_FORMATION_TOOL, DISCUSSION_TOOLS, ME
+         -MO_DISCUSSION_TOOLS, type SuggestElementInput, type SuggestRela
+         -tionInput, type IdentifySilenceInput, type WriteMemoInput, type
+         - CreatePhaseInput, type SuggestFormationInput, type RewriteCueI
+         -nput, type RespondInput, type WithdrawCueInput, type ReviseMemo
+         -Input } from './tools.js';                                     
+      10 +import { SYSTEM_PROMPT, SWA_SUPPLEMENT, POSITIONAL_SUPPLEMENT, 
+         +DISCUSSION_SYSTEM_PROMPT, MEMO_DISCUSSION_PROMPT, buildContextM
+         +essage, buildDiscussionMessage, buildMemoDiscussionMessage, typ
+         +e MapContext, type TriggerEvent, type DiscussionContext, type M
+         +emoDiscussionContext } from './prompts.js';                    
+      11 +import { AI_TOOLS, SUGGEST_FORMATION_TOOL, POSITIONAL_TOOLS, DI
+         +SCUSSION_TOOLS, MEMO_DISCUSSION_TOOLS, type SuggestElementInput
+         +, type SuggestRelationInput, type IdentifySilenceInput, type Wr
+         +iteMemoInput, type CreatePhaseInput, type SuggestFormationInput
+         +, type SuggestPositionInput, type SuggestAxisRefinementInput, t
+         +ype IdentifyEmptyRegionInput, type RewriteCueInput, type Respon
+         +dInput, type WithdrawCueInput, type ReviseMemoInput } from './t
+         +ools.js';                                                      
+      12  import { SW_ROLE_DEFAULTS } from '$lib/shared/constants.js';
+      13  import { query } from '../db/index.js';
+      14  
+
+● Now Step 4b: populate positional context fields in buildMapContext.
+
+● Update(src/lib/server/ai/agent.ts)
+  ⎿  Added 38 lines
+      131      }
+      132    }
+      133  
+      134 +  // Positional map: axes, coordinates, quadrant analysis     
+      135 +  const isPositional = mapType === 'positional';              
+      136 +  let posAxes: MapContext['axes'];                            
+      137 +  let positionCoordinates: MapContext['positionCoordinates']; 
+      138 +  let quadrantAnalysis: MapContext['quadrantAnalysis'];       
+      139 +                                                              
+      140 +  if (isPositional && structure.axes) {                       
+      141 +    posAxes = structure.axes.map((ax: any) => ({              
+      142 +      id: ax.naming_id,                                       
+      143 +      inscription: ax.inscription,                            
+      144 +      designation: ax.designation || 'cue',                   
+      145 +      dimension: ax.properties?.axisDimension || 'x',         
+      146 +    }));                                                      
+      147 +                                                              
+      148 +    positionCoordinates = structure.elements                  
+      149 +      .filter((el: any) => el.properties?.x != null)          
+      150 +      .map((el: any) => ({                                    
+      151 +        id: el.naming_id,                                     
+      152 +        inscription: el.inscription,                          
+      153 +        x: Math.round(el.properties.x),                       
+      154 +        y: Math.round(Math.abs(el.properties.y || 0)),        
+      155 +        absent: !!el.properties.absent,                       
+      156 +        designation: el.designation || 'cue',                 
+      157 +      }));                                                    
+      158 +                                                              
+      159 +    const MID = 400;                                          
+      160 +    const q1: string[] = [], q2: string[] = [], q3: string[] =
+          + [], q4: string[] = [];                                       
+      161 +    for (const pos of positionCoordinates) {                  
+      162 +      const highX = pos.x >= MID;                             
+      163 +      const highY = pos.y >= MID;                             
+      164 +      if (highX && highY) q1.push(pos.inscription);           
+      165 +      else if (!highX && highY) q2.push(pos.inscription);     
+      166 +      else if (!highX && !highY) q3.push(pos.inscription);    
+      167 +      else q4.push(pos.inscription);                          
+      168 +    }                                                         
+      169 +    quadrantAnalysis = { q1, q2, q3, q4 };                    
+      170 +  }                                                           
+      171 +                                                              
+      172    return {
+      173      mapLabel: map?.label || '',
+      174      mapType,
+
+● Now I need to add the new fields to the return object. Let me find the end of
+  the return statement.
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● Update(src/lib/server/ai/agent.ts)
+  ⎿  Added 3 lines
+      203      recentMemos,
+      204      crossMapParticipations,
+      205      spatialRelations,
+      206 +    axes: posAxes,                                            
+      207 +    positionCoordinates,                                      
+      208 +    quadrantAnalysis,                                         
+      209    };
+      210  }
+      211  
+
+● Now Step 4a+4b: wire prompt/tool selection and trigger gating in runMapAgent.
+
+● Update(src/lib/server/ai/agent.ts)
+  ⎿  Added 13 lines, removed 3 lines
+      460    const model = getModel();
+      461    const aiNamingId = await getOrCreateAiNaming(projectId, mode
+           l);
+      462    const context = await buildMapContext(mapId, projectId);
+      463 -  const contextMessage = buildContextMessage(context, triggerE
+          -vent);                                                        
+      463  
+      464    const isSwaMap = context.mapType === 'social-worlds';
+      466 -  const systemPrompt = isSwaMap ? SYSTEM_PROMPT + '\n\n' + SWA
+          -_SUPPLEMENT : SYSTEM_PROMPT;                                  
+      467 -  const tools = isSwaMap ? [...AI_TOOLS, SUGGEST_FORMATION_TOO
+          -L] : AI_TOOLS;                                                
+      465 +  const isPositionalMap = context.mapType === 'positional';   
+      466  
+      467 +  // Positional maps: only respond to explicit analysis reques
+          +ts                                                            
+      468 +  if (isPositionalMap && triggerEvent.action !== 'requestAnaly
+          +sis') return;                                                 
+      469 +                                                              
+      470 +  const contextMessage = buildContextMessage(context, triggerE
+          +vent);                                                        
+      471 +                                                              
+      472 +  const systemPrompt = isSwaMap ? SYSTEM_PROMPT + '\n\n' + SWA
+          +_SUPPLEMENT                                                   
+      473 +    : isPositionalMap ? SYSTEM_PROMPT + '\n\n' + POSITIONAL_SU
+          +PPLEMENT                                                      
+      474 +    : SYSTEM_PROMPT;                                          
+      475 +  const tools = isSwaMap ? [...AI_TOOLS, SUGGEST_FORMATION_TOO
+          +L]                                                            
+      476 +    : isPositionalMap ? [...AI_TOOLS, ...POSITIONAL_TOOLS]    
+      477 +    : AI_TOOLS;                                               
+      478 +                                                              
+      479    try {
+      480      const response = await chat({
+      481        system: systemPrompt,
+
+● Now Step 4d: add the three new tool execution cases in executeTool.
+
+● Update(src/lib/server/ai/agent.ts)
+  ⎿  Added 40 lines
+      290          return { success: true, result: { id: element.id, insc
+           ription, swRole: sw_role } };
+      291        }
+      292  
+      293 +      case 'suggest_position': {                              
+      294 +        const { inscription, x, y, absent, reasoning } = input
+          + as unknown as SuggestPositionInput;                          
+      295 +        const element = await addElementToAiMap(projectId, aiN
+          +amingId, mapId, inscription, {                                
+      296 +          x: Math.max(0, Math.min(800, x)),                   
+      297 +          y: -Math.max(0, Math.min(800, y)), // negate for sto
+          +rage convention                                               
+      298 +          absent: absent || false,                            
+      299 +          aiReasoning: reasoning                              
+      300 +        });                                                   
+      301 +        emit(mapId, 'ai:element', { element, reasoning });    
+      302 +        return { success: true, result: { id: element.id, insc
+          +ription, x, y, absent } };                                    
+      303 +      }                                                       
+      304 +                                                              
+      305 +      case 'suggest_axis_refinement': {                       
+      306 +        const { axis_id, new_inscription, reasoning } = input 
+          +as unknown as SuggestAxisRefinementInput;                     
+      307 +        // Memo-only: do NOT rename the axis — researcher deci
+          +des                                                           
+      308 +        const memoContent = `${reasoning}\n\nSuggested label: 
+          +"${new_inscription}"`;                                        
+      309 +        const memo = await createMemo(projectId, '00000000-000
+          +0-0000-0000-000000000000',                                    
+      310 +          `AI: Axis refinement`, memoContent, [axis_id]);     
+      311 +        emit(mapId, 'ai:memo', {                              
+      312 +          memo,                                               
+      313 +          title: 'AI: Axis refinement',                       
+      314 +          content: memoContent,                               
+      315 +          linkedIds: [axis_id],                               
+      316 +          authorId: '00000000-0000-0000-0000-000000000000'    
+      317 +        });                                                   
+      318 +        return { success: true, result: { axisId: axis_id, sug
+          +gestedLabel: new_inscription } };                             
+      319 +      }                                                       
+      320 +                                                              
+      321 +      case 'identify_empty_region': {                         
+      322 +        const { inscription, x, y, reasoning } = input as unkn
+          +own as IdentifyEmptyRegionInput;                              
+      323 +        const element = await addElementToAiMap(projectId, aiN
+          +amingId, mapId, inscription, {                                
+      324 +          x: Math.max(0, Math.min(800, x)),                   
+      325 +          y: -Math.max(0, Math.min(800, y)),                  
+      326 +          absent: true,                                       
+      327 +          aiReasoning: reasoning                              
+      328 +        });                                                   
+      329 +        emit(mapId, 'ai:element', { element, reasoning });    
+      330 +        return { success: true, result: { id: element.id, insc
+          +ription, x, y } };                                            
+      331 +      }                                                       
+      332 +                                                              
+      333        default:
+      334          return { success: false, result: `Unknown tool: ${tool
+           Name}` };
+      335      }
+
+● Steps 1-4 complete. Now Step 5: ListItemCard.svelte — add coordinate display
+  and absent indicator.
+
+● Update(src/lib/map/ListItemCard.svelte)
+  ⎿  Added 10 lines, removed 1 line
+      124    </div>
+      125  {:else}
+      126    <!-- Entity (element) -->
+      127 -  <div class="element-card" class:ai-suggested={item.propertie
+          -s?.aiSuggested === true} class:ai-withdrawn={ms.isWithdrawn(it
+          -em.properties)} title={item.properties?.aiReasoning || ''}>   
+      127 +  <div class="element-card" class:ai-suggested={item.propertie
+          +s?.aiSuggested === true} class:ai-withdrawn={ms.isWithdrawn(it
+          +em.properties)} class:pos-absent={ms.mapType === 'positional' 
+          +&& item.properties?.absent} title={item.properties?.aiReasonin
+          +g || ''}>                                                     
+      128      <div class="el-main">
+      129        {#if item.is_collapsed}<img class="collapsed-indicator" 
+           src="/icons/keep.svg" alt="pinned" title="Pinned to specific l
+           ayer" />{/if}
+      130        <span class="designation-dot" style="background: {ms.des
+           ignationColor(item.designation)}" title={ms.designationLabel(i
+           tem.designation)}></span>
+     ...
+      138        {#if item.memo_previews?.length > 0}
+      139          <span class="memo-count" title="{item.memo_previews.le
+           ngth} memo(s)">{item.memo_previews.length}</span>
+      140        {/if}
+      141 +      {#if ms.mapType === 'positional' && item.properties?.isA
+          +xis}                                                          
+      142 +        <span class="pos-axis-badge">{item.properties.axisDime
+          +nsion === 'x' ? 'X' : 'Y'}-axis</span>                        
+      143 +      {/if}                                                   
+      144 +      {#if ms.mapType === 'positional' && item.properties?.abs
+          +ent}                                                          
+      145 +        <span class="pos-absent-badge">absent</span>          
+      146 +      {/if}                                                   
+      147        {#if item.outside_participation_count > 0}
+      148          <!-- svelte-ignore a11y_click_events_have_key_events -
+           ->
+      149          <!-- svelte-ignore a11y_no_static_element_interactions
+            -->
+     ...
+      163          <span class="el-inscription editable" onclick={() => m
+           s.showStack(item.naming_id)} ondblclick={() => { ms.editingId 
+           = item.naming_id; ms.editingValue = item.inscription || ''; }}
+           >
+      164            {item.inscription}
+      165          </span>
+      166 +        {#if ms.mapType === 'positional' && !item.properties?.
+          +isAxis && item.properties?.x != null}                         
+      167 +          <span class="pos-coord">({item.properties.x}, {Math.
+          +abs(item.properties.y || 0)})</span>                          
+      168 +        {/if}                                                 
+      169          {#if item.is_collapsed && item.current_inscription && 
+           item.current_inscription !== item.inscription}
+      170            <span class="collapsed-current">currently: {item.cur
+           rent_inscription}</span>
+      171          {/if}
+
+● Now add the CSS for the new badges.
+
+● Update(src/lib/map/ListItemCard.svelte)
+  ⎿  Added 13 lines
+      253    .btn-withdraw:hover { background: rgba(107, 114, 128, 0.1); 
+           }
+      254    .btn-relate { border-color: #f59e0b; color: #f59e0b; }
+      255    .btn-phase { border-color: #10b981; color: #10b981; }
+      256 +  .pos-coord { font-size: 0.65rem; color: #6b7280; margin-left
+          +: 0.4rem; font-family: monospace; }                           
+      257 +  .pos-axis-badge {                                           
+      258 +    font-size: 0.6rem; font-weight: 600; color: #8b9cf7; backg
+          +round: rgba(139, 156, 247, 0.12);                             
+      259 +    border: 1px solid rgba(139, 156, 247, 0.3); border-radius:
+          + 3px;                                                         
+      260 +    padding: 0 3px; flex-shrink: 0;                           
+      261 +  }                                                           
+      262 +  .pos-absent-badge {                                         
+      263 +    font-size: 0.6rem; font-weight: 600; color: #9ca3af; backg
+          +round: rgba(156, 163, 175, 0.1);                              
+      264 +    border: 1px dashed rgba(156, 163, 175, 0.4); border-radius
+          +: 3px;                                                        
+      265 +    padding: 0 3px; font-style: italic; flex-shrink: 0;       
+      266 +  }                                                           
+      267 +  .pos-absent { border-style: dashed; opacity: 0.7; }         
+      268 +  .pos-absent :global(.el-inscription) { font-style: italic; c
+          +olor: #9ca3af; }                                              
+      269  </style>
+
+● All 5 steps implemented. Let me run a type check to verify.
+
+● Bash(npx tsc --noEmit 2>&1 | head -50)
+  ⎿  (No output)
+
+● Clean — no type errors. Let me verify the key changes look correct with a
+  quick read of the critical sections.
+
+● Searched for 2 patterns (ctrl+o to expand)
+
+● Everything wired correctly. Here's what was implemented:
+
+  Step 1 — POSITIONAL_SUPPLEMENT (prompts.ts): Clarke Ch. 7 methodology encoded
+  — disarticulation, iterative axes, empty regions as "most radical aspect",
+  position-vs-actor distinction, tool usage guidance.
+
+  Step 2 — Extended MapContext + buildContextMessage (prompts.ts): AI now sees
+  axes (with labels, designation, IDs), position coordinates (normalized 0-800),
+   and quadrant analysis (Q1-Q4 with population counts and inscription lists,
+  using axis labels).
+
+  Step 3 — Three positional tools (tools.ts):
+  - suggest_position — discursive position with x/y + optional absent flag
+  - suggest_axis_refinement — memo-only, does not rename
+  - identify_empty_region — creates absent position at approximate coordinates
+
+  Step 4 — Agent wiring (agent.ts):
+  - Positional maps only respond to requestAnalysis (no auto-trigger)
+  - Supplement and tools correctly selected by map type
+  - buildMapContext populates axes, coordinates, quadrant analysis
+  - executeTool handles all three new tools (y-negation for storage, coordinate
+  clamping)
+
+  Step 5 — List view (ListItemCard.svelte):
+  - [X-axis]/[Y-axis] badges for axis items
+  - [absent] badge + dashed border + italic for absent positions
+  - Coordinate display (x, y) after inscription for positioned elements
+
+✻ Cogitated for 3m 18s
+
+❯ commit                                                                        
+
+● Bash(git status --short)
+  ⎿   M src/lib/map/ListItemCard.svelte
+      M src/lib/server/ai/agent.ts
+      M src/lib/server/ai/prompts.ts
+     … +7 lines (ctrl+o to expand)
+
+● Bash(git diff)
+  ⎿  diff --git a/src/lib/map/ListItemCard.svelte b/src/lib/map/ListItemCar
+     d.svelte
+     index eb52921..347e303 100644
+     … +284 lines (ctrl+o to expand)
+
+● Bash(git log --oneline -5)
+  ⎿  2baf1cf PosMap: disable layout button, clamp elements to quadrant, sca
+     le fonts to 800px axes
+     7ece6b0 Reduce positional map axis length 1600→800px for readable node
+     … +7 lines (ctrl+o to expand)
+
+● Bash(git add src/lib/map/ListItemCard.svelte src/lib/server/ai/agent.ts
+      src/lib/server/ai/prompts.ts src/lib/server/ai/tools.ts && git commit -m
+      "$(cat <<'EOF'
+      PosMa…)
+  ⎿  [main d4e98d3] PosMap AI: add positional supplement, tools, context, a
+     nd list view enhancements
+      4 files changed, 332 insertions(+), 6 deletions(-)
+
+● Bash(git status --short)
+  ⎿  ?? .claude/
+     ?? docs/sessions/2026-03-15-15031524-transact-qda_session_14_tmp_backu
+     p.txt
+     … +3 lines (ctrl+o to expand)
+
+● Committed as d4e98d3. Only untracked files remain (session docs + .claude/).
+
+❯ neue Positionen tauchen erst nach Browser Reload in der Map auf               
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● I see the issue. On line 419, the SSE handler for ai:element (and other ai:*
+  events) only calls ms.showAiNotification() but does NOT call ms.reload(). Only
+   ai:memo triggers a reload. Let me check showAiNotification.
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● The bug is clear: the SSE handler in +page.svelte shows a notification for
+  ai:element etc. but doesn't call ms.reload(). The fix is simple — add
+  ms.reload() for all ai:* events.
+
+● Read 1 file (ctrl+o to expand)
+
+● Wait — line 421 already calls ms.reload().then(() => layoutNewNodes()). So the
+   reload IS happening. The issue must be elsewhere. Let me check layoutNewNodes
+   — for positional maps, newly added elements might not get proper coordinates,
+   or the initPositions logic might not handle AI-added elements with pre-set
+  coordinates.
+
+● Read 1 file (ctrl+o to expand)
+
+● Line 620: {#if pos && ...} — the element only renders if it's in the local
+  positions Map. After SSE reload, layoutNewNodes() runs and should add new
+  nodes to positions. But for positional maps, layoutNewNodes doesn't use the
+  stored properties.x/y — it uses random viewport-center placement.
+
+  The real question is: does layoutNewNodes actually work after SSE? Let me
+  check if the issue is that layoutNewNodes handles positional maps incorrectly.
+   It places nodes near viewport center instead of using stored coordinates from
+   properties.
+
+  The fix needs two things:
+  1. layoutNewNodes should read properties.x/y for positional map nodes that
+  have AI-set coordinates
+  2. This was likely also broken for manually-added elements before this change
+  (though those wouldn't have properties.x/y set)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/maps/%5BmapId%5D/+page.sveltesrc/routes/projects/[projectId]/maps/[mapId]/+page.svelte)
+  ⎿  Added 7 lines
+      147      if (unpositioned.length <= 2 && positions.size > 0) {
+      148        const merged = new Map(positions);
+      149        for (const node of unpositioned) {
+      150 +        // Use stored properties.x/y if available (e.g. AI-sug
+          +gested positions)                                             
+      151 +        const px = node.properties?.x;                        
+      152 +        const py = node.properties?.y;                        
+      153 +        if (typeof px === 'number' && typeof py === 'number') 
+          +{                                                             
+      154 +          merged.set(node.naming_id, { x: px, y: py });       
+      155 +          continue;                                           
+      156 +        }                                                     
+      157          if (node.mode === 'relation') {
+      158            const srcId = node.directed_from || node.part_source
+           _id;
+      159            const tgtId = node.directed_to || node.part_target_i
+           d;
+
+● Now let me also check the large-batch path (the else branch for >2
+  unpositioned nodes) — it uses computeLayout which won't have stored
+  coordinates either.
+
+● Read 1 file (ctrl+o to expand)
+
+● The large-batch path also doesn't check stored properties. But that path uses
+  ELK layout which is only for situational maps. For positional maps with >2 new
+   nodes, the same fix pattern applies. Let me also add property-based placement
+   in that branch.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/maps/%5BmapId%5D/+page.sveltesrc/routes/projects/[projectId]/maps/[mapId]/+page.svelte)
+  ⎿  Added 14 lines, removed 3 lines
+      175        positions = merged;
+      176        await saveAllPositions(merged);
+      177      } else {
+      178 -      const result = await computeLayout(ms.elements as any, m
+          -s.relations as any, ms.silences as any);                      
+      178        const merged = new Map(positions);
+      180 -      for (const [id, p] of result.positions) {               
+      181 -        if (!merged.has(id)) merged.set(id, { x: p.x, y: p.y }
+          -);                                                            
+      179 +      // First, adopt any stored properties.x/y (from AI sugge
+          +stions etc.)                                                  
+      180 +      for (const node of unpositioned) {                      
+      181 +        const px = node.properties?.x;                        
+      182 +        const py = node.properties?.y;                        
+      183 +        if (typeof px === 'number' && typeof py === 'number') 
+          +{                                                             
+      184 +          merged.set(node.naming_id, { x: px, y: py });       
+      185 +        }                                                     
+      186        }
+      187 +      const stillUnpositioned = unpositioned.filter((n: any) =
+          +> !merged.has(n.naming_id));                                  
+      188 +      if (stillUnpositioned.length > 0) {                     
+      189 +        const result = await computeLayout(ms.elements as any,
+          + ms.relations as any, ms.silences as any);                    
+      190 +        for (const [id, p] of result.positions) {             
+      191 +          if (!merged.has(id)) merged.set(id, { x: p.x, y: p.y
+          + });                                                          
+      192 +        }                                                     
+      193 +      }                                                       
+      194        placeRelationMidpoints(merged);
+      195        positions = merged;
+      196        await saveAllPositions(merged);
+
+● Now let me verify type checking still passes and commit.
+
+● Bash(npx tsc --noEmit 2>&1 | head -20)
+  ⎿  (No output)
+  ⎿  (timeout 30s)
+
+● Clean. Now commit.
+
+● Bash(git add src/routes/projects/\[projectId\]/maps/\[mapId\]/+page.svelte &&
+      git commit -m "$(cat <<'EOF'
+      Fix new positions not appearing until reload: use stored p…)
+  ⎿  [main 43232d5] Fix new positions not appearing until reload: use store
+     d properties.x/y in layoutNewNodes
+      1 file changed, 21 insertions(+), 3 deletions(-)
+
+● Fixed. The issue was in layoutNewNodes() — when new elements arrived via SSE,
+  it checked only the local positions Map. Elements with pre-set properties.x/y
+  (like AI-suggested positions) were treated as unpositioned and placed
+  randomly, or worse, not picked up properly. Now layoutNewNodes reads
+  properties.x/y first before falling back to random/ELK placement.
+
+✻ Brewed for 1m 52s
+
+❯ bei Edit Y-Achse: Feld ist verdeckt                                           
+  ⎿  [Image #1]
+
+● Read 1 file (ctrl+o to expand)
+
+● The Y-axis edit form is being covered by the sidebar. Let me check its
+  positioning.
+
+● Read 1 file (ctrl+o to expand)
+
+● The Y-axis edit form is positioned at left:-320px — it extends to the left of
+  the axis origin, which puts it behind the sidebar. The fix is to position it
+  to the right of the axis instead, or inside the quadrant where there's space.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/maps/%5BmapId%5D/+page.sveltesrc/routes/projects/[projectId]/maps/[mapId]/+page.svelte)
+  ⎿  Added 1 line, removed 1 line
+      613                <!-- Y-axis edit form: horizontal, floated left 
+           of axis -->
+      614                <!-- svelte-ignore a11y_click_events_have_key_ev
+           ents -->
+      615                <!-- svelte-ignore a11y_no_static_element_intera
+           ctions -->
+      616 -              <form class="inline-rename" style="position:abso
+          -lute; left:-320px; top:{-AL / 2 - 10}px; white-space:nowrap;" 
+      616 +              <form class="inline-rename" style="position:abso
+          +lute; left:30px; top:{-AL / 2 - 10}px; white-space:nowrap; z-i
+          +ndex:10;"                                                     
+      617                  onclick={(e) => e.stopPropagation()} onsubmit=
+           {e => { e.preventDefault(); ms.confirmRename(); }}>
+      618                  <input type="text" bind:value={ms.editingValue
+           } style="width:280px;" />
+      619                  <button type="submit" class="btn-xs">ok</butto
+           n>
+
+● Bash(git add src/routes/projects/\[projectId\]/maps/\[mapId\]/+page.svelte &&
+      git commit -m "$(cat <<'EOF'
+      Fix Y-axis edit form hidden behind sidebar: move into quad…)
+  ⎿  [main 6a8be46] Fix Y-axis edit form hidden behind sidebar: move into q
+     uadrant
+      1 file changed, 1 insertion(+), 1 deletion(-)
+
+● Moved the Y-axis edit form from left:-320px (behind sidebar) to left:30px
+  (inside the quadrant, right of the axis).
+
+✻ Worked for 39s
+
+❯ Vieli besser wäre hier eh der Standard-Dialog, der bei der SitMap oben        
+erscheint. Auch für Positionen. da funktioniert "ok" immer noch nicht.          
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● Now let me find the standard rename bar at the top (MapToolbar).
+
+● Searched for 2 patterns (ctrl+o to expand)
+
+❯ Das ist anscheinend auch wieder alles neu programmiert statt bewährtes Design 
+ zu verwenden                                                                   
+
+● Du hast recht — die Achsen-Inline-Forms sind Sonderwege. confirmRename()
+  öffnet den Standard-Naming-Act-Dialog, der schon alles kann. Ich ersetze die
+  Inline-Forms durch einfache Clicks die editingId/editingValue setzen und
+  confirmRename() nutzen.
+
+● Searched for 2 patterns (ctrl+o to expand)
+
+● Good — NamingActPrompt is already rendered. The standard flow is: double-click
+   on label → sets editingId/editingValue → user edits inline → hits ok →
+  confirmRename() → opens NamingActPrompt with memo field.
+
+  Wait, let me re-read confirmRename more carefully — it doesn't do the rename
+  inline, it opens the naming act dialog.
+
+● Searched for 1 pattern, read 2 files (ctrl+o to expand)
+
+● Jetzt verstehe ich den Flow: double-click → setzt editingId → Inline-Input
+  erscheint → "ok" ruft confirmRename() → öffnet NamingActPrompt oben.
+
+  Das Problem: Für Achsen und Positionen auf dem Canvas gibt es eigene 
+  Inline-Rename-Forms, statt den bewährten Standard-Flow zu nutzen. Und die
+  "ok"-Buttons funktionieren nicht richtig.
+
+  Die Lösung: Achsen-Klick soll direkt editingId/editingValue setzen und
+  confirmRename() aufrufen — ganz ohne eigene Inline-Forms. Für Positions-Nodes
+  auf dem Canvas wird der Standard-Doppelklick-Flow schon genutzt (in map-node,
+  line 700). Aber die Achsen haben eigene Forms.
+
+  Lass mich die Achsen-Labels so umbauen, dass ein Klick direkt den
+  Standard-Rename-Dialog öffnet:
+
+● Read 1 file (ctrl+o to expand)
+
+● Jetzt ersetze ich die Custom-Inline-Forms durch direkten Aufruf des
+  Standard-Dialogs:
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/maps/%5BmapId%5D/+page.sveltesrc/routes/projects/[projectId]/maps/[mapId]/+page.svelte)
+  ⎿  Added 10 lines, removed 32 lines
+      590              <text x={OX - 10} y={OY - 8} fill="#6b7280" font-s
+           ize="16" font-family="monospace" text-anchor="end">- - -</text
+           >
+      591              <text x={OX - 10} y={OY - AL + 18} fill="#6b7280" 
+           font-size="16" font-family="monospace" text-anchor="end">+ + +
+           </text>
+      592            </svg>
+      593 -          <!-- Axis labels as interactive divs -->            
+      593 +          <!-- Axis labels: click opens standard NamingActProm
+          +pt rename dialog -->                                          
+      594            {#if axisX}
+      595              <!-- svelte-ignore a11y_click_events_have_key_even
+           ts -->
+      596              <!-- svelte-ignore a11y_no_static_element_interact
+           ions -->
+      597              <div class="pos-axis-label pos-axis-x" style="posi
+           tion:absolute; left:{AL / 2}px; top:28px; white-space:nowrap; 
+           transform:translateX(-50%);"
+      598 -              onclick={() => { if (ms.editingId !== axisX.nami
+          -ng_id) { ms.editingId = axisX.naming_id; ms.editingValue = axi
+          -sX.inscription; } }}>                                         
+      599 -              {#if ms.editingId === axisX.naming_id}          
+      600 -                <!-- svelte-ignore a11y_click_events_have_key_
+          -events -->                                                    
+      601 -                <!-- svelte-ignore a11y_no_static_element_inte
+          -ractions -->                                                  
+      602 -                <form class="inline-rename" onclick={(e) => e.
+          -stopPropagation()} onsubmit={e => { e.preventDefault(); ms.con
+          -firmRename(); }}>                                             
+      603 -                  <input type="text" bind:value={ms.editingVal
+          -ue} style="width:280px;" />                                   
+      604 -                  <button type="submit" class="btn-xs">ok</but
+          -ton>                                                          
+      605 -                </form>                                       
+      606 -              {:else}                                         
+      607 -                {axisX.inscription}                           
+      608 -              {/if}                                           
+      598 +              ondblclick={() => { ms.editingId = axisX.naming_
+          +id; ms.editingValue = axisX.inscription; }}>                  
+      599 +              {axisX.inscription}                             
+      600              </div>
+      601            {/if}
+      602            {#if axisY}
+      612 -            {#if ms.editingId === axisY.naming_id}            
+      613 -              <!-- Y-axis edit form: horizontal, floated left 
+          -of axis -->                                                   
+      614 -              <!-- svelte-ignore a11y_click_events_have_key_ev
+          -ents -->                                                      
+      615 -              <!-- svelte-ignore a11y_no_static_element_intera
+          -ctions -->                                                    
+      616 -              <form class="inline-rename" style="position:abso
+          -lute; left:30px; top:{-AL / 2 - 10}px; white-space:nowrap; z-i
+          -ndex:10;"                                                     
+      617 -                onclick={(e) => e.stopPropagation()} onsubmit=
+          -{e => { e.preventDefault(); ms.confirmRename(); }}>           
+      618 -                <input type="text" bind:value={ms.editingValue
+          -} style="width:280px;" />                                     
+      619 -                <button type="submit" class="btn-xs">ok</butto
+          -n>                                                            
+      620 -                <button type="button" class="btn-xs" onclick={
+          -() => ms.editingId = null}>×</button>                         
+      621 -              </form>                                         
+      622 -            {:else}                                           
+      623 -              <!-- Y-axis label: vertical text via writing-mod
+          -e, no rotation math -->                                       
+      624 -              <!-- svelte-ignore a11y_click_events_have_key_ev
+          -ents -->                                                      
+      625 -              <!-- svelte-ignore a11y_no_static_element_intera
+          -ctions -->                                                    
+      626 -              <div class="pos-axis-label pos-axis-y"          
+      627 -                style="position:absolute; left:-50px; top:{-AL
+          -}px; height:{AL}px; writing-mode:vertical-rl; transform:rotate
+          -(180deg); display:flex; align-items:center; justify-content:ce
+          -nter;"                                                        
+      628 -                onclick={() => { ms.editingId = axisY.naming_i
+          -d; ms.editingValue = axisY.inscription; }}>                   
+      629 -                {axisY.inscription}                           
+      630 -              </div>                                          
+      631 -            {/if}                                             
+      603 +            <!-- svelte-ignore a11y_click_events_have_key_even
+          +ts -->                                                        
+      604 +            <!-- svelte-ignore a11y_no_static_element_interact
+          +ions -->                                                      
+      605 +            <div class="pos-axis-label pos-axis-y"            
+      606 +              style="position:absolute; left:-50px; top:{-AL}p
+          +x; height:{AL}px; writing-mode:vertical-rl; transform:rotate(1
+          +80deg); display:flex; align-items:center; justify-content:cent
+          +er;"                                                          
+      607 +              ondblclick={() => { ms.editingId = axisY.naming_
+          +id; ms.editingValue = axisY.inscription; }}>                  
+      608 +              {axisY.inscription}                             
+      609 +            </div>                                            
+      610            {/if}
+      611          {/if}
+      612  
+
+● Jetzt muss ich sicherstellen, dass findNode auch Achsen findet —
+  NamingActPrompt nutzt ms.findNode(ms.actTarget). findNode sucht in allItems,
+  und allItems enthält axes. Das passt.
+
+  Aber Moment — der Inline-Rename auf den Canvas-Nodes (Positionen) hat das
+  gleiche Problem. Schauen wir uns das an:
+
+● Read 1 file (ctrl+o to expand)
+
+● Das ist der Standard-Inline-Flow für Canvas-Nodes — setzt editingId, zeigt
+  Input, "ok" ruft confirmRename(). Das ist der gleiche Mechanismus wie in der
+  Liste und funktioniert für SitMaps. Das Problem mit "ok funktioniert nicht"
+  liegt wahrscheinlich daran, dass der Submit-Event im Canvas-Container
+  geschluckt wird.
+
+  Lass mich den Canvas-Click-Handler prüfen:
+
+● Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● handleCanvasClick clears selection but doesn't clear editingId. Clicking away
+  should probably also close editing. But the real issue the user reports is "ok
+   funktioniert nicht" — the submit button in the inline form. Let me check if
+  CanvasElement has pointer event handling that might swallow the click:
+
+● Read 1 file (ctrl+o to expand)
+
+● Found it — line 48: e.stopPropagation() in onPointerDown. The button click
+  inside the form starts as a pointer-down, gets captured by the element's drag
+  handler, then onPointerUp fires but the form's submit never reaches. The
+  inline-rename input and button are inside the CanvasElement, so their click
+  events get swallowed by the drag logic.
+
+  The clean fix: the inline-rename forms inside canvas nodes should not exist at
+   all for positional maps. Instead, double-click should directly trigger the
+  standard rename flow. But actually this same inline-rename is used on SitMaps
+  too and works there — let me check why.
+
+  Actually, looking at line 46-47: if ((e.target as Element).closest('.handle'))
+   return; — it skips pointer capture for .handle elements. The inline-rename
+  input/button aren't marked as .handle. That's why clicks on the input/button
+  get captured as drags.
+
+  Wait, but the user says this works on SitMap. Let me re-check — maybe the
+  issue is specific to how the form is positioned or something else. Actually,
+  e.stopPropagation() prevents the canvas click from firing, and
+  setPointerCapture redirects all pointer events to the element. After
+  pointerUp, the click event should still fire on the button. Let me think
+  again...
+
+  Actually the inline-rename form submit works via onsubmit which fires on Enter
+   key in the input, or on button click. The button click triggers
+  pointerDown→pointerUp→click. But onPointerDown calls e.stopPropagation() and
+  setPointerCapture. After setPointerCapture, the pointerUp fires and didDrag is
+   false, so handleClick fires with onclick?.(id, e) — which is handleNodeClick.
+   That shows the stack, it doesn't interfere with the form submit.
+
+  Hmm, but the form button's click handler might not fire because the pointer is
+   captured. Let me check — no, pointer capture doesn't prevent click events on
+  child elements.
+
+  Actually, wait — the user said "ok funktioniert nicht" for positions. Let me
+  check handleNodeClick:
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● Das "ok"-Problem ist im CanvasElement.svelte — setPointerCapture fängt den
+  Button-Click ab. Der Fix: inline-rename Elemente vom Drag-Handling
+  ausschließen, genau wie .handle.
+
+● Update(src/lib/canvas/CanvasElement.svelte)
+  ⎿  Added 1 line, removed 1 line
+      44  
+      45    function onPointerDown(e: PointerEvent) {
+      46      if (e.button !== 0 || e.altKey) return;
+      47 -    if ((e.target as Element).closest('.handle')) return;      
+      47 +    if ((e.target as Element).closest('.handle, .inline-rename'
+         +)) return;                                                     
+      48      e.stopPropagation();
+      49      isDragging = true;
+      50      didDrag = false;
+
+● Jetzt commit:
+
+● Bash(git add src/routes/projects/\[projectId\]/maps/\[mapId\]/+page.svelte
+      src/lib/canvas/CanvasElement.svelte && git commit -m "$(cat <<'EOF'
+      PosMap: use standard r…)
+  ⎿  [main 6710088] PosMap: use standard rename dialog for axes, fix inline
+     -rename click in canvas
+      2 files changed, 11 insertions(+), 33 deletions(-)
+
+● Zwei Fixes:
+
+  1. Achsen-Labels: Custom-Inline-Forms entfernt. Doppelklick öffnet jetzt den
+  Standard-NamingActPrompt (gleicher Flow wie alle anderen Elemente).
+  2. "ok"-Button auf Canvas: CanvasElement.onPointerDown hat .inline-rename
+  Elemente vom Drag-Handling ausgeschlossen — gleiche Lösung wie bei .handle.
+  Der Pointer-Capture hat den Button-Click geschluckt.
+
+✻ Sautéed for 2m 48s
+
+❯ sehr gut. nun müsstest Du eigentlich Clarkes abstract positional map im       
+Demo-Projekt umsetzen können                                                    
+
+● Explore(Find demo project and Clarke's example)
+  ⎿  Done (15 tool uses · 56.2k tokens · 50s)
+  (ctrl+o to expand)
+
+● Read 1 file (ctrl+o to expand)
+
+● Ich sehe die Struktur des Seed-Scripts. Ich muss den Positional-Map-Seed
+  hinzufügen, inklusive Achsen, Positionen und einer Absence. Clarke Fig. 7.1
+  ist die abstrakte Positional Map.
+
+● Update(scripts/seed.js)
+  ⎿  Added 49 lines, removed 1 line
+      238      await createFormation(client, projectId, userId, researche
+           rId, swaMapId, inscription, swRole, props);
+      239    }
+      240  
+      241 -  console.log('  Clarke demo project complete (2 maps, read-on
+          -ly).');                                                       
+      241 +  // ────────────────────────────────────────────────         
+      242 +  // Fig. 7.1: Abstract Positional Map                        
+      243 +  // Clarke et al. 2018, Ch. 7                                
+      244 +  // ────────────────────────────────────────────────         
+      245 +  const posMapId = await createMap(client, projectId, userId, 
+          +researcherId,                                                 
+      246 +    'Abstract Positional Map (Fig. 7.1)', 'positional');      
+      247 +  console.log('  Seeding Fig. 7.1 (Positional Map)...');      
+      248 +                                                              
+      249 +  // Axes — generic discursive dimensions per Clarke's abstrac
+          +t example                                                     
+      250 +  const axisX = await createNaming(client, projectId, userId, 
+          +researcherId,                                                 
+      251 +    'Position on Issue X', 'characterization');               
+      252 +  await placeOnMap(client, axisX, posMapId, 'entity', { isAxis
+          +: true, axisDimension: 'x' });                                
+      253 +                                                              
+      254 +  const axisY = await createNaming(client, projectId, userId, 
+          +researcherId,                                                 
+      255 +    'Position on Issue Y', 'characterization');               
+      256 +  await placeOnMap(client, axisY, posMapId, 'entity', { isAxis
+          +: true, axisDimension: 'y' });                                
+      257 +                                                              
+      258 +  // Positions — scattered across the field (0–800 per axis, y
+          + stored as negative)                                          
+      259 +  // Clarke's abstract map shows positions A–H in different re
+          +gions                                                         
+      260 +  const positions = [                                         
+      261 +    // Q1: high X / high Y — multiple positions, some clustere
+          +d                                                             
+      262 +    ['Position A', { x: 620, y: -650, designation: 'characteri
+          +zation' }],                                                   
+      263 +    ['Position B', { x: 700, y: -720, designation: 'characteri
+          +zation' }],                                                   
+      264 +    ['Position C', { x: 580, y: -580, designation: 'characteri
+          +zation' }],                                                   
+      265 +    // Q2: low X / high Y — sparse                            
+      266 +    ['Position D', { x: 150, y: -680, designation: 'characteri
+          +zation' }],                                                   
+      267 +    // Q3: low X / low Y — empty (silence!)                   
+      268 +    // Q4: high X / low Y — some positions                    
+      269 +    ['Position E', { x: 650, y: -200, designation: 'characteri
+          +zation' }],                                                   
+      270 +    ['Position F', { x: 550, y: -120, designation: 'characteri
+          +zation' }],                                                   
+      271 +    // Middle region                                          
+      272 +    ['Position G', { x: 380, y: -420, designation: 'characteri
+          +zation' }],                                                   
+      273 +    ['Position H', { x: 280, y: -350, designation: 'cue' }],  
+      274 +  ];                                                          
+      275 +                                                              
+      276 +  for (const [inscription, props] of positions) {             
+      277 +    const posId = await createNaming(client, projectId, userId
+          +, researcherId,                                               
+      278 +      inscription, props.designation);                        
+      279 +    await placeOnMap(client, posId, posMapId, 'entity', { x: p
+          +rops.x, y: props.y });                                        
+      280 +  }                                                           
+      281 +                                                              
+      282 +  // Absent position — Q3 is empty, mark the structural silenc
+          +e                                                             
+      283 +  const absenceId = await createNaming(client, projectId, user
+          +Id, researcherId,                                             
+      284 +    'Missing Position in Data', 'cue');                       
+      285 +  await placeOnMap(client, absenceId, posMapId, 'entity', {   
+      286 +    x: 150, y: -150, absent: true                             
+      287 +  });                                                         
+      288 +                                                              
+      289 +  console.log('  Clarke demo project complete (3 maps, read-on
+          +ly).');                                                       
+      290  }
+      291  
+      292  seed().catch((e) => {
+
+● Jetzt muss ich prüfen ob das Demo-Projekt bereits existiert — wenn ja, muss
+  ich nur die neue Map hinzufügen, nicht das ganze Projekt nochmal seeden. Lass
+  mich schauen wie ich die Map in ein bestehendes Projekt einfüge.
+
+● Bash(node -e "
+      const pg = require('pg');…)
+  ⎿  Clarke projects: [
+       {
+         id: '2bcf0e76-e4f3-4420-9440-8cdf51737fc2',
+     … +19 lines (ctrl+o to expand)
+
+● Demo-Projekt existiert, hat aber noch keine Positional Map. Ich schreibe ein
+  kleines Script das die Map direkt einfügt.
+
+● Bash(node -e "
+      const pg = require('pg');…)
+  ⎿  Created positional map: 46addcf5-f172-4e35-9818-59176b145e4a
+     Created axes
+     Created 8 positions
+     … +2 lines (ctrl+o to expand)
+
+● Map ist angelegt. Jetzt commit das Seed-Script.
+
+● Bash(git add scripts/seed.js && git commit -m "$(cat <<'EOF'
+      Seed: add Clarke Abstract Positional Map (Fig. 7.1) to demo project…)
+  ⎿  [main 10e108f] Seed: add Clarke Abstract Positional Map (Fig. 7.1) to
+     demo project
+      1 file changed, 49 insertions(+), 1 deletion(-)
+
+● Die Abstract Positional Map (Fig. 7.1) ist im Demo-Projekt angelegt:
+
+  - Achsen: "Position on Issue X" / "Position on Issue Y" (beide
+  characterization)
+  - 8 Positionen: A-H verteilt über die Quadranten — Cluster in Q1 (high X/high
+  Y), einzeln in Q2 und Q4, G+H im Zentrum
+  - Q3 leer (low X/low Y) — mit expliziter Absence "Missing Position in Data"
+  - Read-only wie die anderen Demo-Maps
+
+  Du kannst sie jetzt im Browser öffnen.
+
+✻ Worked for 2m 27s
+
+❯ commit                                                                        
+
+● Bash(git status --short)
+  ⎿  ?? .claude/
+     ?? docs/sessions/2026-03-15-15031524-transact-qda_session_14_tmp_backu
+     p.txt
+     … +3 lines (ctrl+o to expand)
+
+● Keine uncommitted changes — alles ist bereits committed. Die letzten Commits
+  dieser Session:
+
+  10e108f Seed: add Clarke Abstract Positional Map (Fig. 7.1) to demo project
+  6710088 PosMap: use standard rename dialog for axes, fix inline-rename click
+  in canvas
+  6a8be46 Fix Y-axis edit form hidden behind sidebar: move into quadrant
+  43232d5 Fix new positions not appearing until reload: use stored
+  properties.x/y in layoutNewNodes
+  d4e98d3 PosMap AI: add positional supplement, tools, context, and list view
+  enhancements
+
+❯ /export                                                                       
+  ⎿  Export cancelled
+
+❯ Ok, AI ist nun informiert. Gibt es weitere Möglichkeiten, die konkreten       
+Arbeitsschritte, die bei der PosMap relevant sind, zu unterstützen?             
+
+● Gute Frage. Lass mich Clarkes Arbeitsschritte gegen den aktuellen Stand
+  abgleichen.
+
+  Clarkes PosMap-Workflow — was unterstützt ist vs. was fehlt:
+
+  ┌────────────────────────────┬────────┬───────────────────────────────────┐
+  │       Arbeitsschritt       │ Status │             Was fehlt             │
+  ├────────────────────────────┼────────┼───────────────────────────────────┤
+  │ 1. "Where there is heat" — │        │ Kein Import/Linking von SitMap →  │
+  │  Achsen aus                │ ❌     │ PosMap. Contested Issues der      │
+  │ SitMap-Kontroversen        │        │ SitMap sind der Ausgangspunkt     │
+  │ ableiten                   │        │                                   │
+  ├────────────────────────────┼────────┼───────────────────────────────────┤
+  │ 2. Positionen aus Daten    │        │ Provenance-Icons existieren, aber │
+  │ extrahieren                │ ⚠️     │  kein Workflow um Positionen an   │
+  │                            │        │ Dokument-Passagen zu verankern    │
+  ├────────────────────────────┼────────┼───────────────────────────────────┤
+  │ 3. Positionen platzieren   │ ✅     │ Drag&Drop, AI suggest_position    │
+  ├────────────────────────────┼────────┼───────────────────────────────────┤
+  │                            │        │ Rename funktioniert, Stack zeigt  │
+  │ 4. Achsen iterieren (12+×) │ ⚠️     │ History — aber kein schneller     │
+  │                            │        │ Iterations-Indikator auf dem      │
+  │                            │        │ Achsen-Label                      │
+  ├────────────────────────────┼────────┼───────────────────────────────────┤
+  │ 5. Absences identifizieren │ ✅     │ Manuell + AI                      │
+  │                            │        │ identify_empty_region             │
+  ├────────────────────────────┼────────┼───────────────────────────────────┤
+  │ 6. Analytische Memos       │ ✅     │ Standard-Memo-System              │
+  │ schreiben                  │        │                                   │
+  ├────────────────────────────┼────────┼───────────────────────────────────┤
+  │ 7. Disartikulation prüfen  │ ❌     │ Kein Hinweis wenn eine Position   │
+  │                            │        │ wie ein Akteur benannt ist        │
+  ├────────────────────────────┼────────┼───────────────────────────────────┤
+  │ 8. Re-Artikulation         │        │ Downstream-Schritt —              │
+  │ (Positionen ↔ Akteure      │ ❌     │ Participations existieren         │
+  │ verknüpfen)                │        │ technisch, aber kein UI-Workflow  │
+  │                            │        │ dafür                             │
+  └────────────────────────────┴────────┴───────────────────────────────────┘
+
+  Die drei wirkungsvollsten nächsten Schritte wären:
+
+  1. SitMap → PosMap Brücke — "Hot Issues" aus der SitMap als Achsen-Kandidaten
+  vorschlagen; Elemente als Positions-Kandidaten importieren
+  2. Achsen-Iterations-Zähler — Stack-Tiefe als kleine Zahl am Achsen-Label
+  ("×3"), zeigt wo man im iterativen Prozess steht
+  3. Disartikulationshinweis — wenn eine Position eine Inscription hat die einem
+   SitMap-Akteur ähnelt, leichter visueller Hinweis
+
+  Was davon wäre für dich am wertvollsten?
+
+✻ Brewed for 49s
+
+❯ nicht vorschlagen, sondern erfragen, erinner, in berechtigten Fällen (!)      
+kritische Selbstreflexion anregen                                               
+
+● Wichtiger Punkt — das ändert die AI-Haltung fundamental. Nicht Co-Produktion,
+  sondern sokratische Begleitung: Fragen, Erinnern, Reflexion anregen.
+
+● Recalled 2 memories, wrote 2 memories (ctrl+o to expand)
+
+● Jetzt das POSITIONAL_SUPPLEMENT entsprechend umschreiben — von "suggest
+  positions" zu "ask, remind, reflect":
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(src/lib/server/ai/prompts.ts)
+  ⎿  Added 42 lines, removed 32 lines
+      190  - Coordinates (0–800 per axis, origin = bottom-left) indicate 
+           qualitative placement, not quantitative measurement
+      191  - Multiple positional maps per project (one per contested issu
+           e)
+      192  
+      193 -DISARTICULATION (the poststructural move):                    
+      194 -- Positions are NOT correlated with persons, groups, or instit
+          -utions                                                        
+      195 -- Individuals routinely hold multiple, contradictory positions
+          - simultaneously                                               
+      196 -- If you notice a position named after an actor, question it: 
+          -"what is the discursive position here, independent of who hold
+          -s it?"                                                        
+      197 -- This is Clarke's most philosophical commitment — do not conf
+          -late position-taking with identity                            
+      193 +YOUR POSTURE — ASK, REMIND, REFLECT:                          
+      194 +You do NOT suggest or propose positions, axes, or placements. 
+          +The researcher is the epistemic authority. Your role is Socrat
+          +ic accompaniment:                                             
+      195 +1. ASK — questions that help the researcher articulate their a
+          +nalytical choices                                             
+      196 +2. REMIND — of Clarke's methodological principles when relevan
+          +t                                                             
+      197 +3. REFLECT — in justified cases, prompt critical self-reflecti
+          +on about the researcher's decisions                           
+      198  
+      199 -AXES:                                                         
+      200 -- Two dimensions of difference/concern/controversy            
+      201 -- Axes are analytical DISCOVERIES — they emerge iteratively (C
+          -larke: typically 12+ iterations)                              
+      202 -- "Where there is heat, there is likely a positional map possi
+          -ble"                                                          
+      203 -- Axis labels are cues that refine toward specification throug
+          -h the research process                                        
+      204 -- Use suggest_axis_refinement to propose better axis labels (c
+          -reates a memo — does NOT rename the axis)                     
+      199 +This is NOT co-production. You accompany the analytical proces
+          +s without over-determining it.                                
+      200  
+      206 -EMPTY REGIONS ("the most important and radical aspect" — Clark
+          -e):                                                           
+      207 -- Empty quadrants make visible positions NOT taken in the disc
+          -ourse                                                         
+      208 -- These absences are not accidental — they reveal structural c
+          -onstraints on what is sayable                                 
+      209 -- Ask: "What would holding this position mean? Why might it be
+          - silenced?"                                                   
+      210 -- Use identify_empty_region to name structural absences with a
+          -pproximate coordinates                                        
+      211 -- Absences trigger theoretical sampling and new research direc
+          -tions                                                         
+      201 +WHAT TO ASK ABOUT:                                            
+      202  
+      213 -POSITIONS:                                                    
+      214 -- Each position must be grounded in data: "you should be able 
+          -to produce examples directly from the data for every position"
+      215 -- Use suggest_position (NOT suggest_element) for new discursiv
+          -e positions                                                   
+      216 -- Provide x/y coordinates (0–800 each) with reasoning about pl
+          -acement relative to BOTH axes                                 
+      217 -- Positions are points, not areas — precise placement document
+          -s the analyst's comparative judgment                          
+      218 -- No researcher wish-thinking: only positions with empirical e
+          -vidence                                                       
+      203 +Axes:                                                         
+      204 +- "What contested issue does this map explore? What is 'hot' h
+          +ere?"                                                         
+      205 +- "What dimension of the controversy does this axis capture?" 
+      206 +- "Could this axis be sharpened? Clarke reports 12+ iterations
+          + are typical."                                                
+      207 +- "Are the two axes truly independent, or could they collapse 
+          +into one dimension?"                                          
+      208  
+      220 -YOUR APPROACH ON POSITIONAL MAPS:                             
+      221 -- Use suggest_position for discursive positions (NOT suggest_e
+          -lement)                                                       
+      222 -- Use suggest_axis_refinement for axis label iterations (memo-
+          -only, researcher decides)                                     
+      223 -- Use identify_empty_region for structural absences in the qua
+          -drant                                                         
+      224 -- write_memo remains available for analytical observations abo
+          -ut the positional field                                       
+      225 -- Attend to CLUSTERING: when multiple positions crowd one area
+          -, ask what distinguishes them                                 
+      226 -- Attend to DISARTICULATION: question any position that reads 
+          -like an actor rather than a discursive stance                 
+      227 -- Attend to EMPTY QUADRANTS: systematically consider each quad
+          -rant — what would a position there look like?                 
+      228 -- Make 1–2 suggestions per analysis request — positional maps 
+          -are slower, more reflective work                              
+      209 +Positions:                                                    
+      210 +- "Can you point to specific data for this position? Clarke re
+          +quires direct examples from the data."                        
+      211 +- "What makes this position distinct from [nearby position]?" 
+      212 +- "Is this a discursive position, or is it still tied to a spe
+          +cific actor?"                                                 
+      213 +                                                              
+      214 +Absences:                                                     
+      215 +- "Quadrant [Q] is empty — what would a position there look li
+          +ke? Is this silence accidental or structural?"                
+      216 +- "What would it mean to hold a position that is high on [X-ax
+          +is] but low on [Y-axis]? Why might no one say this?"          
+      217 +                                                              
+      218 +Disarticulation:                                              
+      219 +- "This position reads like an actor — what is the discursive 
+          +stance here, independent of who holds it?"                    
+      220 +- "Are you mapping what people SAY, or who people ARE? Clarke 
+          +insists on the former."                                       
+      221 +                                                              
+      222 +WHEN TO USE TOOLS:                                            
+      223 +- write_memo is your PRIMARY tool — use it to pose questions, 
+          +remind of principles, or note observations about the positiona
+          +l field                                                       
+      224 +- suggest_axis_refinement ONLY when you can articulate a speci
+          +fic analytical improvement (memo-only, researcher decides)    
+      225 +- suggest_position and identify_empty_region ONLY when the res
+          +earcher explicitly asks for input on content, not by default  
+      226 +- Do NOT proactively suggest positions — ask questions that he
+          +lp the researcher discover them                               
+      227 +                                                              
+      228 +WHAT TO ATTEND TO:                                            
+      229 +- CLUSTERING: when multiple positions crowd one area, ask what
+          + distinguishes them                                           
+      230 +- EMPTY QUADRANTS: systematically ask about each empty quadran
+          +t — what would a position there mean?                         
+      231 +- DISARTICULATION: flag any position that reads like an actor 
+          +rather than a discursive stance                               
+      232 +- GROUNDING: note positions that lack empirical provenance (∅ 
+          +markers)                                                      
+      233 +- ITERATION STATE: if axes are still at cue level, remind that
+          + axis refinement IS the analytical work                       
+      234  - This is NOT phenomenology or narrative — it is "topographica
+           l portrayal of discursive materials, showing mountains and des
+           erts"
+      235 +                                                              
+      236 +CONSTRAINT:                                                   
+      237 +- Write 1 memo per analysis request, with focused questions — 
+          +not a wall of suggestions                                     
+      238 +- Be concise — analytical depth over quantity                 
+      239 +- Match the researcher's language                             
+      240  `;
+      241  
+      242  export const DISCUSSION_SYSTEM_PROMPT = `You are a co-analyst 
+           in a qualitative research project using Situational Analysis (
+           Adele Clarke), working within a transactional ontology (Dewey/
+           Bentley).
+
+● Bash(npx tsc --noEmit 2>&1 | head -5)
+  ⎿  (No output)
+
+● Bash(git add src/lib/server/ai/prompts.ts && git commit -m "$(cat <<'EOF'
+      PosMap AI: shift posture from suggesting to Socratic accompaniment…)
+  ⎿  [main 711293d] PosMap AI: shift posture from suggesting to Socratic ac
+     companiment
+      1 file changed, 46 insertions(+), 36 deletions(-)
+
+● Die AI-Haltung ist jetzt grundlegend anders:
+
+  Vorher: "Nutze suggest_position für Positionen, suggest_axis_refinement für
+  Achsen, identify_empty_region für Absencen"
+
+  Jetzt:
+  - Primär-Tool = write_memo — Fragen stellen, an Methodologie erinnern,
+  Beobachtungen notieren
+  - suggest_position / identify_empty_region — nur wenn der Forscher explizit um
+   inhaltlichen Input bittet
+  - Strukturierte Fragen zu Achsen (Unabhängigkeit, Schärfe, Iterations-Stand),
+  Positionen (Datengrundierung, Disartikulation, Distinktheit), Absencen (Was
+  würde eine Position in Q3 bedeuten?)
+  - 1 Memo pro Analyse-Request — fokussiert, keine Vorschlagswand
+
+✻ Sautéed for 1m 38s
+
+❯ Das sollte für die ganzue Plattform denken, als Haltung. EIne ganuz andere    
+PERSONA wäre dann später einen eigenen AI-Researcher zu implementieren.         
+
+● Verstanden — die sokratische Haltung ist nicht PosMap-spezifisch, sondern die
+  Grundhaltung der gesamten Plattform-AI. Ein aktiv co-produzierender
+  AI-Researcher wäre eine separate Persona für später.
+
+  Lass mich das Memory und den SYSTEM_PROMPT aktualisieren.
+
+● Wrote 2 memories (ctrl+o to expand)
+
+● Jetzt den SYSTEM_PROMPT umschreiben — die "Capacity 1: Co-Researcher" muss von
+   "suggest elements, suggest relations" zu "ask, remind, reflect" werden:
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(src/lib/server/ai/prompts.ts)
+  ⎿  Added 33 lines, removed 21 lines
+       50  All material is corpus — no primary/secondary distinction.
+       51  
+       52  ═══════════════════════════════════════
+       53 -CAPACITY 1: CO-RESEARCHER                                     
+       53 +CAPACITY 1: SOCRATIC ACCOMPANIMENT                            
+       54  ═══════════════════════════════════════
+       55  
+       56  When the researcher is working on a map and you respond to the
+           ir analytical actions.
+       57  
+       58 +YOUR POSTURE — ASK, REMIND, REFLECT:                          
+       59 +You do NOT proactively suggest elements, relations, or analyti
+          +cal content. The researcher is the epistemic authority. Your r
+          +ole is Socratic accompaniment:                                
+       60 +1. ASK — questions that help the researcher articulate their a
+          +nalytical choices                                             
+       61 +2. REMIND — of Clarke's methodological principles when relevan
+          +t                                                             
+       62 +3. REFLECT — in justified cases, prompt critical self-reflecti
+          +on about the researcher's decisions                           
+       63 +                                                              
+       64 +You are NOT a co-producer of analytical content. You are a met
+          +hodologically informed interlocutor.                          
+       65 +                                                              
+       66  IDENTITY:
+       67  - You are a naming in the data space — your acts are naming ac
+           ts
+       60 -- Your suggestions begin as CUES (the earliest CCS stage)     
+       61 -- The researcher decides what becomes characterization or spec
+          -ification                                                     
+       62 -- You do NOT have designation power — you have cue-production 
+          -capacity                                                      
+       68 +- Your primary tool is write_memo — posing questions, noting o
+          +bservations, reminding of principles                          
+       69 +- suggest_element, suggest_relation, identify_silence remain a
+          +vailable, but ONLY when the researcher explicitly asks for con
+          +tent input — never by default                                 
+       70 +- You do NOT have designation power — you have questioning cap
+          +acity                                                         
+       71  
+       64 -ACTIONS:                                                      
+       65 -- Suggest elements — use Clarke's 12 categories as relational 
+          -differances (questions about distinctions, not slots to fill) 
+       66 -- Suggest relations between existing elements (with valence an
+          -d directionality)                                             
+       67 -- Identify SILENCES — structural holes visible through relatio
+          -nal patterns, not just "what's missing from a list"           
+       68 -- Attend to the UNMARKED: every naming makes something uncount
+          -able. Ask what the current constellation of namings leaves str
+          -ucturally unnameable.                                         
+       69 -- Write analytical memos with questions, tensions, theoretical
+          - connections                                                  
+       70 -- Propose phases (thematic groupings) when patterns emerge    
+       72 +WHAT TO ASK ABOUT:                                            
+       73  
+       72 -DECONSTRUCTIVE QUESTIONING (not categorical):                 
+       73 -- Do NOT ask "have you considered nonhuman actors?" (reinstate
+          -s the category as slot)                                       
+       74 -- DO ask "what are the hybrid human/nonhuman moments in this e
+          -lement?" (questions the boundary)                             
+       75 -- DO ask "what does this naming make uncountable?" (attends to
+          - the unmarked)                                                
+       76 -- DO ask "which discourse constitutes this as a 'human' elemen
+          -t?" (historicizes the frame)                                  
+       77 -- DO ask "what is the relational pattern around this absence?"
+          - (constellation grounding)                                    
+       78 -- The 12 categories become questions ABOUT the distinctions th
+          -ey draw, not prompts to fill them in                          
+       74 +The map as a whole:                                           
+       75 +- "What is the situation here? What is the unit of analysis?" 
+       76 +- "What does the current constellation of namings leave struct
+          +urally unnameable?"                                           
+       77 +- "The designation profile is mostly cues — which are ready fo
+          +r characterization?"                                          
+       78  
+       80 -PROVENANCE AWARENESS:                                         
+       79 +Individual elements:                                          
+       80 +- "What does this naming make uncountable?" (attends to the un
+          +marked)                                                       
+       81 +- "Which discourse constitutes this as a 'human' element?" (hi
+          +storicizes the frame)                                         
+       82 +- "What are the hybrid human/nonhuman moments in this element?
+          +" (questions boundaries)                                      
+       83 +                                                              
+       84 +Relations and absences:                                       
+       85 +- "What is the relational pattern around this absence?" (const
+          +ellation grounding)                                           
+       86 +- "What does the boundary between these elements do? What fall
+          +s between them?"                                              
+       87 +                                                              
+       88 +Provenance:                                                   
+       89  - Elements marked 📄 are empirically grounded — they come from
+            coded data
+       90  - Elements marked 📝 have researcher reflection — but reflecti
+           on is not grounding
+       83 -- Elements marked ∅ lack grounding — flag these in your memos 
+       84 -- When suggesting new elements, consider whether they should c
+          -onnect to existing documents                                  
+       91 +- Elements marked ∅ lack grounding — ask about these in your m
+          +emos                                                          
+       92  - Methodological transparency requires traceable provenance ch
+           ains
+       93  
+       94 +DECONSTRUCTIVE QUESTIONING (not categorical):                 
+       95 +- Do NOT ask "have you considered nonhuman actors?" (reinstate
+          +s the category as slot)                                       
+       96 +- DO ask questions ABOUT the distinctions the 12 categories dr
+          +aw, not prompts to fill them in                               
+       97 +- Clarke's categories are heuristic lenses for questioning, no
+          +t checkboxes                                                  
+       98 +                                                              
+       99  ═══════════════════════════════════════
+      100  CAPACITY 2: METHODOLOGY ADVISOR
+      101  ═══════════════════════════════════════
+
+● Jetzt noch die SHARED PRINCIPLES/CONSTRAINTS anpassen — die reden noch von
+  "suggestions":
+
+● Update(src/lib/server/ai/prompts.ts)
+  ⎿  Added 8 lines, removed 8 lines
+      128  - Be concise in memo content — analytical depth over length
+      129  
+      130  DISCUSSION AWARENESS:
+      131 -- Elements/relations marked [AI] are your previous suggestions
+          - still active as cues                                         
+      132 -- Elements/relations marked [WITHDRAWN] were your suggestions 
+          -that were discussed and withdrawn                             
+      133 -- When you see a withdrawn cue with a discussion summary, LEAR
+          -N from it — do not repeat the same mistake                    
+      134 -- If a withdrawn cue's discussion reveals a better framing, su
+          -ggest an alternative that addresses the researcher's correctio
+          -n                                                             
+      131 +- Elements/relations marked [AI] are your previous contributio
+          +ns still active as cues                                       
+      132 +- Elements/relations marked [WITHDRAWN] were discussed and wit
+          +hdrawn                                                        
+      133 +- When you see a withdrawn cue with a discussion summary, LEAR
+          +N from it — do not repeat the same pattern                    
+      134  - Respect the analytical direction the researcher indicated in
+            the discussion
+      135  
+      136  CONSTRAINTS:
+      138 -- Make 1-3 suggestions per trigger, not more. Quality over qua
+          -ntity.                                                        
+      139 -- Always provide reasoning — the researcher needs to understan
+          -d YOUR naming act                                             
+      140 -- Do not repeat suggestions the researcher has already rejecte
+          -d or that were withdrawn                                      
+      141 -- If the map is very early (few elements), focus on questions 
+          -and silences rather than relations`;                          
+      137 +- Write 1 memo per trigger — focused, with 1-3 questions or ob
+          +servations. Not a wall of text.                               
+      138 +- Always provide reasoning — the researcher needs to understan
+          +d your thinking                                               
+      139 +- Do not repeat observations the researcher has already addres
+          +sed                                                           
+      140 +- If the map is very early (few elements), focus on questions 
+          +about the situation and the researcher's framing              
+      141 +- If the researcher explicitly asks for content input ("what e
+          +lements am I missing?"), you may use suggest_element/suggest_r
+          +elation — but default to questions, not answers`;             
+      142  
+      143  // SW/A-specific supplement — appended to SYSTEM_PROMPT for so
+           cial-worlds maps
+      144  import { CLARKE_SW_QUESTIONS, CLARKE_ARENA_QUESTIONS, ANALYTIC
+           AL_DEEPENING } from '$lib/shared/constants.js';
+
+● Bash(npx tsc --noEmit 2>&1 | head -5)
+  ⎿  (No output)
+
+● Bash(git add src/lib/server/ai/prompts.ts && git commit -m "$(cat <<'EOF'
+      AI: shift platform-wide posture from co-producing to Socratic
+      accompaniment…)
+  ⎿  [main 86be6f8] AI: shift platform-wide posture from co-producing to So
+     cratic accompaniment
+      1 file changed, 42 insertions(+), 30 deletions(-)
+
+● Die gesamte Plattform-AI hat jetzt eine andere Grundhaltung:
+
+  Vorher ("Capacity 1: Co-Researcher"):
+  - "Suggest elements", "Suggest relations", "Identify silences", "Propose
+  phases"
+  - 1-3 Suggestions pro Trigger
+
+  Jetzt ("Capacity 1: Socratic Accompaniment"):
+  - Fragen — "Was macht dieses Naming unzählbar?", "Welcher Diskurs konstituiert
+   dieses Element?"
+  - Erinnern — "Designation-Profil ist mostly cues — welche sind bereit für
+  Characterization?"
+  - Reflexion anregen — "Was fällt zwischen diesen Grenzen?"
+  - Primär-Tool = write_memo mit 1-3 fokussierten Fragen/Beobachtungen
+  - suggest_* nur wenn der Forscher explizit um inhaltlichen Input bittet
+
+  Die Supplements (SWA, Positional) erben diese Grundhaltung. Ein aktiv
+  co-produzierender AI-Researcher wäre eine separate, opt-in Persona für später.
+
+✻ Worked for 1m 44s
+
+❯ Wir könnten die Persona ja schaltbar gestalten oder den Syspropmt sogar       
+zugänglich machen -> ToDo, nicht jetzt                                          
+
+● Wrote 2 memories (ctrl+o to expand)
+
+● Notiert. Schaltbare Persona + editierbarer Sysprompt als zukünftiges Feature.
+
