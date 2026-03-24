@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/stores';
+	import AidelePanel from '$lib/aidele/AidelePanel.svelte';
+	import { createAideleState, setAideleState } from '$lib/aidele/aideleState.svelte.js';
 
 	let { data, children }: { data: any; children: Snippet } = $props();
 	const p = $derived(data.project);
@@ -8,6 +10,10 @@
 	const base = $derived(`/projects/${p.id}`);
 	const mapsByType = $derived(data.mapsByType as Record<string, { id: string; label: string }[]>);
 	const pathname = $derived($page.url.pathname);
+
+	// Aidele: didactic AI persona
+	const aidele = createAideleState(p.id);
+	setAideleState(aidele);
 
 	const mapTypeLabels: Record<string, string> = {
 		situational: 'Sit Map',
@@ -45,6 +51,12 @@
 			<a href="{base}/compare" class:active={pathname.startsWith(`${base}/compare`)}>Compare</a>
 			<a href="{base}/members" class:active={pathname.startsWith(`${base}/members`)}>Members</a>
 
+			<button
+				class="aidele-toggle"
+				class:aidele-active={aidele.isOpen}
+				onclick={() => aidele.isOpen = !aidele.isOpen}
+			>Aidele</button>
+
 			<a href="/projects" class="back-link">← Projects</a>
 		</nav>
 	</div>
@@ -52,6 +64,8 @@
 	<div class="project-content">
 		{@render children()}
 	</div>
+
+	<AidelePanel />
 </div>
 
 <style>
@@ -125,6 +139,29 @@
 	.active {
 		background: #1e2030;
 		color: #fff;
+	}
+
+	.aidele-toggle {
+		display: flex;
+		align-items: center;
+		padding: 0.45rem 0.65rem;
+		border-radius: 5px;
+		font-size: 0.85rem;
+		color: #a5b4fc;
+		background: none;
+		border: 1px solid #2a2d3a;
+		cursor: pointer;
+		margin-top: 0.5rem;
+		font-family: inherit;
+		font-weight: 500;
+	}
+	.aidele-toggle:hover {
+		background: #1e2030;
+		border-color: #a5b4fc;
+	}
+	.aidele-active {
+		background: rgba(165, 180, 252, 0.1);
+		border-color: #a5b4fc;
 	}
 
 	.back-link {
