@@ -308,8 +308,8 @@
 			</div>
 
 			<div class="loss-section loss-recovery">
-				<h3>Recovery</h3>
-				<p>The .qdpx file contains a transact-qda namespace that preserves full fidelity. Re-importing into transact-qda restores everything except topology snapshots.</p>
+				<h3>Lossless backup</h3>
+				<p>For full-fidelity backup, use the native project format (💾 Save). QDPX is for interop with other tools only.</p>
 			</div>
 
 			<div class="modal-actions">

@@ -602,6 +602,23 @@ export async function importProject(
 		}
 
 		// 4. All appearances (deduplicated by naming_id + perspective_id)
+		// Ensure all referenced perspective_ids exist as namings
+		for (const a of appearances) {
+			if (!seenIds.has(a.perspectiveId)) {
+				seenIds.add(a.perspectiveId);
+				await client.query(
+					`INSERT INTO namings (id, project_id, inscription, created_by) VALUES ($1, $2, $3, $4)`,
+					[a.perspectiveId, projectId, '(imported perspective)', userId]
+				);
+			}
+			if (!seenIds.has(a.namingId)) {
+				seenIds.add(a.namingId);
+				await client.query(
+					`INSERT INTO namings (id, project_id, inscription, created_by) VALUES ($1, $2, $3, $4)`,
+					[a.namingId, projectId, '(imported)', userId]
+				);
+			}
+		}
 		const seenApp = new Set<string>();
 		for (const a of appearances) {
 			const key = `${a.namingId}|${a.perspectiveId}`;
