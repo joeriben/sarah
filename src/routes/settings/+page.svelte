@@ -490,7 +490,7 @@
 		<!-- ═══════ Aidele Reference Library ═══════ -->
 		<div class="section">
 			<h2>Reference Library</h2>
-			<p class="section-desc">Methodological texts for Aidele. Upload Clarke, Strauss/Corbin, or other SA literature so Aidele can cite concrete passages.</p>
+			<p class="section-desc">Methodological texts for Aidele. Upload Clarke, Strauss/Corbin, or other SA literature so Aidele can cite concrete passages. The library folder (<code>aidele-library/</code>) is portable — copy it to a new installation and the index is auto-imported.</p>
 
 			<!-- Upload form -->
 			<div class="lib-upload">

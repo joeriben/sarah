@@ -23,6 +23,7 @@ function ensureDir(dir: string) {
 // ── CRUD ─────────────────────────────────────────────────────────
 
 export async function listReferences() {
+	await autoImportIfNeeded();
 	return (await query(
 		`SELECT r.*,
 		   (SELECT COUNT(*) FROM aidele_chunks c WHERE c.reference_id = r.id) as chunk_count,
@@ -326,6 +327,9 @@ export async function preprocessReference(referenceId: string) {
 
 	console.log(`Aidele preprocessing complete: "${ref.title}" — ${chapterTexts.length} chapters, ${highRelevance.length} high-relevance, ${totalInputTokens + totalOutputTokens} tokens`);
 
+	// Auto-export library.json so the folder is portable
+	await exportLibrary();
+
 	return indexData;
 }
 
@@ -370,4 +374,99 @@ export async function searchChunks(queryText: string, limit: number = 3) {
 	)).rows;
 
 	return results;
+}
+
+// ── Export / Import (portable library.json) ──────────────────────
+
+const LIBRARY_JSON = join(LIBRARY_DIR, 'library.json');
+
+export async function exportLibrary() {
+	ensureDir(LIBRARY_DIR);
+
+	const refs = (await query(
+		`SELECT * FROM aidele_references ORDER BY created_at`
+	)).rows;
+
+	const data: any[] = [];
+	for (const ref of refs) {
+		const chunks = (await query(
+			`SELECT section, content, chunk_index, word_count, summary, questions, key_concepts, relevance
+			 FROM aidele_chunks WHERE reference_id = $1 ORDER BY chunk_index`,
+			[ref.id]
+		)).rows;
+
+		data.push({
+			id: ref.id,
+			title: ref.title,
+			author: ref.author,
+			description: ref.description,
+			filename: ref.filename,
+			format: ref.format,
+			text_file: ref.text_file,
+			indexed_at: ref.indexed_at,
+			index_data: ref.index_data,
+			created_at: ref.created_at,
+			chunks
+		});
+	}
+
+	writeFileSync(LIBRARY_JSON, JSON.stringify(data, null, 2), 'utf-8');
+	console.log(`Aidele library exported: ${data.length} references → library.json`);
+}
+
+export async function importLibrary() {
+	if (!existsSync(LIBRARY_JSON)) return { imported: 0, skipped: 0 };
+
+	const data = JSON.parse(readFileSync(LIBRARY_JSON, 'utf-8'));
+	let imported = 0;
+	let skipped = 0;
+
+	for (const entry of data) {
+		// Skip if already in DB (by title + author match)
+		const existing = await queryOne(
+			`SELECT id FROM aidele_references WHERE title = $1 AND coalesce(author, '') = coalesce($2, '')`,
+			[entry.title, entry.author]
+		);
+		if (existing) {
+			skipped++;
+			continue;
+		}
+
+		// Insert reference
+		const ref = await queryOne<{ id: string }>(
+			`INSERT INTO aidele_references (title, author, description, filename, format, text_file, indexed_at, index_data, created_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+			[entry.title, entry.author, entry.description, entry.filename, entry.format,
+			 entry.text_file, entry.indexed_at, entry.index_data ? JSON.stringify(entry.index_data) : null,
+			 entry.created_at || new Date().toISOString()]
+		);
+
+		// Insert chunks
+		for (const ch of entry.chunks || []) {
+			await query(
+				`INSERT INTO aidele_chunks (reference_id, section, content, chunk_index, word_count, summary, questions, key_concepts, relevance)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+				[ref!.id, ch.section, ch.content, ch.chunk_index, ch.word_count,
+				 ch.summary, ch.questions || [], ch.key_concepts || [], ch.relevance]
+			);
+		}
+
+		imported++;
+	}
+
+	console.log(`Aidele library imported: ${imported} new, ${skipped} skipped (already present)`);
+	return { imported, skipped };
+}
+
+// Auto-import on first call if DB is empty but library.json exists
+let _autoImportDone = false;
+export async function autoImportIfNeeded() {
+	if (_autoImportDone) return;
+	_autoImportDone = true;
+
+	const count = await queryOne<{ n: string }>('SELECT COUNT(*) as n FROM aidele_references');
+	if (parseInt(count?.n || '0') === 0 && existsSync(LIBRARY_JSON)) {
+		console.log('Aidele: DB empty but library.json found — auto-importing...');
+		await importLibrary();
+	}
 }

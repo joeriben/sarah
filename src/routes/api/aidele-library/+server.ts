@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
-import { listReferences, addReference, extractTextFromPdf } from '$lib/server/ai/aidele-library.js';
+import { listReferences, addReference, extractTextFromPdf, exportLibrary } from '$lib/server/ai/aidele-library.js';
 
 // List all references
 export const GET: RequestHandler = async () => {
