@@ -11,7 +11,7 @@ import {
 } from '$lib/server/db/queries/namings.js';
 import { relateElements, getNamingStack } from '$lib/server/db/queries/maps.js';
 import { createMemo, getMemosForNaming } from '$lib/server/db/queries/memos.js';
-import { discussCue } from '$lib/server/ai/agent.js';
+import { discussCue } from '$lib/server/ai/runtime/index.js';
 import { query } from '$lib/server/db/index.js';
 
 // Find the newest active Sit Map for the project

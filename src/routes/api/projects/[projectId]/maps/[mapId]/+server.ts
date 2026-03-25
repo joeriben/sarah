@@ -28,7 +28,7 @@ import {
 } from '$lib/server/db/queries/namings.js';
 import { createMemo, getMemosForNaming, updateMemoStatus, promoteMemoToNaming } from '$lib/server/db/queries/memos.js';
 import { getDocNetsByProject, getDocNetGroundedNamings } from '$lib/server/db/queries/docnets.js';
-import { runMapAgent, setAiEnabled, discussCue, discussMemo } from '$lib/server/ai/agent.js';
+import { runMapAgent, setAiEnabled, discussCue, discussMemo } from '$lib/server/ai/runtime/index.js';
 import { saveTopologyBuffer, saveTopologySnapshot, restoreTopologySnapshot, listTopologySnapshots } from '$lib/server/db/queries/topology.js';
 import { SW_ROLE_DEFAULTS } from '$lib/shared/constants.js';
 

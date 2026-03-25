@@ -1,7 +1,11 @@
-// Runtime entry point — re-exports for easy access
+// Runtime entry point — all AI agent operations
 export {
 	runConversation,
-	getMapContextForPersona,
-	getPersonaSystemPrompt,
-	getPersonaTools
+	runMapAgent,
+	discussCue,
+	discussMemo
 } from './agent.js';
+
+export type { TriggerEvent } from './agent.js';
+
+export { setAiEnabled } from './tool-executor.js';
