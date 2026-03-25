@@ -750,7 +750,7 @@ export async function runRaichelAnalysis(
 
 		// Chunk the document
 		const chunks = chunkText(fullText, CHUNK_SIZE);
-		progress({ phase: 'coding', thinking: `Document split into ${chunks.length} chunks of ~${CHUNK_SIZE} chars` });
+		progress({ phase: 'coding', thinking: `Reading document in ${chunks.length} segments` });
 
 		// Get existing codes for the delegation prompt
 		const existingCodes = (await query(
