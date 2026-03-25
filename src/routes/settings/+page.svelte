@@ -395,7 +395,7 @@
 
 			<div class="section">
 				<h2>Delegation Agent</h2>
-				<p class="section-hint">Optional: a cheaper/faster model for simple subtasks (text search, extraction). The main LLM delegates to this model automatically when appropriate.</p>
+				<p class="section-hint">Model for delegated subtasks. Saves context for the main LLM: document chunks, passage extraction, classification. Can be the same quality — the point is parallel context, not lower capability.</p>
 				<div class="form-row">
 					<select class="input-field" bind:value={delegationProvider}>
 						<option value="">No delegation agent</option>

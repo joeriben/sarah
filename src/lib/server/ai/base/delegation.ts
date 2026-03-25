@@ -5,9 +5,7 @@
 import { type ToolDef, type ChatResponse, loadSettings, PROVIDERS, readApiKey, type Provider } from '../client.js';
 import { logInteraction } from '../index.js';
 
-// ── Available agent descriptions ──────────────────────────────────
-// These must be PRECISE and ABSOLUTELY accurate — the chief model
-// decides delegation based on these descriptions.
+// ── Agent model interface ────────────────────────────────────────
 
 export interface AgentModel {
 	provider: Provider;
@@ -17,35 +15,6 @@ export interface AgentModel {
 	costTier: 'low' | 'medium' | 'high';
 	available: boolean;
 }
-
-// All known delegatable models with their capabilities.
-// Only models with a configured key (or local availability) are returned.
-const AGENT_CATALOG: Array<Omit<AgentModel, 'available'> & { requiresProvider: Provider }> = [
-	{
-		requiresProvider: 'anthropic',
-		provider: 'anthropic',
-		model: 'claude-haiku-4-5-20251001',
-		label: 'Claude Haiku',
-		description: 'Fast, efficient. Good for: text search, passage extraction, simple coding/classification, GREP-like pattern matching across documents. Reads well but does not do deep analytical reasoning.',
-		costTier: 'low'
-	},
-	{
-		requiresProvider: 'anthropic',
-		provider: 'anthropic',
-		model: 'claude-sonnet-4-6',
-		label: 'Claude Sonnet',
-		description: 'Strong general intelligence. Good for: document analysis, image analysis (if enabled), pattern recognition, moderate analytical reasoning, methodology-informed work.',
-		costTier: 'medium'
-	},
-	{
-		requiresProvider: 'anthropic',
-		provider: 'anthropic',
-		model: 'claude-opus-4-6',
-		label: 'Claude Opus',
-		description: 'Strongest reasoning. Good for: deep analytical reasoning, complex methodology interpretation, multi-step analysis, nuanced qualitative judgment. Use only when the task genuinely requires it.',
-		costTier: 'high'
-	}
-];
 
 // Ollama availability cache (re-checked every 60s)
 let _ollamaAvailable: boolean | null = null;
@@ -71,70 +40,8 @@ async function isOllamaAvailable(): Promise<boolean> {
 }
 
 export async function getAvailableAgents(): Promise<AgentModel[]> {
-	const agents: AgentModel[] = [];
-	const seenModels = new Set<string>();
-
-	const keyAvailable: Record<Provider, boolean> = {
-		ollama: await isOllamaAvailable(),
-		anthropic: !!readApiKey('anthropic'),
-		openai: !!readApiKey('openai'),
-		openrouter: !!readApiKey('openrouter'),
-		mistral: !!readApiKey('mistral'),
-		ionos: !!readApiKey('ionos'),
-		mammouth: !!readApiKey('mammouth')
-	};
-
-	// Also check OpenRouter as fallback for Anthropic models
-	const openRouterAsAnthropicFallback = !keyAvailable.anthropic && keyAvailable.openrouter;
-
-	for (const entry of AGENT_CATALOG) {
-		// Determine effective provider (use OpenRouter as fallback for Anthropic)
-		let effectiveProvider = entry.provider;
-		let effectiveModel = entry.model;
-		let available = keyAvailable[entry.requiresProvider];
-
-		if (!available && entry.requiresProvider === 'anthropic' && openRouterAsAnthropicFallback) {
-			effectiveProvider = 'openrouter';
-			effectiveModel = `anthropic/${entry.model}`;
-			available = true;
-		}
-
-		if (!available) continue;
-
-		// Deduplicate: don't show same base model twice
-		const baseModel = entry.model.replace(/^anthropic\//, '');
-		if (seenModels.has(baseModel)) continue;
-		seenModels.add(baseModel);
-
-		agents.push({
-			provider: effectiveProvider,
-			model: effectiveModel,
-			label: entry.label,
-			description: entry.description,
-			costTier: entry.costTier,
-			available: true
-		});
-	}
-
-	// Also add the configured delegation agent if it's not already in the list
-	const settings = loadSettings();
-	if (settings.delegationAgent) {
-		const da = settings.delegationAgent;
-		const daModel = da.model.replace(/^anthropic\//, '');
-		if (!seenModels.has(daModel) && keyAvailable[da.provider]) {
-			const provDef = PROVIDERS[da.provider];
-			agents.push({
-				provider: da.provider,
-				model: da.model || provDef.defaultModel,
-				label: `${provDef.label}: ${da.model || provDef.defaultModel}`,
-				description: 'User-configured delegation agent.',
-				costTier: 'medium',
-				available: true
-			});
-		}
-	}
-
-	return agents;
+	const configured = await getConfiguredDelegationAgent();
+	return configured ? [configured] : [];
 }
 
 // Get the user-configured delegation agent directly (settings preference)
@@ -147,7 +54,7 @@ export async function getConfiguredDelegationAgent(): Promise<AgentModel | null>
 
 		// Check availability
 		if (da.provider === 'ollama') {
-			const available = await checkOllamaAvailability();
+			const available = await isOllamaAvailable();
 			if (!available) return null;
 		} else if (!readApiKey(da.provider)) {
 			return null;
@@ -167,49 +74,28 @@ export async function getConfiguredDelegationAgent(): Promise<AgentModel | null>
 
 // Synchronous version for prompt building (uses cached Ollama check)
 export function getAvailableAgentsSync(): AgentModel[] {
-	const agents: AgentModel[] = [];
-	const seenModels = new Set<string>();
+	const settings = loadSettings();
+	if (!settings.delegationAgent) return [];
 
-	const keyAvailable: Record<Provider, boolean> = {
-		ollama: _ollamaAvailable ?? false,
-		anthropic: !!readApiKey('anthropic'),
-		openai: !!readApiKey('openai'),
-		openrouter: !!readApiKey('openrouter'),
-		mistral: !!readApiKey('mistral'),
-		ionos: !!readApiKey('ionos'),
-		mammouth: !!readApiKey('mammouth')
-	};
+	const da = settings.delegationAgent;
+	const provDef = PROVIDERS[da.provider];
+	if (!provDef) return [];
 
-	const openRouterAsAnthropicFallback = !keyAvailable.anthropic && keyAvailable.openrouter;
-
-	for (const entry of AGENT_CATALOG) {
-		let effectiveProvider = entry.provider;
-		let effectiveModel = entry.model;
-		let available = keyAvailable[entry.requiresProvider];
-
-		if (!available && entry.requiresProvider === 'anthropic' && openRouterAsAnthropicFallback) {
-			effectiveProvider = 'openrouter';
-			effectiveModel = `anthropic/${entry.model}`;
-			available = true;
-		}
-
-		if (!available) continue;
-
-		const baseModel = entry.model.replace(/^anthropic\//, '');
-		if (seenModels.has(baseModel)) continue;
-		seenModels.add(baseModel);
-
-		agents.push({
-			provider: effectiveProvider,
-			model: effectiveModel,
-			label: entry.label,
-			description: entry.description,
-			costTier: entry.costTier,
-			available: true
-		});
+	// Check availability synchronously
+	if (da.provider === 'ollama') {
+		if (!(_ollamaAvailable ?? false)) return [];
+	} else if (!readApiKey(da.provider)) {
+		return [];
 	}
 
-	return agents;
+	return [{
+		provider: da.provider,
+		model: da.model || provDef.defaultModel,
+		label: `${provDef.label}: ${da.model || provDef.defaultModel}`,
+		description: 'Configured delegation agent.',
+		costTier: 'low',
+		available: true
+	}];
 }
 
 // ── Delegation tool definition ────────────────────────────────────
@@ -217,7 +103,7 @@ export function getAvailableAgentsSync(): AgentModel[] {
 export const DELEGATE_TOOL: ToolDef = {
 	name: 'delegate_task',
 	description:
-		'Delegate a subtask to a cheaper/faster AI model. Use for tasks that don\'t require your full reasoning capacity: text search, passage extraction, simple classification, pattern matching. The sub-agent receives your instructions and returns its result. If the task involves a specific document, pass document_id — the sub-agent will receive the full document text automatically.',
+		'Delegate a subtask to another model. The sub-agent works in its own context — use this to save your context window for analytical decisions. Good for: reading large documents, passage extraction, classification, text search, pattern matching. The sub-agent receives your instructions and returns its result. If the task involves a specific document, pass document_id — the sub-agent will receive the full document text automatically.',
 	input_schema: {
 		type: 'object' as const,
 		properties: {
