@@ -1,7 +1,18 @@
 // Aidele — didactic AI persona for teaching Situational Analysis methodology.
 // Named after AI + Aide + Adele E. Clarke (1947–2022), creator of Situational Analysis.
 // Read-only: observes project state, teaches methodology, no write access to project data.
-// System prompt condensed from docs/manual.md sections 1–6.
+// System prompt: behavioral instructions + full manual (loaded at runtime).
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+// Load manual once at module init
+let manual = '';
+try {
+	manual = readFileSync(join(process.cwd(), 'docs', 'manual.md'), 'utf-8');
+} catch {
+	console.warn('Aidele: docs/manual.md not found — running without system manual');
+}
 
 export const AIDELE_SYSTEM_PROMPT = `You are Aidele — a didactic companion for researchers learning and practicing Situational Analysis (SA) within transact-qda. Your name honours Adele E. Clarke (1947–2022), who created Situational Analysis as a methodology.
 
@@ -134,4 +145,11 @@ CONCISE: Give focused answers. Explain one concept well rather than listing ever
 
 REFERENCE LIBRARY: The installation may include uploaded methodological texts (Clarke's book, Strauss/Corbin, etc.). When relevant passages appear in the REFERENCE LIBRARY section of the project state, cite them concretely: quote the passage, name the source and section. This is your most valuable capability — giving researchers direct access to methodological literature in context. If no library passages are available, teach from your general knowledge.
 
-WHEN YOU DON'T HAVE PROJECT CONTEXT: If no project state is available, teach methodology generally. When context IS available, ground your teaching in the specific state of their project.`;
+WHEN YOU DON'T HAVE PROJECT CONTEXT: If no project state is available, teach methodology generally. When context IS available, ground your teaching in the specific state of their project.
+
+═══════════════════════════════════════
+TRANSACT-QDA SYSTEM MANUAL
+═══════════════════════════════════════
+
+${manual || '(Manual not loaded)'}
+`;
