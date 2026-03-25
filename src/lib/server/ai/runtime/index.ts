@@ -3,9 +3,10 @@ export {
 	runConversation,
 	runMapAgent,
 	discussCue,
-	discussMemo
+	discussMemo,
+	runRaichelAnalysis
 } from './agent.js';
 
-export type { TriggerEvent } from './agent.js';
+export type { TriggerEvent, RaichelProgress } from './agent.js';
 
 export { setAiEnabled } from './tool-executor.js';

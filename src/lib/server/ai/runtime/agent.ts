@@ -18,8 +18,8 @@ import { getPersona, type Persona, type PersonaName } from '../personas/index.js
 import { getOrCreateAiNaming, logAiInteraction } from '../../db/queries/ai.js';
 import { createMemo } from '../../db/queries/memos.js';
 import { getMap } from '../../db/queries/maps.js';
-import { query } from '../../db/index.js';
-import { executeMapTool, executeCueDiscussionTool, executeMemoDiscussionTool, isAiEnabled } from './tool-executor.js';
+import { query, transaction } from '../../db/index.js';
+import { executeMapTool, executeCueDiscussionTool, executeMemoDiscussionTool, executeRaichelTool, isAiEnabled } from './tool-executor.js';
 import { buildContextMessage, buildDiscussionMessage, buildMemoDiscussionMessage, DISCUSSION_SYSTEM_PROMPT, MEMO_DISCUSSION_PROMPT, type TriggerEvent, type DiscussionContext, type MemoDiscussionContext } from '../prompts.js';
 import { DISCUSSION_TOOLS, MEMO_DISCUSSION_TOOLS } from '../tools.js';
 import type { ToolDef } from '../client.js';
@@ -559,6 +559,352 @@ export async function discussMemo(
 		.join('\n\n') || responseText;
 
 	return { response: aiResponseText, actions };
+}
+
+// ── Entry point: Raichel autonomous analysis ─────────────────────
+
+export interface RaichelProgress {
+	phase: 'starting' | 'coding' | 'cross-analysis' | 'integration' | 'done' | 'error';
+	document?: string;
+	documentIndex?: number;
+	documentCount?: number;
+	toolCalls?: number;
+	message?: string;
+}
+
+export async function runRaichelAnalysis(
+	projectId: string,
+	onProgress?: (progress: RaichelProgress) => void
+): Promise<{ mapId: string; summary: string }> {
+	const model = getModel();
+	const aiNamingId = await getOrCreateAiNaming(projectId, model);
+	const persona = getPersona('raichel');
+	const progress = (p: RaichelProgress) => onProgress?.(p);
+
+	progress({ phase: 'starting', message: 'Listing documents and preparing map...' });
+
+	// List all documents in project
+	const docs = (await query(
+		`SELECT n.id, n.inscription as title, LENGTH(dc.full_text) as text_length
+		 FROM document_content dc
+		 JOIN namings n ON n.id = dc.naming_id
+		 WHERE n.project_id = $1 AND n.deleted_at IS NULL AND dc.full_text IS NOT NULL
+		 ORDER BY n.created_at`,
+		[projectId]
+	)).rows;
+
+	if (docs.length === 0) {
+		progress({ phase: 'error', message: 'No documents found in project' });
+		throw new Error('No documents found in project. Upload documents first.');
+	}
+
+	// Get or create a situational map for Raichel's analysis
+	const mapId = await getOrCreateRaichelMap(projectId, aiNamingId);
+	const mapType = 'situational';
+	const systemPrompt = buildSystemPrompt(persona, mapType);
+	const tools = buildToolSet(persona, mapType);
+
+	// ── Phase 1: Code each document ──────────────────────────────
+
+	for (let i = 0; i < docs.length; i++) {
+		const doc = docs[i];
+		progress({
+			phase: 'coding',
+			document: doc.title,
+			documentIndex: i + 1,
+			documentCount: docs.length,
+			message: `Coding document: ${doc.title}`
+		});
+
+		// Build context: existing namings on map + this document's metadata
+		const mapContext = await buildStructuredMapContext(mapId, projectId);
+		const existingNamings = mapContext.elements.length > 0
+			? `\nEXISTING CODES ON MAP (${mapContext.elements.length}):\n` +
+			  mapContext.elements.map(e => `  [${e.designation}] "${e.inscription}" (id: ${e.id})`).join('\n')
+			: '\nNo codes on map yet.';
+
+		const documentList = docs.map((d, j) =>
+			`  ${j === i ? '→' : ' '} "${d.title}" (id: ${d.id}, ${d.text_length} chars)${j < i ? ' [coded]' : ''}`
+		).join('\n');
+
+		const userMessage = `PHASE 1: OPEN CODING
+
+DOCUMENTS IN PROJECT:
+${documentList}
+
+CURRENT DOCUMENT: "${doc.title}" (id: ${doc.id})
+Document ${i + 1} of ${docs.length}.
+${existingNamings}
+
+INSTRUCTIONS:
+1. Use read_document to read this document's full text
+2. Code analytically significant passages using code_passage
+3. Reuse existing codes when the same concept appears
+4. After coding, write a document memo (write_memo) summarizing what you found
+5. When done with this document, say "DOCUMENT COMPLETE"`;
+
+		const response = await chat({
+			system: systemPrompt,
+			maxTokens: 16000,
+			tools,
+			messages: [{ role: 'user', content: userMessage }]
+		});
+
+		// Execute tool calls
+		let totalToolCalls = 0;
+		const allToolCalls = [...response.toolCalls];
+
+		// Multi-round tool execution: some tools (read_document) return content
+		// that the LLM needs to see before deciding what to code
+		let currentResponse = response;
+		const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+			{ role: 'user', content: userMessage }
+		];
+
+		while (currentResponse.toolCalls.length > 0) {
+			// Build assistant message with tool use indication
+			const toolResults: string[] = [];
+			if (currentResponse.text) {
+				messages.push({ role: 'assistant', content: currentResponse.text });
+			}
+
+			for (const tc of currentResponse.toolCalls) {
+				totalToolCalls++;
+
+				// Try infrastructure tools first
+				const infraResult = await executeInfrastructureTool(tc.name, tc.input, projectId, 'raichel');
+				if (infraResult) {
+					toolResults.push(`[${tc.name}]: ${typeof infraResult.result === 'string' ? infraResult.result : JSON.stringify(infraResult.result)}`);
+					continue;
+				}
+
+				// Try Raichel-specific tools
+				const raichelResult = await executeRaichelTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+				if (raichelResult.success || tc.name === 'read_document' || tc.name === 'code_passage' || tc.name === 'designate') {
+					toolResults.push(`[${tc.name}]: ${typeof raichelResult.result === 'string' ? raichelResult.result : JSON.stringify(raichelResult.result)}`);
+					continue;
+				}
+
+				// Try map tools
+				const mapResult = await executeMapTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+				toolResults.push(`[${tc.name}]: ${typeof mapResult.result === 'string' ? mapResult.result : JSON.stringify(mapResult.result)}`);
+			}
+
+			// Feed tool results back to LLM for next round
+			messages.push({ role: 'user', content: `TOOL RESULTS:\n${toolResults.join('\n\n')}` });
+
+			currentResponse = await chat({
+				system: systemPrompt,
+				maxTokens: 16000,
+				tools,
+				messages
+			});
+
+			if (currentResponse.text) {
+				messages.push({ role: 'assistant', content: currentResponse.text });
+			}
+		}
+
+		progress({
+			phase: 'coding',
+			document: doc.title,
+			documentIndex: i + 1,
+			documentCount: docs.length,
+			toolCalls: totalToolCalls,
+			message: `Finished coding: ${doc.title} (${totalToolCalls} tool calls)`
+		});
+
+		// Log interaction for this document
+		await logAiInteraction(
+			projectId, aiNamingId, `raichel:code:${doc.id}`, model,
+			{ mapId, documentId: doc.id, documentTitle: doc.title },
+			{ toolCalls: totalToolCalls },
+			0, // tokens tracked per-call internally
+			getProvider()
+		);
+	}
+
+	// ── Phase 2: Cross-document analysis ─────────────────────────
+
+	progress({ phase: 'cross-analysis', message: 'Cross-document analysis: relations, patterns, silences...' });
+
+	const mapContext = await buildStructuredMapContext(mapId, projectId);
+	const memoContext = await buildMemoContext(projectId);
+
+	const crossMessage = `PHASE 2: CROSS-DOCUMENT ANALYSIS
+
+You have coded ${docs.length} documents. Now analyze the codes across documents.
+
+ALL CODES ON MAP (${mapContext.elements.length}):
+${mapContext.elements.map(e => {
+	const prov = e.provenance === 'empirical' ? '📄' : '∅';
+	return `  [${e.designation}] ${prov} "${e.inscription}" (id: ${e.id})`;
+}).join('\n')}
+
+${mapContext.relations.length > 0 ? `\nEXISTING RELATIONS (${mapContext.relations.length}):\n${mapContext.relations.map(r => `  "${r.source.inscription}" → "${r.target.inscription}"`).join('\n')}` : ''}
+
+${memoContext ? `\nMEMOS:\n${memoContext}` : ''}
+
+INSTRUCTIONS:
+1. Compare codes across documents (constant comparison)
+2. Draw relations using suggest_relation: what enables, constrains, legitimizes, silences what?
+3. Group related codes into phases using create_phase
+4. Advance designations where warranted using designate
+5. Identify silences using identify_silence
+6. Write analytical memos about emerging patterns
+7. When done, say "ANALYSIS COMPLETE"`;
+
+	let crossResponse = await chat({
+		system: systemPrompt,
+		maxTokens: 16000,
+		tools,
+		messages: [{ role: 'user', content: crossMessage }]
+	});
+
+	const crossMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+		{ role: 'user', content: crossMessage }
+	];
+
+	while (crossResponse.toolCalls.length > 0) {
+		const toolResults: string[] = [];
+		if (crossResponse.text) {
+			crossMessages.push({ role: 'assistant', content: crossResponse.text });
+		}
+
+		for (const tc of crossResponse.toolCalls) {
+			const infraResult = await executeInfrastructureTool(tc.name, tc.input, projectId, 'raichel');
+			if (infraResult) {
+				toolResults.push(`[${tc.name}]: ${typeof infraResult.result === 'string' ? infraResult.result : JSON.stringify(infraResult.result)}`);
+				continue;
+			}
+			const raichelResult = await executeRaichelTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+			if (raichelResult.success || ['read_document', 'code_passage', 'designate'].includes(tc.name)) {
+				toolResults.push(`[${tc.name}]: ${typeof raichelResult.result === 'string' ? raichelResult.result : JSON.stringify(raichelResult.result)}`);
+				continue;
+			}
+			const mapResult = await executeMapTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+			toolResults.push(`[${tc.name}]: ${typeof mapResult.result === 'string' ? mapResult.result : JSON.stringify(mapResult.result)}`);
+		}
+
+		crossMessages.push({ role: 'user', content: `TOOL RESULTS:\n${toolResults.join('\n\n')}` });
+
+		crossResponse = await chat({
+			system: systemPrompt,
+			maxTokens: 16000,
+			tools,
+			messages: crossMessages
+		});
+
+		if (crossResponse.text) {
+			crossMessages.push({ role: 'assistant', content: crossResponse.text });
+		}
+	}
+
+	// ── Phase 3: Integration ─────────────────────────────────────
+
+	progress({ phase: 'integration', message: 'Writing integrative analysis...' });
+
+	const finalContext = await buildStructuredMapContext(mapId, projectId);
+	const finalMemos = await buildMemoContext(projectId);
+
+	const integrationMessage = `PHASE 3: INTEGRATION
+
+Final map state — ${finalContext.elements.length} elements, ${finalContext.relations.length} relations, ${finalContext.silences.length} silences.
+
+ELEMENTS:
+${finalContext.elements.map(e => `  [${e.designation}] "${e.inscription}" (id: ${e.id})`).join('\n')}
+
+${finalContext.relations.length > 0 ? `RELATIONS:\n${finalContext.relations.map(r => `  "${r.source.inscription}" → "${r.target.inscription}"${r.valence ? ` [${r.valence}]` : ''}`).join('\n')}` : ''}
+
+${finalContext.silences.length > 0 ? `SILENCES:\n${finalContext.silences.map(s => `  "${s.inscription}"`).join('\n')}` : ''}
+
+${finalMemos || ''}
+
+INSTRUCTIONS:
+Write an integrative memo (write_memo) that addresses:
+1. What is the situation? What is at stake?
+2. What are the core categories and their relations?
+3. What is structurally absent (silences)?
+4. What would Clarke ask about this map?
+5. Advance any remaining cues to characterization if warranted (designate)`;
+
+	let intResponse = await chat({
+		system: systemPrompt,
+		maxTokens: 16000,
+		tools,
+		messages: [{ role: 'user', content: integrationMessage }]
+	});
+
+	// Execute integration tool calls (usually just write_memo + designate)
+	while (intResponse.toolCalls.length > 0) {
+		const toolResults: string[] = [];
+		for (const tc of intResponse.toolCalls) {
+			const raichelResult = await executeRaichelTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+			if (raichelResult.success || ['designate'].includes(tc.name)) {
+				toolResults.push(`[${tc.name}]: ${JSON.stringify(raichelResult.result)}`);
+				continue;
+			}
+			const mapResult = await executeMapTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+			toolResults.push(`[${tc.name}]: ${JSON.stringify(mapResult.result)}`);
+		}
+
+		intResponse = await chat({
+			system: systemPrompt,
+			maxTokens: 16000,
+			tools,
+			messages: [
+				{ role: 'user', content: integrationMessage },
+				{ role: 'assistant', content: intResponse.text || '' },
+				{ role: 'user', content: `TOOL RESULTS:\n${toolResults.join('\n\n')}` }
+			]
+		});
+	}
+
+	const summary = intResponse.text || 'Analysis complete.';
+
+	progress({ phase: 'done', message: summary.slice(0, 200) });
+
+	return { mapId, summary };
+}
+
+// Helper: get or create a situational map for Raichel's analysis
+async function getOrCreateRaichelMap(projectId: string, aiNamingId: string): Promise<string> {
+	// Check for existing Raichel map
+	const existing = await query(
+		`SELECT a.naming_id FROM appearances a
+		 JOIN namings n ON n.id = a.naming_id
+		 WHERE n.project_id = $1 AND n.deleted_at IS NULL
+		   AND a.perspective_id = a.naming_id AND a.mode = 'perspective'
+		   AND a.properties->>'mapType' = 'situational'
+		   AND a.properties->>'createdBy' = 'raichel'
+		 LIMIT 1`,
+		[projectId]
+	);
+	if (existing.rows.length > 0) return existing.rows[0].naming_id;
+
+	// Create new map
+	return transaction(async (client) => {
+		const mapNaming = await client.query(
+			`INSERT INTO namings (project_id, inscription, created_by)
+			 VALUES ($1, $2, $3) RETURNING id`,
+			[projectId, 'Raichel: Situational Map', AI_SYSTEM_UUID]
+		);
+		const mapId = mapNaming.rows[0].id;
+
+		await client.query(
+			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
+			 VALUES ($1, $1, 'perspective', $2)`,
+			[mapId, JSON.stringify({ mapType: 'situational', createdBy: 'raichel' })]
+		);
+
+		await client.query(
+			`INSERT INTO naming_acts (naming_id, designation, by)
+			 VALUES ($1, 'characterization', $2)`,
+			[mapId, aiNamingId]
+		);
+
+		return mapId;
+	});
 }
 
 // ── Helpers ───────────────────────────────────────────────────────

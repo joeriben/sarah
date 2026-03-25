@@ -409,3 +409,91 @@ export interface IdentifyEmptyRegionInput {
 	y: number;
 	reasoning: string;
 }
+
+// ── Raichel document tools (autonomous researcher) ──
+
+export const RAICHEL_DOCUMENT_TOOLS: ToolDef[] = [
+	{
+		name: 'read_document',
+		description:
+			'Read the full text of a document. Use this to read a document before coding it.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				document_id: {
+					type: 'string',
+					description: 'ID of the document to read'
+				}
+			},
+			required: ['document_id']
+		}
+	},
+	{
+		name: 'code_passage',
+		description:
+			'Code a passage from a document — the core analytical act. Creates a grounded naming (📄) anchored in the document text. If a code with the same label already exists, it reuses it (same concept across documents). The code is automatically placed on the active map.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				document_id: {
+					type: 'string',
+					description: 'ID of the document containing the passage'
+				},
+				passage: {
+					type: 'string',
+					description: 'The exact text passage to code (must appear in the document)'
+				},
+				code_label: {
+					type: 'string',
+					description: 'Analytical label for this code (prefer gerunds/process forms)'
+				},
+				reasoning: {
+					type: 'string',
+					description: 'Why this passage is analytically significant'
+				}
+			},
+			required: ['document_id', 'passage', 'code_label', 'reasoning']
+		}
+	},
+	{
+		name: 'designate',
+		description:
+			'Advance the designation of a naming along the CCS gradient: cue → characterization → specification. Provide reasoning for why this naming has reached this level of analytical determination.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				naming_id: {
+					type: 'string',
+					description: 'ID of the naming to designate'
+				},
+				designation: {
+					type: 'string',
+					enum: ['cue', 'characterization', 'specification'],
+					description: 'The designation level'
+				},
+				reasoning: {
+					type: 'string',
+					description: 'Why this naming warrants this designation level'
+				}
+			},
+			required: ['naming_id', 'designation', 'reasoning']
+		}
+	}
+];
+
+export interface ReadDocumentInput {
+	document_id: string;
+}
+
+export interface CodePassageInput {
+	document_id: string;
+	passage: string;
+	code_label: string;
+	reasoning: string;
+}
+
+export interface DesignateInput {
+	naming_id: string;
+	designation: 'cue' | 'characterization' | 'specification';
+	reasoning: string;
+}

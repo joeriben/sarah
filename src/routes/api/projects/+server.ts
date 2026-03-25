@@ -53,12 +53,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				idMap.set(n.id, r.rows[0].id);
 			}
 
-			// Helper: remap a naming ID. Throws if a non-null ID is missing from the map.
+			// Helper: remap a naming ID. Returns null for dangling references
+			// (e.g. directed_from/to pointing at soft-deleted namings).
 			const remap = (id: string | null): string | null => {
 				if (!id) return null;
-				const mapped = idMap.get(id);
-				if (!mapped) throw new Error(`Integrity error: naming ${id} not found in project copy map`);
-				return mapped;
+				return idMap.get(id) || null;
 			};
 
 			// Copy appearances (remap all naming ID references)
@@ -73,6 +72,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			for (const a of apps) {
 				const newNamingId = remap(a.naming_id);
 				const newPerspId = remap(a.perspective_id);
+				// Skip appearances where core naming is gone (dangling)
+				if (!newNamingId || !newPerspId) continue;
 				await client.query(
 					`INSERT INTO appearances (naming_id, perspective_id, mode, directed_from, directed_to, valence, properties)
 					 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -92,7 +93,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 			for (const act of acts) {
 				const newNamingId = remap(act.naming_id);
-				const newBy = remap(act.by);
+				if (!newNamingId) continue;
+				const newBy = remap(act.by); // null if actor naming was deleted
 				const newLinked = act.linked_naming_ids
 					? act.linked_naming_ids.map((id: string) => remap(id)).filter(Boolean)
 					: null;
@@ -116,6 +118,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				const newId = remap(p.id);
 				const newNamingId = remap(p.naming_id);
 				const newPartId = remap(p.participant_id);
+				// Skip participations where any side references a deleted naming
+				if (!newId || !newNamingId || !newPartId) continue;
 				await client.query(
 					`INSERT INTO participations (id, naming_id, participant_id) VALUES ($1, $2, $3)`,
 					[newId, newNamingId, newPartId]
@@ -177,10 +181,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			)).rows;
 
 			for (const pm of pms) {
+				const newPhase = remap(pm.phase_id);
+				const newNaming = remap(pm.naming_id);
+				if (!newPhase || !newNaming) continue;
 				await client.query(
 					`INSERT INTO phase_memberships (phase_id, naming_id, action, mode, by, properties)
 					 VALUES ($1, $2, $3, $4, $5, $6)`,
-					[remap(pm.phase_id), remap(pm.naming_id), pm.action, pm.mode, remap(pm.by), pm.properties]
+					[newPhase, newNaming, pm.action, pm.mode, remap(pm.by), pm.properties]
 				);
 			}
 

@@ -15,6 +15,37 @@
 	const aidele = createAideleState(p.id);
 	setAideleState(aidele);
 
+	// Raichel: autonomous researcher
+	let raichelRunning = $state(false);
+	let raichelStatus = $state('');
+
+	async function startRaichel() {
+		if (raichelRunning) return;
+		raichelRunning = true;
+		raichelStatus = 'Starting analysis...';
+		try {
+			const res = await fetch(`/api/projects/${p.id}/raichel`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'start' })
+			});
+			const result = await res.json();
+			if (result.success) {
+				raichelStatus = `Done — ${result.progress?.length || 0} steps. Map created.`;
+				// Navigate to the created map
+				if (result.mapId) {
+					window.location.href = `${base}/maps/${result.mapId}`;
+				}
+			} else {
+				raichelStatus = `Error: ${result.error}`;
+			}
+		} catch (e) {
+			raichelStatus = `Error: ${e instanceof Error ? e.message : String(e)}`;
+		} finally {
+			raichelRunning = false;
+		}
+	}
+
 	const mapTypeLabels: Record<string, string> = {
 		situational: 'Sit Map',
 		'social-worlds': 'SW/A Map',
@@ -56,6 +87,16 @@
 				class:aidele-active={aidele.isOpen}
 				onclick={() => aidele.isOpen = !aidele.isOpen}
 			>Aidele</button>
+
+			<button
+				class="raichel-toggle"
+				class:raichel-active={raichelRunning}
+				onclick={startRaichel}
+				disabled={raichelRunning}
+			>{raichelRunning ? 'Raichel...' : 'Raichel'}</button>
+			{#if raichelStatus}
+				<span class="raichel-status">{raichelStatus}</span>
+			{/if}
 
 			<a href="/projects" class="back-link">← Projects</a>
 		</nav>
@@ -162,6 +203,39 @@
 	.aidele-active {
 		background: rgba(165, 180, 252, 0.1);
 		border-color: #a5b4fc;
+	}
+
+	.raichel-toggle {
+		display: flex;
+		align-items: center;
+		padding: 0.45rem 0.65rem;
+		border-radius: 5px;
+		font-size: 0.85rem;
+		color: #f0abfc;
+		background: none;
+		border: 1px solid #2a2d3a;
+		cursor: pointer;
+		margin-top: 0.15rem;
+		font-family: inherit;
+		font-weight: 500;
+	}
+	.raichel-toggle:hover:not(:disabled) {
+		background: #1e2030;
+		border-color: #f0abfc;
+	}
+	.raichel-toggle:disabled {
+		opacity: 0.6;
+		cursor: wait;
+	}
+	.raichel-active {
+		background: rgba(240, 171, 252, 0.1);
+		border-color: #f0abfc;
+	}
+	.raichel-status {
+		font-size: 0.72rem;
+		color: #9ca3af;
+		padding: 0.1rem 0.65rem;
+		line-height: 1.3;
 	}
 
 	.back-link {

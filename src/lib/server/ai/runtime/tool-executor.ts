@@ -6,11 +6,14 @@ import { createMemo, updateMemoContent } from '../../db/queries/memos.js';
 import { assignToPhase } from '../../db/queries/maps.js';
 import { emit } from '../sse.js';
 import { SW_ROLE_DEFAULTS } from '$lib/shared/constants.js';
+import { createAnnotation, createOrphanNaming, getOrCreateGroundingWorkspace } from '../../db/queries/codes.js';
+import { designate as designateNaming } from '../../db/queries/namings.js';
 import type {
 	SuggestElementInput, SuggestRelationInput, IdentifySilenceInput,
 	WriteMemoInput, CreatePhaseInput, SuggestFormationInput,
 	SuggestPositionInput, SuggestAxisRefinementInput, IdentifyEmptyRegionInput,
-	RewriteCueInput, RespondInput, WithdrawCueInput, ReviseMemoInput
+	RewriteCueInput, RespondInput, WithdrawCueInput, ReviseMemoInput,
+	ReadDocumentInput, CodePassageInput, DesignateInput
 } from '../tools.js';
 
 const AI_SYSTEM_UUID = '00000000-0000-0000-0000-000000000000';
@@ -218,6 +221,162 @@ export async function executeMemoDiscussionTool(
 		default:
 			return null;
 	}
+}
+
+// ── Raichel document tool execution ──────────────────────────────
+
+export async function executeRaichelTool(
+	toolName: string,
+	input: Record<string, unknown>,
+	projectId: string,
+	mapId: string,
+	aiNamingId: string
+): Promise<{ success: boolean; result: unknown }> {
+	try {
+		switch (toolName) {
+			case 'read_document': {
+				const { document_id } = input as unknown as ReadDocumentInput;
+				const doc = await query(
+					`SELECT n.inscription as title, dc.full_text
+					 FROM document_content dc
+					 JOIN namings n ON n.id = dc.naming_id
+					 WHERE dc.naming_id = $1 AND n.project_id = $2 AND n.deleted_at IS NULL`,
+					[document_id, projectId]
+				);
+				if (doc.rows.length === 0) {
+					return { success: false, result: 'Document not found' };
+				}
+				return { success: true, result: {
+					title: doc.rows[0].title,
+					text: doc.rows[0].full_text || '(no text content)'
+				}};
+			}
+
+			case 'code_passage': {
+				const { document_id, passage, code_label, reasoning } = input as unknown as CodePassageInput;
+
+				// Find passage position in document text
+				const docText = await query(
+					`SELECT dc.full_text FROM document_content dc
+					 JOIN namings n ON n.id = dc.naming_id
+					 WHERE dc.naming_id = $1 AND n.project_id = $2 AND n.deleted_at IS NULL`,
+					[document_id, projectId]
+				);
+				if (docText.rows.length === 0) {
+					return { success: false, result: 'Document not found' };
+				}
+
+				const fullText = docText.rows[0].full_text || '';
+				const pos0 = fullText.indexOf(passage);
+				if (pos0 === -1) {
+					// Try normalized whitespace match
+					const normalizedFull = fullText.replace(/\s+/g, ' ');
+					const normalizedPassage = passage.replace(/\s+/g, ' ');
+					const normPos = normalizedFull.indexOf(normalizedPassage);
+					if (normPos === -1) {
+						return { success: false, result: `Passage not found in document. Quote the exact text.` };
+					}
+					// Map back to original positions (approximate)
+					const anchor = { pos0: normPos, pos1: normPos + normalizedPassage.length, text: passage };
+					return await createCodeAndAnnotation(projectId, mapId, aiNamingId, document_id, code_label, anchor, reasoning);
+				}
+
+				const anchor = { pos0, pos1: pos0 + passage.length, text: passage };
+				return await createCodeAndAnnotation(projectId, mapId, aiNamingId, document_id, code_label, anchor, reasoning);
+			}
+
+			case 'designate': {
+				const { naming_id, designation, reasoning } = input as unknown as DesignateInput;
+				await designateNaming(naming_id, designation, aiNamingId);
+				// Write a memo documenting the designation decision
+				await createMemo(projectId, AI_SYSTEM_UUID,
+					`Designation → ${designation}`, reasoning, [naming_id]);
+				emit(mapId, 'ai:designate', { namingId: naming_id, designation, reasoning });
+				return { success: true, result: { namingId: naming_id, designation } };
+			}
+
+			default:
+				return { success: false, result: `Unknown Raichel tool: ${toolName}` };
+		}
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		return { success: false, result: message };
+	}
+}
+
+// Helper: create or reuse a code naming, create annotation, place on map
+async function createCodeAndAnnotation(
+	projectId: string,
+	mapId: string,
+	aiNamingId: string,
+	documentId: string,
+	codeLabel: string,
+	anchor: { pos0: number; pos1: number; text: string },
+	reasoning: string
+): Promise<{ success: boolean; result: unknown }> {
+	// Check if code already exists (case-insensitive)
+	const existing = await query(
+		`SELECT n.id FROM namings n
+		 JOIN appearances a ON a.naming_id = n.id AND a.mode = 'entity'
+		 WHERE n.project_id = $1 AND n.deleted_at IS NULL
+		   AND LOWER(n.inscription) = LOWER($2)
+		 LIMIT 1`,
+		[projectId, codeLabel]
+	);
+
+	let codeId: string;
+	let isNewCode = false;
+
+	if (existing.rows.length > 0) {
+		codeId = existing.rows[0].id;
+	} else {
+		// Create new code naming on grounding workspace
+		const code = await createOrphanNaming(projectId, AI_SYSTEM_UUID, codeLabel, {
+			description: reasoning
+		});
+		codeId = code.id;
+		isNewCode = true;
+
+		// Record designation as cue (initial)
+		await transaction(async (client) => {
+			await client.query(
+				`INSERT INTO naming_acts (naming_id, designation, by)
+				 VALUES ($1, 'cue', $2)`,
+				[codeId, aiNamingId]
+			);
+		});
+	}
+
+	// Create annotation (grounded relation: code → document with passage anchor)
+	await createAnnotation(
+		projectId, AI_SYSTEM_UUID, codeId, documentId,
+		'text', anchor, reasoning
+	);
+
+	// Place code on map if not already there
+	const onMap = await query(
+		`SELECT 1 FROM appearances WHERE naming_id = $1 AND perspective_id = $2 LIMIT 1`,
+		[codeId, mapId]
+	);
+	if (onMap.rows.length === 0) {
+		await query(
+			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
+			 VALUES ($1, $2, 'entity', $3)`,
+			[codeId, mapId, JSON.stringify({ aiSuggested: true, aiReasoning: reasoning })]
+		);
+	}
+
+	emit(mapId, 'ai:element', { element: { id: codeId, inscription: codeLabel }, reasoning });
+
+	return { success: true, result: {
+		codeId,
+		codeLabel,
+		isNewCode,
+		documentId,
+		passage: anchor.text.slice(0, 100),
+		pos0: anchor.pos0,
+		pos1: anchor.pos1
+	}};
 }
 
 // ── AI-as-actor naming helpers ───────────────────────────────────
