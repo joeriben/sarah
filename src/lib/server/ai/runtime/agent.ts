@@ -140,7 +140,8 @@ async function executeInfrastructureTool(
 			input.agent_label as string,
 			input.task as string,
 			(input.max_tokens as number) || 1024,
-			projectId
+			projectId,
+			input.document_id as string | undefined
 		);
 		return { success: result.success, result: result.result };
 	}

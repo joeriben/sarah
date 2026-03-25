@@ -189,7 +189,7 @@ export function getAvailableAgentsSync(): AgentModel[] {
 export const DELEGATE_TOOL: ToolDef = {
 	name: 'delegate_task',
 	description:
-		'Delegate a subtask to a cheaper/faster AI model. Use for tasks that don\'t require your full reasoning capacity: text search, passage extraction, simple classification, pattern matching. The sub-agent receives your instructions and returns its result.',
+		'Delegate a subtask to a cheaper/faster AI model. Use for tasks that don\'t require your full reasoning capacity: text search, passage extraction, simple classification, pattern matching. The sub-agent receives your instructions and returns its result. If the task involves a specific document, pass document_id — the sub-agent will receive the full document text automatically.',
 	input_schema: {
 		type: 'object' as const,
 		properties: {
@@ -200,6 +200,10 @@ export const DELEGATE_TOOL: ToolDef = {
 			task: {
 				type: 'string',
 				description: 'Clear, specific instructions for the sub-agent. Include all necessary context — the sub-agent has no conversation history.'
+			},
+			document_id: {
+				type: 'string',
+				description: 'Optional: ID of a project document. If provided, the sub-agent receives the full document text as context.'
 			},
 			max_tokens: {
 				type: 'number',
@@ -216,7 +220,8 @@ export async function executeDelegation(
 	agentLabel: string,
 	task: string,
 	maxTokens: number = 1024,
-	projectId?: string
+	projectId?: string,
+	documentId?: string
 ): Promise<{ success: boolean; result: string; model: string; tokensUsed: number }> {
 	const agents = await getAvailableAgents();
 	const agent = agents.find(a => a.label === agentLabel);
@@ -231,8 +236,19 @@ export async function executeDelegation(
 		};
 	}
 
+	// If document_id is provided, prepend document text to the task
+	let fullTask = task;
+	if (documentId && projectId) {
+		const docText = await loadDocumentText(projectId, documentId);
+		if (docText) {
+			fullTask = `DOCUMENT:\n"""\n${docText.text}\n"""\n\nTITLE: "${docText.title}"\n\nTASK:\n${task}`;
+		} else {
+			fullTask = `(Document not found or has no text content)\n\nTASK:\n${task}`;
+		}
+	}
+
 	try {
-		const response = await delegateChat(agent.provider, agent.model, task, maxTokens);
+		const response = await delegateChat(agent.provider, agent.model, fullTask, maxTokens);
 
 		// Log the delegated call
 		if (projectId) {
@@ -333,4 +349,19 @@ async function delegateChat(
 			stopReason: choice.finish_reason || 'end_turn'
 		};
 	}
+}
+
+// Load document text for delegation context
+import { query } from '../../db/index.js';
+
+async function loadDocumentText(projectId: string, documentId: string): Promise<{ title: string; text: string } | null> {
+	const result = await query<{ title: string; text: string }>(
+		`SELECT n.inscription as title, dc.full_text as text
+		 FROM document_content dc
+		 JOIN namings n ON n.id = dc.naming_id
+		 WHERE dc.naming_id = $1 AND n.project_id = $2 AND n.deleted_at IS NULL`,
+		[documentId, projectId]
+	);
+	if (result.rows.length === 0 || !result.rows[0].text) return null;
+	return result.rows[0];
 }
