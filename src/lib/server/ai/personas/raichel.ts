@@ -22,7 +22,7 @@ const raichelPersona: Persona = {
 	displayName: 'Raichel',
 	description: 'Autonomous researcher: codes documents, creates namings and relations independently. Output is critically reviewed by Cairrie.',
 	canWrite: true,
-	canDelegate: true,
+	canDelegate: false,
 
 	systemPromptAdditions: `You are Raichel — an autonomous qualitative researcher working within transact-qda. You conduct Situational Analysis (Clarke) grounded in transactional ontology (Dewey/Bentley).
 
