@@ -726,18 +726,18 @@ export async function runRaichelAnalysis(
 			? `\nEXISTING CODES (reuse if same concept):\n${existingCodes.map((c: any) => `- "${c.inscription}"`).join('\n')}`
 			: '';
 
-		// Delegate each chunk to cheap model for passage identification
+		// Delegate each chunk to delegation agent for passage identification
 		let allPassages: Array<{ passage: string; code_label: string; reasoning: string }> = [];
 
-		for (let c = 0; c < chunks.length; c++) {
-			const chunk = chunks[c];
-			progress({
-				phase: 'coding',
-				document: doc.title,
-				thinking: `Delegating chunk ${c + 1}/${chunks.length}...`
-			});
+		// Resolve delegation agent once — fail fast if unavailable
+		const delegateAgent = await getConfiguredDelegationAgent()
+			|| (await getAvailableAgents())[0];
+		if (!delegateAgent) {
+			progress({ phase: 'error', message: 'No delegation agent configured. Set one in Settings → Delegation Agent.' });
+			throw new Error('No delegation agent configured. Set one in Settings → Delegation Agent.');
+		}
 
-			const delegationTask = `You are a qualitative researcher coding a document using Situational Analysis (Adele Clarke).
+		const delegationTask = `You are a qualitative researcher coding a document using Situational Analysis (Adele Clarke).
 
 Identify analytically significant passages in this text chunk. For each passage:
 - Quote the EXACT text (verbatim, at least 20 chars)
@@ -754,13 +754,15 @@ Respond in JSON format:
 
 If no analytically significant passages exist in this chunk, return: []`;
 
-			// Use user-configured delegation agent; fall back to cheapest available
-			const delegateAgent = await getConfiguredDelegationAgent()
-				|| (await getAvailableAgents())[0];
-			if (!delegateAgent) {
-				progress({ phase: 'coding', thinking: `No delegation agent available — skipping chunk ${c + 1}` });
-				continue;
-			}
+		let consecutiveFailures = 0;
+
+		for (let c = 0; c < chunks.length; c++) {
+			const chunk = chunks[c];
+			progress({
+				phase: 'coding',
+				document: doc.title,
+				thinking: `Chunk ${c + 1}/${chunks.length}...`
+			});
 
 			const taskWithChunk = delegationTask + `\n\nTEXT CHUNK (${c + 1}/${chunks.length}):\n"""\n${chunk}\n"""`;
 
@@ -772,9 +774,18 @@ If no analytically significant passages exist in this chunk, return: []`;
 			);
 
 			if (!delegationResult.success) {
-				progress({ phase: 'coding', thinking: `Chunk ${c + 1}: delegation failed — ${delegationResult.result}` });
+				consecutiveFailures++;
+				progress({ phase: 'coding', thinking: `Chunk ${c + 1}: failed — ${delegationResult.result}` });
+
+				// Fail fast: if 3 consecutive chunks fail, the agent is broken
+				if (consecutiveFailures >= 3) {
+					progress({ phase: 'error', message: `Delegation agent failing consistently: ${delegationResult.result}` });
+					throw new Error(`Delegation agent "${delegateAgent.label}" is not working: ${delegationResult.result}`);
+				}
 				continue;
 			}
+
+			consecutiveFailures = 0; // reset on success
 
 			// Parse the delegation result
 			try {
