@@ -36,7 +36,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 				...trimmedHistory,
 				{ role: 'user', content: userMessage }
 			],
-			maxTokens: 1500
+			maxTokens: 3000
 			// No tools — Aidele is text-only
 		});
 
