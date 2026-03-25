@@ -30,6 +30,27 @@
 
 	const currentProviderInfo = $derived(providers.find(p => p.id === selectedProvider));
 
+	// Ollama model list
+	let ollamaModels = $state<string[]>([]);
+
+	async function fetchOllamaModels() {
+		try {
+			const res = await fetch('http://localhost:11434/api/tags');
+			if (!res.ok) return;
+			const data = await res.json();
+			ollamaModels = (data.models || []).map((m: any) => m.name).sort();
+		} catch {
+			ollamaModels = [];
+		}
+	}
+
+	// Fetch Ollama models when provider is Ollama
+	$effect(() => {
+		if (selectedProvider === 'ollama' || delegationProvider === 'ollama') {
+			fetchOllamaModels();
+		}
+	});
+
 	async function loadSettings() {
 		loading = true;
 		try {
@@ -338,7 +359,15 @@
 			<div class="section">
 				<h2>Model</h2>
 				<div class="form-row">
-					<input type="text" bind:value={model} placeholder="Model name" class="input-field model-input" autocomplete="off" data-1p-ignore data-lpignore="true" />
+					{#if selectedProvider === 'ollama' && ollamaModels.length > 0}
+						<select class="input-field model-input" bind:value={model}>
+							{#each ollamaModels as m}
+								<option value={m}>{m}</option>
+							{/each}
+						</select>
+					{:else}
+						<input type="text" bind:value={model} placeholder="Model name" class="input-field model-input" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
+					{/if}
 					<span class="hint">Default: {currentProviderInfo?.defaultModel || '—'}</span>
 				</div>
 			</div>
@@ -351,13 +380,14 @@
 					{/if}
 					<div class="form-row">
 						<input
-							type="password"
+							type="text"
 							bind:value={apiKeyInput}
 							placeholder={currentProviderInfo.keyConfigured ? 'Enter new key to replace' : 'Enter API key'}
-							class="input-field"
-							autocomplete="new-password"
+							class="input-field api-key-input"
+							autocomplete="off"
 							data-1p-ignore
 							data-lpignore="true"
+							data-form-type="other"
 						/>
 					</div>
 				</div>
@@ -378,7 +408,15 @@
 				</div>
 				{#if delegationProvider}
 					<div class="form-row">
-						<input type="text" bind:value={delegationModel} placeholder="Model name" class="input-field model-input" autocomplete="off" data-1p-ignore data-lpignore="true" />
+						{#if delegationProvider === 'ollama' && ollamaModels.length > 0}
+							<select class="input-field model-input" bind:value={delegationModel}>
+								{#each ollamaModels as m}
+									<option value={m}>{m}</option>
+								{/each}
+							</select>
+						{:else}
+							<input type="text" bind:value={delegationModel} placeholder="Model name" class="input-field model-input" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
+						{/if}
 						<span class="hint">Default: {delegationProviderInfo?.defaultModel || '—'}</span>
 					</div>
 				{/if}
@@ -741,6 +779,10 @@
 		border-color: #a5b4fc;
 	}
 	.model-input { max-width: 500px; }
+	.api-key-input {
+		-webkit-text-security: disc;
+		text-security: disc;
+	}
 	.hint { font-size: 0.75rem; color: #666; }
 	.section-hint { font-size: 0.8rem; color: #888; margin: 0.25rem 0 0.75rem; line-height: 1.4; }
 	.current-key {
