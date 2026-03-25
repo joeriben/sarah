@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/stores';
-	import AidelePanel from '$lib/aidele/AidelePanel.svelte';
-	import { createAideleState, setAideleState } from '$lib/aidele/aideleState.svelte.js';
+	import CoachPanel from '$lib/coach/CoachPanel.svelte';
+	import { createCoachState, setCoachState } from '$lib/coach/coachState.svelte.js';
 
 	let { data, children }: { data: any; children: Snippet } = $props();
 	const p = $derived(data.project);
@@ -11,40 +11,40 @@
 	const mapsByType = $derived(data.mapsByType as Record<string, { id: string; label: string }[]>);
 	const pathname = $derived($page.url.pathname);
 
-	// Aidele: didactic AI persona
-	const aidele = createAideleState(p.id);
-	setAideleState(aidele);
+	// Coach: didactic AI persona
+	const coach = createCoachState(p.id);
+	setCoachState(coach);
 
-	// Raichel: autonomous researcher
-	let raichelRunning = $state(false);
-	let raichelStatus = $state('');
-	let raichelLog = $state<string[]>([]);
-	let raichelOpen = $state(false);
-	let raichelMapId = $state<string | null>(null);
+	// Autonomous: autonomous researcher
+	let autonomousRunning = $state(false);
+	let autonomousStatus = $state('');
+	let autonomousLog = $state<string[]>([]);
+	let autonomousOpen = $state(false);
+	let autonomousMapId = $state<string | null>(null);
 	let logContainer: HTMLElement;
 
 	function scrollLog() {
 		if (logContainer) logContainer.scrollTop = logContainer.scrollHeight;
 	}
 
-	async function startRaichel() {
-		if (raichelRunning) return;
-		raichelRunning = true;
-		raichelOpen = true;
-		raichelLog = [];
-		raichelStatus = 'Starting...';
-		raichelMapId = null;
+	async function startAutonomous() {
+		if (autonomousRunning) return;
+		autonomousRunning = true;
+		autonomousOpen = true;
+		autonomousLog = [];
+		autonomousStatus = 'Starting...';
+		autonomousMapId = null;
 
 		try {
-			const res = await fetch(`/api/projects/${p.id}/raichel`, {
+			const res = await fetch(`/api/projects/${p.id}/autonomous`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ action: 'start' })
 			});
 
 			if (!res.body) {
-				raichelStatus = 'Error: no response stream';
-				raichelRunning = false;
+				autonomousStatus = 'Error: no response stream';
+				autonomousRunning = false;
 				return;
 			}
 
@@ -67,60 +67,60 @@
 					} else if (line.startsWith('data: ') && eventType) {
 						try {
 							const data = JSON.parse(line.slice(6));
-							handleRaichelEvent(eventType, data);
+							handleAutonomousEvent(eventType, data);
 						} catch {}
 						eventType = '';
 					}
 				}
 			}
 		} catch (e) {
-			raichelStatus = `Error: ${e instanceof Error ? e.message : String(e)}`;
-			raichelLog.push(`ERROR: ${raichelStatus}`);
-			raichelLog = raichelLog;
+			autonomousStatus = `Error: ${e instanceof Error ? e.message : String(e)}`;
+			autonomousLog.push(`ERROR: ${autonomousStatus}`);
+			autonomousLog = autonomousLog;
 		} finally {
-			raichelRunning = false;
+			autonomousRunning = false;
 		}
 	}
 
-	function handleRaichelEvent(event: string, data: any) {
+	function handleAutonomousEvent(event: string, data: any) {
 		if (event === 'progress') {
 			if (data.message) {
-				raichelStatus = data.message;
-				raichelLog.push(`── ${data.message}`);
+				autonomousStatus = data.message;
+				autonomousLog.push(`── ${data.message}`);
 			}
 			if (data.thinking) {
-				raichelLog.push(data.thinking);
+				autonomousLog.push(data.thinking);
 			}
 			if (data.toolCall) {
 				const tc = data.toolCall;
 				if (tc.name === 'code_passage') {
-					raichelLog.push(`  [code] "${tc.input.code_label}" ← "${(tc.input.passage || '').slice(0, 80)}..."`);
+					autonomousLog.push(`  [code] "${tc.input.code_label}" ← "${(tc.input.passage || '').slice(0, 80)}..."`);
 				} else if (tc.name === 'suggest_relation') {
-					raichelLog.push(`  [relation] ${tc.input.source_id?.slice(0, 8)} → ${tc.input.target_id?.slice(0, 8)}: ${tc.input.inscription || ''}`);
+					autonomousLog.push(`  [relation] ${tc.input.source_id?.slice(0, 8)} → ${tc.input.target_id?.slice(0, 8)}: ${tc.input.inscription || ''}`);
 				} else if (tc.name === 'write_memo') {
-					raichelLog.push(`  [memo] "${tc.input.title}"`);
+					autonomousLog.push(`  [memo] "${tc.input.title}"`);
 				} else if (tc.name === 'designate') {
-					raichelLog.push(`  [designate] → ${tc.input.designation}`);
+					autonomousLog.push(`  [designate] → ${tc.input.designation}`);
 				} else if (tc.name === 'identify_silence') {
-					raichelLog.push(`  [silence] "${tc.input.inscription}"`);
+					autonomousLog.push(`  [silence] "${tc.input.inscription}"`);
 				} else if (tc.name === 'read_document') {
-					raichelLog.push(`  [reading document...]`);
+					autonomousLog.push(`  [reading document...]`);
 				} else {
-					raichelLog.push(`  [${tc.name}]`);
+					autonomousLog.push(`  [${tc.name}]`);
 				}
 			}
-			raichelLog = raichelLog;
+			autonomousLog = autonomousLog;
 			requestAnimationFrame(scrollLog);
 		} else if (event === 'done') {
-			raichelMapId = data.mapId;
-			raichelStatus = 'Analysis complete';
-			raichelLog.push(`\n── Analysis complete. Map ready.`);
-			raichelLog = raichelLog;
+			autonomousMapId = data.mapId;
+			autonomousStatus = 'Analysis complete';
+			autonomousLog.push(`\n── Analysis complete. Map ready.`);
+			autonomousLog = autonomousLog;
 			requestAnimationFrame(scrollLog);
 		} else if (event === 'error') {
-			raichelStatus = `Error: ${data.error}`;
-			raichelLog.push(`ERROR: ${data.error}`);
-			raichelLog = raichelLog;
+			autonomousStatus = `Error: ${data.error}`;
+			autonomousLog.push(`ERROR: ${data.error}`);
+			autonomousLog = autonomousLog;
 		}
 	}
 
@@ -161,19 +161,19 @@
 			<a href="{base}/members" class:active={pathname.startsWith(`${base}/members`)}>Members</a>
 
 			<button
-				class="aidele-toggle"
-				class:aidele-active={aidele.isOpen}
-				onclick={() => aidele.isOpen = !aidele.isOpen}
-			>Aidele</button>
+				class="coach-toggle"
+				class:coach-active={coach.isOpen}
+				onclick={() => coach.isOpen = !coach.isOpen}
+			>Coach</button>
 
 			<button
-				class="raichel-toggle"
-				class:raichel-active={raichelRunning || raichelOpen}
-				onclick={() => { if (!raichelRunning && raichelLog.length === 0) startRaichel(); else raichelOpen = !raichelOpen; }}
-				disabled={raichelRunning && raichelOpen}
-			>{raichelRunning ? 'Raichel...' : 'Raichel'}</button>
-			{#if raichelStatus && !raichelOpen}
-				<span class="raichel-status">{raichelStatus}</span>
+				class="autonomous-toggle"
+				class:autonomous-active={autonomousRunning || autonomousOpen}
+				onclick={() => { if (!autonomousRunning && autonomousLog.length === 0) startAutonomous(); else autonomousOpen = !autonomousOpen; }}
+				disabled={autonomousRunning && autonomousOpen}
+			>{autonomousRunning ? 'Autonomous...' : 'Autonomous'}</button>
+			{#if autonomousStatus && !autonomousOpen}
+				<span class="autonomous-status">{autonomousStatus}</span>
 			{/if}
 
 			<a href="/projects" class="back-link">← Projects</a>
@@ -184,28 +184,28 @@
 		{@render children()}
 	</div>
 
-	<AidelePanel />
+	<CoachPanel />
 
-	{#if raichelOpen}
-		<div class="raichel-panel">
-			<div class="raichel-header">
-				<span>Raichel {raichelRunning ? '(running...)' : ''}</span>
-				<div class="raichel-header-actions">
-					{#if !raichelRunning && raichelLog.length > 0}
-						<button class="raichel-btn" onclick={startRaichel}>Re-run</button>
+	{#if autonomousOpen}
+		<div class="autonomous-panel">
+			<div class="autonomous-header">
+				<span>Autonomous {autonomousRunning ? '(running...)' : ''}</span>
+				<div class="autonomous-header-actions">
+					{#if !autonomousRunning && autonomousLog.length > 0}
+						<button class="autonomous-btn" onclick={startAutonomous}>Re-run</button>
 					{/if}
-					{#if raichelMapId}
-						<a href="{base}/maps/{raichelMapId}" class="raichel-btn">Open Map</a>
+					{#if autonomousMapId}
+						<a href="{base}/maps/{autonomousMapId}" class="autonomous-btn">Open Map</a>
 					{/if}
-					<button class="raichel-close" onclick={() => raichelOpen = false}>x</button>
+					<button class="autonomous-close" onclick={() => autonomousOpen = false}>x</button>
 				</div>
 			</div>
-			<div class="raichel-log" bind:this={logContainer}>
-				{#each raichelLog as line}
-					<div class="raichel-line">{line}</div>
+			<div class="autonomous-log" bind:this={logContainer}>
+				{#each autonomousLog as line}
+					<div class="autonomous-line">{line}</div>
 				{/each}
-				{#if raichelRunning && raichelLog.length === 0}
-					<div class="raichel-line">Waiting for Raichel...</div>
+				{#if autonomousRunning && autonomousLog.length === 0}
+					<div class="autonomous-line">Waiting for autonomous agent...</div>
 				{/if}
 			</div>
 		</div>
@@ -285,7 +285,7 @@
 		color: #fff;
 	}
 
-	.aidele-toggle {
+	.coach-toggle {
 		display: flex;
 		align-items: center;
 		padding: 0.45rem 0.65rem;
@@ -299,16 +299,16 @@
 		font-family: inherit;
 		font-weight: 500;
 	}
-	.aidele-toggle:hover {
+	.coach-toggle:hover {
 		background: #1e2030;
 		border-color: #a5b4fc;
 	}
-	.aidele-active {
+	.coach-active {
 		background: rgba(165, 180, 252, 0.1);
 		border-color: #a5b4fc;
 	}
 
-	.raichel-toggle {
+	.autonomous-toggle {
 		display: flex;
 		align-items: center;
 		padding: 0.45rem 0.65rem;
@@ -322,26 +322,26 @@
 		font-family: inherit;
 		font-weight: 500;
 	}
-	.raichel-toggle:hover:not(:disabled) {
+	.autonomous-toggle:hover:not(:disabled) {
 		background: #1e2030;
 		border-color: #f0abfc;
 	}
-	.raichel-toggle:disabled {
+	.autonomous-toggle:disabled {
 		opacity: 0.6;
 		cursor: wait;
 	}
-	.raichel-active {
+	.autonomous-active {
 		background: rgba(240, 171, 252, 0.1);
 		border-color: #f0abfc;
 	}
-	.raichel-status {
+	.autonomous-status {
 		font-size: 0.72rem;
 		color: #9ca3af;
 		padding: 0.1rem 0.65rem;
 		line-height: 1.3;
 	}
 
-	.raichel-panel {
+	.autonomous-panel {
 		position: fixed;
 		right: 0;
 		top: 0;
@@ -353,7 +353,7 @@
 		flex-direction: column;
 		z-index: 50;
 	}
-	.raichel-header {
+	.autonomous-header {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
@@ -363,12 +363,12 @@
 		font-weight: 600;
 		color: #f0abfc;
 	}
-	.raichel-header-actions {
+	.autonomous-header-actions {
 		display: flex;
 		gap: 0.5rem;
 		align-items: center;
 	}
-	.raichel-btn {
+	.autonomous-btn {
 		font-size: 0.75rem;
 		padding: 0.25rem 0.5rem;
 		border-radius: 4px;
@@ -379,12 +379,12 @@
 		font-family: inherit;
 		text-decoration: none;
 	}
-	.raichel-btn:hover {
+	.autonomous-btn:hover {
 		background: #1e2030;
 		border-color: #f0abfc;
 		color: #f0abfc;
 	}
-	.raichel-close {
+	.autonomous-close {
 		font-size: 0.85rem;
 		padding: 0.15rem 0.4rem;
 		border-radius: 4px;
@@ -394,8 +394,8 @@
 		cursor: pointer;
 		font-family: inherit;
 	}
-	.raichel-close:hover { color: #fff; }
-	.raichel-log {
+	.autonomous-close:hover { color: #fff; }
+	.autonomous-log {
 		flex: 1;
 		overflow-y: auto;
 		padding: 0.75rem 1rem;
@@ -404,7 +404,7 @@
 		font-family: 'SF Mono', 'Fira Code', monospace;
 		color: #d1d5db;
 	}
-	.raichel-line {
+	.autonomous-line {
 		white-space: pre-wrap;
 		word-break: break-word;
 		margin-bottom: 0.25rem;

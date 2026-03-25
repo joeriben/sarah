@@ -207,7 +207,7 @@
 	async function loadLibrary() {
 		libLoading = true;
 		try {
-			const res = await fetch('/api/aidele-library');
+			const res = await fetch('/api/coach-library');
 			const data = await res.json();
 			libRefs = data.references || [];
 		} catch (e: any) {
@@ -227,11 +227,11 @@
 				form.append('title', libTitle);
 				form.append('author', libAuthor);
 				form.append('description', libDescription);
-				const res = await fetch('/api/aidele-library', { method: 'POST', body: form });
+				const res = await fetch('/api/coach-library', { method: 'POST', body: form });
 				const data = await res.json();
 				if (data.error) throw new Error(data.error);
 			} else if (libMode === 'paste' && libPasteContent.trim()) {
-				const res = await fetch('/api/aidele-library', {
+				const res = await fetch('/api/coach-library', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
@@ -257,7 +257,7 @@
 	async function deleteRef(id: string, title: string) {
 		if (!confirm(`Delete "${title}"?`)) return;
 		try {
-			await fetch(`/api/aidele-library/${id}`, { method: 'DELETE' });
+			await fetch(`/api/coach-library/${id}`, { method: 'DELETE' });
 			await loadLibrary();
 		} catch (e: any) {
 			libMessage = { type: 'error', text: e.message };
@@ -270,7 +270,7 @@
 		preprocessing = id;
 		libMessage = null;
 		try {
-			const res = await fetch(`/api/aidele-library/${id}`, {
+			const res = await fetch(`/api/coach-library/${id}`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ action: 'preprocess' })
@@ -317,7 +317,7 @@
 			Usage
 		</button>
 		<button class="tab" class:active={activeTab === 'library'} onclick={() => { activeTab = 'library'; loadLibrary(); }}>
-			Aidele Library
+			Coach Library
 		</button>
 	</div>
 
@@ -556,10 +556,10 @@
 	{/if}
 
 	{#if activeTab === 'library'}
-		<!-- ═══════ Aidele Reference Library ═══════ -->
+		<!-- ═══════ Coach Reference Library ═══════ -->
 		<div class="section">
 			<h2>Reference Library</h2>
-			<p class="section-desc">Methodological texts for Aidele. Upload Clarke, Strauss/Corbin, or other SA literature so Aidele can cite concrete passages. The library folder (<code>aidele-library/</code>) is portable — copy it to a new installation and the index is auto-imported.</p>
+			<p class="section-desc">Methodological texts for the coaching agent. Upload Clarke, Strauss/Corbin, or other SA literature so the coach can cite concrete passages. The library folder (<code>coach-library/</code>) is portable — copy it to a new installation and the index is auto-imported.</p>
 
 			<!-- Upload form -->
 			<div class="lib-upload">
@@ -648,7 +648,7 @@
 										{preprocessing === ref.id ? 'Indexing...' : 'Re-index'}
 									</button>
 								{/if}
-								<button class="aidele-btn-sm" onclick={() => deleteRef(ref.id, ref.title)} title="Delete">delete</button>
+								<button class="coach-btn-sm" onclick={() => deleteRef(ref.id, ref.title)} title="Delete">delete</button>
 							</div>
 						</div>
 					{/each}
@@ -1113,7 +1113,7 @@
 		border-color: #a5b4fc;
 	}
 
-	.aidele-btn-sm {
+	.coach-btn-sm {
 		background: none;
 		border: none;
 		color: #6b7280;
@@ -1122,7 +1122,7 @@
 		padding: 0.15rem 0.3rem;
 		border-radius: 3px;
 	}
-	.aidele-btn-sm:hover {
+	.coach-btn-sm:hover {
 		color: #ef4444;
 		background: rgba(239, 68, 68, 0.1);
 	}

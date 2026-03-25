@@ -410,9 +410,9 @@ export interface IdentifyEmptyRegionInput {
 	reasoning: string;
 }
 
-// ── Raichel document tools (autonomous researcher) ──
+// ── Autonomous document tools (autonomous researcher) ──
 
-export const RAICHEL_DOCUMENT_TOOLS: ToolDef[] = [
+export const AUTONOMOUS_DOCUMENT_TOOLS: ToolDef[] = [
 	{
 		name: 'read_document',
 		description:

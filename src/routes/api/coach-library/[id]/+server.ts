@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
-import { getReference, getReferenceChunks, deleteReference, preprocessReference } from '$lib/server/ai/aidele-library.js';
+import { getReference, getReferenceChunks, deleteReference, preprocessReference } from '$lib/server/ai/coach-library.js';
 
 // Get single reference with its chunks
 export const GET: RequestHandler = async ({ params }) => {

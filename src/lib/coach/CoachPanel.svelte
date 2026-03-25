@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { marked } from 'marked';
-	import { getAideleState } from './aideleState.svelte.js';
+	import { getCoachState } from './coachState.svelte.js';
 
-	const aidele = getAideleState();
+	const coach = getCoachState();
 
 	let inputText = $state('');
 	let messagesEl: HTMLDivElement | undefined = $state();
@@ -34,7 +34,7 @@
 
 	// Auto-scroll to bottom on new messages
 	$effect(() => {
-		void aidele.messages.length;
+		void coach.messages.length;
 		if (messagesEl) {
 			requestAnimationFrame(() => {
 				messagesEl!.scrollTop = messagesEl!.scrollHeight;
@@ -44,9 +44,9 @@
 
 	function handleSend() {
 		const text = inputText.trim();
-		if (!text || aidele.loading) return;
+		if (!text || coach.loading) return;
 		inputText = '';
-		aidele.send(text, currentPage, currentMapId);
+		coach.send(text, currentPage, currentMapId);
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -57,8 +57,8 @@
 	}
 
 	function copyDialog() {
-		const text = aidele.messages
-			.map(m => `${m.role === 'user' ? 'Researcher' : 'Aidele'}:\n${m.content}`)
+		const text = coach.messages
+			.map(m => `${m.role === 'user' ? 'Researcher' : 'Coach'}:\n${m.content}`)
 			.join('\n\n---\n\n');
 		navigator.clipboard.writeText(text);
 	}
@@ -86,37 +86,37 @@
 	}
 </script>
 
-{#if aidele.isOpen}
+{#if coach.isOpen}
 	<div
-		class="aidele-panel"
+		class="coach-panel"
 		class:resizing
 		style="width: {panelWidth}px; height: {panelHeight}px;"
 	>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="resize-handle" onpointerdown={startResize}></div>
 
-		<div class="aidele-header">
-			<span class="aidele-title">Aidele</span>
-			<div class="aidele-header-actions">
-				{#if aidele.messages.length > 0}
-					<button class="aidele-btn-sm" onclick={copyDialog} title="Copy dialog to clipboard">copy</button>
-					<button class="aidele-btn-sm" onclick={() => aidele.clear()} title="Clear conversation">clear</button>
+		<div class="coach-header">
+			<span class="coach-title">Coach</span>
+			<div class="coach-header-actions">
+				{#if coach.messages.length > 0}
+					<button class="coach-btn-sm" onclick={copyDialog} title="Copy dialog to clipboard">copy</button>
+					<button class="coach-btn-sm" onclick={() => coach.clear()} title="Clear conversation">clear</button>
 				{/if}
-				<button class="aidele-btn-sm" onclick={() => aidele.isOpen = false} title="Close">&times;</button>
+				<button class="coach-btn-sm" onclick={() => coach.isOpen = false} title="Close">&times;</button>
 			</div>
 		</div>
 
-		<div class="aidele-messages" bind:this={messagesEl}>
-			{#if aidele.messages.length === 0}
-				<div class="aidele-welcome">
-					<p class="aidele-welcome-name">Aidele</p>
-					<p class="aidele-welcome-text">Ich helfe dir, Situational Analysis zu verstehen und anzuwenden. Frag mich zur Methodik, zum CCS-Gradienten, zu Map-Typen oder zu deinem aktuellen Projektstand.</p>
+		<div class="coach-messages" bind:this={messagesEl}>
+			{#if coach.messages.length === 0}
+				<div class="coach-welcome">
+					<p class="coach-welcome-name">Coach</p>
+					<p class="coach-welcome-text">Ich helfe dir, Situational Analysis zu verstehen und anzuwenden. Frag mich zur Methodik, zum CCS-Gradienten, zu Map-Typen oder zu deinem aktuellen Projektstand.</p>
 				</div>
 			{/if}
-			{#each aidele.messages as msg}
-				<div class="aidele-msg" class:msg-user={msg.role === 'user'} class:msg-assistant={msg.role === 'assistant'}>
+			{#each coach.messages as msg}
+				<div class="coach-msg" class:msg-user={msg.role === 'user'} class:msg-assistant={msg.role === 'assistant'}>
 					{#if msg.role === 'assistant'}
-						<span class="msg-label">Aidele</span>
+						<span class="msg-label">Coach</span>
 					{/if}
 					{#if msg.role === 'assistant'}
 						<div class="msg-content msg-md">{@html renderMarkdown(msg.content)}</div>
@@ -125,26 +125,26 @@
 					{/if}
 				</div>
 			{/each}
-			{#if aidele.loading}
-				<div class="aidele-msg msg-assistant">
-					<span class="msg-label">Aidele</span>
+			{#if coach.loading}
+				<div class="coach-msg msg-assistant">
+					<span class="msg-label">Coach</span>
 					<div class="msg-content msg-loading">...</div>
 				</div>
 			{/if}
-			{#if aidele.error}
-				<div class="aidele-error">{aidele.error}</div>
+			{#if coach.error}
+				<div class="coach-error">{coach.error}</div>
 			{/if}
 		</div>
 
-		<div class="aidele-input">
+		<div class="coach-input">
 			<textarea
 				bind:value={inputText}
 				onkeydown={handleKeydown}
-				placeholder="Frag Aidele..."
+				placeholder="Ask the coach..."
 				rows="2"
-				disabled={aidele.loading}
+				disabled={coach.loading}
 			></textarea>
-			<button class="aidele-send" onclick={handleSend} disabled={aidele.loading || !inputText.trim()} title="Send">
+			<button class="coach-send" onclick={handleSend} disabled={coach.loading || !inputText.trim()} title="Send">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
 			</button>
 		</div>
@@ -152,7 +152,7 @@
 {/if}
 
 <style>
-	.aidele-panel {
+	.coach-panel {
 		position: fixed;
 		bottom: 1rem;
 		right: 1rem;
@@ -170,7 +170,7 @@
 
 	/* Mobile: full-width */
 	@media (max-width: 640px) {
-		.aidele-panel {
+		.coach-panel {
 			bottom: 0;
 			right: 0;
 			width: 100vw !important;
@@ -210,7 +210,7 @@
 		border-color: #a5b4fc;
 	}
 
-	.aidele-header {
+	.coach-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -220,20 +220,20 @@
 		flex-shrink: 0;
 	}
 
-	.aidele-title {
+	.coach-title {
 		font-size: 0.9rem;
 		font-weight: 600;
 		color: #a5b4fc;
 		letter-spacing: -0.01em;
 	}
 
-	.aidele-header-actions {
+	.coach-header-actions {
 		display: flex;
 		gap: 0.4rem;
 		align-items: center;
 	}
 
-	.aidele-btn-sm {
+	.coach-btn-sm {
 		background: none;
 		border: none;
 		color: #6b7280;
@@ -242,12 +242,12 @@
 		padding: 0.15rem 0.3rem;
 		border-radius: 3px;
 	}
-	.aidele-btn-sm:hover {
+	.coach-btn-sm:hover {
 		color: #e1e4e8;
 		background: rgba(255, 255, 255, 0.05);
 	}
 
-	.aidele-messages {
+	.coach-messages {
 		flex: 1;
 		overflow-y: auto;
 		padding: 0.75rem;
@@ -256,25 +256,25 @@
 		gap: 0.6rem;
 	}
 
-	.aidele-welcome {
+	.coach-welcome {
 		text-align: center;
 		padding: 1.5rem 0.5rem;
 		color: #6b7280;
 	}
 
-	.aidele-welcome-name {
+	.coach-welcome-name {
 		font-size: 1.1rem;
 		font-weight: 600;
 		color: #a5b4fc;
 		margin-bottom: 0.5rem;
 	}
 
-	.aidele-welcome-text {
+	.coach-welcome-text {
 		font-size: 0.8rem;
 		line-height: 1.5;
 	}
 
-	.aidele-msg {
+	.coach-msg {
 		display: flex;
 		flex-direction: column;
 		max-width: 92%;
@@ -373,7 +373,7 @@
 		font-style: italic;
 	}
 
-	.aidele-error {
+	.coach-error {
 		font-size: 0.75rem;
 		color: #ef4444;
 		padding: 0.3rem 0.5rem;
@@ -381,7 +381,7 @@
 		border-radius: 4px;
 	}
 
-	.aidele-input {
+	.coach-input {
 		display: flex;
 		gap: 0.4rem;
 		padding: 0.5rem 0.6rem;
@@ -391,7 +391,7 @@
 		align-items: flex-end;
 	}
 
-	.aidele-input textarea {
+	.coach-input textarea {
 		flex: 1;
 		background: #1a1d2a;
 		border: 1px solid #2a2d3a;
@@ -403,15 +403,15 @@
 		font-family: inherit;
 		line-height: 1.4;
 	}
-	.aidele-input textarea:focus {
+	.coach-input textarea:focus {
 		outline: none;
 		border-color: #a5b4fc;
 	}
-	.aidele-input textarea::placeholder {
+	.coach-input textarea::placeholder {
 		color: #4b5563;
 	}
 
-	.aidele-send {
+	.coach-send {
 		background: #a5b4fc;
 		border: none;
 		border-radius: 6px;
@@ -424,10 +424,10 @@
 		justify-content: center;
 		flex-shrink: 0;
 	}
-	.aidele-send:hover:not(:disabled) {
+	.coach-send:hover:not(:disabled) {
 		background: #8b9cf7;
 	}
-	.aidele-send:disabled {
+	.coach-send:disabled {
 		opacity: 0.4;
 		cursor: default;
 	}

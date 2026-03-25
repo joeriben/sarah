@@ -7,7 +7,7 @@ import { CLARKE_SW_QUESTIONS, CLARKE_ARENA_QUESTIONS, ANALYTICAL_DEEPENING } fro
 // Re-export MapContext from base
 export type { MapContext } from './base/context.js';
 
-// ── SW/A supplement (used by Cairrie persona) ────────────────────
+// ── SW/A supplement (used by Cowork persona) ────────────────────
 
 export const SWA_SUPPLEMENT = `
 ═══════════════════════════════════════
@@ -51,7 +51,7 @@ YOUR APPROACH ON SW/A MAPS:
 - When cross-map context is available, note which SitMap elements constitute or participate in the formations
 `;
 
-// ── Positional map supplement (used by Cairrie persona) ──────────
+// ── Positional map supplement (used by Cowork persona) ──────────
 
 export const POSITIONAL_SUPPLEMENT = `
 ═══════════════════════════════════════

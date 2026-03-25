@@ -3,7 +3,7 @@
 
 import type { ToolDef } from '../client.js';
 
-export type PersonaName = 'aidele' | 'cairrie' | 'raichel';
+export type PersonaName = 'coach' | 'cowork' | 'autonomous';
 
 export type MapType = 'situational' | 'social-worlds' | 'positional';
 
@@ -21,7 +21,7 @@ export interface Persona {
 	systemPromptAdditions: string;
 
 	/** Get tools available to this persona for a given map type.
-	 *  Returns empty array if the persona has no tools (e.g. Aidele). */
+	 *  Returns empty array if the persona has no tools (e.g. coach). */
 	getTools(mapType?: MapType): ToolDef[];
 
 	/** Map-type-specific prompt supplements (SWA, Positional, etc.) */

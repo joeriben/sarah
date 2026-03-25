@@ -1,24 +1,24 @@
 import { getContext, setContext } from 'svelte';
 
-const AIDELE_KEY = Symbol('aidele');
+const COACH_KEY = Symbol('coach');
 
-export type AideleMessage = {
+export type CoachMessage = {
 	role: 'user' | 'assistant';
 	content: string;
 };
 
-export type AideleState = ReturnType<typeof createAideleState>;
+export type CoachState = ReturnType<typeof createCoachState>;
 
-export function createAideleState(projectId: string) {
-	const STORAGE_KEY = `aidele-${projectId}`;
+export function createCoachState(projectId: string) {
+	const STORAGE_KEY = `coach-${projectId}`;
 
 	// Load from sessionStorage
-	let messages = $state<AideleMessage[]>(loadFromSession());
+	let messages = $state<CoachMessage[]>(loadFromSession());
 	let isOpen = $state(false);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 
-	function loadFromSession(): AideleMessage[] {
+	function loadFromSession(): CoachMessage[] {
 		if (typeof sessionStorage === 'undefined') return [];
 		try {
 			const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -50,7 +50,7 @@ export function createAideleState(projectId: string) {
 		error = null;
 
 		try {
-			const res = await fetch(`/api/projects/${projectId}/aidele`, {
+			const res = await fetch(`/api/projects/${projectId}/coach`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
@@ -93,10 +93,10 @@ export function createAideleState(projectId: string) {
 	};
 }
 
-export function setAideleState(state: AideleState) {
-	setContext(AIDELE_KEY, state);
+export function setCoachState(state: CoachState) {
+	setContext(COACH_KEY, state);
 }
 
-export function getAideleState(): AideleState {
-	return getContext<AideleState>(AIDELE_KEY);
+export function getCoachState(): CoachState {
+	return getContext<CoachState>(COACH_KEY);
 }

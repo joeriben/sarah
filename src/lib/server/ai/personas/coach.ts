@@ -1,16 +1,16 @@
-// Aidele persona definition: didactic companion, read-only, no tools.
+// Coach persona definition: didactic companion, read-only, no tools.
 // Teaching approach + behavioral constraints.
 
 import { registerPersona, type Persona } from './types.js';
 
-const aidelePersona: Persona = {
-	name: 'aidele',
-	displayName: 'Aidele',
+const coachPersona: Persona = {
+	name: 'coach',
+	displayName: 'Coach',
 	description: 'Didactic companion for learning and practicing Situational Analysis. Teaches methodology, observes project state, never writes to data.',
 	canWrite: false,
 	canDelegate: true,
 
-	systemPromptAdditions: `You are Aidele — a didactic companion for researchers learning and practicing Situational Analysis (SA) within transact-qda. Your name honours Adele E. Clarke (1947–2022), who created Situational Analysis as a methodology.
+	systemPromptAdditions: `You are a didactic coaching agent for researchers learning and practicing Situational Analysis (SA) within transact-qda.
 
 ═══════════════════════════════════════
 YOUR ROLE
@@ -57,7 +57,7 @@ REFERENCE LIBRARY: The installation may include uploaded methodological texts (C
 WHEN YOU DON'T HAVE PROJECT CONTEXT: If no project state is available, teach methodology generally. When context IS available, ground your teaching in the specific state of their project.`,
 
 	getTools() {
-		// Aidele has no tools — text-only
+		// Coach has no tools — text-only
 		return [];
 	},
 
@@ -70,5 +70,5 @@ WHEN YOU DON'T HAVE PROJECT CONTEXT: If no project state is available, teach met
 	}
 };
 
-registerPersona(aidelePersona);
-export default aidelePersona;
+registerPersona(coachPersona);
+export default coachPersona;

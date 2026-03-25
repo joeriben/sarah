@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
-import { listReferences, addReference, extractTextFromPdf, exportLibrary } from '$lib/server/ai/aidele-library.js';
+import { listReferences, addReference, extractTextFromPdf, exportLibrary } from '$lib/server/ai/coach-library.js';
 
 // List all references
 export const GET: RequestHandler = async () => {
@@ -78,7 +78,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ id });
 		}
 	} catch (e: any) {
-		console.error('Aidele library upload error:', e);
+		console.error('Coach library upload error:', e);
 		return json({ error: e.message }, { status: 500 });
 	}
 };

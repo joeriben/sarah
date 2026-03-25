@@ -1,9 +1,9 @@
-// Aidele reference library: upload, AI-driven preprocessing, and retrieval.
+// Coach reference library: upload, AI-driven preprocessing, and retrieval.
 // Installation-wide methodological reference texts for the didactic AI persona.
 //
 // Flow:
 // 1. Upload: store original file + extract text to .txt — NO chunking
-// 2. Preprocess (triggered by user): Aidele (configured AI provider) reads the
+// 2. Preprocess (triggered by user): Coach (configured AI provider) reads the
 //    text, detects chapters, creates orientation document with summaries/questions
 // 3. Retrieval: search orientation document to find relevant chapters, pull text
 
@@ -13,7 +13,7 @@ import { join, basename } from 'node:path';
 import { chat, getModel, getProvider } from './client.js';
 import { logInteraction } from './index.js';
 
-const LIBRARY_DIR = join(process.cwd(), 'aidele-library');
+const LIBRARY_DIR = join(process.cwd(), 'coach-library');
 const ORIGINALS_DIR = join(LIBRARY_DIR, 'originals');
 
 function ensureDir(dir: string) {
@@ -26,9 +26,9 @@ export async function listReferences() {
 	await autoImportIfNeeded();
 	return (await query(
 		`SELECT r.*,
-		   (SELECT COUNT(*) FROM aidele_chunks c WHERE c.reference_id = r.id) as chunk_count,
-		   (SELECT COALESCE(SUM(c.word_count), 0) FROM aidele_chunks c WHERE c.reference_id = r.id) as total_words
-		 FROM aidele_references r
+		   (SELECT COUNT(*) FROM coach_chunks c WHERE c.reference_id = r.id) as chunk_count,
+		   (SELECT COALESCE(SUM(c.word_count), 0) FROM coach_chunks c WHERE c.reference_id = r.id) as total_words
+		 FROM coach_references r
 		 ORDER BY r.created_at DESC`
 	)).rows;
 }
@@ -36,9 +36,9 @@ export async function listReferences() {
 export async function getReference(id: string) {
 	return queryOne(
 		`SELECT r.*,
-		   (SELECT COUNT(*) FROM aidele_chunks c WHERE c.reference_id = r.id) as chunk_count,
-		   (SELECT COALESCE(SUM(c.word_count), 0) FROM aidele_chunks c WHERE c.reference_id = r.id) as total_words
-		 FROM aidele_references r WHERE r.id = $1`,
+		   (SELECT COUNT(*) FROM coach_chunks c WHERE c.reference_id = r.id) as chunk_count,
+		   (SELECT COALESCE(SUM(c.word_count), 0) FROM coach_chunks c WHERE c.reference_id = r.id) as total_words
+		 FROM coach_references r WHERE r.id = $1`,
 		[id]
 	);
 }
@@ -46,7 +46,7 @@ export async function getReference(id: string) {
 export async function getReferenceChunks(referenceId: string) {
 	return (await query(
 		`SELECT id, section, content, chunk_index, word_count, summary, questions, key_concepts, relevance
-		 FROM aidele_chunks WHERE reference_id = $1
+		 FROM coach_chunks WHERE reference_id = $1
 		 ORDER BY chunk_index`,
 		[referenceId]
 	)).rows;
@@ -54,7 +54,7 @@ export async function getReferenceChunks(referenceId: string) {
 
 export async function deleteReference(id: string) {
 	const ref = await queryOne<{ filename: string | null; text_file: string | null }>(
-		'SELECT filename, text_file FROM aidele_references WHERE id = $1', [id]
+		'SELECT filename, text_file FROM coach_references WHERE id = $1', [id]
 	);
 	// Clean up files
 	if (ref?.text_file) {
@@ -69,7 +69,7 @@ export async function deleteReference(id: string) {
 		}
 	}
 	// Chunks cascade-deleted via FK
-	await query('DELETE FROM aidele_references WHERE id = $1', [id]);
+	await query('DELETE FROM coach_references WHERE id = $1', [id]);
 }
 
 // ── Upload (store only, no chunking) ─────────────────────────────
@@ -100,7 +100,7 @@ export async function addReference(opts: {
 
 	// Create reference record — NO chunks created here
 	const ref = await queryOne<{ id: string }>(
-		`INSERT INTO aidele_references (title, author, description, filename, format, uploaded_by, text_file)
+		`INSERT INTO coach_references (title, author, description, filename, format, uploaded_by, text_file)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
 		[opts.title, opts.author || null, opts.description || null, storedFilename, opts.format, opts.userId || null, textFilename]
 	);
@@ -118,7 +118,7 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
 }
 
 // ── AI Preprocessing ─────────────────────────────────────────────
-// Aidele (the configured AI provider) reads the full text, detects chapters,
+// Coach (the configured AI provider) reads the full text, detects chapters,
 // creates chapter-level chunks with summaries, and builds an orientation document.
 
 const CHAPTER_DETECT_PROMPT = `You are analyzing the structure of a methodological text. Identify all chapters or major sections.
@@ -131,7 +131,7 @@ Only include real chapters/sections, not sub-subsections. For books: chapters. F
 
 Respond ONLY with the JSON array.`;
 
-const INDEX_CHAPTER_PROMPT = `You are Aidele, a didactic AI companion for Situational Analysis (Clarke). You are reading a chapter from a methodological reference text and creating your personal reading notes.
+const INDEX_CHAPTER_PROMPT = `You are Coach, a didactic AI companion for Situational Analysis (Clarke). You are reading a chapter from a methodological reference text and creating your personal reading notes.
 
 Produce a JSON object with:
 - "summary": 2-4 sentences — what this chapter covers, from your perspective as a methodology coach
@@ -155,7 +155,7 @@ export async function preprocessReference(referenceId: string) {
 			const extracted = await extractTextFromPdf(pdfBuffer);
 			const textFilename = ref.filename.replace(/\.pdf$/i, '.txt');
 			writeFileSync(join(LIBRARY_DIR, textFilename), extracted, 'utf-8');
-			await query('UPDATE aidele_references SET text_file = $1 WHERE id = $2', [textFilename, referenceId]);
+			await query('UPDATE coach_references SET text_file = $1 WHERE id = $2', [textFilename, referenceId]);
 			ref.text_file = textFilename;
 		} else {
 			throw new Error('No text file and no PDF to extract from');
@@ -172,7 +172,7 @@ export async function preprocessReference(referenceId: string) {
 	let totalOutputTokens = 0;
 
 	// Delete old chunks (from previous mechanical chunking or previous preprocessing)
-	await query('DELETE FROM aidele_chunks WHERE reference_id = $1', [referenceId]);
+	await query('DELETE FROM coach_chunks WHERE reference_id = $1', [referenceId]);
 
 	// Step 1: Detect chapter structure using AI
 	// Send first ~8000 words (enough for TOC + first pages)
@@ -194,7 +194,7 @@ export async function preprocessReference(referenceId: string) {
 		const jsonMatch = structureResponse.text.match(/\[[\s\S]*\]/);
 		if (jsonMatch) chapters = JSON.parse(jsonMatch[0]);
 	} catch (e) {
-		console.warn('Aidele preprocessing: failed to detect chapters:', e);
+		console.warn('Coach preprocessing: failed to detect chapters:', e);
 	}
 
 	// Step 2: Split text by detected chapters
@@ -244,7 +244,7 @@ export async function preprocessReference(referenceId: string) {
 
 		// Store chapter as chunk in DB
 		const chunkRes = await queryOne<{ id: string }>(
-			`INSERT INTO aidele_chunks (reference_id, section, content, chunk_index, word_count)
+			`INSERT INTO coach_chunks (reference_id, section, content, chunk_index, word_count)
 			 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
 			[referenceId, ch.heading, ch.content, i, chWordCount]
 		);
@@ -273,7 +273,7 @@ export async function preprocessReference(referenceId: string) {
 
 				// Update chunk with AI annotations
 				await query(
-					`UPDATE aidele_chunks SET summary = $1, questions = $2, key_concepts = $3, relevance = $4
+					`UPDATE coach_chunks SET summary = $1, questions = $2, key_concepts = $3, relevance = $4
 					 WHERE id = $5`,
 					[entry.summary, entry.questions || [], entry.key_concepts || [], entry.relevance || 'medium', chunkRes!.id]
 				);
@@ -290,7 +290,7 @@ export async function preprocessReference(referenceId: string) {
 				});
 			}
 		} catch (e) {
-			console.warn(`Aidele preprocessing: failed to index chapter "${ch.heading}":`, e);
+			console.warn(`Coach preprocessing: failed to index chapter "${ch.heading}":`, e);
 			sections.push({ chapter_index: i, heading: ch.heading, word_count: chWordCount, summary: null });
 		}
 	}
@@ -321,11 +321,11 @@ export async function preprocessReference(referenceId: string) {
 
 	// Step 6: Save index and mark as indexed
 	await query(
-		`UPDATE aidele_references SET index_data = $1, indexed_at = now() WHERE id = $2`,
+		`UPDATE coach_references SET index_data = $1, indexed_at = now() WHERE id = $2`,
 		[JSON.stringify(indexData), referenceId]
 	);
 
-	console.log(`Aidele preprocessing complete: "${ref.title}" — ${chapterTexts.length} chapters, ${highRelevance.length} high-relevance, ${totalInputTokens + totalOutputTokens} tokens`);
+	console.log(`Coach preprocessing complete: "${ref.title}" — ${chapterTexts.length} chapters, ${highRelevance.length} high-relevance, ${totalInputTokens + totalOutputTokens} tokens`);
 
 	// Auto-export library.json so the folder is portable
 	await exportLibrary();
@@ -356,8 +356,8 @@ export async function searchChunks(queryText: string, limit: number = 3) {
 		          || setweight(to_tsvector('simple', coalesce(c.section, '')), 'C'),
 		          to_tsquery('simple', $1)
 		        ) as rank
-		 FROM aidele_chunks c
-		 JOIN aidele_references r ON r.id = c.reference_id
+		 FROM coach_chunks c
+		 JOIN coach_references r ON r.id = c.reference_id
 		 WHERE (
 		   -- Search in AI-generated index (preprocessed)
 		   (c.summary IS NOT NULL AND (
@@ -384,14 +384,14 @@ export async function exportLibrary() {
 	ensureDir(LIBRARY_DIR);
 
 	const refs = (await query(
-		`SELECT * FROM aidele_references ORDER BY created_at`
+		`SELECT * FROM coach_references ORDER BY created_at`
 	)).rows;
 
 	const data: any[] = [];
 	for (const ref of refs) {
 		const chunks = (await query(
 			`SELECT section, content, chunk_index, word_count, summary, questions, key_concepts, relevance
-			 FROM aidele_chunks WHERE reference_id = $1 ORDER BY chunk_index`,
+			 FROM coach_chunks WHERE reference_id = $1 ORDER BY chunk_index`,
 			[ref.id]
 		)).rows;
 
@@ -411,7 +411,7 @@ export async function exportLibrary() {
 	}
 
 	writeFileSync(LIBRARY_JSON, JSON.stringify(data, null, 2), 'utf-8');
-	console.log(`Aidele library exported: ${data.length} references → library.json`);
+	console.log(`Coach library exported: ${data.length} references → library.json`);
 }
 
 export async function importLibrary() {
@@ -424,7 +424,7 @@ export async function importLibrary() {
 	for (const entry of data) {
 		// Skip if already in DB (by title + author match)
 		const existing = await queryOne(
-			`SELECT id FROM aidele_references WHERE title = $1 AND coalesce(author, '') = coalesce($2, '')`,
+			`SELECT id FROM coach_references WHERE title = $1 AND coalesce(author, '') = coalesce($2, '')`,
 			[entry.title, entry.author]
 		);
 		if (existing) {
@@ -434,7 +434,7 @@ export async function importLibrary() {
 
 		// Insert reference
 		const ref = await queryOne<{ id: string }>(
-			`INSERT INTO aidele_references (title, author, description, filename, format, text_file, indexed_at, index_data, created_at)
+			`INSERT INTO coach_references (title, author, description, filename, format, text_file, indexed_at, index_data, created_at)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
 			[entry.title, entry.author, entry.description, entry.filename, entry.format,
 			 entry.text_file, entry.indexed_at, entry.index_data ? JSON.stringify(entry.index_data) : null,
@@ -444,7 +444,7 @@ export async function importLibrary() {
 		// Insert chunks
 		for (const ch of entry.chunks || []) {
 			await query(
-				`INSERT INTO aidele_chunks (reference_id, section, content, chunk_index, word_count, summary, questions, key_concepts, relevance)
+				`INSERT INTO coach_chunks (reference_id, section, content, chunk_index, word_count, summary, questions, key_concepts, relevance)
 				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 				[ref!.id, ch.section, ch.content, ch.chunk_index, ch.word_count,
 				 ch.summary, ch.questions || [], ch.key_concepts || [], ch.relevance]
@@ -454,7 +454,7 @@ export async function importLibrary() {
 		imported++;
 	}
 
-	console.log(`Aidele library imported: ${imported} new, ${skipped} skipped (already present)`);
+	console.log(`Coach library imported: ${imported} new, ${skipped} skipped (already present)`);
 	return { imported, skipped };
 }
 
@@ -464,9 +464,9 @@ export async function autoImportIfNeeded() {
 	if (_autoImportDone) return;
 	_autoImportDone = true;
 
-	const count = await queryOne<{ n: string }>('SELECT COUNT(*) as n FROM aidele_references');
+	const count = await queryOne<{ n: string }>('SELECT COUNT(*) as n FROM coach_references');
 	if (parseInt(count?.n || '0') === 0 && existsSync(LIBRARY_JSON)) {
-		console.log('Aidele: DB empty but library.json found — auto-importing...');
+		console.log('Coach: DB empty but library.json found — auto-importing...');
 		await importLibrary();
 	}
 }

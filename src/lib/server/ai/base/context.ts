@@ -1,11 +1,11 @@
 // Unified context builder for all AI personas.
 // Provides composable functions that each persona can call as needed.
-// Extracted from aidele-context.ts (project overview) and agent.ts (map detail).
+// Extracted from context.ts (project overview) and agent.ts (map detail).
 
 import { query, queryOne } from '../../db/index.js';
 import { getMapsByProject, getMapStructure, getMap, getCrossMapParticipations } from '../../db/queries/maps.js';
 import { getMemosByProject } from '../../db/queries/memos.js';
-import { searchChunks } from '../aidele-library.js';
+import { searchChunks } from '../coach-library.js';
 
 // ── Project overview context ──────────────────────────────────────
 // Used by all personas: project name, element counts, maps summary.

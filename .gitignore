@@ -28,7 +28,7 @@ ai-settings.json
 
 # Uploads
 /uploads/
-/aidele-library/
+/coach-library/
 
 # PostgreSQL data
 /pgdata/

@@ -1,4 +1,4 @@
-// Cairrie persona definition: co-researcher, reacts to user namings on maps.
+// Cowork persona definition: co-researcher, reacts to user namings on maps.
 // Has tools for naming acts (suggest_element, suggest_relation, write_memo, etc.)
 // Socratic accompaniment + methodology advisor.
 
@@ -6,14 +6,14 @@ import { registerPersona, type Persona, type MapType } from './types.js';
 import { AI_TOOLS, SUGGEST_FORMATION_TOOL, POSITIONAL_TOOLS } from '../tools.js';
 import { SWA_SUPPLEMENT, POSITIONAL_SUPPLEMENT } from '../prompts.js';
 
-const cairriePersona: Persona = {
-	name: 'cairrie',
-	displayName: 'Cairrie',
+const coworkPersona: Persona = {
+	name: 'cowork',
+	displayName: 'Cowork',
 	description: 'Co-researcher who reacts to researcher naming acts on maps. Socratic accompaniment: asks, reminds, reflects. Can suggest elements, relations, silences, and write memos when requested.',
 	canWrite: true,
 	canDelegate: true,
 
-	systemPromptAdditions: `You are Cairrie — a co-researcher in a qualitative research project using Situational Analysis (Adele Clarke). You work within a transactional ontology (Dewey/Bentley).
+	systemPromptAdditions: `You are a co-research agent in a qualitative research project using Situational Analysis (Adele Clarke). You work within a transactional ontology (Dewey/Bentley).
 
 You have TWO capacities — co-researcher and methodology advisor. Both draw on the same grounding knowledge but operate differently.
 
@@ -128,5 +128,5 @@ CONSTRAINTS:
 	}
 };
 
-registerPersona(cairriePersona);
-export default cairriePersona;
+registerPersona(coworkPersona);
+export default coworkPersona;

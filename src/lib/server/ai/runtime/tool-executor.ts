@@ -223,9 +223,9 @@ export async function executeMemoDiscussionTool(
 	}
 }
 
-// ── Raichel document tool execution ──────────────────────────────
+// ── Autonomous document tool execution ──────────────────────────
 
-export async function executeRaichelTool(
+export async function executeAutonomousTool(
 	toolName: string,
 	input: Record<string, unknown>,
 	projectId: string,
@@ -300,7 +300,7 @@ export async function executeRaichelTool(
 			}
 
 			default:
-				return { success: false, result: `Unknown Raichel tool: ${toolName}` };
+				return { success: false, result: `Unknown autonomous tool: ${toolName}` };
 		}
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

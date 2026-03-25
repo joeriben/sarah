@@ -4,9 +4,9 @@ export {
 	runMapAgent,
 	discussCue,
 	discussMemo,
-	runRaichelAnalysis
+	runAutonomousAnalysis
 } from './agent.js';
 
-export type { TriggerEvent, RaichelProgress } from './agent.js';
+export type { TriggerEvent, AutonomousProgress } from './agent.js';
 
 export { setAiEnabled } from './tool-executor.js';

@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
-import { runRaichelAnalysis, type RaichelProgress } from '$lib/server/ai/runtime/index.js';
+import { runAutonomousAnalysis, type AutonomousProgress } from '$lib/server/ai/runtime/index.js';
 
 export const POST: RequestHandler = async ({ params, request }) => {
 	const { projectId } = params;
@@ -8,7 +8,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	const { action } = body;
 
 	if (action === 'start') {
-		// SSE streaming response — client sees Raichel's thinking live
+		// SSE streaming response — client sees Autonomous's thinking live
 		const encoder = new TextEncoder();
 		const stream = new ReadableStream({
 			async start(controller) {
@@ -17,7 +17,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 				};
 
 				try {
-					const result = await runRaichelAnalysis(projectId, (progress) => {
+					const result = await runAutonomousAnalysis(projectId, (progress) => {
 						send('progress', progress);
 					});
 

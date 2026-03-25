@@ -2,8 +2,8 @@
 // shared knowledge + persona instructions + context → chat → execute.
 //
 // All AI entry points live here:
-// - runConversation: conversational mode (Aidele)
-// - runMapAgent: map agent mode (Cairrie) — reacts to researcher actions
+// - runConversation: conversational mode (Coach)
+// - runMapAgent: map agent mode (Cowork) — reacts to researcher actions
 // - discussCue: cue discussion mode — researcher discusses an AI-generated cue
 // - discussMemo: memo discussion mode — researcher discusses an analytical memo
 
@@ -19,7 +19,7 @@ import { getOrCreateAiNaming, logAiInteraction } from '../../db/queries/ai.js';
 import { createMemo } from '../../db/queries/memos.js';
 import { getMap } from '../../db/queries/maps.js';
 import { query, transaction } from '../../db/index.js';
-import { executeMapTool, executeCueDiscussionTool, executeMemoDiscussionTool, executeRaichelTool, isAiEnabled } from './tool-executor.js';
+import { executeMapTool, executeCueDiscussionTool, executeMemoDiscussionTool, executeAutonomousTool, isAiEnabled } from './tool-executor.js';
 import { buildContextMessage, buildDiscussionMessage, buildMemoDiscussionMessage, DISCUSSION_SYSTEM_PROMPT, MEMO_DISCUSSION_PROMPT, type TriggerEvent, type DiscussionContext, type MemoDiscussionContext } from '../prompts.js';
 import { DISCUSSION_TOOLS, MEMO_DISCUSSION_TOOLS } from '../tools.js';
 import type { ToolDef } from '../client.js';
@@ -160,7 +160,7 @@ async function executeInfrastructureTool(
 	return null;
 }
 
-// ── Entry point: Conversational mode (Aidele) ────────────────────
+// ── Entry point: Conversational mode (Coach) ────────────────────
 
 export async function runConversation(
 	personaName: PersonaName,
@@ -231,7 +231,7 @@ export async function runConversation(
 	};
 }
 
-// ── Entry point: Map agent (Cairrie) ─────────────────────────────
+// ── Entry point: Map agent (Cowork) ─────────────────────────────
 
 export async function runMapAgent(
 	projectId: string,
@@ -242,7 +242,7 @@ export async function runMapAgent(
 
 	const model = getModel();
 	const aiNamingId = await getOrCreateAiNaming(projectId, model);
-	const persona = getPersona('cairrie');
+	const persona = getPersona('cowork');
 	const context = await buildStructuredMapContext(mapId, projectId);
 
 	// Positional maps: only respond to explicit analysis requests
@@ -267,7 +267,7 @@ export async function runMapAgent(
 
 		for (const tc of response.toolCalls) {
 			// Try infrastructure tools first (search, delegation, tickets)
-			const infraResult = await executeInfrastructureTool(tc.name, tc.input, projectId, 'cairrie');
+			const infraResult = await executeInfrastructureTool(tc.name, tc.input, projectId, 'cowork');
 			if (infraResult) {
 				toolResults.push({ tool: tc.name, input: tc.input, result: infraResult.result });
 				continue;
@@ -562,16 +562,16 @@ export async function discussMemo(
 	return { response: aiResponseText, actions };
 }
 
-// ── Entry point: Raichel autonomous analysis ─────────────────────
+// ── Entry point: Autonomous analysis ─────────────────────────────
 
-export interface RaichelProgress {
+export interface AutonomousProgress {
 	phase: 'starting' | 'coding' | 'cross-analysis' | 'integration' | 'done' | 'error';
 	document?: string;
 	documentIndex?: number;
 	documentCount?: number;
 	toolCalls?: number;
 	message?: string;
-	/** Raichel's thinking/text output from the LLM */
+	/** Autonomous agent's thinking/text output from the LLM */
 	thinking?: string;
 	/** Tool call that was just executed */
 	toolCall?: { name: string; input: Record<string, unknown>; result: unknown };
@@ -585,7 +585,7 @@ async function executeToolLoop(
 	projectId: string,
 	mapId: string,
 	aiNamingId: string,
-	progress: (p: Partial<RaichelProgress>) => void
+	progress: (p: Partial<AutonomousProgress>) => void
 ): Promise<{ text: string; totalToolCalls: number }> {
 	const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
 		{ role: 'user', content: initialMessage }
@@ -615,14 +615,14 @@ async function executeToolLoop(
 			let result: { success: boolean; result: unknown } | null = null;
 
 			// Try infrastructure tools
-			const infraResult = await executeInfrastructureTool(tc.name, tc.input, projectId, 'raichel');
+			const infraResult = await executeInfrastructureTool(tc.name, tc.input, projectId, 'autonomous');
 			if (infraResult) {
 				result = infraResult;
 			} else {
-				// Try Raichel-specific tools
-				const raichelResult = await executeRaichelTool(tc.name, tc.input, projectId, mapId, aiNamingId);
-				if (raichelResult.success || ['read_document', 'code_passage', 'designate'].includes(tc.name)) {
-					result = raichelResult;
+				// Try autonomous-specific tools
+				const autonomousResult = await executeAutonomousTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+				if (autonomousResult.success || ['read_document', 'code_passage', 'designate'].includes(tc.name)) {
+					result = autonomousResult;
 				} else {
 					// Try map tools
 					result = await executeMapTool(tc.name, tc.input, projectId, mapId, aiNamingId);
@@ -669,7 +669,7 @@ async function processChunkDirectly(
 	projectId: string,
 	mapId: string,
 	aiNamingId: string,
-	progress: (p: Partial<RaichelProgress>) => void
+	progress: (p: Partial<AutonomousProgress>) => void
 ): Promise<Array<{ passage: string; code_label: string; reasoning: string }>> {
 	progress({ thinking: `Chunk ${chunkIndex}/${totalChunks}...` });
 
@@ -696,14 +696,14 @@ async function processChunkDirectly(
 	return [];
 }
 
-export async function runRaichelAnalysis(
+export async function runAutonomousAnalysis(
 	projectId: string,
-	onProgress?: (progress: RaichelProgress) => void
+	onProgress?: (progress: AutonomousProgress) => void
 ): Promise<{ mapId: string; summary: string }> {
 	const model = getModel();
 	const aiNamingId = await getOrCreateAiNaming(projectId, model);
-	const persona = getPersona('raichel');
-	const progress = (p: RaichelProgress) => onProgress?.(p);
+	const persona = getPersona('autonomous');
+	const progress = (p: AutonomousProgress) => onProgress?.(p);
 
 	progress({ phase: 'starting', message: 'Listing documents and preparing map...' });
 
@@ -723,10 +723,10 @@ export async function runRaichelAnalysis(
 		throw new Error('No documents found in project. Upload documents first.');
 	}
 
-	// Get or create a situational map for Raichel's analysis
-	const mapId = await getOrCreateRaichelMap(projectId, aiNamingId);
+	// Get or create a situational map for autonomous analysis
+	const mapId = await getOrCreateAutonomousMap(projectId, aiNamingId);
 	const mapType = 'situational';
-	const persona2 = getPersona('raichel');
+	const persona2 = getPersona('autonomous');
 	const systemPrompt = buildSystemPrompt(persona2, mapType);
 	const tools = buildToolSet(persona2, mapType);
 
@@ -859,7 +859,7 @@ If no analytically significant passages exist in this chunk, return: []`;
 		for (const p of allPassages) {
 			if (!p.passage || !p.code_label) continue;
 
-			const result = await executeRaichelTool(
+			const result = await executeAutonomousTool(
 				'code_passage',
 				{
 					document_id: doc.id,
@@ -991,16 +991,16 @@ Write an integrative memo (write_memo) that addresses:
 	return { mapId, summary };
 }
 
-// Helper: get or create a situational map for Raichel's analysis
-async function getOrCreateRaichelMap(projectId: string, aiNamingId: string): Promise<string> {
-	// Check for existing Raichel map
+// Helper: get or create a situational map for autonomous analysis
+async function getOrCreateAutonomousMap(projectId: string, aiNamingId: string): Promise<string> {
+	// Check for existing autonomous map
 	const existing = await query(
 		`SELECT a.naming_id FROM appearances a
 		 JOIN namings n ON n.id = a.naming_id
 		 WHERE n.project_id = $1 AND n.deleted_at IS NULL
 		   AND a.perspective_id = a.naming_id AND a.mode = 'perspective'
 		   AND a.properties->>'mapType' = 'situational'
-		   AND a.properties->>'createdBy' = 'raichel'
+		   AND a.properties->>'createdBy' = 'autonomous'
 		 LIMIT 1`,
 		[projectId]
 	);
@@ -1011,14 +1011,14 @@ async function getOrCreateRaichelMap(projectId: string, aiNamingId: string): Pro
 		const mapNaming = await client.query(
 			`INSERT INTO namings (project_id, inscription, created_by)
 			 VALUES ($1, $2, $3) RETURNING id`,
-			[projectId, 'Raichel: Situational Map', AI_SYSTEM_UUID]
+			[projectId, 'Autonomous: Situational Map', AI_SYSTEM_UUID]
 		);
 		const mapId = mapNaming.rows[0].id;
 
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $1, 'perspective', $2)`,
-			[mapId, JSON.stringify({ mapType: 'situational', createdBy: 'raichel' })]
+			[mapId, JSON.stringify({ mapType: 'situational', createdBy: 'autonomous' })]
 		);
 
 		await client.query(

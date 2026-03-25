@@ -16,7 +16,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	}
 
 	try {
-		const result = await runConversation('aidele', params.projectId, message, history || [], {
+		const result = await runConversation('coach', params.projectId, message, history || [], {
 			currentPage,
 			mapId: currentMapId,
 			maxTokens: 16000
@@ -24,7 +24,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 
 		return json({ response: result.response });
 	} catch (e: any) {
-		console.error('Aidele error:', e.message);
+		console.error('Coach error:', e.message);
 		return json({ error: e.message }, { status: 500 });
 	}
 };

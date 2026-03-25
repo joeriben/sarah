@@ -1,7 +1,7 @@
 // Canonical methodology knowledge — single source of truth for all AI personas.
 // Contains: transactional ontology, CCS gradient, Clarke's SA, the unmarked,
 // provenance, data model, map types, memos.
-// Extracted from aidele-prompt.ts (comprehensive) and prompts.ts (co-analyst).
+// Extracted from comprehensive methodology prompts and co-analyst prompts.
 
 export const METHODOLOGY = `
 ═══════════════════════════════════════
