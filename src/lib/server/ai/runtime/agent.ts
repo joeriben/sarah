@@ -767,7 +767,7 @@ export async function runAutonomousAnalysis(
 			 FROM namings n
 			 JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = $1 AND a.mode = 'entity'
 			 LEFT JOIN LATERAL (
-			   SELECT designation FROM naming_designations
+			   SELECT designation FROM naming_acts
 			   WHERE naming_id = n.id AND designation IS NOT NULL
 			   ORDER BY seq DESC LIMIT 1
 			 ) nd ON true
@@ -975,7 +975,7 @@ When in doubt, skip — a missed passage can be found later, but code inflation 
 				 FROM namings n
 				 JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = $1 AND a.mode = 'entity'
 				 LEFT JOIN LATERAL (
-				   SELECT designation FROM naming_designations
+				   SELECT designation FROM naming_acts
 				   WHERE naming_id = n.id AND designation IS NOT NULL
 				   ORDER BY seq DESC LIMIT 1
 				 ) nd ON true
