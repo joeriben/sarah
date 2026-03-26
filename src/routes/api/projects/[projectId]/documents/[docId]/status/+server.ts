@@ -5,7 +5,7 @@ export async function GET({ params }) {
 	const { projectId, docId } = params;
 
 	const result = await query(
-		`SELECT COUNT(*)::int as element_count,
+		`SELECT COUNT(*) FILTER (WHERE de.content IS NOT NULL)::int as element_count,
 		        COUNT(de.embedding)::int as embedded_count
 		 FROM document_elements de
 		 WHERE de.document_id = $1`,

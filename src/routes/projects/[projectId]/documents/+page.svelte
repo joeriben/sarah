@@ -309,8 +309,10 @@
 							<td class="meta">
 								{#if parsing === doc.id}
 									<span class="status-parsing">parsing...</span>
+								{:else if doc.element_count > 0 && doc.embedded_count >= doc.element_count}
+									<span class="status-done" title="{doc.element_count} elements, all embedded">{doc.element_count} el</span>
 								{:else if doc.element_count > 0}
-									<span class={doc.embedded_count > 0 && doc.embedded_count >= doc.element_count ? 'status-done' : 'status-ok'} title="{doc.element_count} elements, {doc.embedded_count} embeddings">{doc.element_count} el / {doc.embedded_count} emb</span>
+									<span class="status-embedding" title="{doc.embedded_count}/{doc.element_count} embedded">{doc.embedded_count}/{doc.element_count} embedding...</span>
 								{:else}
 									<button class="btn-xs btn-parse" onclick={() => parseDocument(doc.id)}>parse</button>
 								{/if}
@@ -464,6 +466,7 @@
 	.btn-parse:hover { border-color: #10b981; }
 	.btn-parse:disabled { opacity: 0.5; cursor: wait; }
 	.status-parsing { color: #f59e0b; font-size: 0.75rem; }
+	.status-embedding { color: #f59e0b; font-size: 0.75rem; }
 	.status-ok { color: #6b7280; font-size: 0.75rem; }
 	.status-done { color: #10b981; font-size: 0.75rem; }
 </style>

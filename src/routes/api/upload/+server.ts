@@ -44,9 +44,9 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 			await parseAndStore(client, namingId, fullText, mimeType);
 		}
 
-		// Count parsed elements
+		// Count parsed leaf elements (sentences/headings with content)
 		const countRes = await client.query(
-			`SELECT COUNT(*)::int as cnt FROM document_elements WHERE document_id = $1`, [namingId]
+			`SELECT COUNT(*)::int as cnt FROM document_elements WHERE document_id = $1 AND content IS NOT NULL`, [namingId]
 		);
 
 		return {
