@@ -1,5 +1,6 @@
 <script lang="ts">
 	let { data } = $props();
+	let documents = $state(documents || []);
 	let uploading = $state(false);
 	let dragOver = $state(false);
 	let parsing = $state<string | null>(null);
@@ -23,10 +24,13 @@
 		for (const file of files) {
 			const fd = new FormData();
 			fd.append('file', file);
-			await fetch(`/api/upload?projectId=${data.projectId}`, { method: 'POST', body: fd });
+			const res = await fetch(`/api/upload?projectId=${data.projectId}`, { method: 'POST', body: fd });
+			if (res.ok) {
+				const doc = await res.json();
+				documents = [...documents, doc];
+			}
 		}
 		uploading = false;
-		window.location.reload();
 	}
 
 	function onDrop(e: DragEvent) {
@@ -110,11 +114,11 @@
 			if (res.ok) {
 				const result = await res.json();
 				// Update counts in local data
-				const doc = data.documents.find((d: any) => d.id === docId);
+				const doc = documents.find((d: any) => d.id === docId);
 				if (doc) {
 					doc.element_count = result.elements;
 					doc.embedded_count = result.embeddings;
-					data.documents = [...data.documents]; // trigger reactivity
+					documents = [...documents]; // trigger reactivity
 				}
 			}
 		} finally {
@@ -124,7 +128,7 @@
 
 	// Parse all unparsed documents
 	async function parseAll() {
-		const unparsed = data.documents.filter((d: any) => !d.element_count);
+		const unparsed = documents.filter((d: any) => !d.element_count);
 		for (const doc of unparsed) {
 			await parseDocument(doc.id);
 		}
@@ -134,17 +138,17 @@
 		if (!confirm(`Delete "${label}"?`)) return;
 		const res = await fetch(`/api/projects/${data.projectId}/documents/${docId}`, { method: 'DELETE' });
 		if (res.ok) {
-			data.documents = data.documents.filter((d: any) => d.id !== docId);
+			documents = documents.filter((d: any) => d.id !== docId);
 		}
 	}
 
-	const hasUnparsed = $derived(data.documents.some((d: any) => !d.element_count));
+	const hasUnparsed = $derived(documents.some((d: any) => !d.element_count));
 
 	// Documents not yet in the expanded docnet
 	const availableDocuments = $derived(() => {
-		if (!expandedDocNet || !docnetDocuments[expandedDocNet]) return data.documents;
+		if (!expandedDocNet || !docnetDocuments[expandedDocNet]) return documents;
 		const inNet = new Set(docnetDocuments[expandedDocNet].map((d: any) => d.id));
-		return data.documents.filter((d: any) => !inNet.has(d.id));
+		return documents.filter((d: any) => !inNet.has(d.id));
 	});
 </script>
 
@@ -238,7 +242,7 @@
 	>
 		{#if uploading}
 			<p>Uploading...</p>
-		{:else if data.documents.length === 0}
+		{:else if documents.length === 0}
 			<p>Drop files here or click Upload</p>
 		{:else}
 			<table>
@@ -253,7 +257,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each data.documents as doc}
+					{#each documents as doc}
 						<tr>
 							<td><a href="/projects/{data.projectId}/documents/{doc.id}">{doc.label}</a></td>
 							<td class="meta">{doc.mime_type?.split('/')[1] || 'unknown'}</td>
@@ -262,7 +266,7 @@
 								{#if parsing === doc.id}
 									<span class="status-parsing">parsing...</span>
 								{:else if doc.element_count > 0}
-									<span class="status-ok" title="{doc.element_count - doc.embedded_count} paragraphs, {doc.embedded_count} sentences with embeddings">{doc.element_count} el / {doc.embedded_count} emb</span>
+									<span class={doc.embedded_count > 0 && doc.embedded_count >= doc.element_count ? 'status-done' : 'status-ok'} title="{doc.element_count} elements, {doc.embedded_count} embeddings">{doc.element_count} el / {doc.embedded_count} emb</span>
 								{:else}
 									<button class="btn-xs btn-parse" onclick={() => parseDocument(doc.id)}>parse</button>
 								{/if}
@@ -417,4 +421,5 @@
 	.btn-parse:disabled { opacity: 0.5; cursor: wait; }
 	.status-parsing { color: #f59e0b; font-size: 0.75rem; }
 	.status-ok { color: #6b7280; font-size: 0.75rem; }
+	.status-done { color: #10b981; font-size: 0.75rem; }
 </style>

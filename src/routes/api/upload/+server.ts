@@ -44,7 +44,20 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 			await parseAndStore(client, namingId, fullText, mimeType);
 		}
 
-		return { id: namingId, label: namingRes.rows[0].label, mimeType, size: buffer.length };
+		// Count parsed elements
+		const countRes = await client.query(
+			`SELECT COUNT(*)::int as cnt FROM document_elements WHERE document_id = $1`, [namingId]
+		);
+
+		return {
+			id: namingId,
+			label: namingRes.rows[0].label,
+			created_at: namingRes.rows[0].created_at,
+			mime_type: mimeType,
+			file_size: buffer.length,
+			element_count: countRes.rows[0].cnt,
+			embedded_count: 0
+		};
 	});
 
 	// Compute embeddings after transaction commits (async, non-blocking)
