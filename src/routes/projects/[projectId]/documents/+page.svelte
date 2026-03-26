@@ -253,7 +253,7 @@
 								{#if parsing === doc.id}
 									<span class="status-parsing">parsing...</span>
 								{:else if doc.element_count > 0}
-									<span class="status-ok" title="{doc.element_count} elements, {doc.embedded_count} embeddings">{doc.element_count} el / {doc.embedded_count} emb</span>
+									<span class="status-ok" title="{doc.element_count - doc.embedded_count} paragraphs, {doc.embedded_count} sentences with embeddings">{doc.element_count} el / {doc.embedded_count} emb</span>
 								{:else}
 									<button class="btn-xs btn-parse" onclick={() => parseDocument(doc.id)}>parse</button>
 								{/if}
