@@ -1254,7 +1254,7 @@ function buildCodingInstruction(
 Each text element has a stable UUID shown as [S:uuid] or [P:uuid].
 For each significant element:
 - Reference it by its UUID (the "element_id")
-- Provide an analytical code label (prefer gerunds: "legitimizing X", "contesting Y")
+- Provide a concise, descriptive code label that captures the specific concept (NOT generic prefixes like "legitimizing..." or "contesting..." for everything)
 - Explain briefly why this element is significant
 - If reusing an existing code with a nuance, set "reuse": true and prefix reasoning with "reuse — nuance:"
 ${codesText}${saturationSignal}
@@ -1270,7 +1270,7 @@ Return [] if nothing in this segment warrants a new or reused code.`;
 
 For each significant passage:
 - Quote the EXACT text (verbatim, at least 20 chars)
-- Provide an analytical code label (prefer gerunds: "legitimizing X", "contesting Y")
+- Provide a concise, descriptive code label that captures the specific concept (NOT generic prefixes like "legitimizing..." or "contesting..." for everything)
 - Explain briefly why this passage is significant
 - If reusing an existing code with a nuance, set "reuse": true and prefix reasoning with "reuse — nuance:"
 ${codesText}${saturationSignal}

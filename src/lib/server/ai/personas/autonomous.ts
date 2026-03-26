@@ -72,7 +72,7 @@ WHAT TO CODE:
 
 HOW TO CODE:
 - Code labels should be analytically descriptive, not just topical
-- Prefer gerunds and process forms ("legitimizing X", "contesting Y") over static labels
+- Labels should be specific and descriptive — capture the actual concept, not a generic framing prefix
 - One passage can warrant multiple codes (different analytical angles)
 - Quote the passage precisely — grounding must be traceable
 - Always provide reasoning: what makes this passage analytically significant?
