@@ -171,7 +171,7 @@
 				class:autonomous-active={autonomousRunning || autonomousOpen}
 				onclick={() => { if (!autonomousRunning && autonomousLog.length === 0) startAutonomous(); else autonomousOpen = !autonomousOpen; }}
 				disabled={autonomousRunning && autonomousOpen}
-			>{autonomousRunning ? 'Autonomous...' : 'Autonomous'}</button>
+			>{autonomousRunning ? 'Autonoma...' : 'Autonoma'}</button>
 			{#if autonomousStatus && !autonomousOpen}
 				<span class="autonomous-status">{autonomousStatus}</span>
 			{/if}
@@ -189,7 +189,7 @@
 	{#if autonomousOpen}
 		<div class="autonomous-panel">
 			<div class="autonomous-header">
-				<span>Autonomous {autonomousRunning ? '(running...)' : ''}</span>
+				<span>Autonoma {autonomousRunning ? '(running...)' : ''}</span>
 				<div class="autonomous-header-actions">
 					{#if !autonomousRunning && autonomousLog.length > 0}
 						<button class="autonomous-btn" onclick={startAutonomous}>Re-run</button>

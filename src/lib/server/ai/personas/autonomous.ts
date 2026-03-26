@@ -17,7 +17,7 @@ import {
 
 const autonomousPersona: Persona = {
 	name: 'autonomous',
-	displayName: 'Autonomous',
+	displayName: 'Autonoma',
 	description: 'Autonomous researcher: codes documents, creates namings and relations independently. Output is critically reviewed by the cowork agent.',
 	canWrite: true,
 	canDelegate: true,

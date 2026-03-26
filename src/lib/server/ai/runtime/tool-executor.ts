@@ -238,7 +238,7 @@ export async function executeAutonomousTool(
 	projectId: string,
 	mapId: string,
 	aiNamingId: string,
-	personaLabel: string = 'Autonomous'
+	personaLabel: string = 'Autonoma'
 ): Promise<{ success: boolean; result: unknown }> {
 	try {
 		switch (toolName) {
