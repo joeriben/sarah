@@ -2,6 +2,7 @@
 	let { data } = $props();
 	let uploading = $state(false);
 	let dragOver = $state(false);
+	let parsing = $state<string | null>(null);
 
 	// DocNet state
 	let docnets = $state(data.docnets || []);
@@ -101,6 +102,36 @@
 		if (dn) dn.document_count = docnetDocuments[docnetId].length;
 	}
 
+	// Parse + embed a single document
+	async function parseDocument(docId: string) {
+		parsing = docId;
+		try {
+			const res = await fetch(`/api/projects/${data.projectId}/documents/${docId}/parse`, { method: 'POST' });
+			if (res.ok) {
+				const result = await res.json();
+				// Update counts in local data
+				const doc = data.documents.find((d: any) => d.id === docId);
+				if (doc) {
+					doc.element_count = result.elements;
+					doc.embedded_count = result.embeddings;
+					data.documents = [...data.documents]; // trigger reactivity
+				}
+			}
+		} finally {
+			parsing = null;
+		}
+	}
+
+	// Parse all unparsed documents
+	async function parseAll() {
+		const unparsed = data.documents.filter((d: any) => !d.element_count);
+		for (const doc of unparsed) {
+			await parseDocument(doc.id);
+		}
+	}
+
+	const hasUnparsed = $derived(data.documents.some((d: any) => !d.element_count));
+
 	// Documents not yet in the expanded docnet
 	const availableDocuments = $derived(() => {
 		if (!expandedDocNet || !docnetDocuments[expandedDocNet]) return data.documents;
@@ -112,10 +143,17 @@
 <div class="documents-page">
 	<div class="header">
 		<h1>Documents</h1>
-		<label class="btn-primary">
-			Upload
-			<input type="file" multiple hidden onchange={onFileInput} accept=".pdf,.txt,.md,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp" />
-		</label>
+		<div class="header-actions">
+			{#if hasUnparsed}
+				<button class="btn-sm btn-parse" onclick={parseAll} disabled={parsing !== null}>
+					{parsing ? 'Parsing...' : 'Parse All'}
+				</button>
+			{/if}
+			<label class="btn-primary">
+				Upload
+				<input type="file" multiple hidden onchange={onFileInput} accept=".pdf,.txt,.md,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp" />
+			</label>
+		</div>
 	</div>
 
 	<!-- DocNets Section -->
@@ -201,6 +239,7 @@
 						<th>Name</th>
 						<th>Type</th>
 						<th>Size</th>
+						<th>Parsed</th>
 						<th>Added</th>
 					</tr>
 				</thead>
@@ -210,6 +249,15 @@
 							<td><a href="/projects/{data.projectId}/documents/{doc.id}">{doc.label}</a></td>
 							<td class="meta">{doc.mime_type?.split('/')[1] || 'unknown'}</td>
 							<td class="meta">{formatSize(doc.file_size)}</td>
+							<td class="meta">
+								{#if parsing === doc.id}
+									<span class="status-parsing">parsing...</span>
+								{:else if doc.element_count > 0}
+									<span class="status-ok" title="{doc.element_count} elements, {doc.embedded_count} embeddings">{doc.element_count} el / {doc.embedded_count} emb</span>
+								{:else}
+									<button class="btn-xs btn-parse" onclick={() => parseDocument(doc.id)}>parse</button>
+								{/if}
+							</td>
 							<td class="meta">{new Date(doc.created_at).toLocaleDateString()}</td>
 						</tr>
 					{/each}
@@ -352,4 +400,11 @@
 		font-size: 0.9rem;
 	}
 	.meta { color: #6b7280; font-size: 0.8rem; }
+
+	.header-actions { display: flex; gap: 0.5rem; align-items: center; }
+	.btn-parse { color: #10b981; border-color: rgba(16, 185, 129, 0.3); }
+	.btn-parse:hover { border-color: #10b981; }
+	.btn-parse:disabled { opacity: 0.5; cursor: wait; }
+	.status-parsing { color: #f59e0b; font-size: 0.75rem; }
+	.status-ok { color: #6b7280; font-size: 0.75rem; }
 </style>
