@@ -614,19 +614,25 @@ async function executeToolLoop(
 			totalToolCalls++;
 			let result: { success: boolean; result: unknown } | null = null;
 
-			// Try infrastructure tools
-			const infraResult = await executeInfrastructureTool(tc.name, tc.input, projectId, 'autonomous');
-			if (infraResult) {
-				result = infraResult;
-			} else {
-				// Try autonomous-specific tools
-				const autonomousResult = await executeAutonomousTool(tc.name, tc.input, projectId, mapId, aiNamingId);
-				if (autonomousResult.success || ['read_document', 'code_passage', 'designate'].includes(tc.name)) {
-					result = autonomousResult;
+			try {
+				// Try infrastructure tools
+				const infraResult = await executeInfrastructureTool(tc.name, tc.input, projectId, 'autonomous');
+				if (infraResult) {
+					result = infraResult;
 				} else {
-					// Try map tools
-					result = await executeMapTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+					// Try autonomous-specific tools
+					const autonomousResult = await executeAutonomousTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+					if (autonomousResult.success || ['read_document', 'code_passage', 'designate'].includes(tc.name)) {
+						result = autonomousResult;
+					} else {
+						// Try map tools
+						result = await executeMapTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+					}
 				}
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				result = { success: false, result: `Tool error: ${msg}` };
+				progress({ thinking: `Tool ${tc.name} failed gracefully: ${msg}` });
 			}
 
 			const resultStr = typeof result!.result === 'string' ? result!.result : JSON.stringify(result!.result);
