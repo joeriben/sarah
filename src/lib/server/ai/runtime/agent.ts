@@ -759,58 +759,68 @@ export async function runAutonomousAnalysis(
 		const segmentCount = usesElements ? elementSegments.length : legacySegments.length;
 		progress({ phase: 'coding', thinking: `${segmentCount} segments (${usesElements ? 'parsed elements' : 'paragraph boundaries'})` });
 
-		// Get existing codes for the delegation prompt
-		const existingCodes = (await query(
-			`SELECT n.id, n.inscription FROM namings n
+		// Get existing codes with annotation counts and designations (Level 3)
+		const existingCodesFromDb = (await query(
+			`SELECT n.id, n.inscription,
+			        COALESCE(nd.designation, 'cue') as designation,
+			        COUNT(DISTINCT ann.id)::int as annotation_count
+			 FROM namings n
 			 JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = $1 AND a.mode = 'entity'
-			 WHERE n.project_id = $2 AND n.deleted_at IS NULL`,
+			 LEFT JOIN LATERAL (
+			   SELECT designation FROM naming_designations
+			   WHERE naming_id = n.id AND designation IS NOT NULL
+			   ORDER BY seq DESC LIMIT 1
+			 ) nd ON true
+			 LEFT JOIN LATERAL (
+			   SELECT r.id FROM namings r
+			   JOIN appearances ra ON ra.naming_id = r.id AND ra.mode = 'relation'
+			   WHERE ra.properties->>'sourceId' = n.id::text
+			     AND ra.properties->>'type' = 'annotation'
+			 ) ann ON true
+			 WHERE n.project_id = $2 AND n.deleted_at IS NULL
+			 GROUP BY n.id, n.inscription, nd.designation`,
 			[mapId, projectId]
-		)).rows;
+		)).rows as Array<{ id: string; inscription: string; designation: string; annotation_count: number }>;
 
-		const existingCodesText = existingCodes.length > 0
-			? `\nEXISTING CODES (reuse if same concept):\n${existingCodes.map((c: any) => `- "${c.inscription}"`).join('\n')}`
-			: '';
+		// Build mutable codes list that accumulates across segments (Level 2)
+		const codesList: Array<{ label: string; designation: string; annotations: number }> = existingCodesFromDb.map((c) => ({
+			label: c.inscription,
+			designation: c.designation,
+			annotations: c.annotation_count
+		}));
 
 		// Identify elements to code: delegate to configured agent, or process directly
-		let allIdentified: Array<{ element_id?: string; passage?: string; code_label: string; reasoning: string }> = [];
+		let allIdentified: Array<{ element_id?: string; passage?: string; code_label: string; reasoning: string; reuse?: boolean }> = [];
+		const nearDuplicateNotes: Array<{ code_label: string; reasoning: string }> = [];
 
 		const delegateAgent = await getConfiguredDelegationAgent();
 		const useDelegation = !!delegateAgent;
 
-		const codingInstruction = usesElements
-			? `You are a qualitative researcher coding a document using Situational Analysis (Adele Clarke).
+		// Delegation system prompt (Level 4) — methodology context the mini model needs
+		const delegationSystemPrompt = `You are a qualitative researcher trained in Situational Analysis (Clarke).
+You identify ONLY passages that are analytically distinctive — not everything that is "interesting" or "relevant."
 
-Each text element has a stable UUID shown as [S:uuid] or [P:uuid]. Identify analytically significant elements.
-For each element:
-- Reference it by its UUID (the "element_id")
-- Provide an analytical code label (prefer gerunds: "legitimizing X", "contesting Y")
-- Explain briefly why this element is significant
+A passage warrants coding when it:
+- Constructs, contests, or legitimizes something in the situation
+- Reveals a tension, contradiction, or taken-for-granted assumption
+- Enacts a material-discursive entanglement (human/nonhuman hybrids)
+- Makes an absence visible through what IS said
 
-Focus on: actors, processes, discursive constructions, contested issues, material-discursive entanglements, implicit assumptions, tensions.
-Do NOT code trivial content (headers, formatting, meta-text).
-Quality over quantity — code what is analytically significant, skip the rest.
-${existingCodesText}
+A passage does NOT warrant coding when it:
+- Merely describes or reports without analytical charge
+- Repeats a concept already captured by an existing code
+- Is procedural, organizational, or meta-textual
 
-Respond in JSON format:
-[{"element_id": "uuid", "code_label": "analytical label", "reasoning": "why significant"}]
+BEFORE CREATING ANY NEW CODE:
+1. Check the existing codes list — is this concept already captured?
+   → If YES: reuse the existing code (same code_label), do NOT create a duplicate
+   → If CLOSE but not identical: reuse the existing code AND note the nuance in your reasoning (prefix with "reuse — nuance:")
+   → If genuinely NEW: create a new code
+2. "Close" means: same actor, same process, same tension — just different wording.
+   One code for the concept, not one code per phrasing.
 
-If no analytically significant elements exist in this segment, return: []`
-			: `You are a qualitative researcher coding a document using Situational Analysis (Adele Clarke).
-
-Identify analytically significant passages in this text. For each passage:
-- Quote the EXACT text (verbatim, at least 20 chars)
-- Provide an analytical code label (prefer gerunds: "legitimizing X", "contesting Y")
-- Explain briefly why this passage is significant
-
-Focus on: actors, processes, discursive constructions, contested issues, material-discursive entanglements, implicit assumptions, tensions.
-Do NOT code trivial content (headers, formatting, meta-text).
-Quality over quantity — code what is analytically significant, skip the rest.
-${existingCodesText}
-
-Respond in JSON format:
-[{"passage": "exact quote from text", "code_label": "analytical label", "reasoning": "why significant"}]
-
-If no analytically significant passages exist in this segment, return: []`;
+Typical density: 3-8 codes per text segment. Most sentences are NOT code-worthy.
+When in doubt, skip — a missed passage can be found later, but code inflation cannot easily be reversed.`;
 
 		if (useDelegation) {
 			// ── Delegation path: segments processed by delegation agent ──
@@ -820,11 +830,14 @@ If no analytically significant passages exist in this segment, return: []`;
 			for (let s = 0; s < segmentCount; s++) {
 				progress({ phase: 'coding', document: doc.title, thinking: `Segment ${s + 1}/${segmentCount}...` });
 
+				// Build per-segment instruction with current codes list (Level 2 + 3)
+				const codingInstruction = buildCodingInstruction(codesList, usesElements, s + 1, segmentCount);
 				const segmentText = usesElements ? elementSegments[s].formatted : legacySegments[s];
 				const taskWithSegment = codingInstruction + `\n\nDOCUMENT SEGMENT (${s + 1}/${segmentCount}):\n"""\n${segmentText}\n"""`;
 
 				const delegationResult = await executeDelegation(
-					delegateAgent.label, taskWithSegment, 4096, projectId
+					delegateAgent.label, taskWithSegment, 4096, projectId,
+					undefined, delegationSystemPrompt
 				);
 
 				if (!delegationResult.success) {
@@ -832,11 +845,12 @@ If no analytically significant passages exist in this segment, return: []`;
 					progress({ phase: 'coding', thinking: `Segment ${s + 1}: failed — ${delegationResult.result}` });
 					if (consecutiveFailures >= 3) {
 						progress({ phase: 'coding', thinking: `Delegation agent failing — switching to direct processing` });
+						const fallbackInstruction = buildCodingInstruction(codesList, usesElements, 0, segmentCount);
 						for (let r = s; r < segmentCount; r++) {
 							const segText = usesElements ? elementSegments[r].formatted : legacySegments[r];
 							const directPassages = await processSegmentDirectly(
 								systemPrompt, tools, segText, r + 1, segmentCount,
-								codingInstruction, projectId, mapId, aiNamingId,
+								fallbackInstruction, projectId, mapId, aiNamingId,
 								(p) => progress({ phase: 'coding', document: doc.title, ...p })
 							);
 							allIdentified.push(...directPassages);
@@ -853,7 +867,22 @@ If no analytically significant passages exist in this segment, return: []`;
 						const identified = JSON.parse(jsonMatch[0]);
 						if (Array.isArray(identified)) {
 							allIdentified.push(...identified);
-							progress({ phase: 'coding', thinking: `Segment ${s + 1}: ${identified.length} elements identified` });
+							// Accumulate new labels for next segment's prompt (Level 2)
+							for (const item of identified) {
+								if (item.code_label) {
+									const existing = codesList.find(c => c.label.toLowerCase() === item.code_label.toLowerCase());
+									if (existing) {
+										existing.annotations++;
+									} else {
+										codesList.push({ label: item.code_label, designation: 'cue', annotations: 1 });
+									}
+								}
+								// Track near-duplicate notes (Level 2b)
+								if (item.reuse && item.reasoning?.includes('nuance:')) {
+									nearDuplicateNotes.push({ code_label: item.code_label, reasoning: item.reasoning });
+								}
+							}
+							progress({ phase: 'coding', thinking: `Segment ${s + 1}: ${identified.length} elements identified (${codesList.length} codes total)` });
 						}
 					}
 				} catch {
@@ -864,6 +893,7 @@ If no analytically significant passages exist in this segment, return: []`;
 			// ── Direct path: chief model processes segments itself ──
 			progress({ phase: 'coding', thinking: `No delegation agent — processing ${segmentCount} segments directly` });
 			for (let s = 0; s < segmentCount; s++) {
+				const codingInstruction = buildCodingInstruction(codesList, usesElements, s + 1, segmentCount);
 				const segText = usesElements ? elementSegments[s].formatted : legacySegments[s];
 				const directPassages = await processSegmentDirectly(
 					systemPrompt, tools, segText, s + 1, segmentCount,
@@ -871,6 +901,16 @@ If no analytically significant passages exist in this segment, return: []`;
 					(p) => progress({ phase: 'coding', document: doc.title, ...p })
 				);
 				allIdentified.push(...directPassages);
+				for (const item of directPassages) {
+					if (item.code_label) {
+						const existing = codesList.find(c => c.label.toLowerCase() === item.code_label.toLowerCase());
+						if (existing) {
+							existing.annotations++;
+						} else {
+							codesList.push({ label: item.code_label, designation: 'cue', annotations: 1 });
+						}
+					}
+				}
 			}
 		}
 
@@ -920,6 +960,70 @@ If no analytically significant passages exist in this segment, return: []`;
 					thinking: `Failed to code "${p.code_label}": ${result.result}`
 				});
 			}
+		}
+
+		// ── Post-document consolidation (Level 5) ──
+		// Chief model reviews new codes: advance designations, flag near-duplicates
+		if (codesCreated > 0) {
+			progress({ phase: 'coding', document: doc.title, thinking: `Consolidating ${codesCreated} codes...` });
+
+			// Reload enriched codes list from DB for accurate state
+			const consolidationCodes = (await query(
+				`SELECT n.id, n.inscription,
+				        COALESCE(nd.designation, 'cue') as designation,
+				        COUNT(DISTINCT ann.id)::int as annotation_count
+				 FROM namings n
+				 JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = $1 AND a.mode = 'entity'
+				 LEFT JOIN LATERAL (
+				   SELECT designation FROM naming_designations
+				   WHERE naming_id = n.id AND designation IS NOT NULL
+				   ORDER BY seq DESC LIMIT 1
+				 ) nd ON true
+				 LEFT JOIN LATERAL (
+				   SELECT r.id FROM namings r
+				   JOIN appearances ra ON ra.naming_id = r.id AND ra.mode = 'relation'
+				   WHERE ra.properties->>'sourceId' = n.id::text
+				     AND ra.properties->>'type' = 'annotation'
+				 ) ann ON true
+				 WHERE n.project_id = $2 AND n.deleted_at IS NULL
+				 GROUP BY n.id, n.inscription, nd.designation`,
+				[mapId, projectId]
+			)).rows as Array<{ id: string; inscription: string; designation: string; annotation_count: number }>;
+
+			const newCodesThisDoc = allIdentified.filter(p => p.code_label).map(p =>
+				`- "${p.code_label}" — ${p.reasoning?.slice(0, 100) || '(no reasoning)'}`
+			).join('\n');
+
+			const allCodesFormatted = consolidationCodes.map(c =>
+				`  [${c.designation}] "${c.inscription}" (id: ${c.id}, ${c.annotation_count} passages)`
+			).join('\n');
+
+			const duplicateNotesText = nearDuplicateNotes.length > 0
+				? `\nNEAR-DUPLICATE NOTES FROM CODING:\n${nearDuplicateNotes.map(n => `- "${n.code_label}": ${n.reasoning}`).join('\n')}`
+				: '';
+
+			const consolidationMessage = `CONSOLIDATION: Review the ${codesCreated} codes just created for "${doc.title}".
+
+NEW CODES THIS DOCUMENT:
+${newCodesThisDoc}
+${duplicateNotesText}
+
+ALL CODES ON MAP (${consolidationCodes.length}):
+${allCodesFormatted}
+
+INSTRUCTIONS:
+1. Identify near-duplicate codes — write a memo for each cluster of overlapping codes
+   (title: "Near-duplicates: X / Y / Z", content: what they share, where they differ)
+2. Advance well-grounded cues to characterization (use designate tool)
+   — a cue is "well-grounded" when it appears in 2+ passages or its analytical meaning is clearly articulated
+3. Do NOT delete or merge codes — flag overlaps for the researcher via memos
+4. This is analytical housekeeping, not new analysis. Be brief.`;
+
+			await executeToolLoop(
+				systemPrompt, tools, consolidationMessage,
+				projectId, mapId, aiNamingId,
+				(p2) => progress({ phase: 'coding', document: doc.title, ...p2 })
+			);
 		}
 
 		// Write document memo (via chief model — one cheap call)
@@ -1068,6 +1172,65 @@ async function getOrCreateAutonomousMap(projectId: string, aiNamingId: string): 
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
+
+// Build per-segment coding instruction with current codes list and saturation signals
+function buildCodingInstruction(
+	codesList: Array<{ label: string; designation: string; annotations: number }>,
+	usesElements: boolean,
+	segmentIndex: number,
+	totalSegments: number
+): string {
+	// Enriched codes context (Level 3)
+	let codesText = '';
+	if (codesList.length > 0) {
+		const formattedCodes = codesList.map(c =>
+			`- "${c.label}" [${c.designation}, ${c.annotations} passage${c.annotations !== 1 ? 's' : ''}]`
+		).join('\n');
+		codesText = `\nEXISTING CODES (reuse if same concept — check BEFORE creating new):\n${formattedCodes}`;
+	}
+
+	// Saturation signal (Level 3)
+	let saturationSignal = '';
+	const totalCodes = codesList.length;
+	if (totalCodes >= 80) {
+		saturationSignal = `\n\n⚠ You have ${totalCodes} codes. Code creation should now be EXCEPTIONAL. Only create a new code if the concept is genuinely absent from ALL existing codes above.`;
+	} else if (totalCodes >= 30) {
+		saturationSignal = `\n\nYou already have ${totalCodes} codes. Strongly prefer reusing existing codes over creating new ones.`;
+	}
+
+	if (usesElements) {
+		return `Segment ${segmentIndex}/${totalSegments}. Identify analytically significant elements.
+
+Each text element has a stable UUID shown as [S:uuid] or [P:uuid].
+For each significant element:
+- Reference it by its UUID (the "element_id")
+- Provide an analytical code label (prefer gerunds: "legitimizing X", "contesting Y")
+- Explain briefly why this element is significant
+- If reusing an existing code with a nuance, set "reuse": true and prefix reasoning with "reuse — nuance:"
+${codesText}${saturationSignal}
+
+Respond in JSON format:
+[{"element_id": "uuid", "code_label": "analytical label", "reasoning": "why significant"}]
+
+If reusing with nuance: [{"element_id": "uuid", "code_label": "existing label", "reasoning": "reuse — nuance: ...", "reuse": true}]
+
+Return [] if nothing in this segment warrants a new or reused code.`;
+	} else {
+		return `Segment ${segmentIndex}/${totalSegments}. Identify analytically significant passages.
+
+For each significant passage:
+- Quote the EXACT text (verbatim, at least 20 chars)
+- Provide an analytical code label (prefer gerunds: "legitimizing X", "contesting Y")
+- Explain briefly why this passage is significant
+- If reusing an existing code with a nuance, set "reuse": true and prefix reasoning with "reuse — nuance:"
+${codesText}${saturationSignal}
+
+Respond in JSON format:
+[{"passage": "exact quote from text", "code_label": "analytical label", "reasoning": "why significant"}]
+
+Return [] if nothing in this segment warrants a new or reused code.`;
+	}
+}
 
 // Legacy: split raw text at paragraph boundaries (fallback for unparsed docs)
 function segmentDocumentLegacy(text: string, maxSegmentSize: number = 12000): string[] {

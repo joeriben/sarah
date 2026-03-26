@@ -135,7 +135,8 @@ export async function executeDelegation(
 	task: string,
 	maxTokens: number = 1024,
 	projectId?: string,
-	documentId?: string
+	documentId?: string,
+	systemPrompt?: string
 ): Promise<{ success: boolean; result: string; model: string; tokensUsed: number }> {
 	const agents = await getAvailableAgents();
 	const agent = agents.find(a => a.label === agentLabel);
@@ -162,7 +163,7 @@ export async function executeDelegation(
 	}
 
 	try {
-		const response = await delegateChat(agent.provider, agent.model, fullTask, maxTokens);
+		const response = await delegateChat(agent.provider, agent.model, fullTask, maxTokens, systemPrompt);
 
 		// Log the delegated call
 		if (projectId) {
@@ -203,7 +204,8 @@ async function delegateChat(
 	provider: Provider,
 	model: string,
 	task: string,
-	maxTokens: number
+	maxTokens: number,
+	systemPrompt?: string
 ): Promise<ChatResponse> {
 	const def = PROVIDERS[provider];
 	const apiKey = readApiKey(provider);
@@ -213,6 +215,7 @@ async function delegateChat(
 		const response = await client.messages.create({
 			model,
 			max_tokens: maxTokens,
+			...(systemPrompt ? { system: systemPrompt } : {}),
 			messages: [{ role: 'user', content: task }]
 		});
 
@@ -242,10 +245,16 @@ async function delegateChat(
 			? { max_completion_tokens: maxTokens }
 			: { max_tokens: maxTokens };
 
+		const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+		if (systemPrompt) {
+			messages.push({ role: 'system', content: systemPrompt });
+		}
+		messages.push({ role: 'user', content: task });
+
 		const response = await client.chat.completions.create({
 			model,
 			...tokenParam,
-			messages: [{ role: 'user', content: task }]
+			messages
 		});
 
 		const choice = response.choices[0];
