@@ -1120,13 +1120,14 @@ ${finalContext.silences.length > 0 ? `SILENCES:\n${finalContext.silences.map(s =
 ${finalMemos || ''}
 
 INSTRUCTIONS:
-Write an integrative memo (write_memo) that addresses:
+Write ONE integrative memo (write_memo) that addresses:
 1. What is the situation? What is at stake?
 2. What are the core categories and their relations?
 3. What is structurally absent (silences)?
 4. What would Clarke ask about this map?
-5. Advance any remaining cues to characterization if warranted — use the designate tool: designate(naming_id, "characterization", reasoning)
-   IMPORTANT: Do NOT create namings like "Designation → characterization" — use the designate TOOL on existing naming IDs.`;
+
+Do NOT designate codes here — that was already done in the consolidation step.
+Do NOT create new namings. Focus on the integrative memo only.`;
 
 	const { text: integrationText } = await executeToolLoop(
 		systemPrompt, tools, integrationMessage,
