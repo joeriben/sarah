@@ -4,12 +4,16 @@
  * Model is downloaded automatically on first use and cached locally.
  */
 
-import { pipeline, type FeatureExtractionPipeline } from '@huggingface/transformers';
+import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
+import { join } from 'node:path';
 
 const EMBED_MODEL = 'nomic-ai/nomic-embed-text-v1.5';
 const EMBED_DIMS = 768;
 
 export { EMBED_DIMS };
+
+// Cache models in project directory (portable, gitignored)
+env.cacheDir = join(process.cwd(), '.model-cache');
 
 // Lazy-loaded singleton pipeline
 let _pipeline: FeatureExtractionPipeline | null = null;
@@ -20,8 +24,7 @@ async function getPipeline(): Promise<FeatureExtractionPipeline> {
 	if (_loading) return _loading;
 
 	_loading = pipeline('feature-extraction', EMBED_MODEL, {
-		dtype: 'fp32',
-		revision: 'main'
+		dtype: 'q8'
 	}).then(p => {
 		_pipeline = p;
 		_loading = null;

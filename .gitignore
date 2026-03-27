@@ -30,6 +30,9 @@ ai-settings.json
 /uploads/
 /coach-library/
 
+# ML model cache
+/.model-cache/
+
 # PostgreSQL data
 /pgdata/
 projekte/
