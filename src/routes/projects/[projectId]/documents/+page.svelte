@@ -169,6 +169,25 @@
 		}
 	}
 
+	// Embed missing embeddings for a single document (no re-parse)
+	let embedding = $state<string | null>(null);
+	async function embedDocument(docId: string) {
+		embedding = docId;
+		try {
+			const res = await fetch(`/api/projects/${data.projectId}/documents/${docId}/embed`, { method: 'POST' });
+			if (res.ok) {
+				const result = await res.json();
+				const doc = documents.find((d: any) => d.id === docId);
+				if (doc) {
+					doc.embedded_count = result.embeddings;
+					documents = [...documents];
+				}
+			}
+		} finally {
+			embedding = null;
+		}
+	}
+
 	async function deleteDocument(docId: string, label: string) {
 		if (!confirm(`Delete "${label}"?`)) return;
 		const res = await fetch(`/api/projects/${data.projectId}/documents/${docId}`, { method: 'DELETE' });
@@ -309,10 +328,14 @@
 							<td class="meta">
 								{#if parsing === doc.id}
 									<span class="status-parsing">parsing...</span>
+								{:else if embedding === doc.id}
+									<span class="status-embedding">embedding...</span>
 								{:else if doc.element_count > 0 && doc.embedded_count >= doc.element_count}
 									<span class="status-done" title="{doc.element_count} elements, all embedded">{doc.element_count} el</span>
 								{:else if doc.element_count > 0}
-									<span class="status-embedding" title="{doc.embedded_count}/{doc.element_count} embedded">{doc.embedded_count}/{doc.element_count} embedding...</span>
+									<button class="btn-xs btn-embed" onclick={() => embedDocument(doc.id)} title="{doc.embedded_count}/{doc.element_count} embedded">
+										embed ({doc.element_count - doc.embedded_count})
+									</button>
 								{:else}
 									<button class="btn-xs btn-parse" onclick={() => parseDocument(doc.id)}>parse</button>
 								{/if}
@@ -464,6 +487,8 @@
 	.header-actions { display: flex; gap: 0.5rem; align-items: center; }
 	.btn-parse { color: #10b981; border-color: rgba(16, 185, 129, 0.3); }
 	.btn-parse:hover { border-color: #10b981; }
+	.btn-embed { color: #f59e0b; border-color: rgba(245, 158, 11, 0.3); }
+	.btn-embed:hover { border-color: #f59e0b; }
 	.btn-parse:disabled { opacity: 0.5; cursor: wait; }
 	.status-parsing { color: #f59e0b; font-size: 0.75rem; }
 	.status-embedding { color: #f59e0b; font-size: 0.75rem; }
