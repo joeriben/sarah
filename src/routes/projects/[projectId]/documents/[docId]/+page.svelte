@@ -223,7 +223,7 @@
 				fullLabel: ann.code_label,
 				color: ann.code_color || '#8b9cf7',
 				top,
-				comment: ann.properties?.comment || '',
+				comment: ann.stack_memo || ann.properties?.comment || '',
 				snippet: truncate(getSnippet(ann), 100)
 			});
 		}

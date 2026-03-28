@@ -167,6 +167,21 @@ export async function createAnnotation(
 			 JSON.stringify({ anchorType, anchor, comment: comment || null })]
 		);
 
+		// If comment provided, record a naming_act on the CODE (not the annotation)
+		// This makes the passage-specific note part of the code's designation stack
+		if (comment && comment.trim()) {
+			const rn = await client.query(
+				`SELECT naming_id FROM researcher_namings WHERE user_id = $1 AND project_id = $2`,
+				[userId, projectId]
+			);
+			const byId = rn.rows[0]?.naming_id || userId;
+			await client.query(
+				`INSERT INTO naming_acts (naming_id, by, memo_text, linked_naming_ids)
+				 VALUES ($1, $2, $3, $4)`,
+				[codeId, byId, comment.trim(), [annId]]
+			);
+		}
+
 		return annNaming.rows[0];
 	});
 }
@@ -182,7 +197,14 @@ export async function getAnnotationsByDocument(projectId: string, documentId: st
 			         FROM appearances ca
 			         WHERE ca.naming_id = code.id AND ca.mode = 'entity'
 			           AND ca.properties->>'color' IS NOT NULL
-			         LIMIT 1) as code_color
+			         LIMIT 1) as code_color,
+			        -- Passage-specific stack entry (naming_act on the code referencing this annotation)
+			        (SELECT na.memo_text
+			         FROM naming_acts na
+			         WHERE na.naming_id = code.id
+			           AND a.naming_id = ANY(na.linked_naming_ids)
+			           AND na.memo_text IS NOT NULL
+			         ORDER BY na.seq DESC LIMIT 1) as stack_memo
 			 FROM appearances a
 			 JOIN namings n ON n.id = a.naming_id AND n.deleted_at IS NULL
 			 JOIN namings code ON code.id = a.directed_from
