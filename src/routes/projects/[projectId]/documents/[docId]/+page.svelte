@@ -844,11 +844,11 @@
 
 	/* Annotations overlay: floating, draggable, resizable */
 	.annotations-overlay {
-		position: absolute;
-		top: 2rem;
-		right: 1rem;
+		position: fixed;
+		top: 5rem;
+		right: 1.5rem;
 		width: 340px;
-		max-height: calc(100% - 3rem);
+		height: calc(100vh - 7rem);
 		display: flex;
 		flex-direction: column;
 		background: #161822;
