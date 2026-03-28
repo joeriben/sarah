@@ -677,7 +677,7 @@
 								<div class="naming-row" class:naming-expanded={expandedNamingId === c.id}>
 									<div class="naming-main" onclick={() => { if (hasSelection) annotate(c.id); }}>
 										<span class="color-dot" style="background: {c.color || '#8b9cf7'}"></span>
-										<span class="naming-label">{c.label}</span>
+										<span class="naming-label" title={c.label}>{c.label}</span>
 										<button
 											class="naming-action"
 											class:has-memos={scopedAnnotations.some((a) => a.code_id === c.id && (a.stack_memo || a.properties?.comment))}
@@ -839,6 +839,7 @@
 		background: #161822;
 		border: 1px solid #2a2d3a;
 		border-radius: 8px;
+		z-index: 2;
 	}
 
 	.content-panel {
@@ -924,7 +925,7 @@
 		color: #d1d5db;
 		white-space: normal;
 		width: 240px;
-		z-index: 100;
+		z-index: 200;
 		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
 		pointer-events: none;
 		line-height: 1.5;
@@ -976,6 +977,7 @@
 		border: 1px solid #2a2d3a;
 		border-radius: 8px;
 		overflow: hidden;
+		z-index: 1;
 	}
 	.namings-scroll {
 		flex: 1;
