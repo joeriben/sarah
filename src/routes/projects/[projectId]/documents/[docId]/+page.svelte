@@ -193,14 +193,16 @@
 		return words.length <= 2 ? label : words.slice(0, 2).join(' ') + '…';
 	}
 
-	// Margin labels with measured Y positions
-	let marginLabels = $state<Array<{ annId: string; label: string; color: string; top: number }>>([]);
+	// Margin labels with measured Y positions + tooltip data
+	let marginLabels = $state<Array<{
+		annId: string; label: string; fullLabel: string; color: string; top: number;
+		comment: string; snippet: string;
+	}>>([]);
 	let marginEl = $state<HTMLDivElement>();
 
 	function measureMarginPositions() {
 		if (!textEl) return;
 
-		// Find the first coded-text span for each annotation
 		const annSpans = textEl.querySelectorAll<HTMLSpanElement>('.coded-text[data-ann-start]');
 		const containerTop = textEl.offsetTop;
 		const labels: typeof marginLabels = [];
@@ -218,12 +220,44 @@
 			labels.push({
 				annId,
 				label: shortLabel(ann.code_label),
+				fullLabel: ann.code_label,
 				color: ann.code_color || '#8b9cf7',
-				top
+				top,
+				comment: ann.properties?.comment || '',
+				snippet: truncate(getSnippet(ann), 100)
 			});
 		}
 
 		marginLabels = labels;
+	}
+
+	// Document memo creation
+	let showDocMemo = $state(false);
+	let docMemoText = $state('');
+	let docMemoSaving = $state(false);
+
+	async function saveDocMemo() {
+		if (!docMemoText.trim()) return;
+		docMemoSaving = true;
+		const firstLine = docMemoText.trim().split('\n')[0];
+		const label = firstLine.length > 60 ? firstLine.slice(0, 57) + '…' : firstLine;
+		try {
+			const res = await fetch(`/api/projects/${data.projectId}/memos`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					label,
+					content: `[Document: ${doc.label}]\n\n${docMemoText.trim()}`,
+					linkedElementIds: [doc.id]
+				})
+			});
+			if (res.ok) {
+				docMemoText = '';
+				showDocMemo = false;
+			}
+		} finally {
+			docMemoSaving = false;
+		}
 	}
 
 	// Re-measure after DOM updates (annotations change, window resize)
@@ -462,7 +496,7 @@
 								style="color: {ml.color}; top: {ml.top}px;"
 								onmouseenter={() => { highlightedAnnotationId = ml.annId; }}
 								onmouseleave={() => { highlightedAnnotationId = null; }}
-							>{ml.label}</span>
+							>{ml.label}<span class="margin-tooltip"><strong>{ml.fullLabel}</strong>{#if ml.comment}<br/><em>{ml.comment}</em>{/if}{#if ml.snippet}<br/><span class="mt-snippet">{ml.snippet}</span>{/if}</span></span>
 						{/each}
 					</div>
 				</div>
@@ -562,6 +596,28 @@
 						title="{showAnnotations ? 'Hide' : 'Show'} annotations"
 					>{annotations.length}</button>
 				</div>
+
+				{#if showDocMemo}
+					<div class="doc-memo-form">
+						<div class="section-label">Document Memo</div>
+						<textarea
+							class="doc-memo-textarea"
+							placeholder="Note about this document..."
+							bind:value={docMemoText}
+							rows="3"
+						></textarea>
+						<div class="doc-memo-actions">
+							<button class="btn-doc-memo-save" onclick={saveDocMemo} disabled={docMemoSaving || !docMemoText.trim()}>
+								{docMemoSaving ? 'Saving…' : 'Save'}
+							</button>
+							<button class="btn-doc-memo-cancel" onclick={() => { showDocMemo = false; docMemoText = ''; }}>Cancel</button>
+						</div>
+					</div>
+				{:else}
+					<button class="btn-new-doc-memo" onclick={() => { showDocMemo = true; }}>
+						New Document Memo
+					</button>
+				{/if}
 			{/if}
 		</div>
 
@@ -692,6 +748,30 @@
 		opacity: 1;
 		font-weight: 600;
 	}
+	/* Margin tooltip: shows full code + memo on hover */
+	.margin-tooltip {
+		display: none;
+		position: absolute;
+		right: calc(100% + 0.5rem);
+		top: 0;
+		background: #1e2030;
+		border: 1px solid #2a2d3a;
+		border-radius: 6px;
+		padding: 0.4rem 0.5rem;
+		font-size: 0.72rem;
+		font-weight: 400;
+		color: #d1d5db;
+		white-space: normal;
+		width: 220px;
+		z-index: 20;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+		pointer-events: none;
+		line-height: 1.4;
+	}
+	.margin-tooltip strong { color: #e1e4e8; }
+	.margin-tooltip em { color: #8b9cf7; font-style: italic; }
+	.mt-snippet { color: #6b7280; }
+	.margin-label:hover > .margin-tooltip { display: block; }
 
 	/* Coded text: background + underline, no layout shift */
 	.coded-text {
@@ -842,6 +922,70 @@
 	.btn-toggle-ann:hover { border-color: #8b9cf7; color: #e1e4e8; }
 	.btn-toggle-ann.active { border-color: #8b9cf7; color: #8b9cf7; }
 	.hint-toggle { margin-left: auto; }
+
+	/* Document memo creation */
+	.btn-new-doc-memo {
+		width: 100%;
+		padding: 0.4rem;
+		margin-top: 0.5rem;
+		background: rgba(76, 175, 80, 0.06);
+		border: 1px solid #2a2d3a;
+		border-radius: 6px;
+		color: #4ade80;
+		font-size: 0.75rem;
+		cursor: pointer;
+	}
+	.btn-new-doc-memo:hover { background: rgba(76, 175, 80, 0.12); border-color: #4ade80; }
+	.doc-memo-form {
+		margin-top: 0.5rem;
+		padding: 0.5rem;
+		background: #161822;
+		border: 1px solid #4ade80;
+		border-radius: 6px;
+	}
+	.doc-memo-form .section-label {
+		font-size: 0.65rem;
+		color: #6b7280;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		margin: 0 0 0.3rem;
+	}
+	.doc-memo-textarea {
+		width: 100%;
+		background: #0f1117;
+		border: 1px solid #2a2d3a;
+		border-radius: 4px;
+		padding: 0.4rem;
+		color: #e1e4e8;
+		font-size: 0.78rem;
+		font-family: system-ui, sans-serif;
+		resize: vertical;
+		box-sizing: border-box;
+	}
+	.doc-memo-textarea:focus { outline: none; border-color: #4ade80; }
+	.doc-memo-actions { display: flex; gap: 0.35rem; margin-top: 0.35rem; }
+	.btn-doc-memo-save {
+		flex: 1;
+		padding: 0.3rem;
+		background: rgba(76, 175, 80, 0.1);
+		border: 1px solid #4ade80;
+		border-radius: 4px;
+		color: #4ade80;
+		font-size: 0.75rem;
+		cursor: pointer;
+	}
+	.btn-doc-memo-save:hover { background: rgba(76, 175, 80, 0.2); }
+	.btn-doc-memo-save:disabled { opacity: 0.4; cursor: default; }
+	.btn-doc-memo-cancel {
+		padding: 0.3rem 0.5rem;
+		background: none;
+		border: 1px solid #2a2d3a;
+		border-radius: 4px;
+		color: #6b7280;
+		font-size: 0.75rem;
+		cursor: pointer;
+	}
+	.btn-doc-memo-cancel:hover { color: #e1e4e8; }
 
 	/* In-vivo coding */
 	.invivo-form {
