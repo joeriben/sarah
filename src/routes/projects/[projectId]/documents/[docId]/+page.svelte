@@ -86,6 +86,9 @@
 		return projectAnnotations.filter((a: any) => a.document_id === passagesScope);
 	});
 
+	// Similar passages from ComparisonPanel (replaces Passages list when active)
+	let similarPassages = $state<any[] | null>(null);
+
 	// Passages panel filter + expand
 	let annFilter = $state('');
 	// Namings panel: expanded naming (shows memos)
@@ -773,7 +776,7 @@
 		<!-- Passages: permanent overview of coded text passages -->
 		<div class="passages-panel">
 			<div class="panel-header">
-				<h3>Passages <span class="count">({filteredAnnotations.length}/{scopedAnnotations.length})</span></h3>
+				<h3>{similarPassages ? 'Similar' : 'Passages'} <span class="count">({similarPassages ? similarPassages.length : `${filteredAnnotations.length}/${scopedAnnotations.length}`})</span></h3>
 				<div class="scope-toggle">
 					<button class="scope-btn" class:active={passagesScope === 'this'} onclick={() => passagesScope = 'this'}>Document</button>
 					<div class="scope-right">
@@ -795,67 +798,107 @@
 						{selection}
 						onannotate={(codeId) => annotate(codeId)}
 						documentTitle={doc.label}
+						onsimilar={(passages) => { similarPassages = passages; }}
 					/>
 				</div>
 			{/if}
-			<input
-				type="text"
-				class="ann-search"
-				placeholder="Filter..."
-				bind:value={annFilter}
-			/>
-			<div class="passages-scroll">
-				{#if filteredAnnotations.length === 0}
-					<p class="empty">{annFilter ? 'No matches.' : 'No passages yet.'}</p>
-				{:else}
-					{#each filteredAnnotations as ann (ann.id)}
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div
-							class="annotation-card"
-							class:ann-highlighted={highlightedAnnotationId === ann.id}
-							class:ann-expanded={expandedAnnId === ann.id}
-							onmouseenter={() => { highlightedAnnotationId = ann.id; }}
-							onmouseleave={() => { highlightedAnnotationId = null; }}
-						>
-							<div class="ann-header">
-								<span class="color-dot" style="background: {ann.code_color || '#8b9cf7'}"></span>
-								<span class="code-name">{ann.code_label}</span>
-								<button
-									class="btn-expand-ann"
-									onclick={() => { expandedAnnId = expandedAnnId === ann.id ? null : ann.id; }}
-									title="Show context"
-								>{expandedAnnId === ann.id ? '▽' : '▼'}</button>
-								{#if ann.document_id === doc.id}
+			{#if similarPassages}
+				<!-- Similar mode: shows embedding-similar passages -->
+				<div class="passages-scroll">
+					{#if similarPassages.length === 0}
+						<p class="empty">No similar passages found.</p>
+					{:else}
+						{#each similarPassages as sp, i (i)}
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="annotation-card"
+								class:ann-expanded={expandedAnnId === `sim-${i}`}
+							>
+								<div class="ann-header">
+									{#if sp.codes?.length > 0}
+										<span class="color-dot" style="background: #8b9cf7"></span>
+										<span class="code-name">{sp.codes.map((c: any) => c.label).join(', ')}</span>
+									{:else}
+										<span class="code-name similar-uncoded">{truncate(sp.content, 50)}</span>
+									{/if}
 									<button
 										class="btn-expand-ann"
-										onclick={() => scrollToPassage(ann.id)}
-										title="Scroll to passage"
-									>▶</button>
-								{/if}
-								<button
-									class="btn-delete-ann"
-									onclick={(e) => { e.stopPropagation(); deleteAnnotation(ann.id, ann.code_id, ann.code_label); }}
-									title="Remove"
-								>×</button>
-							</div>
-							{#if passagesScope !== 'this' && ann.document_label}
-								<div class="ann-doc-label">{ann.document_label}</div>
-							{/if}
-							{#if expandedAnnId === ann.id}
-								{@const parts = getPassageParts(ann)}
-								<div class="ann-context">
-									<span class="ctx-before">{parts.before}</span><span class="ctx-passage">{parts.passage}</span><span class="ctx-after">{parts.after}</span>
+										onclick={() => { expandedAnnId = expandedAnnId === `sim-${i}` ? null : `sim-${i}`; }}
+										title="Show context"
+									>{expandedAnnId === `sim-${i}` ? '▽' : '▼'}</button>
+									<span class="similar-score">{(sp.similarity * 100).toFixed(0)}%</span>
 								</div>
-								{#if ann.stack_memo || ann.properties?.comment}
-									<div class="ann-comment">{ann.stack_memo || ann.properties.comment}</div>
+								<div class="ann-doc-label">{sp.documentTitle}</div>
+								{#if expandedAnnId === `sim-${i}`}
+									<div class="ann-context">{sp.content}</div>
+								{:else}
+									<div class="ann-text">{truncate(sp.content, 80)}</div>
 								{/if}
-							{:else if getSnippet(ann)}
-								<div class="ann-text">{truncate(getSnippet(ann), 60)}</div>
-							{/if}
-						</div>
-					{/each}
-				{/if}
-			</div>
+							</div>
+						{/each}
+					{/if}
+				</div>
+			{:else}
+				<!-- Normal mode: filtered passages -->
+				<input
+					type="text"
+					class="ann-search"
+					placeholder="Filter..."
+					bind:value={annFilter}
+				/>
+				<div class="passages-scroll">
+					{#if filteredAnnotations.length === 0}
+						<p class="empty">{annFilter ? 'No matches.' : 'No passages yet.'}</p>
+					{:else}
+						{#each filteredAnnotations as ann (ann.id)}
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="annotation-card"
+								class:ann-highlighted={highlightedAnnotationId === ann.id}
+								class:ann-expanded={expandedAnnId === ann.id}
+								onmouseenter={() => { highlightedAnnotationId = ann.id; }}
+								onmouseleave={() => { highlightedAnnotationId = null; }}
+							>
+								<div class="ann-header">
+									<span class="color-dot" style="background: {ann.code_color || '#8b9cf7'}"></span>
+									<span class="code-name">{ann.code_label}</span>
+									<button
+										class="btn-expand-ann"
+										onclick={() => { expandedAnnId = expandedAnnId === ann.id ? null : ann.id; }}
+										title="Show context"
+									>{expandedAnnId === ann.id ? '▽' : '▼'}</button>
+									{#if ann.document_id === doc.id}
+										<button
+											class="btn-expand-ann"
+											onclick={() => scrollToPassage(ann.id)}
+											title="Scroll to passage"
+										>▶</button>
+									{/if}
+									<button
+										class="btn-delete-ann"
+										onclick={(e) => { e.stopPropagation(); deleteAnnotation(ann.id, ann.code_id, ann.code_label); }}
+										title="Remove"
+									>×</button>
+								</div>
+								{#if passagesScope !== 'this' && ann.document_label}
+									<div class="ann-doc-label">{ann.document_label}</div>
+								{/if}
+								{#if expandedAnnId === ann.id}
+									{@const parts = getPassageParts(ann)}
+									<div class="ann-context">
+										<span class="ctx-before">{parts.before}</span><span class="ctx-passage">{parts.passage}</span><span class="ctx-after">{parts.after}</span>
+									</div>
+									{#if ann.stack_memo || ann.properties?.comment}
+										<div class="ann-comment">{ann.stack_memo || ann.properties.comment}</div>
+									{/if}
+								{:else if getSnippet(ann)}
+									<div class="ann-text">{truncate(getSnippet(ann), 60)}</div>
+								{/if}
+							</div>
+						{/each}
+					{/if}
+				</div>
+			{/if}
 		</div>
 
 	</div>
@@ -1076,6 +1119,16 @@
 	}
 	.scope-doc-pick:hover { color: #a5b4fc; }
 	.scope-doc-pick:focus { outline: none; }
+	.similar-uncoded {
+		color: #6b7280;
+		font-style: italic;
+	}
+	.similar-score {
+		color: #6b7280;
+		font-size: 0.65rem;
+		flex-shrink: 0;
+		margin-left: auto;
+	}
 	.ann-doc-label {
 		font-size: 0.62rem;
 		color: #6b7280;

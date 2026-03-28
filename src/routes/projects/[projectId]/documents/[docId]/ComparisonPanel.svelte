@@ -4,13 +4,15 @@
 		docId,
 		selection,
 		onannotate,
-		documentTitle
+		documentTitle,
+		onsimilar
 	}: {
 		projectId: string;
 		docId: string;
 		selection: { pos0: number; pos1: number; text: string } | null;
 		onannotate: (codeId: string) => void;
 		documentTitle?: string;
+		onsimilar?: (passages: any[] | null) => void;
 	} = $props();
 
 	let loading = $state(false);
@@ -37,7 +39,7 @@
 
 	// Derived counts
 	const similarCount = $derived(
-		!retrieval ? 0 : retrieval.similarPassages.length
+		!retrieval ? 0 : retrieval.similarPassages.filter((sp: any) => sp.similarity >= 0.75).length
 	);
 
 	// Fetch retrieval data when selection or scope changes
@@ -48,6 +50,7 @@
 			retrieval = null;
 			comparison = null;
 			showSimilar = false;
+			onsimilar?.(null);
 			showMemoForm = false;
 			memoSaved = false;
 			linkedCodeIds = new Set();
@@ -258,7 +261,7 @@
 			<button
 				class="action-btn"
 				class:active={showSimilar}
-				onclick={() => { showSimilar = !showSimilar; }}
+				onclick={() => { showSimilar = !showSimilar; onsimilar?.(showSimilar ? null : (retrieval?.similarPassages || []).filter((sp: any) => sp.similarity >= 0.75)); }}
 			>Similar ({similarCount})</button>
 			<button
 				class="action-btn compare-btn"
@@ -267,38 +270,6 @@
 			>{comparing ? 'Comparing…' : comparison ? 'Compare ✓' : 'Compare (LLM)'}</button>
 		</div>
 
-		<!-- Similar passages (toggled) -->
-		{#if showSimilar}
-			{#if retrieval.similarPassages.length > 0}
-				<div class="section-label">Similar passages</div>
-				{#each retrieval.similarPassages.slice(0, 10) as sp}
-					<div class="similar-card">
-						{#if sp.codes.length > 0}
-							<div class="similar-codes">
-								{#each sp.codes as code}
-									<!-- svelte-ignore a11y_no_static_element_interactions -->
-									<span
-										class="code-tag clickable"
-										onclick={() => onannotate(code.id)}
-										title="Click to annotate with this code"
-									>
-										<span class="badge {designationClass(code.designation)}">{designationBadge(code.designation)}</span>
-										{code.label}
-									</span>
-								{/each}
-							</div>
-						{/if}
-						<div class="similar-text">"{sp.content.length > 120 ? sp.content.slice(0, 120) + '…' : sp.content}"</div>
-						<div class="similar-meta">
-							<span class="similar-doc">{sp.documentTitle}</span>
-							<span class="similar-score">{(sp.similarity * 100).toFixed(0)}%</span>
-						</div>
-					</div>
-				{/each}
-			{:else}
-				<div class="empty-hint">No similar passages in {scope === 'in-document' ? 'this document' : 'the project'}.</div>
-			{/if}
-		{/if}
 
 		<!-- LLM comparison results -->
 		{#if comparison}
