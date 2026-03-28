@@ -106,7 +106,7 @@
 	.app {
 		display: flex;
 		flex-direction: column;
-		min-height: 100vh;
+		height: 100vh;
 	}
 
 	/* Header */
@@ -116,6 +116,8 @@
 		padding: 0.4rem 0;
 		z-index: 1000;
 		flex-shrink: 0;
+		position: sticky;
+		top: 0;
 	}
 
 	.header-content {
