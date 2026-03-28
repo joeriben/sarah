@@ -726,32 +726,22 @@
 
 <style>
 	.doc-viewer { position: relative; }
-
-	/* Header: fixed at top */
-	.doc-header {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		z-index: 5;
-		background: #0f1117;
-		padding: 0.5rem 1rem;
-		border-bottom: 1px solid #2a2d3a;
-	}
-	.back { font-size: 0.8rem; color: #6b7280; display: inline-block; margin-bottom: 0.25rem; }
-	h1 { font-size: 1.2rem; margin-bottom: 0.15rem; }
+	.doc-header { margin-bottom: 1rem; }
+	.back { font-size: 0.8rem; color: #6b7280; display: inline-block; margin-bottom: 0.5rem; }
+	h1 { font-size: 1.2rem; margin-bottom: 0.25rem; }
 	.meta { font-size: 0.8rem; color: #6b7280; }
 
-	/* Body: document scrolls with browser, work-panel fixed */
+	/*
+	 * Layout: .project-content (parent from layout) scrolls via overflow-y:auto.
+	 * doc-body is a flex row. content-panel flows naturally (grows to content).
+	 * work-panel is position:sticky so it stays visible while scrolling.
+	 */
 	.doc-body {
 		display: flex;
 		gap: 1rem;
 		align-items: flex-start;
-		margin-top: 5rem; /* clear fixed header */
-		padding: 0 1rem 2rem;
 	}
 
-	/* Document: natural flow, browser scrollbar */
 	.content-panel {
 		flex: 1;
 		background: #161822;
@@ -759,7 +749,6 @@
 		border-radius: 8px;
 		padding: 1.25rem;
 		min-width: 0;
-		margin-right: 296px; /* clear fixed work-panel */
 	}
 
 	.content-panel.image-mode {
@@ -868,14 +857,15 @@
 	}
 	.coded-text:hover > .code-tooltip { display: block; }
 
-	/* Work panel: fixed at right side of viewport */
+	/* Work panel: sticky — stays in view while .project-content scrolls */
 	.work-panel {
-		position: fixed;
-		top: 5.5rem; /* below fixed header */
-		right: 1rem;
+		position: sticky;
+		top: 0;
 		width: 280px;
-		max-height: calc(100vh - 6.5rem);
+		flex-shrink: 0;
+		max-height: 100vh;
 		overflow-y: auto;
+		align-self: flex-start;
 	}
 
 	/* Annotations overlay: floating, draggable, resizable */
