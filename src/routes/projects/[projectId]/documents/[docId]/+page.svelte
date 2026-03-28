@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import ImageAnnotationViewer from '$lib/components/ImageAnnotationViewer.svelte';
 	import ComparisonPanel from './ComparisonPanel.svelte';
 
@@ -228,7 +229,7 @@
 			});
 		}
 
-		marginLabels = labels;
+		untrack(() => { marginLabels = labels; });
 	}
 
 	// Document memo
@@ -261,13 +262,10 @@
 		}
 	}
 
-	// Re-measure after DOM updates (annotations change, window resize)
+	// Re-measure after DOM updates (annotations change)
 	$effect(() => {
-		// Track dependencies that affect layout
-		void textSegments;
-		void annotations;
+		void annotations.length; // minimal dependency — only re-measure when count changes
 
-		// Measure after DOM settles
 		const raf = requestAnimationFrame(() => measureMarginPositions());
 		return () => cancelAnimationFrame(raf);
 	});
@@ -365,11 +363,16 @@
 	}
 
 	// Re-measure on resize (window width changes cause text wrapping)
+	// Re-measure on resize (debounced — ResizeObserver fires frequently)
 	$effect(() => {
 		if (!textEl) return;
-		const observer = new ResizeObserver(() => measureMarginPositions());
+		let timeout: ReturnType<typeof setTimeout>;
+		const observer = new ResizeObserver(() => {
+			clearTimeout(timeout);
+			timeout = setTimeout(() => measureMarginPositions(), 150);
+		});
 		observer.observe(textEl);
-		return () => observer.disconnect();
+		return () => { observer.disconnect(); clearTimeout(timeout); };
 	});
 
 	async function annotate(codeId: string) {
