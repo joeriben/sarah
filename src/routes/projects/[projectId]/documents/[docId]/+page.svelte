@@ -52,9 +52,10 @@
 	// Annotation highlight on hover
 	let highlightedAnnotationId = $state<string | null>(null);
 
-	// Annotations panel toggle + filter
+	// Annotations panel toggle + filter + expand
 	let showAnnotations = $state(true);
 	let annFilter = $state('');
+	let expandedAnnId = $state<string | null>(null);
 	const filteredAnnotations = $derived(
 		annFilter.trim()
 			? annotations.filter((a: any) => a.code_label.toLowerCase().includes(annFilter.trim().toLowerCase())
@@ -235,6 +236,68 @@
 		const raf = requestAnimationFrame(() => measureMarginPositions());
 		return () => cancelAnimationFrame(raf);
 	});
+
+	// Drag support for annotations overlay
+	let overlayEl = $state<HTMLDivElement>();
+	let dragging = $state(false);
+	let dragOffset = { x: 0, y: 0 };
+
+	function startDrag(e: MouseEvent) {
+		if (!overlayEl) return;
+		dragging = true;
+		const rect = overlayEl.getBoundingClientRect();
+		dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+		e.preventDefault();
+	}
+
+	function onDrag(e: MouseEvent) {
+		if (!dragging || !overlayEl) return;
+		const parent = overlayEl.offsetParent as HTMLElement;
+		if (!parent) return;
+		const parentRect = parent.getBoundingClientRect();
+		overlayEl.style.left = (e.clientX - parentRect.left - dragOffset.x) + 'px';
+		overlayEl.style.top = (e.clientY - parentRect.top - dragOffset.y) + 'px';
+		overlayEl.style.right = 'auto';
+	}
+
+	function stopDrag() { dragging = false; }
+
+	$effect(() => {
+		if (!dragging) return;
+		window.addEventListener('mousemove', onDrag);
+		window.addEventListener('mouseup', stopDrag);
+		return () => {
+			window.removeEventListener('mousemove', onDrag);
+			window.removeEventListener('mouseup', stopDrag);
+		};
+	});
+
+	// Get surrounding context for an annotation passage
+	function getPassageContext(ann: any): string {
+		const anchor = ann.properties?.anchor;
+		if (!anchor || anchor.pos0 == null || !doc.full_text) return '';
+		const contextBefore = 80;
+		const contextAfter = 80;
+		const start = Math.max(0, anchor.pos0 - contextBefore);
+		const end = Math.min(doc.full_text.length, anchor.pos1 + contextAfter);
+		const before = start > 0 ? '…' + doc.full_text.slice(start, anchor.pos0) : doc.full_text.slice(0, anchor.pos0);
+		const passage = doc.full_text.slice(anchor.pos0, anchor.pos1);
+		const after = end < doc.full_text.length ? doc.full_text.slice(anchor.pos1, end) + '…' : doc.full_text.slice(anchor.pos1, end);
+		return before + passage + after;
+	}
+
+	function getPassageParts(ann: any): { before: string; passage: string; after: string } {
+		const anchor = ann.properties?.anchor;
+		if (!anchor || anchor.pos0 == null || !doc.full_text) return { before: '', passage: '', after: '' };
+		const ctx = 80;
+		const start = Math.max(0, anchor.pos0 - ctx);
+		const end = Math.min(doc.full_text.length, anchor.pos1 + ctx);
+		return {
+			before: (start > 0 ? '…' : '') + doc.full_text.slice(start, anchor.pos0),
+			passage: doc.full_text.slice(anchor.pos0, anchor.pos1),
+			after: doc.full_text.slice(anchor.pos1, end) + (end < doc.full_text.length ? '…' : '')
+		};
+	}
 
 	// Re-measure on resize (window width changes cause text wrapping)
 	$effect(() => {
@@ -504,17 +567,19 @@
 
 	</div>
 
-	<!-- Annotations overlay: floating, resizable reference panel -->
+	<!-- Annotations overlay: floating, draggable, resizable -->
 	{#if showAnnotations}
-		<div class="annotations-overlay">
-			<div class="annotations-header">
-				<h3>Annotations <span class="count">({annotations.length})</span></h3>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="annotations-overlay" bind:this={overlayEl}>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="annotations-header" onmousedown={startDrag}>
+				<h3>Annotations <span class="count">({filteredAnnotations.length}/{annotations.length})</span></h3>
 				<button class="btn-close-ann" onclick={() => { showAnnotations = false; }}>&times;</button>
 			</div>
 			<input
 				type="text"
 				class="ann-search"
-				placeholder="Filter annotations..."
+				placeholder="Filter..."
 				bind:value={annFilter}
 			/>
 			<div class="annotations-scroll">
@@ -526,15 +591,22 @@
 						<div
 							class="annotation-card"
 							class:ann-highlighted={highlightedAnnotationId === ann.id}
+							class:ann-expanded={expandedAnnId === ann.id}
 							onmouseenter={() => { highlightedAnnotationId = ann.id; }}
 							onmouseleave={() => { highlightedAnnotationId = null; }}
+							onclick={() => { expandedAnnId = expandedAnnId === ann.id ? null : ann.id; }}
 						>
 							<div class="ann-header">
 								<span class="color-dot" style="background: {ann.code_color || '#8b9cf7'}"></span>
 								<span class="code-name">{ann.code_label}</span>
 							</div>
-							{#if getSnippet(ann)}
-								<div class="ann-text">{truncate(getSnippet(ann), 80)}</div>
+							{#if expandedAnnId === ann.id}
+								{@const parts = getPassageParts(ann)}
+								<div class="ann-context">
+									<span class="ctx-before">{parts.before}</span><span class="ctx-passage">{parts.passage}</span><span class="ctx-after">{parts.after}</span>
+								</div>
+							{:else if getSnippet(ann)}
+								<div class="ann-text">{truncate(getSnippet(ann), 60)}</div>
 							{/if}
 							{#if ann.properties?.comment}
 								<div class="ann-comment">{ann.properties.comment}</div>
@@ -656,12 +728,12 @@
 		overflow-y: auto;
 	}
 
-	/* Annotations overlay: floating, resizable reference panel */
+	/* Annotations overlay: floating, draggable, resizable */
 	.annotations-overlay {
 		position: absolute;
 		top: 3rem;
 		right: 1rem;
-		width: 280px;
+		width: 340px;
 		max-height: calc(100% - 4rem);
 		display: flex;
 		flex-direction: column;
@@ -672,7 +744,7 @@
 		z-index: 10;
 		resize: both;
 		overflow: hidden;
-		min-width: 200px;
+		min-width: 240px;
 		min-height: 150px;
 	}
 	.annotations-header {
@@ -682,8 +754,10 @@
 		padding: 0.4rem 0.6rem;
 		border-bottom: 1px solid #2a2d3a;
 		flex-shrink: 0;
-		cursor: default;
+		cursor: grab;
+		user-select: none;
 	}
+	.annotations-header:active { cursor: grabbing; }
 	.annotations-header h3 { margin: 0; font-size: 0.8rem; }
 	.btn-close-ann {
 		background: none;
@@ -943,6 +1017,25 @@
 		color: #6b7280;
 		margin-top: 0.2rem;
 	}
+
+	/* Expanded annotation: passage in context */
+	.annotation-card { cursor: pointer; }
+	.annotation-card.ann-expanded {
+		border-color: #4b5563;
+	}
+	.ann-context {
+		font-size: 0.72rem;
+		line-height: 1.5;
+		margin-top: 0.3rem;
+		padding: 0.3rem;
+		background: #0f1117;
+		border-radius: 4px;
+		color: #9ca3af;
+		max-height: 8em;
+		overflow-y: auto;
+	}
+	.ctx-before, .ctx-after { color: #6b7280; }
+	.ctx-passage { color: #e1e4e8; background: rgba(139, 156, 247, 0.12); border-radius: 2px; }
 
 	.placeholder {
 		text-align: center;
