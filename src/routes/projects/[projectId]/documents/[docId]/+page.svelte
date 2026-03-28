@@ -231,10 +231,12 @@
 		marginLabels = labels;
 	}
 
-	// Document memo creation
-	let showDocMemo = $state(false);
+	// Document memo
 	let docMemoText = $state('');
 	let docMemoSaving = $state(false);
+
+	// Document stats
+	const uniqueCodeCount = $derived(new Set(annotations.map((a: any) => a.code_id)).size);
 
 	async function saveDocMemo() {
 		if (!docMemoText.trim()) return;
@@ -253,7 +255,6 @@
 			});
 			if (res.ok) {
 				docMemoText = '';
-				showDocMemo = false;
 			}
 		} finally {
 			docMemoSaving = false;
@@ -323,7 +324,37 @@
 	function getPassageParts(ann: any): { before: string; passage: string; after: string } {
 		const anchor = ann.properties?.anchor;
 		if (!anchor || anchor.pos0 == null || !doc.full_text) return { before: '', passage: '', after: '' };
-		const ctx = 80;
+
+		// Use OO elements for context: find surrounding sentences
+		const leaves = elements
+			.filter((e: any) => e.content !== null)
+			.sort((a: any, b: any) => a.char_start - b.char_start);
+
+		if (leaves.length > 0) {
+			// Find elements that overlap with the annotation
+			const annStart = anchor.pos0;
+			const annEnd = anchor.pos1;
+			const idx = leaves.findIndex((e: any) => e.char_end > annStart);
+			if (idx >= 0) {
+				const ctxBefore = 2; // 2 sentences before
+				const ctxAfter = 2; // 2 sentences after
+				// Find last element that overlaps with annotation end
+				let endIdx = idx;
+				while (endIdx < leaves.length - 1 && leaves[endIdx].char_start < annEnd) endIdx++;
+				const firstIdx = Math.max(0, idx - ctxBefore);
+				const lastIdx = Math.min(leaves.length - 1, endIdx + ctxAfter);
+				const beforeStart = leaves[firstIdx].char_start;
+				const afterEnd = leaves[lastIdx].char_end;
+				return {
+					before: (firstIdx > 0 ? '…' : '') + doc.full_text.slice(beforeStart, annStart),
+					passage: doc.full_text.slice(annStart, annEnd),
+					after: doc.full_text.slice(annEnd, afterEnd) + (lastIdx < leaves.length - 1 ? '…' : '')
+				};
+			}
+		}
+
+		// Fallback: character-based context
+		const ctx = 120;
 		const start = Math.max(0, anchor.pos0 - ctx);
 		const end = Math.min(doc.full_text.length, anchor.pos1 + ctx);
 		return {
@@ -586,38 +617,41 @@
 					/>
 				</div>
 			{:else}
-				<div class="hint">
-					<img src="/icons/{isImage ? 'draw' : 'ink_highlighter'}.svg" alt="" class="section-icon" />
-					<span>{isImage ? 'Draw a region to annotate' : 'Select text to annotate'}</span>
+				<!-- Reading/review mode: document overview + memo + annotations toggle -->
+				<div class="reading-mode">
+					<div class="doc-stats">
+						<span class="stat">{annotations.length} annotations</span>
+						<span class="stat-sep">&middot;</span>
+						<span class="stat">{uniqueCodeCount} codes</span>
+					</div>
+
 					<button
-						class="btn-toggle-ann hint-toggle"
+						class="btn-annotations-toggle"
 						class:active={showAnnotations}
 						onclick={() => { showAnnotations = !showAnnotations; }}
-						title="{showAnnotations ? 'Hide' : 'Show'} annotations"
-					>{annotations.length}</button>
-				</div>
+					>
+						Annotations ({annotations.length})
+					</button>
 
-				{#if showDocMemo}
-					<div class="doc-memo-form">
-						<div class="section-label">Document Memo</div>
+					<div class="doc-memo-inline">
 						<textarea
 							class="doc-memo-textarea"
-							placeholder="Note about this document..."
+							placeholder="Memo..."
 							bind:value={docMemoText}
-							rows="3"
+							rows="2"
 						></textarea>
-						<div class="doc-memo-actions">
-							<button class="btn-doc-memo-save" onclick={saveDocMemo} disabled={docMemoSaving || !docMemoText.trim()}>
-								{docMemoSaving ? 'Saving…' : 'Save'}
+						{#if docMemoText.trim()}
+							<button class="btn-doc-memo-save" onclick={saveDocMemo} disabled={docMemoSaving}>
+								{docMemoSaving ? 'Saving…' : 'Save Memo'}
 							</button>
-							<button class="btn-doc-memo-cancel" onclick={() => { showDocMemo = false; docMemoText = ''; }}>Cancel</button>
-						</div>
+						{/if}
 					</div>
-				{:else}
-					<button class="btn-new-doc-memo" onclick={() => { showDocMemo = true; }}>
-						New Document Memo
-					</button>
-				{/if}
+
+					<div class="reading-hint">
+						<img src="/icons/{isImage ? 'draw' : 'ink_highlighter'}.svg" alt="" class="section-icon" />
+						{isImage ? 'Draw a region to annotate' : 'Select text to annotate'}
+					</div>
+				</div>
 			{/if}
 		</div>
 
@@ -811,10 +845,10 @@
 	/* Annotations overlay: floating, draggable, resizable */
 	.annotations-overlay {
 		position: absolute;
-		top: 3rem;
+		top: 2rem;
 		right: 1rem;
 		width: 340px;
-		max-height: calc(100% - 4rem);
+		max-height: calc(100% - 3rem);
 		display: flex;
 		flex-direction: column;
 		background: #161822;
@@ -923,32 +957,36 @@
 	.btn-toggle-ann.active { border-color: #8b9cf7; color: #8b9cf7; }
 	.hint-toggle { margin-left: auto; }
 
-	/* Document memo creation */
-	.btn-new-doc-memo {
+	/* Reading/review mode */
+	.reading-mode {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.doc-stats {
+		font-size: 0.75rem;
+		color: #6b7280;
+		padding: 0.3rem 0;
+	}
+	.stat-sep { margin: 0 0.3rem; }
+	.btn-annotations-toggle {
 		width: 100%;
-		padding: 0.4rem;
-		margin-top: 0.5rem;
-		background: rgba(76, 175, 80, 0.06);
+		padding: 0.4rem 0.5rem;
+		background: #161822;
 		border: 1px solid #2a2d3a;
 		border-radius: 6px;
-		color: #4ade80;
-		font-size: 0.75rem;
+		color: #9ca3af;
+		font-size: 0.78rem;
 		cursor: pointer;
+		text-align: left;
 	}
-	.btn-new-doc-memo:hover { background: rgba(76, 175, 80, 0.12); border-color: #4ade80; }
-	.doc-memo-form {
-		margin-top: 0.5rem;
-		padding: 0.5rem;
-		background: #161822;
-		border: 1px solid #4ade80;
-		border-radius: 6px;
-	}
-	.doc-memo-form .section-label {
-		font-size: 0.65rem;
-		color: #6b7280;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		margin: 0 0 0.3rem;
+	.btn-annotations-toggle:hover { border-color: #8b9cf7; color: #e1e4e8; }
+	.btn-annotations-toggle.active { border-color: #8b9cf7; color: #8b9cf7; }
+
+	.doc-memo-inline {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
 	}
 	.doc-memo-textarea {
 		width: 100%;
@@ -963,29 +1001,27 @@
 		box-sizing: border-box;
 	}
 	.doc-memo-textarea:focus { outline: none; border-color: #4ade80; }
-	.doc-memo-actions { display: flex; gap: 0.35rem; margin-top: 0.35rem; }
 	.btn-doc-memo-save {
-		flex: 1;
-		padding: 0.3rem;
+		align-self: flex-end;
+		padding: 0.3rem 0.6rem;
 		background: rgba(76, 175, 80, 0.1);
 		border: 1px solid #4ade80;
 		border-radius: 4px;
 		color: #4ade80;
-		font-size: 0.75rem;
+		font-size: 0.72rem;
 		cursor: pointer;
 	}
 	.btn-doc-memo-save:hover { background: rgba(76, 175, 80, 0.2); }
 	.btn-doc-memo-save:disabled { opacity: 0.4; cursor: default; }
-	.btn-doc-memo-cancel {
-		padding: 0.3rem 0.5rem;
-		background: none;
-		border: 1px solid #2a2d3a;
-		border-radius: 4px;
-		color: #6b7280;
-		font-size: 0.75rem;
-		cursor: pointer;
+
+	.reading-hint {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.72rem;
+		color: #4b5563;
+		padding-top: 0.25rem;
 	}
-	.btn-doc-memo-cancel:hover { color: #e1e4e8; }
 
 	/* In-vivo coding */
 	.invivo-form {
@@ -1088,18 +1124,7 @@
 	}
 	.comment-input:focus { outline: none; border-color: #8b9cf7; }
 
-	/* Hint */
-	.hint {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.8rem;
-		color: #6b7280;
-		background: #161822;
-		border: 1px solid #2a2d3a;
-		border-radius: 8px;
-		padding: 0.75rem;
-	}
+	/* (hint styles removed — replaced by .reading-mode) */
 
 	.annotations-header h3, .annotations-panel h3 {
 		font-size: 0.85rem;
