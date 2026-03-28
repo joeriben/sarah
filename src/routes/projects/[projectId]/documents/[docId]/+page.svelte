@@ -725,25 +725,34 @@
 	{/if}
 
 <style>
-	.doc-viewer { position: relative; }
-	.doc-header { margin-bottom: 1rem; }
+	.doc-viewer { }
+	.doc-header { margin-bottom: 0.75rem; }
 	.back { font-size: 0.8rem; color: #6b7280; display: inline-block; margin-bottom: 0.5rem; }
 	h1 { font-size: 1.2rem; margin-bottom: 0.25rem; }
 	.meta { font-size: 0.8rem; color: #6b7280; }
 
 	/*
-	 * Parent: .project-content (overflow-y:auto, padding:2rem) scrolls the page.
-	 * Work panel: position:fixed, right side — never scrolls.
-	 * Content panel: margin-right clears the fixed work panel.
+	 * doc-body fills available viewport height.
+	 * content-panel scrolls internally (THE scrollbar for the document).
+	 * work-panel is a flex sibling — stays in place, never scrolls with document.
+	 * This keeps .project-content from overflowing, so the layout sidebar stays fixed.
 	 */
-	.doc-body { }
+	.doc-body {
+		display: flex;
+		gap: 1rem;
+		height: calc(100vh - 7rem);
+		min-height: 0;
+	}
 
 	.content-panel {
+		flex: 1;
+		min-width: 0;
+		min-height: 0;
+		overflow-y: auto;
 		background: #161822;
 		border: 1px solid #2a2d3a;
 		border-radius: 8px;
 		padding: 1.25rem;
-		margin-right: 296px;
 	}
 
 	.content-panel.image-mode {
@@ -852,15 +861,11 @@
 	}
 	.coded-text:hover > .code-tooltip { display: block; }
 
-	/* Work panel: fixed at right side — never scrolls */
+	/* Work panel: flex sibling of content-panel — stays in place */
 	.work-panel {
-		position: fixed;
-		top: 2rem;
-		right: 2rem;
 		width: 280px;
-		max-height: calc(100vh - 4rem);
+		flex-shrink: 0;
 		overflow-y: auto;
-		z-index: 4;
 	}
 
 	/* Annotations overlay: floating, draggable, resizable */
