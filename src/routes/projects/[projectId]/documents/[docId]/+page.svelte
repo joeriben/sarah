@@ -90,6 +90,8 @@
 	let annFilter = $state('');
 	// Namings panel: expanded naming (shows memos)
 	let expandedNamingId = $state<string | null>(null);
+	let namingTooltipText = $state('');
+	let namingTooltipStyle = $state('display:none');
 	let expandedAnnId = $state<string | null>(null);
 	const filteredAnnotations = $derived(
 		annFilter.trim()
@@ -687,7 +689,11 @@
 								<div class="naming-row" class:naming-expanded={expandedNamingId === c.id}>
 									<div class="naming-main" onclick={() => { if (hasSelection) annotate(c.id); }}>
 										<span class="color-dot" style="background: {c.color || '#8b9cf7'}"></span>
-										<span class="naming-label">{c.label}<span class="panel-tooltip">{c.label}</span></span>
+										<span
+										class="naming-label"
+										onmouseenter={(e) => { namingTooltipText = c.label; const r = (e.target as HTMLElement).getBoundingClientRect(); namingTooltipStyle = `left:${r.right + 6}px;top:${r.top}px;display:block`; }}
+										onmouseleave={() => { namingTooltipStyle = 'display:none'; }}
+									>{c.label}</span>
 										<button
 											class="naming-action"
 											class:has-memos={scopedAnnotations.some((a) => a.code_id === c.id && (a.stack_memo || a.properties?.comment))}
@@ -854,6 +860,9 @@
 
 	</div>
 </div>
+
+<!-- Naming tooltip: fixed position, outside overflow containers -->
+<div class="naming-tooltip-fixed" style={namingTooltipStyle}>{namingTooltipText}</div>
 
 <style>
 	.doc-viewer { }
@@ -1333,28 +1342,20 @@
 		color: #4b5563;
 		margin-bottom: 0.1rem;
 	}
-	/* Shared tooltip style for panels */
-	.panel-tooltip {
-		display: none;
-		position: absolute;
-		left: 100%;
-		top: 0;
-		margin-left: 0.4rem;
+	/* Fixed tooltip for naming hover (outside overflow containers) */
+	.naming-tooltip-fixed {
+		position: fixed;
 		background: #1e2030;
 		border: 1px solid #2a2d3a;
 		border-radius: 6px;
 		padding: 0.35rem 0.5rem;
 		font-size: 0.72rem;
-		font-weight: 400;
-		font-style: normal;
 		color: #d1d5db;
 		white-space: nowrap;
 		z-index: 200;
 		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
 		pointer-events: none;
 	}
-	.naming-label { position: relative; }
-	.naming-label:hover > .panel-tooltip { display: block; }
 
 	.naming-section-label {
 		font-size: 0.58rem;
