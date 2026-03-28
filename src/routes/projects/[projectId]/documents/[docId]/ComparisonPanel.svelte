@@ -37,7 +37,7 @@
 
 	// Derived counts
 	const similarCount = $derived(
-		!retrieval ? 0 : retrieval.similarPassages.filter((sp: any) => sp.codes.length > 0).length
+		!retrieval ? 0 : retrieval.similarPassages.length
 	);
 
 	// Fetch retrieval data when selection or scope changes
@@ -269,30 +269,34 @@
 
 		<!-- Similar passages (toggled) -->
 		{#if showSimilar}
-			{@const codedPassages = retrieval.similarPassages.filter((sp: any) => sp.codes.length > 0)}
-			{#if codedPassages.length > 0}
-				<div class="section-label">Similar coded passages</div>
-				{#each codedPassages.slice(0, 5) as sp}
+			{#if retrieval.similarPassages.length > 0}
+				<div class="section-label">Similar passages</div>
+				{#each retrieval.similarPassages.slice(0, 10) as sp}
 					<div class="similar-card">
-						<div class="similar-codes">
-							{#each sp.codes as code}
-								<!-- svelte-ignore a11y_no_static_element_interactions -->
-								<span
-									class="code-tag clickable"
-									onclick={() => onannotate(code.id)}
-									title="Click to annotate with this code"
-								>
-									<span class="badge {designationClass(code.designation)}">{designationBadge(code.designation)}</span>
-									{code.label}
-								</span>
-							{/each}
+						{#if sp.codes.length > 0}
+							<div class="similar-codes">
+								{#each sp.codes as code}
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<span
+										class="code-tag clickable"
+										onclick={() => onannotate(code.id)}
+										title="Click to annotate with this code"
+									>
+										<span class="badge {designationClass(code.designation)}">{designationBadge(code.designation)}</span>
+										{code.label}
+									</span>
+								{/each}
+							</div>
+						{/if}
+						<div class="similar-text">"{sp.content.length > 120 ? sp.content.slice(0, 120) + '…' : sp.content}"</div>
+						<div class="similar-meta">
+							<span class="similar-doc">{sp.documentTitle}</span>
+							<span class="similar-score">{(sp.similarity * 100).toFixed(0)}%</span>
 						</div>
-						<div class="similar-text">"{sp.content.length > 120 ? sp.content.slice(0, 120) + '\u2026' : sp.content}"</div>
-						<div class="similar-doc">{sp.documentTitle}</div>
 					</div>
 				{/each}
 			{:else}
-				<div class="empty-hint">No similar coded passages in {scope === 'in-document' ? 'this document' : 'the project'}.</div>
+				<div class="empty-hint">No similar passages in {scope === 'in-document' ? 'this document' : 'the project'}.</div>
 			{/if}
 		{/if}
 
@@ -503,9 +507,18 @@
 		line-height: 1.3;
 		margin-bottom: 0.15rem;
 	}
+	.similar-meta {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
 	.similar-doc {
 		color: #4b5563;
 		font-size: 0.68rem;
+	}
+	.similar-score {
+		color: #6b7280;
+		font-size: 0.62rem;
 	}
 
 	/* Comparison results */
