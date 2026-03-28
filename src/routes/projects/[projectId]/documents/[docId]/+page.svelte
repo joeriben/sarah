@@ -1304,7 +1304,7 @@
 	}
 	.naming-memo {
 		font-size: 0.68rem;
-		color: #8b9cf7;
+		color: #c77d1a;
 		font-style: italic;
 		margin-top: 0.1rem;
 		line-height: 1.3;
