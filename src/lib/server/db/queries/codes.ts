@@ -298,6 +298,28 @@ export async function countCodeUsages(codeId: string, projectId: string, exclude
  * Delete an annotation. If the code has no other usages, also delete the code.
  * Returns { annotationDeleted: true, codeDeleted: boolean, codeLabel?: string }
  */
+/**
+ * Add a memo to an existing annotation (naming_act on the code, linked to the annotation).
+ */
+export async function addAnnotationMemo(
+	projectId: string,
+	userId: string,
+	annotationId: string,
+	codeId: string,
+	memoText: string
+) {
+	const rn = await queryOne<{ naming_id: string }>(
+		`SELECT naming_id FROM researcher_namings WHERE user_id = $1 AND project_id = $2`,
+		[userId, projectId]
+	);
+	const byId = rn?.naming_id || userId;
+	await query(
+		`INSERT INTO naming_acts (naming_id, by, memo_text, linked_naming_ids)
+		 VALUES ($1, $2, $3, $4)`,
+		[codeId, byId, memoText.trim(), [annotationId]]
+	);
+}
+
 export async function deleteAnnotation(annotationId: string, projectId: string) {
 	return transaction(async (client) => {
 		// Find the code this annotation references

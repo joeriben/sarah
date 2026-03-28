@@ -93,6 +93,9 @@
 	let annFilter = $state('');
 	// Namings panel: expanded naming (shows memos)
 	let expandedNamingId = $state<string | null>(null);
+	// Passage memo: inline memo input on a passage card
+	let memoingAnnId = $state<string | null>(null);
+	let passageMemoText = $state('');
 	let namingTooltipText = $state('');
 	let namingTooltipStyle = $state('display:none');
 	let expandedAnnId = $state<string | null>(null);
@@ -499,6 +502,22 @@
 		creatingCode = false;
 	}
 
+	async function savePassageMemo(annId: string, codeId: string) {
+		if (!passageMemoText.trim()) { memoingAnnId = null; return; }
+		const res = await fetch(`/api/projects/${data.projectId}/documents/${doc.id}/annotations`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ annotationId: annId, codeId, memo: passageMemoText.trim() })
+		});
+		if (res.ok) {
+			// Refresh annotations to show new memo
+			const annRes = await fetch(`/api/projects/${data.projectId}/documents/${doc.id}/annotations`);
+			annotations = await annRes.json();
+			passageMemoText = '';
+			memoingAnnId = null;
+		}
+	}
+
 	async function deleteAnnotation(annId: string, codeId: string, codeLabel: string) {
 		// First check: would this also delete the code?
 		const checkRes = await fetch(
@@ -890,6 +909,19 @@
 									</div>
 									{#if ann.stack_memo || ann.properties?.comment}
 										<div class="ann-comment">{ann.stack_memo || ann.properties.comment}</div>
+									{/if}
+									{#if memoingAnnId === ann.id}
+										<!-- svelte-ignore a11y_autofocus -->
+										<input
+											class="passage-memo-input"
+											placeholder="Memo for this passage..."
+											bind:value={passageMemoText}
+											autofocus
+											onkeydown={(e) => { if (e.key === 'Enter') savePassageMemo(ann.id, ann.code_id); if (e.key === 'Escape') memoingAnnId = null; }}
+											onblur={() => { if (passageMemoText.trim()) savePassageMemo(ann.id, ann.code_id); else memoingAnnId = null; }}
+										/>
+									{:else}
+										<button class="btn-add-memo" onclick={() => { memoingAnnId = ann.id; passageMemoText = ''; }}>+ Memo</button>
 									{/if}
 								{:else if getSnippet(ann)}
 									<div class="ann-text">{truncate(getSnippet(ann), 60)}</div>
@@ -1558,6 +1590,29 @@
 		border-radius: 4px;
 		color: #9ca3af;
 	}
+	.passage-memo-input {
+		width: 100%;
+		background: #0f1117;
+		border: 1px solid #c77d1a;
+		border-radius: 4px;
+		padding: 0.3rem 0.4rem;
+		color: #e1e4e8;
+		font-size: 0.72rem;
+		font-family: inherit;
+		margin-top: 0.25rem;
+		box-sizing: border-box;
+	}
+	.passage-memo-input:focus { outline: none; }
+	.btn-add-memo {
+		background: none;
+		border: none;
+		color: #4b5563;
+		font-size: 0.65rem;
+		cursor: pointer;
+		padding: 0.15rem 0;
+		margin-top: 0.1rem;
+	}
+	.btn-add-memo:hover { color: #c77d1a; }
 	.ctx-before, .ctx-after { color: #6b7280; }
 	.ctx-passage { color: #e1e4e8; background: rgba(139, 156, 247, 0.12); border-radius: 2px; }
 

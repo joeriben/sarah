@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
-import { getAnnotationsByDocument, createAnnotation, deleteAnnotation, countCodeUsages } from '$lib/server/db/queries/codes.js';
+import { getAnnotationsByDocument, createAnnotation, deleteAnnotation, countCodeUsages, addAnnotationMemo } from '$lib/server/db/queries/codes.js';
 
 export const GET: RequestHandler = async ({ params }) => {
 	const annotations = await getAnnotationsByDocument(params.projectId, params.docId);
@@ -23,6 +23,15 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		comment
 	);
 	return json(annotation, { status: 201 });
+};
+
+export const PATCH: RequestHandler = async ({ params, request, locals }) => {
+	const { annotationId, codeId, memo } = await request.json();
+	if (!annotationId || !codeId || !memo?.trim()) {
+		return json({ error: 'annotationId, codeId, and memo required' }, { status: 400 });
+	}
+	await addAnnotationMemo(params.projectId, locals.user!.id, annotationId, codeId, memo);
+	return json({ ok: true });
 };
 
 export const DELETE: RequestHandler = async ({ params, url }) => {
