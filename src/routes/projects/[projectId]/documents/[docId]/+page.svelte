@@ -48,6 +48,16 @@
 	// Annotation highlight on hover
 	let highlightedAnnotationId = $state<string | null>(null);
 
+	// Naming stacks (designation history + memos) keyed by code ID
+	const namingStacks = $derived.by(() => {
+		const map = new Map<string, Array<{ designation: string | null; inscription: string | null; memo_text: string | null; seq: number }>>();
+		for (const act of (data.namingStacks || [])) {
+			if (!map.has(act.naming_id)) map.set(act.naming_id, []);
+			map.get(act.naming_id)!.push(act);
+		}
+		return map;
+	});
+
 	// Scope: 'this' = current document, 'all' = all documents, or a specific document ID
 	let namingsScope = $state<string>('this');
 	let passagesScope = $state<string>('this');
@@ -677,7 +687,7 @@
 								<div class="naming-row" class:naming-expanded={expandedNamingId === c.id}>
 									<div class="naming-main" onclick={() => { if (hasSelection) annotate(c.id); }}>
 										<span class="color-dot" style="background: {c.color || '#8b9cf7'}"></span>
-										<span class="naming-label" title={c.label}>{c.label}</span>
+										<span class="naming-label">{c.label}<span class="panel-tooltip">{c.label}</span></span>
 										<button
 											class="naming-action"
 											class:has-memos={scopedAnnotations.some((a) => a.code_id === c.id && (a.stack_memo || a.properties?.comment))}
@@ -692,14 +702,35 @@
 									</div>
 									{#if expandedNamingId === c.id}
 										{#each [scopedAnnotations.filter((a) => a.code_id === c.id)] as codeAnns}
-											<div class="naming-detail">
-												<span class="naming-stat">{codeAnns.length} passage{codeAnns.length !== 1 ? 's' : ''}</span>
-												{#each codeAnns as ann}
-													{#if ann.stack_memo || ann.properties?.comment}
-														<div class="naming-memo">{ann.stack_memo || ann.properties.comment}</div>
+											{#each [namingStacks.get(c.id) || []] as stack}
+												<div class="naming-detail">
+													<span class="naming-stat">{codeAnns.length} passage{codeAnns.length !== 1 ? 's' : ''}</span>
+													{#if stack.some(a => a.designation || a.inscription)}
+														<div class="naming-section-label">Stack</div>
+														{#each stack as act}
+															{#if act.designation || act.inscription}
+																<div class="naming-stack-entry">
+																	{#if act.designation}<span class="stack-ccs">{act.designation}</span>{/if}
+																	{#if act.inscription}<span class="stack-inscription">{act.inscription}</span>{/if}
+																</div>
+															{/if}
+														{/each}
 													{/if}
-												{/each}
-											</div>
+													{#if stack.some(a => a.memo_text) || codeAnns.some(a => a.stack_memo || a.properties?.comment)}
+														<div class="naming-section-label">Memos</div>
+														{#each stack as act}
+															{#if act.memo_text}
+																<div class="naming-memo">{act.memo_text}</div>
+															{/if}
+														{/each}
+														{#each codeAnns as ann}
+															{#if ann.stack_memo || ann.properties?.comment}
+																<div class="naming-memo">{ann.stack_memo || ann.properties.comment}</div>
+															{/if}
+														{/each}
+													{/if}
+												</div>
+											{/each}
 										{/each}
 									{/if}
 								</div>
@@ -1301,6 +1332,49 @@
 		font-size: 0.65rem;
 		color: #4b5563;
 		margin-bottom: 0.1rem;
+	}
+	/* Shared tooltip style for panels */
+	.panel-tooltip {
+		display: none;
+		position: absolute;
+		left: 100%;
+		top: 0;
+		margin-left: 0.4rem;
+		background: #1e2030;
+		border: 1px solid #2a2d3a;
+		border-radius: 6px;
+		padding: 0.35rem 0.5rem;
+		font-size: 0.72rem;
+		font-weight: 400;
+		font-style: normal;
+		color: #d1d5db;
+		white-space: nowrap;
+		z-index: 200;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+		pointer-events: none;
+	}
+	.naming-label { position: relative; }
+	.naming-label:hover > .panel-tooltip { display: block; }
+
+	.naming-section-label {
+		font-size: 0.58rem;
+		color: #6b7280;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		margin-top: 0.2rem;
+	}
+	.naming-stack-entry {
+		font-size: 0.65rem;
+		color: #9ca3af;
+		line-height: 1.3;
+	}
+	.stack-ccs {
+		color: #a5b4fc;
+		font-size: 0.6rem;
+		margin-right: 0.3rem;
+	}
+	.stack-inscription {
+		color: #d1d5db;
 	}
 	.naming-memo {
 		font-size: 0.68rem;

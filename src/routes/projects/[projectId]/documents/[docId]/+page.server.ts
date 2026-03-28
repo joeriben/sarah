@@ -30,7 +30,7 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	if (!doc) error(404, 'Document not found');
 
-	const [annotations, candidates, elementsResult, projectAnnotations, documentsResult] = await Promise.all([
+	const [annotations, candidates, elementsResult, projectAnnotations, documentsResult, stackResult] = await Promise.all([
 		getAnnotationsByDocument(params.projectId, params.docId),
 		getAnnotationCandidates(params.projectId),
 		query<DocumentElement>(
@@ -47,6 +47,14 @@ export const load: PageServerLoad = async ({ params }) => {
 			 WHERE n.project_id = $1 AND n.deleted_at IS NULL
 			 ORDER BY n.inscription`,
 			[params.projectId]
+		),
+		query<{ naming_id: string; designation: string | null; inscription: string | null; memo_text: string | null; seq: number }>(
+			`SELECT na.naming_id, na.designation, na.inscription, na.memo_text, na.seq
+			 FROM naming_acts na
+			 JOIN namings n ON n.id = na.naming_id AND n.deleted_at IS NULL
+			 WHERE n.project_id = $1
+			 ORDER BY na.naming_id, na.seq`,
+			[params.projectId]
 		)
 	]);
 
@@ -57,6 +65,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		elements: elementsResult.rows,
 		projectId: params.projectId,
 		projectAnnotations,
-		documents: documentsResult.rows
+		documents: documentsResult.rows,
+		namingStacks: stackResult.rows
 	};
 };
