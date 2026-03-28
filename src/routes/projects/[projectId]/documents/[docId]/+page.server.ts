@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types.js';
 import { query, queryOne } from '$lib/server/db/index.js';
-import { getAnnotationsByDocument, getAnnotationCandidates } from '$lib/server/db/queries/codes.js';
+import { getAnnotationsByDocument, getAnnotationsByProject, getAnnotationCandidates } from '$lib/server/db/queries/codes.js';
 import { error } from '@sveltejs/kit';
 
 export interface DocumentElement {
@@ -30,7 +30,7 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	if (!doc) error(404, 'Document not found');
 
-	const [annotations, candidates, elementsResult] = await Promise.all([
+	const [annotations, candidates, elementsResult, projectAnnotations, documentsResult] = await Promise.all([
 		getAnnotationsByDocument(params.projectId, params.docId),
 		getAnnotationCandidates(params.projectId),
 		query<DocumentElement>(
@@ -38,6 +38,15 @@ export const load: PageServerLoad = async ({ params }) => {
 			 FROM document_elements WHERE document_id = $1
 			 ORDER BY char_start, seq`,
 			[params.docId]
+		),
+		getAnnotationsByProject(params.projectId),
+		query<{ id: string; label: string }>(
+			`SELECT n.id, n.inscription as label
+			 FROM namings n
+			 JOIN document_content dc ON dc.naming_id = n.id
+			 WHERE n.project_id = $1 AND n.deleted_at IS NULL
+			 ORDER BY n.inscription`,
+			[params.projectId]
 		)
 	]);
 
@@ -46,6 +55,8 @@ export const load: PageServerLoad = async ({ params }) => {
 		annotations,
 		candidates,
 		elements: elementsResult.rows,
-		projectId: params.projectId
+		projectId: params.projectId,
+		projectAnnotations,
+		documents: documentsResult.rows
 	};
 };

@@ -232,9 +232,96 @@ export async function getAnnotationsByCode(projectId: string, codeId: string) {
 	).rows;
 }
 
-export async function deleteAnnotation(annotationId: string, projectId: string) {
-	await query(
-		`UPDATE namings SET deleted_at = now() WHERE id = $1 AND project_id = $2`,
-		[annotationId, projectId]
+export async function getAnnotationsByProject(projectId: string) {
+	return (
+		await query(
+			`SELECT a.naming_id as id, a.directed_from as code_id, a.directed_to as document_id,
+			        a.properties, a.valence,
+			        code.inscription as code_label,
+			        doc.inscription as document_label,
+			        (SELECT ca.properties->>'color'
+			         FROM appearances ca
+			         WHERE ca.naming_id = code.id AND ca.mode = 'entity'
+			           AND ca.properties->>'color' IS NOT NULL
+			         LIMIT 1) as code_color,
+			        (SELECT na.memo_text
+			         FROM naming_acts na
+			         WHERE na.naming_id = code.id
+			           AND a.naming_id = ANY(na.linked_naming_ids)
+			           AND na.memo_text IS NOT NULL
+			         ORDER BY na.seq DESC LIMIT 1) as stack_memo
+			 FROM appearances a
+			 JOIN namings n ON n.id = a.naming_id AND n.deleted_at IS NULL
+			 JOIN namings code ON code.id = a.directed_from
+			 JOIN namings doc ON doc.id = a.directed_to AND doc.deleted_at IS NULL
+			 WHERE a.valence = 'codes'
+			   AND n.project_id = $1
+			 ORDER BY doc.inscription, n.created_at`,
+			[projectId]
+		)
+	).rows;
+}
+
+/**
+ * Count how many annotations reference a given code (excluding a specific annotation).
+ */
+export async function countCodeUsages(codeId: string, projectId: string, excludeAnnotationId?: string) {
+	const result = await queryOne<{ count: string }>(
+		`SELECT COUNT(*) as count
+		 FROM appearances a
+		 JOIN namings n ON n.id = a.naming_id AND n.deleted_at IS NULL
+		 WHERE a.directed_from = $1 AND a.valence = 'codes'
+		   AND n.project_id = $2
+		   ${excludeAnnotationId ? `AND a.naming_id != $3` : ''}`,
+		excludeAnnotationId ? [codeId, projectId, excludeAnnotationId] : [codeId, projectId]
 	);
+	return parseInt(result?.count || '0', 10);
+}
+
+/**
+ * Delete an annotation. If the code has no other usages, also delete the code.
+ * Returns { annotationDeleted: true, codeDeleted: boolean, codeLabel?: string }
+ */
+export async function deleteAnnotation(annotationId: string, projectId: string) {
+	return transaction(async (client) => {
+		// Find the code this annotation references
+		const ann = await client.query(
+			`SELECT a.directed_from as code_id, code.inscription as code_label
+			 FROM appearances a
+			 JOIN namings code ON code.id = a.directed_from
+			 WHERE a.naming_id = $1 AND a.valence = 'codes'`,
+			[annotationId]
+		);
+		const codeId = ann.rows[0]?.code_id;
+		const codeLabel = ann.rows[0]?.code_label;
+
+		// Soft-delete the annotation
+		await client.query(
+			`UPDATE namings SET deleted_at = now() WHERE id = $1 AND project_id = $2`,
+			[annotationId, projectId]
+		);
+
+		let codeDeleted = false;
+		if (codeId) {
+			// Count remaining usages of this code
+			const remaining = await client.query(
+				`SELECT COUNT(*) as count
+				 FROM appearances a
+				 JOIN namings n ON n.id = a.naming_id AND n.deleted_at IS NULL
+				 WHERE a.directed_from = $1 AND a.valence = 'codes'
+				   AND n.project_id = $2`,
+				[codeId, projectId]
+			);
+			if (parseInt(remaining.rows[0].count, 10) === 0) {
+				// No more usages — also soft-delete the code
+				await client.query(
+					`UPDATE namings SET deleted_at = now() WHERE id = $1 AND project_id = $2`,
+					[codeId, projectId]
+				);
+				codeDeleted = true;
+			}
+		}
+
+		return { annotationDeleted: true, codeDeleted, codeLabel };
+	});
 }

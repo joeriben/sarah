@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
-import { getAnnotationsByDocument, createAnnotation, deleteAnnotation } from '$lib/server/db/queries/codes.js';
+import { getAnnotationsByDocument, createAnnotation, deleteAnnotation, countCodeUsages } from '$lib/server/db/queries/codes.js';
 
 export const GET: RequestHandler = async ({ params }) => {
 	const annotations = await getAnnotationsByDocument(params.projectId, params.docId);
@@ -28,6 +28,15 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 export const DELETE: RequestHandler = async ({ params, url }) => {
 	const annotationId = url.searchParams.get('id');
 	if (!annotationId) return json({ error: 'id required' }, { status: 400 });
-	await deleteAnnotation(annotationId, params.projectId);
-	return json({ ok: true });
+
+	// Check mode: return what WOULD happen without deleting
+	if (url.searchParams.get('check') === '1') {
+		const codeId = url.searchParams.get('codeId');
+		if (!codeId) return json({ error: 'codeId required for check' }, { status: 400 });
+		const otherUsages = await countCodeUsages(codeId, params.projectId, annotationId);
+		return json({ wouldDeleteCode: otherUsages === 0 });
+	}
+
+	const result = await deleteAnnotation(annotationId, params.projectId);
+	return json(result);
 };

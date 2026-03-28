@@ -27,11 +27,6 @@
 	let codeFilter = $state('');
 	let creatingCode = $state(false);
 	let newCodeColor = $state('#8b9cf7');
-	const filteredCandidates = $derived(
-		codeFilter.trim()
-			? candidates.filter((c: any) => c.label.toLowerCase().includes(codeFilter.trim().toLowerCase()))
-			: candidates
-	);
 	const canCreateInVivo = $derived(
 		codeFilter.trim().length > 0 &&
 		!candidates.some((c: any) => c.label.toLowerCase() === codeFilter.trim().toLowerCase())
@@ -40,7 +35,7 @@
 	// Group candidates by source map for display
 	const candidateGroups = $derived.by(() => {
 		const groups = new Map<string, { label: string; items: any[] }>();
-		for (const c of filteredCandidates) {
+		for (const c of scopedCandidates) {
 			const key = c.source_map_id || '__orphan__';
 			if (!groups.has(key)) {
 				groups.set(key, { label: c.source_map_label || 'Project', items: [] });
@@ -53,6 +48,34 @@
 	// Annotation highlight on hover
 	let highlightedAnnotationId = $state<string | null>(null);
 
+	// Scope: 'this' = current document, 'all' = all documents, or a specific document ID
+	let namingsScope = $state<string>('this');
+	let passagesScope = $state<string>('this');
+	const projectDocuments = $derived(data.documents || []);
+	const projectAnnotations = $derived(data.projectAnnotations || []);
+
+	// Scoped namings: 'this' filters to codes used in this document
+	const scopedCandidates = $derived.by(() => {
+		const base = codeFilter.trim()
+			? candidates.filter((c: any) => c.label.toLowerCase().includes(codeFilter.trim().toLowerCase()))
+			: candidates;
+		if (namingsScope === 'this') {
+			const docCodeIds = new Set(annotations.map((a: any) => a.code_id));
+			return base.filter((c: any) => docCodeIds.has(c.id));
+		}
+		if (namingsScope === 'all') return base;
+		// Specific document
+		const docCodeIds = new Set(projectAnnotations.filter((a: any) => a.document_id === namingsScope).map((a: any) => a.code_id));
+		return base.filter((c: any) => docCodeIds.has(c.id));
+	});
+
+	// Scoped passages
+	const scopedAnnotations = $derived.by(() => {
+		if (passagesScope === 'this') return annotations;
+		if (passagesScope === 'all') return projectAnnotations;
+		return projectAnnotations.filter((a: any) => a.document_id === passagesScope);
+	});
+
 	// Passages panel filter + expand
 	let annFilter = $state('');
 	// Namings panel: expanded naming (shows memos)
@@ -60,9 +83,9 @@
 	let expandedAnnId = $state<string | null>(null);
 	const filteredAnnotations = $derived(
 		annFilter.trim()
-			? annotations.filter((a: any) => a.code_label.toLowerCase().includes(annFilter.trim().toLowerCase())
+			? scopedAnnotations.filter((a: any) => a.code_label.toLowerCase().includes(annFilter.trim().toLowerCase())
 				|| (a.properties?.anchor?.text || '').toLowerCase().includes(annFilter.trim().toLowerCase()))
-			: annotations
+			: scopedAnnotations
 	);
 
 	// Image viewer ref
@@ -322,8 +345,8 @@
 			const annEnd = anchor.pos1;
 			const idx = leaves.findIndex((e: any) => e.char_end > annStart);
 			if (idx >= 0) {
-				const ctxBefore = 5;
-				const ctxAfter = 5;
+				const ctxBefore = 12;
+				const ctxAfter = 12;
 				// Find last element that overlaps with annotation end
 				let endIdx = idx;
 				while (endIdx < leaves.length - 1 && leaves[endIdx].char_start < annEnd) endIdx++;
@@ -375,6 +398,15 @@
 		scrollContainer.addEventListener('scroll', onScroll, { passive: true });
 		return () => { scrollContainer.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
 	});
+
+	function scrollToPassage(annId: string) {
+		if (!textEl) return;
+		const span = textEl.querySelector(`.coded-text[data-ann-start="${annId}"]`);
+		if (!span) return;
+		span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		highlightedAnnotationId = annId;
+		setTimeout(() => { highlightedAnnotationId = null; }, 2000);
+	}
 
 	async function annotate(codeId: string) {
 		if (!selection && !regionSelection) return;
@@ -433,12 +465,30 @@
 		creatingCode = false;
 	}
 
-	async function deleteAnnotation(annId: string) {
+	async function deleteAnnotation(annId: string, codeId: string, codeLabel: string) {
+		// First check: would this also delete the code?
+		const checkRes = await fetch(
+			`/api/projects/${data.projectId}/documents/${doc.id}/annotations?id=${annId}&check=1&codeId=${codeId}`,
+			{ method: 'DELETE' }
+		);
+		if (!checkRes.ok) return;
+		const { wouldDeleteCode } = await checkRes.json();
+
+		const msg = wouldDeleteCode
+			? `Remove passage AND delete naming "${codeLabel}"?\n\nThis naming has no other passages — it will be permanently deleted.`
+			: `Remove this passage of "${codeLabel}"?\n\nThe naming itself is used elsewhere and will be kept.`;
+
+		if (!confirm(msg)) return;
+
 		const res = await fetch(`/api/projects/${data.projectId}/documents/${doc.id}/annotations?id=${annId}`, {
 			method: 'DELETE'
 		});
 		if (res.ok) {
+			const result = await res.json();
 			annotations = annotations.filter((a: any) => a.id !== annId);
+			if (result.codeDeleted) {
+				candidates = candidates.filter((c: any) => c.id !== codeId);
+			}
 		}
 	}
 
@@ -544,24 +594,44 @@
 		<!-- Namings: permanent code overview -->
 		<div class="namings-panel">
 			<div class="panel-header">
-				<h3>Namings <span class="count">({candidates.length})</span></h3>
+				<h3>Namings <span class="count">({scopedCandidates.length})</span></h3>
+				<div class="scope-toggle">
+					<button class="scope-btn" class:active={namingsScope === 'this'} onclick={() => namingsScope = 'this'}>Document</button>
+					<div class="scope-right">
+						<button class="scope-btn" class:active={namingsScope !== 'this'} onclick={() => namingsScope = 'all'}>All</button>
+						<select class="scope-doc-pick" value="" onchange={(e) => { const v = (e.target as HTMLSelectElement).value; if (v) namingsScope = v; (e.target as HTMLSelectElement).value = ''; }}>
+							<option value="">▾</option>
+							{#each projectDocuments.filter(d => d.id !== doc.id) as d}
+								<option value={d.id}>{d.label}</option>
+							{/each}
+						</select>
+					</div>
+				</div>
 			</div>
 
 			{#if hasSelection}
 				<div class="selection-section">
-					<div class="selection-preview">{getSelectionPreview()}</div>
-					<button class="btn-cancel" onclick={cancelSelection}>Cancel</button>
-
-					{#if !isImage && selection}
-						<ComparisonPanel
-							projectId={data.projectId}
-							docId={doc.id}
-							{selection}
-							onannotate={(codeId) => annotate(codeId)}
-							documentTitle={doc.label}
+					<div class="selection-top">
+						<div class="selection-preview">{getSelectionPreview()}</div>
+						<button class="btn-cancel" onclick={cancelSelection}>&times;</button>
+					</div>
+					<form class="invivo-form" onsubmit={e => { e.preventDefault(); if (canCreateInVivo) createCodeAndAnnotate(); }}>
+						<input
+							type="text"
+							class="code-filter-input"
+							placeholder="Apply naming..."
+							bind:value={codeFilter}
+							disabled={annotating || creatingCode}
 						/>
-					{/if}
-
+						{#if canCreateInVivo}
+							<div class="invivo-create-row">
+								<input type="color" class="invivo-color" bind:value={newCodeColor} />
+								<button type="submit" class="btn-create-code" disabled={creatingCode}>
+									+ {codeFilter.trim()}
+								</button>
+							</div>
+						{/if}
+					</form>
 					<input
 						type="text"
 						class="comment-input"
@@ -569,28 +639,19 @@
 						bind:value={comment}
 					/>
 				</div>
+			{:else}
+				<form class="invivo-form" onsubmit={e => { e.preventDefault(); }}>
+					<input
+						type="text"
+						class="code-filter-input"
+						placeholder="Filter namings..."
+						bind:value={codeFilter}
+					/>
+				</form>
 			{/if}
 
-			<form class="invivo-form" onsubmit={e => { e.preventDefault(); if (canCreateInVivo) createCodeAndAnnotate(); }}>
-				<input
-					type="text"
-					class="code-filter-input"
-					placeholder="Filter or create naming..."
-					bind:value={codeFilter}
-					disabled={annotating || creatingCode}
-				/>
-				{#if canCreateInVivo}
-					<div class="invivo-create-row">
-						<input type="color" class="invivo-color" bind:value={newCodeColor} />
-						<button type="submit" class="btn-create-code" disabled={creatingCode}>
-							+ {codeFilter.trim()}
-						</button>
-					</div>
-				{/if}
-			</form>
-
 			<div class="namings-scroll">
-				{#if filteredCandidates.length > 0}
+				{#if scopedCandidates.length > 0}
 					{#each [...candidateGroups] as [key, group] (key)}
 						<div class="naming-group">
 							<span class="naming-group-label">{group.label}</span>
@@ -602,9 +663,10 @@
 										<span class="naming-label">{c.label}</span>
 										<button
 											class="naming-action"
+											class:has-memos={scopedAnnotations.some((a) => a.code_id === c.id && (a.stack_memo || a.properties?.comment))}
 											title="Show memos"
 											onclick={(e) => { e.stopPropagation(); expandedNamingId = expandedNamingId === c.id ? null : c.id; }}
-										>{expandedNamingId === c.id ? '▼' : '▷'}</button>
+										>{expandedNamingId === c.id ? '▽' : '▼'}</button>
 										<button
 											class="naming-action"
 											title="Filter passages"
@@ -612,7 +674,7 @@
 										>▶</button>
 									</div>
 									{#if expandedNamingId === c.id}
-										{#each [annotations.filter((a) => a.code_id === c.id)] as codeAnns}
+										{#each [scopedAnnotations.filter((a) => a.code_id === c.id)] as codeAnns}
 											<div class="naming-detail">
 												<span class="naming-stat">{codeAnns.length} passage{codeAnns.length !== 1 ? 's' : ''}</span>
 												{#each codeAnns as ann}
@@ -657,8 +719,31 @@
 		<!-- Passages: permanent overview of coded text passages -->
 		<div class="passages-panel">
 			<div class="panel-header">
-				<h3>Passages <span class="count">({filteredAnnotations.length}/{annotations.length})</span></h3>
+				<h3>Passages <span class="count">({filteredAnnotations.length}/{scopedAnnotations.length})</span></h3>
+				<div class="scope-toggle">
+					<button class="scope-btn" class:active={passagesScope === 'this'} onclick={() => passagesScope = 'this'}>Document</button>
+					<div class="scope-right">
+						<button class="scope-btn" class:active={passagesScope !== 'this'} onclick={() => passagesScope = 'all'}>All</button>
+						<select class="scope-doc-pick" value="" onchange={(e) => { const v = (e.target as HTMLSelectElement).value; if (v) passagesScope = v; (e.target as HTMLSelectElement).value = ''; }}>
+							<option value="">▾</option>
+							{#each projectDocuments.filter(d => d.id !== doc.id) as d}
+								<option value={d.id}>{d.label}</option>
+							{/each}
+						</select>
+					</div>
+				</div>
 			</div>
+			{#if !isImage && selection}
+				<div class="comparison-section">
+					<ComparisonPanel
+						projectId={data.projectId}
+						docId={doc.id}
+						{selection}
+						onannotate={(codeId) => annotate(codeId)}
+						documentTitle={doc.label}
+					/>
+				</div>
+			{/if}
 			<input
 				type="text"
 				class="ann-search"
@@ -677,17 +762,31 @@
 							class:ann-expanded={expandedAnnId === ann.id}
 							onmouseenter={() => { highlightedAnnotationId = ann.id; }}
 							onmouseleave={() => { highlightedAnnotationId = null; }}
-							onclick={() => { expandedAnnId = expandedAnnId === ann.id ? null : ann.id; }}
 						>
 							<div class="ann-header">
 								<span class="color-dot" style="background: {ann.code_color || '#8b9cf7'}"></span>
 								<span class="code-name">{ann.code_label}</span>
 								<button
 									class="btn-expand-ann"
-									onclick={(e) => { e.stopPropagation(); expandedAnnId = expandedAnnId === ann.id ? null : ann.id; }}
-									title="Show passage"
-								>{expandedAnnId === ann.id ? '▼' : '▷'}</button>
+									onclick={() => { expandedAnnId = expandedAnnId === ann.id ? null : ann.id; }}
+									title="Show context"
+								>{expandedAnnId === ann.id ? '▽' : '▼'}</button>
+								{#if ann.document_id === doc.id}
+									<button
+										class="btn-expand-ann"
+										onclick={() => scrollToPassage(ann.id)}
+										title="Scroll to passage"
+									>▶</button>
+								{/if}
+								<button
+									class="btn-delete-ann"
+									onclick={(e) => { e.stopPropagation(); deleteAnnotation(ann.id, ann.code_id, ann.code_label); }}
+									title="Remove"
+								>×</button>
 							</div>
+							{#if passagesScope !== 'this' && ann.document_label}
+								<div class="ann-doc-label">{ann.document_label}</div>
+							{/if}
 							{#if expandedAnnId === ann.id}
 								{@const parts = getPassageParts(ann)}
 								<div class="ann-context">
@@ -794,7 +893,7 @@
 		color: #d1d5db;
 		white-space: normal;
 		width: 240px;
-		z-index: 30;
+		z-index: 100;
 		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
 		pointer-events: none;
 		line-height: 1.5;
@@ -852,11 +951,62 @@
 	.panel-header {
 		padding: 0.4rem 0.2rem;
 		flex-shrink: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
 	}
 	.panel-header h3 {
 		font-size: 0.8rem;
 		color: #8b8fa3;
 		margin: 0;
+	}
+	.scope-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0;
+		border: 1px solid #2a2d3a;
+		border-radius: 4px;
+		overflow: hidden;
+	}
+	.scope-btn {
+		flex: 1;
+		background: none;
+		border: none;
+		padding: 0.15rem 0.3rem;
+		font-size: 0.65rem;
+		color: #6b7280;
+		cursor: pointer;
+		font-family: inherit;
+	}
+	.scope-btn:hover { color: #c9cdd5; }
+	.scope-btn.active {
+		background: rgba(139, 156, 247, 0.15);
+		color: #a5b4fc;
+	}
+	.scope-right {
+		display: flex;
+		align-items: center;
+		border-left: 1px solid #2a2d3a;
+	}
+	.scope-doc-pick {
+		background: none;
+		border: none;
+		color: #6b7280;
+		font-size: 0.65rem;
+		cursor: pointer;
+		padding: 0.15rem 0.15rem;
+		width: 1.4rem;
+		appearance: none;
+	}
+	.scope-doc-pick:hover { color: #a5b4fc; }
+	.scope-doc-pick:focus { outline: none; }
+	.ann-doc-label {
+		font-size: 0.62rem;
+		color: #6b7280;
+		padding: 0.1rem 0 0 1.1rem;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.panel-footer {
 		flex-shrink: 0;
@@ -923,8 +1073,20 @@
 	.selection-section {
 		background: #161822;
 		border: 1px solid #8b9cf7;
-		border-radius: 8px;
-		padding: 0.75rem;
+		border-radius: 6px;
+		padding: 0.4rem;
+		flex-shrink: 0;
+	}
+	.selection-top {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.3rem;
+	}
+	.comparison-section {
+		flex-shrink: 0;
+		border-bottom: 1px solid #2a2d3a;
+		padding: 0.3rem 0.4rem;
 	}
 
 	.section-header {
@@ -1092,6 +1254,7 @@
 		line-height: 1;
 	}
 	.naming-action:hover { color: #8b9cf7; }
+	.naming-action.has-memos { color: #c77d1a; }
 	.naming-detail {
 		padding: 0.15rem 0 0.25rem 1.1rem;
 		font-size: 0.7rem;
@@ -1205,6 +1368,19 @@
 		flex-shrink: 0;
 	}
 	.btn-expand-ann:hover { color: #8b9cf7; }
+	.btn-delete-ann {
+		background: none;
+		border: none;
+		color: transparent;
+		font-size: 0.75rem;
+		cursor: pointer;
+		padding: 0 0.15rem;
+		margin-left: auto;
+		flex-shrink: 0;
+		line-height: 1;
+	}
+	.annotation-card:hover .btn-delete-ann { color: #4b5563; }
+	.btn-delete-ann:hover { color: #ef4444 !important; }
 	.annotation-card { cursor: default; }
 	.annotation-card.ann-expanded {
 		border-color: #4b5563;
