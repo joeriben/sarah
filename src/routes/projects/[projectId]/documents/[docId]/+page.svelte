@@ -732,23 +732,18 @@
 	.meta { font-size: 0.8rem; color: #6b7280; }
 
 	/*
-	 * Layout: .project-content (parent from layout) scrolls via overflow-y:auto.
-	 * doc-body is a flex row. content-panel flows naturally (grows to content).
-	 * work-panel is position:sticky so it stays visible while scrolling.
+	 * Parent: .project-content (overflow-y:auto, padding:2rem) scrolls the page.
+	 * Work panel: position:fixed, right side — never scrolls.
+	 * Content panel: margin-right clears the fixed work panel.
 	 */
-	.doc-body {
-		display: flex;
-		gap: 1rem;
-		align-items: flex-start;
-	}
+	.doc-body { }
 
 	.content-panel {
-		flex: 1;
 		background: #161822;
 		border: 1px solid #2a2d3a;
 		border-radius: 8px;
 		padding: 1.25rem;
-		min-width: 0;
+		margin-right: 296px;
 	}
 
 	.content-panel.image-mode {
@@ -857,15 +852,15 @@
 	}
 	.coded-text:hover > .code-tooltip { display: block; }
 
-	/* Work panel: sticky — stays in view while .project-content scrolls */
+	/* Work panel: fixed at right side — never scrolls */
 	.work-panel {
-		position: sticky;
-		top: 0;
+		position: fixed;
+		top: 2rem;
+		right: 2rem;
 		width: 280px;
-		flex-shrink: 0;
-		max-height: 100vh;
+		max-height: calc(100vh - 4rem);
 		overflow-y: auto;
-		align-self: flex-start;
+		z-index: 4;
 	}
 
 	/* Annotations overlay: floating, draggable, resizable */
