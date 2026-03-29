@@ -11,7 +11,7 @@ import {
 	getDocumentNamingsForPlacement,
 	relateElements,
 	withdrawRelation,
-	createCluster,
+	createProjectCluster,
 	assignToCluster,
 	removeFromCluster,
 	getClusterMembershipHistory,
@@ -201,9 +201,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		}
 
 		case 'createCluster': {
-			const { inscription, properties } = body;
+			const { inscription } = body;
 			if (!inscription?.trim()) return json({ error: 'inscription required' }, { status: 400 });
-			const cluster = await createCluster(projectId, userId, mapId, inscription.trim(), properties);
+			const cluster = await createProjectCluster(projectId, userId, inscription.trim());
 			return json(cluster, { status: 201 });
 		}
 

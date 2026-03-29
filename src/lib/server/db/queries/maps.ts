@@ -921,26 +921,42 @@ export async function placeMultipleOnMap(
 	return placed;
 }
 
-// Get clusters (sub-perspectives) within a map
+// Get clusters visible on a map: all project clusters that have at least one
+// member appearing on this map. Clusters are project-level, maps just display them.
 export async function getMapClusters(mapId: string, projectId: string) {
 	return (
 		await query(
-			`SELECT a.naming_id as id, n.inscription as label, a.properties,
+			`SELECT c.id, c.label,
 			   (SELECT count(*) FROM appearances sub
-			    WHERE sub.perspective_id = a.naming_id
-			      AND sub.naming_id != a.naming_id) as element_count
-			 FROM appearances a
-			 JOIN namings n ON n.id = a.naming_id
-			 WHERE a.perspective_id = $1
-			   AND a.mode = 'perspective'
-			   AND a.naming_id != $1
-			   AND n.project_id = $2
-			   AND n.deleted_at IS NULL
-			 ORDER BY n.seq`,
+			    WHERE sub.perspective_id = c.id
+			      AND sub.naming_id != c.id) as element_count
+			 FROM (${PROJECT_CLUSTERS_CTE}) c
+			 WHERE EXISTS (
+			   -- At least one member of this cluster appears on this map
+			   SELECT 1 FROM appearances member
+			   JOIN appearances on_map ON on_map.naming_id = member.naming_id
+			     AND on_map.perspective_id = $1
+			   WHERE member.perspective_id = c.id
+			     AND member.naming_id != c.id
+			 )
+			 ORDER BY c.label`,
 			[mapId, projectId]
 		)
 	).rows;
 }
+
+// Shared CTE for finding project clusters
+const PROJECT_CLUSTERS_CTE = `
+  SELECT DISTINCT ON (n.id) n.id, n.inscription as label
+  FROM namings n
+  JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = n.id
+    AND a.mode = 'perspective'
+  WHERE n.project_id = $2
+    AND n.deleted_at IS NULL
+    AND NOT (a.properties ? 'mapType')
+    AND NOT (a.properties->>'role' = 'grounding-workspace')
+  ORDER BY n.id, n.seq
+`;
 
 // Get the aggregate designation state of a map:
 // how many elements at each designation stage (respects collapseAt)
@@ -1048,22 +1064,22 @@ export async function getMapStructure(mapId: string, projectId: string) {
 export async function getProjectClusters(projectId: string) {
 	return (
 		await query(
-			`SELECT DISTINCT ON (n.id)
-			   n.id, n.inscription as label,
+			`SELECT c.id, c.label,
 			   (SELECT count(*) FROM appearances sub
-			    WHERE sub.perspective_id = n.id
-			      AND sub.naming_id != n.id) as member_count,
-			   a.properties->>'parentMapId' as parent_map_id
-			 FROM namings n
-			 JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = n.id
-			   AND a.mode = 'perspective'
-			 WHERE n.project_id = $1
-			   AND n.deleted_at IS NULL
-			   -- Exclude maps themselves (they have mapType in their self-appearance)
-			   AND NOT (a.properties ? 'mapType')
-			   -- Exclude grounding workspace
-			   AND NOT (a.properties->>'role' = 'grounding-workspace')
-			 ORDER BY n.id, n.seq`,
+			    WHERE sub.perspective_id = c.id
+			      AND sub.naming_id != c.id) as member_count
+			 FROM (
+			   SELECT DISTINCT ON (n.id) n.id, n.inscription as label
+			   FROM namings n
+			   JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = n.id
+			     AND a.mode = 'perspective'
+			   WHERE n.project_id = $1
+			     AND n.deleted_at IS NULL
+			     AND NOT (a.properties ? 'mapType')
+			     AND NOT (a.properties->>'role' = 'grounding-workspace')
+			   ORDER BY n.id, n.seq
+			 ) c
+			 ORDER BY c.label`,
 			[projectId]
 		)
 	).rows;
