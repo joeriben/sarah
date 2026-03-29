@@ -1,0 +1,2520 @@
+ ▐▛███▜▌   Claude Code v2.1.81
+▝▜█████▛▘  Opus 4.6 (1M context) · Claude Max
+  ▘▘ ▝▝    ~/ai/transact-qda
+
+❯ Ich bin im Naming-Menü und will an einem Naming arbeiten. Ich habe ai-Namings 
+ ausgeblendet. Ich klice auf naming, klappt aus, ich sehe alle Memos. Ich kann  
+hier aber keine verwalten, öffne einen zweiten Tab mit den Memos - aber hier    
+kann ich "edit" udn "discuss" drücken, aber nicht withdrawen (z.B. unpassende   
+AI-Memos)                                                                       
+
+● Let me explore the codebase to understand the current memo and naming UI
+  structure.
+
+● 2 Explore agents finished (ctrl+o to expand)
+   ├─ Explore memo UI components · 37 tool uses · 78.6k tokens
+   │  ⎿  Done
+   └─ Explore naming menu/sidebar UI · 35 tool uses · 68.7k tokens
+      ⎿  Done
+
+● Good exploration results. Let me read the key files to understand the exact UI
+   state.
+
+  Read 2 files (ctrl+o to expand)
+
+● Now I have a clear picture of the issue. Let me also check what the StackPanel
+   shows for memos in the naming list inline expand.
+
+  Read 1 file (ctrl+o to expand)
+
+● Now I have the full picture. Let me check what status AI memos get when
+  created.
+
+  Searched for 3 patterns, read 1 file (ctrl+o to expand)
+
+● Good - AI memos are created with status 'presented'. So the user's AI memos
+  should have the presented status and would have ack, dismiss, promote buttons
+  available. Let me re-read the conditions.
+
+  Looking at the memos page (lines 204-207):
+  {#if memo.status === 'presented' || memo.status === 'discussed'}
+      <button>ack</button>
+      <button>dismiss</button>
+      <button>promote</button>
+  {/if}
+
+  So presented memos DO have dismiss available. The user says they can only see
+  "edit" and "discuss" - not dismiss. That's odd. Unless their memos have active
+   status somehow, or the user just doesn't see "dismiss" as equivalent to
+  "withdraw".
+
+  Let me re-read the user's message: "aber hier kann ich 'edit' und 'discuss'
+  drücken, aber nicht withdrawen". They specifically use the word "withdraw",
+  not "dismiss". They might see the dismiss button but consider it different
+  from withdraw.
+
+  Wait - or maybe they only see edit and discuss because the memo cards are
+  collapsed by default, and the collapsed view (lines 229-237) shows ack and
+  dismiss but NOT edit and discuss. And the expanded view (lines 202-225) shows
+  edit, discuss, ack, dismiss, promote.
+
+  Hmm actually the collapsed view shows ack and dismiss quick actions, while the
+   expanded view shows all buttons. The user says they see edit and discuss -
+  that's the expanded view. But they should also see ack, dismiss, and promote
+  there.
+
+  Unless the issue is that they want withdraw (soft-delete, like for namings)
+  rather than dismiss (status change). That would make sense - "dismiss" is just
+   a status that grays out the memo but keeps it in the list, while "withdraw"
+  would actually remove it from view.
+
+  Let me ask the user to clarify.
+
+● Hier ist was ich sehe:
+
+  Memos-Seite (/memos): AI-Memos werden mit Status presented erstellt. Für
+  presented Memos gibt es bereits ack, dismiss und promote Buttons neben edit
+  und discuss.
+
+  Naming-Detail (/namings/[namingId]): Memos sind komplett read-only — keine
+  Aktions-Buttons.
+
+  Naming-Liste inline Stack: Memos zeigen nur Label + Content, keine
+  Status-Badges, keine Aktionen.
+
+  Zwei Fragen zur Klärung:
+  ⎿  Interrupted · What should Claude do instead?
+
+❯ bzw. Manche Memos haben ack/dismiss, andere nicht                             
+  ⎿  [Image #1]
+
+● Jetzt sehe ich es klar. Die unteren AI-Memos (z.B. "AI: The map's
+  architecture...") haben Status active — und für active Memos gibt es im Code
+  keine Status-Buttons:
+
+  // Nur presented/discussed bekommen ack/dismiss/promote
+  {#if memo.status === 'presented' || memo.status === 'discussed'}
+  // Nur acknowledged bekommt dismiss
+  {#if memo.status === 'acknowledged'}
+  // active → NICHTS
+
+  Diese AI-Memos wurden vermutlich erstellt, bevor der presented-Status
+  eingeführt wurde. Der AI-Agent setzt jetzt 'presented', aber ältere Memos sind
+   noch active.
+
+● User answered Claude's questions:
+  ⎿  · Sollen `active` Memos dieselben Buttons bekommen wie `presented` (ack, 
+     dismiss, promote)? Oder reicht dir nur dismiss für active Memos? → Naja, 
+     lass mal nachdenken: Hier im Berardi-Testprojekt sind extrem viele 
+     AI-Memos, viele nicht sehr relevant, eher beiläufige Metakommentare (das 
+     müssen wir später noch justieren, den Sysprompt), wie "The map begins with 
+     "mophogenesis" — likely morphogenesis (the process by which form/structure 
+     comes into being). In the context of a map titled "Futurability," this is a
+      provocative starting point ...". Das ist nun nicht "presented" aus 
+     irgendeinem Grund. Ich kann (und sollte ggf.) mit der AI diskutieren und 
+     sie bitten das zurückzuziehen. Dann ist es aber dennoch genauso in der 
+     Liste. -- Ok, ich verstehe dass man die schon sehr schnell wegdrücken würde
+      (aber das ist mit "presented" ja auch so) -- zugegebenermaßen habe ich den
+      Unterschied zwishcen "presented" und den anderen vergessen. (Image 
+     attached)
+     · Sollen Memo-Aktionen auch direkt im Naming-Detail und im Inline-Stack 
+     (Naming-Liste) verfügbar sein, statt nur auf der Memos-Seite? → Auch im 
+     Naming-Detail
+  ⎿  [Image #2]
+
+● Klar — das zweite Memo wurde sogar schon per Diskussion "[ZURÜCKGEZOGEN]",
+  sitzt aber trotzdem ohne Buttons in der Liste. Und 70 von 73 Memos sind active
+   ohne jede Aktion.
+
+  Ich schreibe jetzt den Plan.
+
+● Updated plan
+  ⎿  /plan to preview
+  ⎿  Tool use rejected
+  ⎿  1 skill available
+
+● Bash(git status)
+  ⎿  On branch main
+     Your branch is up to date with 'origin/main'.
+     … +18 lines (ctrl+o to expand)
+
+● Bash(git log --oneline -5)
+  ⎿  3dc6875 Projects: add QDPX export button to project cards
+     4e30383 Projects: add duplicate button to project cards
+     febdef2 Load project: stay on projects page instead of auto-navigate
+     … +2 lines (ctrl+o to expand)
+● Bash(git diff --cached --stat)
+  ⎿   .claude/agents/opus-delegator.md                   |  169 +
+      .claude/worktrees/agent-ae9df2da                   |    1 +
+      ...2026-03-09-19031301-transact-qda_session_18.txt | 2454 +++++++
+     … +9 lines (ctrl+o to expand)
+
+● Bash(git commit -m "$(cat <<'EOF'
+      Add session logs 14-19 and claude agent config…)
+  ⎿  [main 8d398b1] Add session logs 14-19 and claude agent config
+      9 files changed, 27758 insertions(+)
+      create mode 100644 .claude/agents/opus-delegator.md
+     … +15 lines (ctrl+o to expand)
+
+● Commit done. Plan ist schon geschrieben — lasse ihn nochmal prüfen und gehe
+  dann raus.
+
+  Read 1 file (ctrl+o to expand)
+
+● Plan steht, commit ist durch.
+
+● User approved Claude's plan
+  ⎿  Plan saved to: ~/.claude/plans/cached-mixing-flute.md · /plan to edit
+     Plan: Memo-Aktionen für alle Status + Naming-Detail
+
+     Context
+
+     active Memos (70 von 73) haben keine Status-Buttons — weder dismiss noch
+     ack/promote. Nur presented und discussed haben Aktionen. Ältere AI-Memos
+     wurden vor Einführung des presented-Status erstellt und hängen jetzt ohne
+     Verwaltungsmöglichkeit in der Liste. Zusätzlich sind Memos im Naming-Detail
+      und Inline-Stack komplett read-only.
+
+     Changes
+
+     1. Memos-Seite: active Memos bekommen Buttons
+
+     File: src/routes/projects/[projectId]/memos/+page.svelte
+
+     Expanded view (line 204): active zu den Bedingungen hinzufügen:
+     {#if memo.status === 'active' || memo.status === 'presented' || memo.status
+      === 'discussed'}
+         <button>ack</button>
+         <button>dismiss</button>
+         <button>promote</button>
+     {/if}
+
+     Collapsed quick-actions (line 231): ebenfalls active hinzufügen:
+     {#if memo.status === 'active' || memo.status === 'presented' || memo.status
+      === 'discussed'}
+         <button>ack</button>
+         <button>dismiss</button>
+     {/if}
+
+     2. Naming-Detail: Memo-Aktionen hinzufügen
+
+     File: src/routes/projects/[projectId]/namings/[namingId]/+page.svelte
+
+     - setStatus(memoId, status) Funktion hinzufügen (fetch PUT an
+     /api/projects/{projectId}/memos/{memoId}/status)
+     - Pro Memo-Card Aktions-Buttons rendern: ack, dismiss, promote, restore,
+     edit-Link
+     - Logik analog zur Memos-Seite, aber ohne discuss (zu viel UI für den
+     Kontext)
+
+     3. Naming-Liste Inline-Stack: Memo-Aktionen hinzufügen
+
+     File: src/routes/projects/[projectId]/namings/+page.svelte
+
+     Im Stack-Panel (lines 664-673):
+     - Status-Badge + Author-Badge pro Memo anzeigen
+     - dismiss-Button für active/presented/discussed Memos
+     - restore-Button für dismissed Memos
+     - Kompakt halten — nur die wichtigsten Aktionen (dismiss/restore)
+     - setMemoStatus() Funktion + Stack-Refresh nach Mutation
+
+     Files to modify
+
+     1. src/routes/projects/[projectId]/memos/+page.svelte — active zu
+     Button-Bedingungen
+     2. src/routes/projects/[projectId]/namings/[namingId]/+page.svelte —
+     Memo-Aktionen + setStatus
+     3. src/routes/projects/[projectId]/namings/+page.svelte — Inline-Stack
+     Memo-Aktionen
+
+     Verification
+
+     1. Memos-Seite: active AI-Memos zeigen ack/dismiss/promote
+     2. Dismiss eines active Memo → wird grau, zeigt "restore"
+     3. Naming-Detail (/namings/[id]): Memos haben dismiss/ack Buttons
+     4. Naming-Liste inline Stack: Memos zeigen Status + dismiss/restore
+     5. Bestehende presented/discussed/dismissed Flows unverändert
+
+● Let me read the three files and implement the changes.
+
+  Read 3 files (ctrl+o to expand)
+
+● I need to also check the existing functions in the namings page for setStatus
+  patterns and the showStack function.
+
+  Read 1 file (ctrl+o to expand)
+
+● Now I have all the context. Let me implement all three changes in parallel.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/memos/+page.sveltesrc/routes/projects/[projectId]/memos/+page.svelte)
+  ⎿  Error editing file
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/memos/+page.sveltesrc/routes/projects/[projectId]/memos/+page.svelte)
+  ⎿  Error editing file
+
+● Let me re-read the exact lines to get the indentation right.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/memos/+page.sveltesrc/routes/projects/[projectId]/memos/+page.svelte)
+  ⎿  Error editing file
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/memos/+page.sveltesrc/routes/projects/[projectId]/memos/+page.svelte)
+  ⎿  Added 2 lines, removed 2 lines
+      201              <!-- Actions -->
+      202              <div class="memo-actions">
+      203                <a href="/projects/{data.projectId}/memos/{memo.
+           id}" class="btn-xs btn-edit">edit</a>
+      204 -              {#if memo.status === 'presented' || memo.status 
+          -=== 'discussed'}                                              
+      204 +              {#if memo.status === 'active' || memo.status ===
+          + 'presented' || memo.status === 'discussed'}                  
+      205                  <button class="btn-xs" onclick={() => setStatu
+           s(memo.id, 'acknowledged')}>ack</button>
+      206                  <button class="btn-xs" onclick={() => setStatu
+           s(memo.id, 'dismissed')}>dismiss</button>
+      207                  <button class="btn-xs btn-promote" onclick={()
+            => setStatus(memo.id, 'promoted')}>promote</button>
+     ...
+      228              <!-- Collapsed actions -->
+      229              <div class="memo-card-meta">
+      230                <div class="quick-actions">
+      231 -                {#if memo.status === 'presented' || memo.statu
+          -s === 'discussed'}                                            
+      231 +                {#if memo.status === 'active' || memo.status =
+          +== 'presented' || memo.status === 'discussed'}                
+      232                    <button class="btn-xs" onclick={() => setSta
+           tus(memo.id, 'acknowledged')}>ack</button>
+      233                    <button class="btn-xs" onclick={() => setSta
+           tus(memo.id, 'dismissed')}>dismiss</button>
+      234                  {/if}
+
+● Good, memos page done. Now the naming detail page — add setStatus function and
+   memo action buttons.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/namings/%5BnamingId%5D/+page.sveltesrc/routes/projects/[projectId]/namings/[namingId]/+page.svelte)
+  ⎿  Added 10 lines
+      35      if (m === 'silence') return '∅';
+      36      return '◆';
+      37    }
+      38 +                                                               
+      39 +  async function setMemoStatus(memoId: string, status: string) 
+         +{                                                              
+      40 +    await fetch(`/api/projects/${data.projectId}/memos/${memoId
+         +}/status`, {                                                   
+      41 +      method: 'PUT',                                           
+      42 +      headers: { 'Content-Type': 'application/json' },         
+      43 +      body: JSON.stringify({ status })                         
+      44 +    });                                                        
+      45 +    const module = await import('$app/navigation');            
+      46 +    module.invalidateAll();                                    
+      47 +  }                                                            
+      48  </script>
+      49  
+      50  <div class="naming-detail">
+
+● Now add memo action buttons after the discussion thread in the naming detail
+  page.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/namings/%5BnamingId%5D/+page.sveltesrc/routes/projects/[projectId]/namings/[namingId]/+page.svelte)
+  ⎿  Error editing file
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/namings/%5BnamingId%5D/+page.sveltesrc/routes/projects/[projectId]/namings/[namingId]/+page.svelte)
+  ⎿  Added 14 lines
+      132                    {/each}
+      133                  </div>
+      134                {/if}
+      135 +              <div class="memo-actions">                      
+      136 +                <a href="/projects/{data.projectId}/memos/{mem
+          +o.id}" class="btn-xs btn-edit">edit</a>                       
+      137 +                {#if memo.status === 'active' || memo.status =
+          +== 'presented' || memo.status === 'discussed'}                
+      138 +                  <button class="btn-xs" onclick={() => setMem
+          +oStatus(memo.id, 'acknowledged')}>ack</button>                
+      139 +                  <button class="btn-xs" onclick={() => setMem
+          +oStatus(memo.id, 'dismissed')}>dismiss</button>               
+      140 +                  <button class="btn-xs btn-promote" onclick={
+          +() => setMemoStatus(memo.id, 'promoted')}>promote</button>    
+      141 +                {/if}                                         
+      142 +                {#if memo.status === 'acknowledged'}          
+      143 +                  <button class="btn-xs" onclick={() => setMem
+          +oStatus(memo.id, 'dismissed')}>dismiss</button>               
+      144 +                {/if}                                         
+      145 +                {#if memo.status === 'dismissed'}             
+      146 +                  <button class="btn-xs" onclick={() => setMem
+          +oStatus(memo.id, 'presented')}>restore</button>               
+      147 +                {/if}                                         
+      148 +              </div>                                          
+      149              </div>
+      150            {/each}
+      151          </section>
+
+● Now add the button styles to the naming detail page.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/namings/%5BnamingId%5D/+page.sveltesrc/routes/projects/[projectId]/namings/[namingId]/+page.svelte)
+  ⎿  Added 16 lines
+      351      max-height: 8em; overflow-y: auto;
+      352    }
+      353  
+      354 +  /* Memo actions */                                          
+      355 +  .memo-actions {                                             
+      356 +    display: flex; gap: 0.3rem; margin-top: 0.4rem;           
+      357 +    padding-top: 0.3rem; border-top: 1px solid #1e2030;       
+      358 +  }                                                           
+      359 +  .btn-xs {                                                   
+      360 +    background: none; border: 1px solid #2a2d3a; border-radius
+          +: 4px;                                                        
+      361 +    color: #8b8fa3; font-size: 0.7rem; padding: 0.15rem 0.4rem
+          +; cursor: pointer;                                            
+      362 +    text-decoration: none;                                    
+      363 +  }                                                           
+      364 +  .btn-xs:hover { border-color: #8b9cf7; }                    
+      365 +  .btn-edit { color: #8b9cf7; border-color: rgba(139, 156, 247
+          +, 0.3); }                                                     
+      366 +  .btn-edit:hover { background: rgba(139, 156, 247, 0.1); }   
+      367 +  .btn-promote { border-color: #10b981; color: #10b981; }     
+      368 +  .btn-promote:hover { background: rgba(16, 185, 129, 0.1); } 
+      369 +                                                              
+      370    /* Discussion */
+      371    .discussion-thread { margin-top: 0.4rem; }
+      372    .discussion-turn {
+● Now the inline stack in the namings list page. I need to add a setMemoStatus
+  function and update the memo section in the stack panel.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/namings/+page.sveltesrc/routes/projects/[projectId]/namings/+page.svelte)
+  ⎿  Added 13 lines
+      310      actLinkedIds = [];
+      311    }
+      312  
+      313 +  // ---- Memo Status ----                                    
+      314 +  async function setMemoStatus(memoId: string, status: string)
+          + {                                                            
+      315 +    await fetch(`/api/projects/${data.projectId}/memos/${memoI
+          +d}/status`, {                                                 
+      316 +      method: 'PUT',                                          
+      317 +      headers: { 'Content-Type': 'application/json' },        
+      318 +      body: JSON.stringify({ status })                        
+      319 +    });                                                       
+      320 +    // Refresh the stack to show updated status               
+      321 +    if (stackId) {                                            
+      322 +      stackData = await apiAction('getStack', { namingId: stac
+          +kId });                                                       
+      323 +    }                                                         
+      324 +  }                                                           
+      325 +                                                              
+      326    // ---- Withdraw ----
+      327    async function withdraw(namingId: string) {
+      328      // Mark locally first so the item stays in place with visu
+           al feedback
+
+● Now update the inline stack memo section to show badges and action buttons.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/namings/+page.sveltesrc/routes/projects/[projectId]/namings/+page.svelte)
+  ⎿  Error editing file
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Two occurrences - there's a second stack panel (probably for relations). Let
+  me read both.
+
+  Read 1 file (ctrl+o to expand)
+
+● Both instances are identical. Let me use replace_all to update both.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/namings/+page.sveltesrc/routes/projects/[projectId]/namings/+page.svelte)
+  ⎿  Added 44 lines, removed 4 lines
+      678                    <div class="stack-section">
+      679                      <h4>Memos</h4>
+      680                      {#each stackData.memos as memo}
+      681 -                      <div class="memo-entry">                
+      682 -                        <span class="memo-label">{memo.label}<
+          -/span>                                                        
+      681 +                      <div class="memo-entry" class:memo-dismi
+          +ssed={memo.status === 'dismissed'}>                           
+      682 +                        <div class="memo-entry-header">       
+      683 +                          <span class="memo-author-badge" clas
+          +s:badge-ai={memo.isAiAuthored}>                               
+      684 +                            {memo.isAiAuthored ? 'AI' : 'R'}  
+      685 +                          </span>                             
+      686 +                          {#if memo.status && memo.status !== 
+          +'active'}                                                     
+      687 +                            <span class="memo-status-badge sta
+          +tus-{memo.status}">{memo.status}</span>                       
+      688 +                          {/if}                               
+      689 +                          <span class="memo-label">{memo.label
+          +}</span>                                                      
+      690 +                        </div>                                
+      691                          <div class="memo-content">{@html memo.
+           content}</div>
+      692 +                        <div class="memo-entry-actions">      
+      693 +                          {#if memo.status === 'active' || mem
+          +o.status === 'presented' || memo.status === 'discussed'}      
+      694 +                            <button class="btn-xs" onclick={()
+          + => setMemoStatus(memo.id, 'dismissed')}>dismiss</button>     
+      695 +                            <button class="btn-xs" onclick={()
+          + => setMemoStatus(memo.id, 'acknowledged')}>ack</button>      
+      696 +                          {/if}                               
+      697 +                          {#if memo.status === 'acknowledged'}
+      698 +                            <button class="btn-xs" onclick={()
+          + => setMemoStatus(memo.id, 'dismissed')}>dismiss</button>     
+      699 +                          {/if}                               
+      700 +                          {#if memo.status === 'dismissed'}   
+      701 +                            <button class="btn-xs" onclick={()
+          + => setMemoStatus(memo.id, 'presented')}>restore</button>     
+      702 +                          {/if}                               
+      703 +                        </div>                                
+      704                        </div>
+      705                      {/each}
+      706                    </div>
+     ...
+      853                    <div class="stack-section">
+      854                      <h4>Memos</h4>
+      855                      {#each stackData.memos as memo}
+      836 -                      <div class="memo-entry">                
+      837 -                        <span class="memo-label">{memo.label}<
+          -/span>                                                        
+      856 +                      <div class="memo-entry" class:memo-dismi
+          +ssed={memo.status === 'dismissed'}>                           
+      857 +                        <div class="memo-entry-header">       
+      858 +                          <span class="memo-author-badge" clas
+          +s:badge-ai={memo.isAiAuthored}>                               
+      859 +                            {memo.isAiAuthored ? 'AI' : 'R'}  
+      860 +                          </span>                             
+      861 +                          {#if memo.status && memo.status !== 
+          +'active'}                                                     
+      862 +                            <span class="memo-status-badge sta
+          +tus-{memo.status}">{memo.status}</span>                       
+      863 +                          {/if}                               
+      864 +                          <span class="memo-label">{memo.label
+          +}</span>                                                      
+      865 +                        </div>                                
+      866                          <div class="memo-content">{@html memo.
+           content}</div>
+      867 +                        <div class="memo-entry-actions">      
+      868 +                          {#if memo.status === 'active' || mem
+          +o.status === 'presented' || memo.status === 'discussed'}      
+      869 +                            <button class="btn-xs" onclick={()
+          + => setMemoStatus(memo.id, 'dismissed')}>dismiss</button>     
+      870 +                            <button class="btn-xs" onclick={()
+          + => setMemoStatus(memo.id, 'acknowledged')}>ack</button>      
+      871 +                          {/if}                               
+      872 +                          {#if memo.status === 'acknowledged'}
+      873 +                            <button class="btn-xs" onclick={()
+          + => setMemoStatus(memo.id, 'dismissed')}>dismiss</button>     
+      874 +                          {/if}                               
+      875 +                          {#if memo.status === 'dismissed'}   
+      876 +                            <button class="btn-xs" onclick={()
+          + => setMemoStatus(memo.id, 'presented')}>restore</button>     
+      877 +                          {/if}                               
+      878 +                        </div>                                
+      879                        </div>
+      880                      {/each}
+      881                    </div>
+
+● Now add the styles for the new memo elements in the namings page. Let me find
+  the existing memo styles.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/namings/+page.sveltesrc/routes/projects/[projectId]/namings/+page.svelte)
+  ⎿  Added 19 lines, removed 1 line
+      1345    .he-by::before { content: '— '; }
+      1346    .he-date { color: #4b5563; margin-left: auto; font-size: 0.
+            7rem; }
+      1347  
+      1348 -  .memo-entry { margin-bottom: 0.3rem; }                     
+      1348 +  .memo-entry { margin-bottom: 0.5rem; padding: 0.3rem 0.4rem
+           +; border: 1px solid #1e2030; border-radius: 4px; }           
+      1349 +  .memo-entry.memo-dismissed { opacity: 0.5; }               
+      1350 +  .memo-entry-header { display: flex; align-items: center; ga
+           +p: 0.3rem; margin-bottom: 0.15rem; }                         
+      1351 +  .memo-author-badge {                                       
+      1352 +    font-size: 0.55rem; font-weight: 700; text-transform: upp
+           +ercase;                                                      
+      1353 +    background: rgba(107, 114, 128, 0.2); color: #9ca3af;    
+      1354 +    padding: 0.02rem 0.25rem; border-radius: 3px; flex-shrink
+           +: 0;                                                         
+      1355 +  }                                                          
+      1356 +  .memo-author-badge.badge-ai { background: rgba(139, 156, 24
+           +7, 0.15); color: #8b9cf7; }                                  
+      1357 +  .memo-status-badge {                                       
+      1358 +    font-size: 0.52rem; font-weight: 600; text-transform: upp
+           +ercase;                                                      
+      1359 +    padding: 0.02rem 0.25rem; border-radius: 3px; flex-shrink
+           +: 0;                                                         
+      1360 +  }                                                          
+      1361 +  .memo-status-badge.status-presented { background: rgba(139,
+           + 156, 247, 0.15); color: #8b9cf7; }                          
+      1362 +  .memo-status-badge.status-discussed { background: rgba(245,
+           + 158, 11, 0.15); color: #f59e0b; }                           
+      1363 +  .memo-status-badge.status-acknowledged { background: rgba(1
+           +6, 185, 129, 0.15); color: #10b981; }                        
+      1364 +  .memo-status-badge.status-promoted { background: rgba(16, 1
+           +85, 129, 0.25); color: #10b981; }                            
+      1365 +  .memo-status-badge.status-dismissed { background: rgba(107,
+           + 114, 128, 0.15); color: #6b7280; }                          
+      1366    .memo-label { font-size: 0.75rem; color: #f59e0b; }
+      1367    .memo-content { font-size: 0.75rem; color: #8b8fa3; margin-
+            top: 0.1rem; }
+      1368 +  .memo-entry-actions { display: flex; gap: 0.25rem; margin-t
+           +op: 0.25rem; }                                               
+      1369  
+      1370    .discussion-msg {
+      1371      padding: 0.2rem 0;
+
+● Now check if .btn-xs styles already exist in the namings page.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Good, .btn-xs already exists. All three files are updated. Let me verify the
+  changes compile by checking the dev server.
+
+● Bash(npx svelte-check --threshold error 2>&1 | tail -20)
+  ⎿  1774353305252 START "/home/joerissen/ai/transact-qda"
+     1774353305253 ERROR "src/routes/api/projects/[projectId]/export/+serve
+     r.ts" 24:22 "Argument of type 'Buffer<ArrayBufferLike>' is not assigna
+     … +5 lines (ctrl+o to expand)
+  ⎿  (timeout 1m)
+
+● Only the pre-existing Buffer type error in export. All my changes are clean.
+
+  Done. Here's what changed:
+
+  1. Memos page (/memos): active memos now show ack, dismiss, promote buttons —
+  same as presented/discussed
+  2. Naming detail (/namings/[id]): Each memo card now has action buttons (edit,
+   ack, dismiss, promote, restore)
+  3. Naming list inline stack: Memo entries now show author badge (AI/R), status
+   badge, and dismiss/ack/restore buttons
+
+✻ Cogitated for 4m 38s
+
+❯ commit                                                                        
+
+● Bash(git status)
+  ⎿  On branch main
+     Your branch is ahead of 'origin/main' by 1 commit.
+       (use "git push" to publish your local commits)
+     … +11 lines (ctrl+o to expand)
+
+● Bash(git diff)
+  ⎿  diff --git a/src/routes/projects/[projectId]/memos/+page.svelte b/src/
+     routes/projects/[projectId]/memos/+page.svelte
+     index 49fa00a..81cd62c 100644
+     … +137 lines (ctrl+o to expand)
+
+● Bash(git log --oneline -3)
+  ⎿  8d398b1 Add session logs 14-19 and claude agent config
+     3dc6875 Projects: add QDPX export button to project cards
+     4e30383 Projects: add duplicate button to project cards
+
+● Bash(git add src/routes/projects/\[projectId\]/memos/+page.svelte
+      src/routes/projects/\[projectId\]/namings/+page.svelte
+      src/routes/projects/\[projectId\]/namings/\[…)
+  ⎿  [main 6cb1977] Memos: add status actions for active memos and across a
+     ll views
+      3 files changed, 118 insertions(+), 7 deletions(-)
+
+● Committed as 6cb1977.
+
+❯ Was steht noch an an Tickets?                                                 
+
+  Recalled 4 memories (ctrl+o to expand)
+
+● Aus dem Memory zusammengefasst — offene Tickets nach Priorität:
+
+  Bugs
+
+  1. Canvas Bugs (Refactoring 74031ee) — PosMap braucht Hard Reload, SW/A zeigt
+  falschen Canvas. Root cause bekannt: canvasPositions.svelte.ts hat keine
+  reactive dependency auf Daten + kein Reset bei mapId-Wechsel.
+
+  Offen aus Session 20 Handover
+
+  2. Settings-Seite — Manuelles Backup ("Save all"), Sync-Intervall
+  konfigurierbar, ?, § Platzhalter füllen
+  3. file_path relativ machen — document_content.file_path speichert absolute
+  Pfade → Migration auf relative Pfade + Dateien nach projekte/{slug}/files/
+  verschieben
+  4. QDPX Loss-Report — Pre-Export-Dialog der zeigt was beim Export verloren
+  geht
+  5. Periodischer Sync — Automatisch starten wenn ein Projekt geöffnet wird
+  (derzeit nur manuell)
+
+  Feedback (nie umgesetzt)
+
+  6. ~~Leere Sidebar entfernt~~ — laut Handover in Session 20 als Header-Bar
+  umgebaut (Commit 5fee9a4). Das Feedback-Memory ist vermutlich erledigt.
+
+  Größere Roadmap-Items
+
+  7. AI Persona Toggle — Socratic vs. Co-Researcher + editierbarer Systemprompt
+  8. Aidele (Phase 4) — Didaktische AI-Persona
+  9. Constant Comparison — Aggregierte Naming View für Passages+Memos+History
+  auf Maps
+
+  Was willst du angehen?
+
+❯ 6 ist erledigt. 1-5 nun zuerst.                                               
+
+  Wrote 1 memory (ctrl+o to expand)
+● Ok, Ticket 1 zuerst — die Canvas Bugs. Lass mich den aktuellen Stand der
+  betroffenen Datei prüfen.
+
+  Read 2 files (ctrl+o to expand)
+
+● Now I need to understand mapState to see how mapId is exposed.
+
+  Searched for 2 patterns, read 1 file (ctrl+o to expand)
+
+❯ 6 wird dann sein: Import dun Anpassung von Provider-API und Settings pages    
+aus AI4ArtsEd                                                                   
+
+● Notiert, Ticket 6 kommt danach. Jetzt erstmal die Canvas Bugs fixen.
+
+  Die Root Cause für beide Bugs: layoutInitialized und positions werden nie
+  zurückgesetzt wenn man zwischen Maps navigiert (SvelteKit reused die
+  Komponente). Der Fix: mapId tracken und bei Wechsel resetten.
+
+● Update(src/lib/map/canvasPositions.svelte.ts)
+  ⎿  Added 1 line
+      21  
+      22    let positions = $state<Map<string, { x: number; y: number }>>
+          (new Map());
+      23    let layoutInitialized = false;
+      24 +  let currentMapId: string | null = null;                      
+      25  
+      26    // ─── Center-on (radial layout) ───
+      27  
+
+● Update(src/lib/map/canvasPositions.svelte.ts)
+  ⎿  Added 9 lines, removed 1 line
+      50  
+      51    // ─── Init & layout ───
+      52  
+      53 -  function initIfNeeded() {                                    
+      53 +  function initIfNeeded(mapId?: string) {                      
+      54 +    // Reset on map change (SvelteKit may reuse component acros
+         +s navigations)                                                 
+      55 +    if (mapId && mapId !== currentMapId) {                     
+      56 +      currentMapId = mapId;                                    
+      57 +      layoutInitialized = false;                               
+      58 +      positions = new Map();                                   
+      59 +      centeredId = null;                                       
+      60 +      preRadialPositions = null;                               
+      61 +    }                                                          
+      62      if (layoutInitialized) return;
+      63      const allNodes = [...ms.elements, ...ms.relations, ...ms.si
+          lences];
+      64      if (allNodes.length === 0) return;
+
+● Now update the +page.svelte to pass data.map.id so the effect tracks mapId
+  reactively.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/maps/%5BmapId%5D/+page.sveltesrc/routes/projects/[projectId]/maps/[mapId]/+page.svelte)
+  ⎿  Added 1 line, removed 1 line
+      71  
+      72    // ─── Position init ───
+      73  
+      74 -  $effect(() => { cp.initIfNeeded(); });                       
+      74 +  $effect(() => { cp.initIfNeeded(data.map.id); });            
+      75  
+      76    // ─── Canvas interactions ───
+      77  
+
+● I should also reset posMapFitted when the map changes, otherwise the
+  fit-to-viewport won't trigger for a new positional map.
+
+  Read 1 file (ctrl+o to expand)
+
+● I also need ms.mapType to be reactive for map navigation. Currently it's
+  derived from initialData which never changes. Let me check and fix syncData to
+   also update the map metadata.
+
+  Read 1 file (ctrl+o to expand)
+
+● mapType is derived from initialData which is static. I need to make the map
+  metadata reactive too.
+
+● Update(src/lib/map/mapState.svelte.ts)
+  ⎿  Added 2 lines, removed 1 line
+      36    let silences = $state<any[]>(initialData.silences);
+      37    let phases = $state<any[]>(initialData.phases);
+      38    let designationProfile = $state<any[]>(initialData.designatio
+          nProfile);
+      39 +  let mapMeta = $state({ id: initialData.map.id, label: initial
+         +Data.map.label, properties: initialData.map.properties });     
+      40  
+      41    // ─── Derived ───
+      41 -  const mapType = $derived(initialData.map.properties?.mapType 
+         -|| 'situational');                                             
+      42 +  const mapType = $derived(mapMeta.properties?.mapType || 'situ
+         +ational');                                                     
+      43    const allItems = $derived([...axes, ...elements, ...relations
+          , ...silences]);
+      44    const phaseColorMap = $derived(
+      45      new Map(phases.map((p: any, i: number) => [p.id, regionColo
+          r(i)]))
+
+● Now update syncData to also sync map metadata.
+
+● Update(src/lib/map/mapState.svelte.ts)
+  ⎿  Added 1 line
+      576      silences = data.silences;
+      577      phases = data.phases;
+      578      designationProfile = data.designationProfile;
+      579 +    mapMeta = { id: data.map.id, label: data.map.label, proper
+          +ties: data.map.properties };                                  
+      580    }
+      581  
+      582    return {
+
+● Now update the static mapId, mapLabel, mapProperties to use reactive getters.
+
+● Update(src/lib/map/mapState.svelte.ts)
+  ⎿  Added 3 lines, removed 3 lines
+      733  
+      734      // Data needed for API URLs
+      735      projectId: initialData.projectId,
+      736 -    mapId: initialData.map.id,                                
+      737 -    mapLabel: initialData.map.label,                          
+      738 -    mapProperties: initialData.map.properties,                
+      736 +    get mapId() { return mapMeta.id; },                       
+      737 +    get mapLabel() { return mapMeta.label; },                 
+      738 +    get mapProperties() { return mapMeta.properties; },       
+      739    };
+      740  }
+      741  
+
+● Now reset posMapFitted on map navigation in +page.svelte.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/maps/%5BmapId%5D/+page.sveltesrc/routes/projects/[projectId]/maps/[mapId]/+page.svelte)
+  ⎿  Added 5 lines, removed 2 lines
+      69      if (savedGroup) listGroupBy = savedGroup as typeof listGrou
+          pBy;
+      70    });
+      71  
+      72 -  // ─── Position init ───                                     
+      72 +  // ─── Position init (reset on map navigation) ───           
+      73  
+      74 -  $effect(() => { cp.initIfNeeded(data.map.id); });            
+      74 +  $effect(() => {                                              
+      75 +    cp.initIfNeeded(data.map.id);                              
+      76 +    posMapFitted = false; // reset fit-to-viewport for new map 
+      77 +  });                                                          
+      78  
+      79    // ─── Canvas interactions ───
+      80  
+
+● Let me verify everything compiles.
+
+● Bash(npx svelte-check --threshold error 2>&1 | tail -10)
+  ⎿  1774356466368 START "/home/joerissen/ai/transact-qda"
+     1774356466369 ERROR "src/routes/api/projects/[projectId]/export/+serve
+     r.ts" 24:22 "Argument of type 'Buffer<ArrayBufferLike>' is not assigna
+     … +5 lines (ctrl+o to expand)
+
+● Only the pre-existing Buffer error. Now let me also check that mapId is used
+  correctly in the API calls — mapAction needs the current mapId.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● mapAction and reload also use initialData.map.id directly — they'd call the
+  wrong map after navigation. Let me fix those too.
+● Update(src/lib/map/mapState.svelte.ts)
+  ⎿  Added 2 lines, removed 2 lines
+      169    // ─── API ───
+      170  
+      171    async function mapAction(action: string, body: Record<string
+           , unknown> = {}) {
+      172 -    const res = await fetch(`/api/projects/${initialData.proje
+          -ctId}/maps/${initialData.map.id}`, {                          
+      172 +    const res = await fetch(`/api/projects/${initialData.proje
+          +ctId}/maps/${mapMeta.id}`, {                                  
+      173        method: 'POST',
+      174        headers: { 'Content-Type': 'application/json' },
+      175        body: JSON.stringify({ action, ...body })
+     ...
+      179    }
+      180  
+      181    async function reload() {
+      182 -    const res = await fetch(`/api/projects/${initialData.proje
+          -ctId}/maps/${initialData.map.id}`);                           
+      182 +    const res = await fetch(`/api/projects/${initialData.proje
+          +ctId}/maps/${mapMeta.id}`);                                   
+      183      if (!res.ok) return;
+      184      const fresh = await res.json();
+      185      axes = fresh.axes || [];
+
+● Also need to check the SSE endpoint in +page.svelte — it uses data.map.id
+  which should already be reactive since it's read inside an $effect.
+
+  Read 1 file (ctrl+o to expand)
+
+● Good — the SSE effect reads data.map.id directly which is reactive, so it'll
+  reconnect to the right EventSource on navigation.
+
+  Let me also check the beforeunload handler references.
+
+  Read 1 file (ctrl+o to expand)
+
+● This uses data.map.id and data.projectId inside a closure, read at call time —
+   fine since data is reactive.
+
+  Let me run the check once more.
+
+● Bash(npx svelte-check --threshold error 2>&1 | tail -5)
+  ⎿  1774356515994 START "/home/joerissen/ai/transact-qda"
+     1774356515995 ERROR "src/routes/api/projects/[projectId]/export/+serve
+     r.ts" 24:22 "Argument of type 'Buffer<ArrayBufferLike>' is not assigna
+     … +5 lines (ctrl+o to expand)
+  ⎿  (timeout 1m)
+
+● Clean. Now update the bug memory to mark it fixed.
+
+  Wrote 1 memory (ctrl+o to expand)
+
+● Canvas Bugs gefixt. Zusammenfassung:
+
+  - canvasPositions.svelte.ts: initIfNeeded(mapId?) trackt jetzt die mapId. Bei
+  Map-Wechsel: reset von positions, layoutInitialized, centeredId
+  - mapState.svelte.ts: Neues reaktives mapMeta statt statischer
+  initialData-Referenzen. mapType, mapId, mapLabel, mapAction(), reload()
+  reagieren jetzt auf Map-Navigation
+  - +page.svelte: Effect übergibt data.map.id an initIfNeeded(), reset von
+  posMapFitted
+
+  Soll ich committen, dann weiter mit Ticket 2 (Settings-Seite)?
+
+✻ Churned for 4m 54s
+
+❯ ja                                                                            
+
+● Bash(git add src/lib/map/canvasPositions.svelte.ts
+      src/lib/map/mapState.svelte.ts
+      src/routes/projects/\[projectId\]/maps/\[mapId\]/+page.svelte && git diff
+      --cached…)
+  ⎿   src/lib/map/canvasPositions.svelte.ts                     | 11 ++++++
+     ++++-
+      src/lib/map/mapState.svelte.ts                            | 14 ++++++
+     … +4 lines (ctrl+o to expand)
+
+● Bash(git commit -m "$(cat <<'EOF'
+      Fix canvas bugs: track mapId for position reset on navigation…)
+  ⎿  [main 79e0439] Fix canvas bugs: track mapId for position reset on navi
+     gation
+      3 files changed, 23 insertions(+), 9 deletions(-)
+
+● 79e0439 committed. Weiter mit Ticket 2 — Settings-Seite. Lass mich erstmal
+  schauen was an Layout/Routing schon da ist.
+
+● Explore(Explore settings page status)
+  ⎿  Done (40 tool uses · 56.8k tokens · 11m 46s)
+  (ctrl+o to expand)
+
+● Guter Überblick. Bevor ich die Settings-Seite baue — du hast gesagt Ticket 6
+  wird "Import und Anpassung von Provider-API und Settings pages aus AI4ArtsEd".
+   Das überschneidet sich mit Ticket 2.
+
+  Soll ich die Settings-Seite jetzt bauen, oder macht es mehr Sinn, sie direkt
+  aus AI4ArtsEd zu importieren? Dann würde ich Ticket 2 mit Ticket 6
+  zusammenlegen und jetzt erstmal mit Ticket 3 (file_path relativ machen)
+  weitermachen.
+
+✻ Brewed for 1m 49s
+
+❯ ok                                                                            
+
+● Ticket 2+6 zusammengelegt. Weiter mit Ticket 3 — file_path relativ machen.
+  Lass mich die aktuelle Lage checken.
+
+● Explore(Explore document file_path usage)
+  ⎿  Done (33 tool uses · 69.3k tokens · 1m 17s)
+  (ctrl+o to expand)
+
+● Umfangreiche Analyse. Bevor ich loslege — die Handover sagt "Dateien von
+  uploads/{pid}/ nach projekte/{slug}/files/ verschieben". Das erfordert einen
+  projectId→slug Lookup beim Servieren. Alternativ könnten wir einfach relative
+  Pfade zu uploads/ speichern ({projectId}/uuid.ext) — simpler, und das
+  Verschieben nach projekte/ kommt separat.
+
+  Welchen Ansatz willst du?
+
+✻ Cogitated for 2m 8s
+
+❯ Ich verstehe Deine Frage nicht                                                
+
+● Stimmt, die Handover ist eindeutig. Ich mache was dort steht: Dateien nach
+  projekte/{slug}/files/, DB speichert files/filename.ext. Lass mich kurz den
+  projectId→slug Lookup checken.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Now let me check how the sync API gets the slug (projectId→slug mapping).
+
+  Read 1 file (ctrl+o to expand)
+
+● Now let me check the files module and how the image endpoint currently serves
+  files.
+
+  Read 2 files (ctrl+o to expand)
+❯ Was Deine Frage al Verbesserungsvorschlag gedacht? Inwiefern?                 
+
+● Nein, es war keine Verbesserung — die Handover war klar. Ich hatte unnötig
+  zwischen zwei Varianten gefragt. Sorry für die Verwirrung. Ich folge jetzt
+  einfach der Handover: Dateien nach projekte/{slug}/files/, DB speichert
+  files/filename.ext.
+
+  Lass mich den Plan schreiben.
+
+● Updated plan
+  ⎿  /plan to preview
+
+● User approved Claude's plan
+  ⎿  Plan saved to: ~/.claude/plans/cached-mixing-flute.md · /plan to edit
+     Plan: file_path relativ machen
+
+     Context
+
+     document_content.file_path speichert absolute Pfade
+     (/home/.../uploads/{pid}/uuid.ext). Nicht portabel — bricht bei Sync auf
+     andere Maschine oder wenn das Arbeitsverzeichnis sich ändert. Gemäß
+     Projektordner-Architektur sollen Dateien in projekte/{slug}/files/ leben,
+     DB speichert relative Pfade files/uuid.ext.
+
+     Approach
+
+     1. Helper: resolveFilePath(projectId, relativePath)
+
+     File: src/lib/server/files/index.ts
+
+     - Neuer Export: resolveFilePath(projectId: string, relativePath: string): 
+     Promise<string>
+     - Fragt Projektname aus DB, slugifiziert, gibt join(PROJECTS_DIR, slug, 
+     relativePath) zurück
+     - Fallback: wenn Datei dort nicht existiert, check join(UPLOAD_DIR, 
+     projectId, basename) (Übergang)
+     - slugify() aus src/routes/api/projects/sync/+server.ts nach files/index.ts
+      extrahieren (shared utility)
+
+     2. Upload: Neue Dateien nach projekte/{slug}/files/
+
+     File: src/lib/server/files/index.ts
+
+     - saveFile(buffer, originalName, projectId) → lookup project name → slug →
+     save to projekte/{slug}/files/uuid.ext
+     - Return files/uuid.ext (relative path)
+
+     3. Image-Endpoint: Relative Pfade auflösen
+
+     File:
+     src/routes/api/projects/[projectId]/documents/[docId]/image/+server.ts
+
+     - doc.file_path enthält files/uuid.ext
+     - resolveFilePath(params.projectId, doc.file_path) → absolute path →
+     createReadStream()
+
+     4. QDPX Export: Relative Pfade auflösen
+
+     File: src/lib/server/qdpx/export.ts
+
+     - archive.file(await resolveFilePath(projectId, doc.file_path), ...) statt
+     archive.file(doc.file_path, ...)
+
+     5. QDPX Import: Relative Pfade speichern
+
+     File: src/lib/server/qdpx/import.ts
+
+     - Dateien nach projekte/{slug}/files/ statt uploads/{pid}/
+     - DB bekommt files/uuid.ext
+
+     6. Project Duplicate: Dateien kopieren
+
+     File: src/routes/api/projects/+server.ts
+
+     - Beim Duplizieren: Dateien physisch kopieren in neues
+     projekte/{newSlug}/files/
+     - Pfade bleiben files/uuid.ext (gleich für beide Projekte)
+
+     7. Project Sync: Dateien mitsyncen
+
+     File: src/lib/server/project-sync/index.ts
+
+     - exportProjectToDir(): Dateien aus projekte/{slug}/files/ sind schon am
+     richtigen Ort (noop)
+     - Dir wird schon erstellt (line 160: mkdir(join(dir, 'files'), { recursive:
+      true }))
+     - Für alte Projekte mit uploads/-Dateien: beim Export auch dort nachschauen
+      und kopieren
+
+     8. Migration
+
+     File: migrations/012_relative_file_paths.sql (+ Node-Script für Datei-Move)
+
+     SQL Migration:
+     -- Strip absolute prefix, keep just files/filename.ext
+     UPDATE document_content
+     SET file_path = 'files/' || split_part(file_path, '/', -1)
+     WHERE file_path LIKE '/%';
+
+     UPDATE document_content
+     SET thumbnail_path = 'files/' || split_part(thumbnail_path, '/', -1)
+     WHERE thumbnail_path LIKE '/%';
+
+     Node-Script (einmalig manuell): Dateien von uploads/{pid}/ nach
+     projekte/{slug}/files/ kopieren.
+
+     Files to modify
+
+     1. src/lib/server/files/index.ts — resolveFilePath(), saveFile() ändern,
+     slugify() rein
+     2. src/routes/api/projects/[projectId]/documents/[docId]/image/+server.ts —
+      resolve aufrufen
+     3. src/lib/server/qdpx/export.ts — resolve aufrufen
+     4. src/lib/server/qdpx/import.ts — relative Pfade speichern
+     5. src/routes/api/projects/+server.ts — Duplicate: Dateien kopieren
+     6. src/lib/server/project-sync/index.ts — alte Dateien beim Export
+     mitnehmen
+     7. src/routes/api/projects/sync/+server.ts — slugify() entfernen (kommt aus
+      files/index)
+     8. migrations/012_relative_file_paths.sql — Pfade updaten
+
+     Verification
+
+     1. Upload neues Dokument → prüfen dass in projekte/{slug}/files/ landet
+     2. Bild anzeigen → Image-Endpoint serviert korrekt
+     3. Altes Projekt mit absoluten Pfaden → Fallback funktioniert
+     4. QDPX Export → Dateien korrekt im Archiv
+     5. Migration ausführen → alle Pfade in DB relativ
+     6. document_content.copy enthält relative Pfade nach Sync
+
+● Los geht's. Ich starte mit dem Kern: files/index.ts mit slugify(),
+  resolveFilePath() und neuem saveFile().
+
+  Read 1 file (ctrl+o to expand)
+
+● Write(src/lib/server/files/index.ts)
+  ⎿  Added 56 lines, removed 6 lines
+       1 -import { mkdir, writeFile } from 'node:fs/promises';           
+       2 -import { join } from 'node:path';                              
+       1 +import { mkdir, writeFile, stat } from 'node:fs/promises';     
+       2 +import { join, basename } from 'node:path';                    
+       3  import { randomUUID } from 'node:crypto';
+       4 +import { query } from '$lib/server/db/index.js';               
+       5  
+       6  const UPLOAD_DIR = join(process.cwd(), 'uploads');
+       7 +const PROJECTS_DIR = join(process.cwd(), 'projekte');          
+       8  
+       9 +export function slugify(name: string): string {                
+      10 +  return name                                                  
+      11 +    .toLowerCase()                                             
+      12 +    .replace(/[äöüß]/g, (c) => ({ ä: 'ae', ö: 'oe', ü: 'ue', ß:
+         + 'ss' })[c] || c)                                              
+      13 +    .replace(/[^a-z0-9]+/g, '-')                               
+      14 +    .replace(/^-|-$/g, '');                                    
+      15 +}                                                              
+      16 +                                                               
+      17 +/**                                                            
+      18 + * Look up project name from DB and return slugified version.  
+      19 + */                                                            
+      20 +async function getProjectSlug(projectId: string): Promise<strin
+         +g> {                                                           
+      21 +  const result = await query('SELECT name FROM projects WHERE i
+         +d = $1', [projectId]);                                         
+      22 +  if (!result.rows[0]) throw new Error(`Project not found: ${pr
+         +ojectId}`);                                                    
+      23 +  return slugify(result.rows[0].name);                         
+      24 +}                                                              
+      25 +                                                               
+      26 +/**                                                            
+      27 + * Save a file to the project directory.                       
+      28 + * Returns a RELATIVE path like `files/uuid.ext`.              
+      29 + */                                                            
+      30  export async function saveFile(buffer: Buffer, originalName: st
+          ring, projectId: string): Promise<string> {
+      31    const ext = originalName.split('.').pop() || 'bin';
+      32    const filename = `${randomUUID()}.${ext}`;
+      10 -  const dir = join(UPLOAD_DIR, projectId);                     
+      33 +  const slug = await getProjectSlug(projectId);                
+      34 +  const dir = join(PROJECTS_DIR, slug, 'files');               
+      35    await mkdir(dir, { recursive: true });
+      12 -  const filePath = join(dir, filename);                        
+      13 -  await writeFile(filePath, buffer);                           
+      14 -  return filePath;                                             
+      36 +  await writeFile(join(dir, filename), buffer);                
+      37 +  return `files/${filename}`;                                  
+      38  }
+      39  
+      40 +/**                                                            
+      41 + * Resolve a stored file_path (relative or legacy absolute) to 
+         +an absolute disk path.                                         
+      42 + * Checks project directory first, falls back to legacy uploads
+         +/ for unmigrated files.                                        
+      43 + */                                                            
+      44 +export async function resolveFilePath(projectId: string, stored
+         +Path: string): Promise<string | null> {                        
+      45 +  // Already absolute (legacy) — check if it exists            
+      46 +  if (storedPath.startsWith('/')) {                            
+      47 +    const exists = await stat(storedPath).catch(() => null);   
+      48 +    return exists ? storedPath : null;                         
+      49 +  }                                                            
+      50 +                                                               
+      51 +  // Relative path like `files/uuid.ext` — resolve via project 
+         +dir                                                            
+      52 +  const slug = await getProjectSlug(projectId);                
+      53 +  const projectPath = join(PROJECTS_DIR, slug, storedPath);    
+      54 +  const exists = await stat(projectPath).catch(() => null);    
+      55 +  if (exists) return projectPath;                              
+      56 +                                                               
+      57 +  // Fallback: try legacy uploads/ location                    
+      58 +  const legacyPath = join(UPLOAD_DIR, projectId, basename(store
+         +dPath));                                                       
+      59 +  const legacyExists = await stat(legacyPath).catch(() => null)
+         +;                                                              
+      60 +  return legacyExists ? legacyPath : null;                     
+      61 +}                                                              
+      62 +                                                               
+      63  export function getUploadDir(): string {
+      64    return UPLOAD_DIR;
+      65  }
+      66 +                                                               
+      67 +export function getProjectsDir(): string {                     
+      68 +  return PROJECTS_DIR;                                         
+      69 +}                                                              
+
+● Now update the image endpoint to use resolveFilePath.
+
+● Write(ile:///home/joerissen/ai/transact-qda/src/routes/api/projects/%5BprojectId%5D/documents/%5BdocId%5D/image/+server.tssrc/routes/api/projects/[projectId]/documents/[docId]/image/+server.ts)
+  ⎿  Added 5 lines, removed 3 lines
+      1  import { error } from '@sveltejs/kit';
+      2  import type { RequestHandler } from './$types.js';
+      3  import { queryOne } from '$lib/server/db/index.js';
+      4 +import { resolveFilePath } from '$lib/server/files/index.js';   
+      5  import { createReadStream } from 'node:fs';
+      6  import { stat } from 'node:fs/promises';
+      7  import { Readable } from 'node:stream';
+     ...
+      18    if (!doc) error(404, 'Document not found');
+      19    if (!doc.mime_type.startsWith('image/')) error(400, 'Not an i
+          mage document');
+      20  
+      20 -  const fileStat = await stat(doc.file_path).catch(() => null);
+      21 -  if (!fileStat) error(404, 'File not found on disk');         
+      21 +  const absolutePath = await resolveFilePath(params.projectId, 
+         +doc.file_path);                                                
+      22 +  if (!absolutePath) error(404, 'File not found on disk');     
+      23  
+      23 -  const stream = createReadStream(doc.file_path);              
+      24 +  const fileStat = await stat(absolutePath);                   
+      25 +  const stream = createReadStream(absolutePath);               
+      26    const webStream = Readable.toWeb(stream) as ReadableStream;
+      27  
+      28    return new Response(webStream, {
+
+● Now update the QDPX export to resolve file paths.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● I need to check how this function gets its data and projectId.
+
+  Searched for 2 patterns, read 1 file (ctrl+o to expand)
+
+● Good — exportProject(projectId) has access to the projectId. I need to resolve
+   file paths inside the archive loop. Since resolveFilePath is async and
+  archive.file() expects a path, I need to restructure slightly.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(src/lib/server/qdpx/export.ts)
+  ⎿  Added 1 line
+      10  
+      11  import archiver from 'archiver';
+      12  import { query } from '../db/index.js';
+      13 +import { resolveFilePath } from '../files/index.js';           
+      14  import { readFile } from 'fs/promises';
+      15  import { Writable } from 'stream';
+      16  
+
+● Now I need to change the archive file loop to resolve paths. Since it's inside
+   a Promise constructor and archive.file is sync but resolveFilePath is async,
+  I'll resolve all paths first.
+
+● Update(src/lib/server/qdpx/export.ts)
+  ⎿  Added 18 lines, removed 8 lines
+      583    const data = await fetchProjectData(projectId);
+      584    const qde = buildQDE(data);
+      585  
+      586 +  // Resolve all file paths before entering the archive stream
+      587 +  const resolvedDocs: Array<{ namingId: string; ext: string; a
+          +bsolutePath: string | null; fullText: string | null }> = [];  
+      588 +  for (const doc of data.documents) {                         
+      589 +    if (doc.file_path) {                                      
+      590 +      const ext = doc.file_path.split('.').pop() || 'txt';    
+      591 +      const absolutePath = await resolveFilePath(projectId, do
+          +c.file_path);                                                 
+      592 +      resolvedDocs.push({ namingId: doc.naming_id, ext, absolu
+          +tePath, fullText: doc.full_text });                           
+      593 +    } else if (doc.full_text) {                               
+      594 +      resolvedDocs.push({ namingId: doc.naming_id, ext: 'txt',
+          + absolutePath: null, fullText: doc.full_text });              
+      595 +    }                                                         
+      596 +  }                                                           
+      597 +                                                              
+      598    return new Promise((resolve, reject) => {
+      599      const chunks: Buffer[] = [];
+      600      const writable = new Writable({
+     ...
+      614      archive.append(qde, { name: 'project.qde' });
+      615  
+      616      // Add source files
+      605 -    for (const doc of data.documents) {                       
+      606 -      if (doc.file_path) {                                    
+      607 -        const ext = doc.file_path.split('.').pop() || 'txt';  
+      608 -        const internalName = `Sources/${doc.naming_id}.${ext}`
+          -;                                                             
+      617 +    for (const doc of resolvedDocs) {                         
+      618 +      const internalName = `Sources/${doc.namingId}.${doc.ext}
+          +`;                                                            
+      619 +      if (doc.absolutePath) {                                 
+      620          try {
+      610 -          archive.file(doc.file_path, { name: internalName });
+      621 +          archive.file(doc.absolutePath, { name: internalName 
+          +});                                                           
+      622          } catch {
+      623            // File not found on disk — skip
+      624          }
+      614 -      } else if (doc.full_text) {                             
+      615 -        // Text-only document without file                    
+      616 -        archive.append(doc.full_text, { name: `Sources/${doc.n
+          -aming_id}.txt` });                                            
+      625 +      } else if (doc.fullText) {                              
+      626 +        archive.append(doc.fullText, { name: internalName }); 
+      627        }
+      628      }
+      629  
+
+● Now update QDPX import to store relative paths and save to project dir.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● I also need to know the project name at import time. Let me check how the
+  import function is called.
+
+  Searched for 2 patterns, read 1 file (ctrl+o to expand)
+
+● Good — the project name (pName) is known at import time. I can slugify it and
+  save files to the project directory. Now update the import:
+
+● Update(src/lib/server/qdpx/import.ts)
+  ⎿  Added 3 lines, removed 1 line
+      16  import { join } from 'path';
+      17  import { randomUUID } from 'crypto';
+      18  
+      19 -const UPLOAD_DIR = join(process.cwd(), 'uploads');             
+      19 +import { slugify } from '../files/index.js';                   
+      20  
+      21 +const PROJECTS_DIR = join(process.cwd(), 'projekte');          
+      22 +                                                               
+      23  // ---- ZIP extraction ----
+      24  
+      25  interface ZipEntry {
+
+● Update(src/lib/server/qdpx/import.ts)
+  ⎿  Added 4 lines, removed 4 lines
+      628      }
+      629  
+      630      // 6. Document content + files
+      631 -    const uploadDir = join(UPLOAD_DIR, projectId);            
+      632 -    await mkdir(uploadDir, { recursive: true });              
+      631 +    const filesDir = join(PROJECTS_DIR, slugify(pName), 'files
+          +');                                                           
+      632 +    await mkdir(filesDir, { recursive: true });               
+      633  
+      634      for (const dc of docContents) {
+      635        const pending = pendingFiles.find(f => f.namingId === dc
+           .namingId);
+     ...
+      638          if (sourceFile) {
+      639            const fileData = await sourceFile.getData();
+      640            const diskName = `${randomUUID()}.${pending.ext}`;
+      641 -          dc.filePath = join(uploadDir, diskName);            
+      641 +          dc.filePath = `files/${diskName}`;                  
+      642            dc.fileSize = fileData.length;
+      643 -          await writeFile(dc.filePath, fileData);             
+      643 +          await writeFile(join(filesDir, diskName), fileData);
+      644            if (!dc.fullText && ['txt', 'md'].includes(pending.e
+           xt)) {
+      645              dc.fullText = fileData.toString('utf-8');
+      646            }
+
+● Now update the sync API to use the shared slugify from files/index.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/api/projects/sync/+server.tssrc/routes/api/projects/sync/+server.ts)
+  ⎿  Added 1 line, removed 8 lines
+      10    getProjectDir,
+      11    getProjectsBaseDir
+      12  } from '$lib/server/project-sync/index.js';
+      13 +import { slugify } from '$lib/server/files/index.js';          
+      14  import { query } from '$lib/server/db/index.js';
+      15  import { readdir, stat } from 'fs/promises';
+      16  import { join } from 'path';
+      17  
+      17 -function slugify(name: string): string {                       
+      18 -  return name                                                  
+      19 -    .toLowerCase()                                             
+      20 -    .replace(/[äöüß]/g, (c) => ({ ä: 'ae', ö: 'oe', ü: 'ue', ß:
+         - 'ss' })[c] || c)                                              
+      21 -    .replace(/[^a-z0-9]+/g, '-')                               
+      22 -    .replace(/^-|-$/g, '');                                    
+      23 -}                                                              
+      24 -                                                               
+      18  /**
+      19   * POST /api/projects/sync
+      20   *
+
+● Now update the project duplicate to copy files and use relative paths. Let me
+  read the duplicate code.
+
+  Read 1 file (ctrl+o to expand)
+● I need to update the duplicate to copy files physically and keep relative
+  paths. Let me check what imports are needed.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/api/projects/+server.tssrc/routes/api/projects/+server.ts)
+  ⎿  Added 3 lines
+       2  import type { RequestHandler } from './$types.js';
+       3  import { transaction } from '$lib/server/db/index.js';
+       4  import { projectSchema } from '$lib/shared/validation.js';
+       5 +import { slugify, resolveFilePath } from '$lib/server/files/ind
+         +ex.js';                                                        
+       6 +import { mkdir, copyFile } from 'fs/promises';                 
+       7 +import { join, basename } from 'path';                         
+       8  
+       9  export const POST: RequestHandler = async ({ request, locals })
+           => {
+      10    const body = await request.json();
+
+● Now I need to know where the new project name comes from in the duplicate flow
+   to create the target directory.
+
+  Read 1 file (ctrl+o to expand)
+
+● Good — newName is the new project name. I need to update the document copy
+  section to physically copy files.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/api/projects/+server.tssrc/routes/api/projects/+server.ts)
+  ⎿  Added 14 lines, removed 2 lines
+      138          );
+      139        }
+      140  
+      141 -      // Copy document_content                                
+      141 +      // Copy document_content (with physical file copies)    
+      142        const docs = (await client.query(
+      143          `SELECT dc.naming_id, dc.full_text, dc.file_path, dc.m
+           ime_type, dc.file_size, dc.thumbnail_path
+      144           FROM document_content dc
+     ...
+      147          [sourceProjectId]
+      148        )).rows;
+      149  
+      150 +      const newFilesDir = join(process.cwd(), 'projekte', slug
+          +ify(newName), 'files');                                       
+      151 +      await mkdir(newFilesDir, { recursive: true });          
+      152 +                                                              
+      153        for (const d of docs) {
+      154 +        let newFilePath = d.file_path;                        
+      155 +        if (d.file_path) {                                    
+      156 +          const resolved = await resolveFilePath(sourceProject
+          +Id, d.file_path);                                             
+      157 +          if (resolved) {                                     
+      158 +            const fname = basename(resolved);                 
+      159 +            await copyFile(resolved, join(newFilesDir, fname))
+          +;                                                             
+      160 +            newFilePath = `files/${fname}`;                   
+      161 +          }                                                   
+      162 +        }                                                     
+      163          await client.query(
+      164            `INSERT INTO document_content (naming_id, full_text,
+            file_path, mime_type, file_size, thumbnail_path)
+      165             VALUES ($1, $2, $3, $4, $5, $6)`,
+      154 -          [remap(d.naming_id), d.full_text, d.file_path, d.mim
+          -e_type, d.file_size, d.thumbnail_path]                        
+      166 +          [remap(d.naming_id), d.full_text, newFilePath, d.mim
+          +e_type, d.file_size, d.thumbnail_path]                        
+      167          );
+      168        }
+      169  
+
+● Now update project-sync export to copy files from legacy uploads/ to
+  projekte/{slug}/files/ if they're not there yet.
+
+  Read 1 file (ctrl+o to expand)
+
+● I need to add file sync: after exporting tables, copy any files from
+  uploads/{pid}/ to projekte/{slug}/files/ that aren't there yet.
+
+● Update(src/lib/server/project-sync/index.ts)
+  ⎿  Added 2 lines, removed 2 lines
+       9  import { pool } from '$lib/server/db';
+      10  import { pipeline } from 'stream/promises';
+      11  import { createWriteStream, createReadStream } from 'fs';
+      12 -import { mkdir, rename, readdir, stat, rm } from 'fs/promises';
+      13 -import { join } from 'path';                                   
+      12 +import { mkdir, rename, readdir, stat, rm, copyFile } from 'fs/
+         +promises';                                                     
+      13 +import { join, basename } from 'path';                         
+      14  import { from as copyFrom, to as copyTo } from 'pg-copy-streams
+          ';
+      15  import type pg from 'pg';
+      16  
+
+● Update(src/lib/server/project-sync/index.ts)
+  ⎿  Added 14 lines
+      169        await pipeline(pgStream, outStream);
+      170        await rename(tmpPath, finalPath);
+      171      }
+      172 +                                                              
+      173 +    // Sync files from legacy uploads/ to project dir if neede
+          +d                                                             
+      174 +    const legacyDir = join(process.cwd(), 'uploads', projectId
+          +);                                                            
+      175 +    const legacyExists = await stat(legacyDir).catch(() => nul
+          +l);                                                           
+      176 +    if (legacyExists?.isDirectory()) {                        
+      177 +      const files = await readdir(legacyDir);                 
+      178 +      for (const file of files) {                             
+      179 +        const dest = join(dir, 'files', file);                
+      180 +        const destExists = await stat(dest).catch(() => null);
+      181 +        if (!destExists) {                                    
+      182 +          await copyFile(join(legacyDir, file), dest);        
+      183 +        }                                                     
+      184 +      }                                                       
+      185 +    }                                                         
+      186    } finally {
+      187      client.release();
+      188    }
+
+● Now create the migration.
+
+  Read 1 file (ctrl+o to expand)
+
+● Write(migrations/012_relative_file_paths.sql)
+  ⎿  Wrote 12 lines to migrations/012_relative_file_paths.sql
+       1 -- Make document file paths relative (portable across machines)
+       2 -- Strips absolute prefix, keeps just files/filename.ext
+       3 
+       4 -- file_path: /home/.../uploads/{pid}/uuid.ext → files/uuid.ext
+       5 UPDATE document_content
+       6 SET file_path = 'files/' || substring(file_path from '[^/]+$')
+       7 WHERE file_path LIKE '/%';
+       8 
+       9 -- thumbnail_path: same treatment
+      10 UPDATE document_content
+     … +2 lines (ctrl+o to expand)
+
+● Now let me check if there's a migration runner to see if I need to register
+  this.
+
+  Searched for 4 patterns (ctrl+o to expand)
+
+● Migrations are applied manually. Now let me verify everything compiles.
+
+● Bash(npx svelte-check --threshold error 2>&1 | tail -10)
+  ⎿  1774358247804 START "/home/joerissen/ai/transact-qda"
+     1774358247806 ERROR "src/routes/api/projects/[projectId]/export/+serve
+     r.ts" 24:22 "Argument of type 'Buffer<ArrayBufferLike>' is not assigna
+     … +5 lines (ctrl+o to expand)
+  ⎿  (timeout 1m)
+
+● Clean — only the pre-existing Buffer error. Let me also check if
+  getUploadDir() is used elsewhere and if slugify was only in the sync server.
+
+  Searched for 2 patterns (ctrl+o to expand)
+
+● All imports look correct. Let me verify the upload endpoint still works with
+  the new saveFile().
+
+  Read 1 file (ctrl+o to expand)
+
+● This already works — saveFile now returns files/uuid.ext which gets stored in
+  the DB. The upload endpoint doesn't need changes.
+
+  All changes done. Summary:
+
+  1. src/lib/server/files/index.ts — slugify(), resolveFilePath(), saveFile()
+  returns relative paths, saves to projekte/{slug}/files/
+  2. src/routes/api/.../image/+server.ts — uses resolveFilePath()
+  3. src/lib/server/qdpx/export.ts — resolves paths before archiving
+  4. src/lib/server/qdpx/import.ts — saves to projekte/{slug}/files/, stores
+  relative paths
+  5. src/routes/api/projects/+server.ts — duplicate copies files physically
+  6. src/lib/server/project-sync/index.ts — exports legacy uploads/ files to
+  project dir
+  7. src/routes/api/projects/sync/+server.ts — uses shared slugify()
+  8. migrations/012_relative_file_paths.sql — strips absolute prefixes
+
+  Migration muss manuell ausgeführt werden: psql -f 
+  migrations/012_relative_file_paths.sql. Soll ich committen?
+
+✻ Churned for 6m 14s
+
+❯ "psql -f                                                                      
+  migrations/012_relative_file_paths.sql" in einem Temrinal oder wie?           
+
+● Guter Punkt — lass mich checken wie die DB-Connection konfiguriert ist.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● So:
+
+  psql postgresql://tqda:tqda_dev@localhost:5432/transact_qda -f
+  migrations/012_relative_file_paths.sql
+
+  Oder einfacher — soll ich die Migration direkt über die App laufen lassen? Ich
+   kann ein kleines Script in der API machen, oder wir führen es einmal über
+  psql aus.
+
+  Willst du, dass ich es jetzt für dich ausführe?
+
+❯ ja                                                                            
+
+● Bash(psql postgresql://tqda:tqda_dev@localhost:5432/transact_qda -f
+      /home/joerissen/ai/transact-qda/migrations/012_relative_file_paths.sql)
+  ⎿  UPDATE 0
+     UPDATE 0
+
+● 0 Rows updated — das heißt es gibt aktuell keine absoluten Pfade in der DB
+  (entweder leer oder schon relativ). Lass mich prüfen was tatsächlich drin
+  steht.
+
+● Bash(psql postgresql://tqda:tqda_dev@localhost:5432/transact_qda -c "SELECT
+      file_path FROM document_content WHERE file_path IS NOT NULL LIMIT 5;")  ⎿   file_path
+     -----------
+     (0 rows)
+
+● Bash(psql postgresql://tqda:tqda_dev@localhost:5432/transact_qda -c "SELECT
+      count(*) FROM document_content;")
+  ⎿   count
+     -------
+     0
+     (1 row)
+
+● Keine Projekte geladen in der DB. Die Migration ist trotzdem korrekt
+  registriert — wenn Projekte mit absoluten Pfaden geladen werden, greift sie.
+  Die COPY-Dateien auf Disk könnten noch absolute Pfade enthalten. Lass mich
+  prüfen.
+
+  Searched for 2 patterns (ctrl+o to expand)
+
+● Zwei Projekte haben noch absolute Pfade in den COPY-Dateien. Die werden beim
+  nächsten Laden in die DB importiert und müssen dort korrigiert werden. Die
+  Migration greift dann. Aber besser: die COPY-Dateien direkt fixen.
+
+  Read 1 file (ctrl+o to expand)
+
+● COPY-Format: Tab-separated. Die Pfade stehen in Spalte 3. Ich fixe die
+  COPY-Dateien direkt mit sed.
+
+● Bash(for f in /home/joerissen/ai/transact-qda/projekte/sample-project/document
+      _content.copy
+      /home/joerissen/ai/transact-qda/projekte/test2/document_content.copy; do…)
+  ⎿  (No output)
+
+  Read 1 file (ctrl+o to expand)
+
+● Pfade sind jetzt relativ. Lass mich auch prüfen ob die Dateien physisch in die
+   Projektordner kopiert werden müssen.
+
+  Read 1 file (ctrl+o to expand)
+
+● projekte/sample-project/files/ ist leer, aber die Dateien liegen in
+  uploads/0aa3ecce.../. Der Fallback in resolveFilePath() findet sie dort. Und
+  beim nächsten Export (exportProjectToDir) werden sie automatisch nach
+  projekte/{slug}/files/ kopiert.
+
+  Alternativ kann ich die Dateien jetzt schon rüberkopieren. Soll ich?
+
+✻ Cooked for 1m 6s
+
+❯ OK                                                                            
+
+  Read 1 file (ctrl+o to expand)
+
+● Ich brauche die Zuordnung projectId → slug. Aber die DB ist leer. Lass mich
+  die COPY-Dateien checken um die project names rauszufinden.
+
+● Bash(for d in /home/joerissen/ai/transact-qda/projekte/*/; do slug=$(basename
+      "$d"); proj_file="$d/projects.copy"; if [ -f "$proj_file" ]; then
+      pid=$(cut -f1 "$proj_…)
+  ⎿  9d53a815-48bf-451f-9b7d-62bc574c09a1 → berardi-futurability
+     2bcf0e76-e4f3-4420-9440-8cdf51737fc2 → clarke-abstract-maps-demo
+     2dbf038a-c998-4c55-be09-4487780272a4 → clarke-abstract-maps-demo-copy
+     … +4 lines (ctrl+o to expand)
+
+● Bash(for d in /home/joerissen/ai/transact-qda/projekte/*/; do
+        slug=$(basename "$d")…)
+  ⎿  sample-project: copied 7 files
+     test: copied 3 files
+     test2: copied 4 files
+
+● 14 Dateien kopiert. Lass mich verifizieren.
+
+● Bash(for d in /home/joerissen/ai/transact-qda/projekte/*/files; do [ -d "$d" ]
+       && echo "$(basename $(dirname $d)): $(ls "$d" | wc -l) files"; done)
+  ⎿  berardi-futurability: 0 files
+     clarke-abstract-maps-demo-copy: 0 files
+     clarke-abstract-maps-demo: 0 files
+     … +4 lines (ctrl+o to expand)
+
+● Passt — die 3 Projekte mit Dateien in uploads/ haben jetzt ihre Dateien in
+  projekte/{slug}/files/. Die anderen hatten keine Uploads.
+
+  Soll ich committen?
+
+✻ Brewed for 30s
+
+❯ ja                                                                            
+
+● Bash(git status)
+  ⎿  On branch main
+     Your branch is ahead of 'origin/main' by 3 commits.
+       (use "git push" to publish your local commits)
+     … +19 lines (ctrl+o to expand)
+
+● Bash(git diff --stat)
+  ⎿   src/lib/server/files/index.ts                      | 62 +++++++++++++
+     ++++++---
+      src/lib/server/project-sync/index.ts               | 18 ++++++-
+     … +6 lines (ctrl+o to expand)
+
+● Bash(git add src/lib/server/files/index.ts
+      src/lib/server/project-sync/index.ts src/lib/server/qdpx/export.ts
+      src/lib/server/qdpx/import.ts src/routes/api/projects/+…)
+  ⎿  [main 64eeb61] Documents: store relative file paths, files in project
+     directories
+      8 files changed, 133 insertions(+), 34 deletions(-)
+      create mode 100644 migrations/012_relative_file_paths.sql
+
+● 64eeb61 committed. Weiter mit Ticket 4 — QDPX Loss-Report (Pre-Export-Dialog
+  der zeigt was verloren geht). Oder willst du erst was testen?
+
+❯ Nein, das ist ja unkritisch, fahre fort                                       
+
+● Ticket 4 — QDPX Loss-Report. Lass mich den Export checken um zu verstehen was
+  verloren geht.
+
+● Explore(Explore QDPX export losses)
+  ⎿  Done (24 tool uses · 54.3k tokens · 2m 16s)
+  (ctrl+o to expand)
+● Gute Analyse. Ich baue einen Pre-Export-Dialog direkt in die Projects-Seite.
+  Lass mich den aktuellen Export-Button lesen.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Now I have the full picture. I'll add a modal dialog that shows the loss
+  report when clicking the QDPX export button.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/+page.sveltesrc/routes/projects/+page.svelte)
+  ⎿  Added 3 lines
+      12    let syncMessage = $state<string | null>(null);
+      13    let showLoadMenu = $state(false);
+      14  
+      15 +  // QDPX export dialog                                        
+      16 +  let qdpxExportId = $state<string | null>(null);              
+      17 +                                                               
+      18    async function syncAction(action: string, body: Record<string
+          , any> = {}) {
+      19      syncing = true;
+      20      syncMessage = null;
+
+● Now replace the direct <a> download link with a button that opens the dialog.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/+page.sveltesrc/routes/projects/+page.svelte)
+  ⎿  Error editing file
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/+page.sveltesrc/routes/projects/+page.svelte)
+  ⎿  Added 3 lines, removed 3 lines
+      221                onclick={() => duplicateProject(project.id, proj
+           ect.name)} disabled={syncing}>
+      222                📋
+      223              </button>
+      224 -            <a class="action-btn" title="Export as .qdpx (ATLA
+          -S.ti, MAXQDA, ...)"                                           
+      225 -              href="/api/projects/{project.id}/export" downloa
+          -d>                                                            
+      224 +            <button class="action-btn" title="Export as .qdpx 
+          +(ATLAS.ti, MAXQDA, ...)"                                      
+      225 +              onclick={() => qdpxExportId = project.id}>      
+      226                📦
+      227 -            </a>                                              
+      227 +            </button>                                         
+      228              <button class="action-btn" title="Unload from data
+           base"
+      229                onclick={() => unloadProject(project.id, project
+           Slugs.get(project.id) || slugify(project.name), project.name)}
+      230                disabled={syncing}>
+
+● Now add the dialog modal. Let me find where to place it in the template —
+  after the main content, before the closing </div> and <style>.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/+page.sveltesrc/routes/projects/+page.svelte)
+  ⎿  Added 50 lines
+      273    <p class="dir-info">Project data: <code>{data.projectsDir}/<
+           /code></p>
+      274  </div>
+      275  
+      276 +<!-- QDPX Export Loss Dialog -->                              
+      277 +{#if qdpxExportId}                                            
+      278 +  <!-- svelte-ignore a11y_click_events_have_key_events -->    
+      279 +  <!-- svelte-ignore a11y_no_static_element_interactions -->  
+      280 +  <div class="modal-overlay" onclick={() => qdpxExportId = nul
+          +l}>                                                           
+      281 +    <div class="modal" onclick={(e) => e.stopPropagation()}>  
+      282 +      <h2>QDPX Export</h2>                                    
+      283 +      <p class="modal-subtitle">Interop-Format for ATLAS.ti, M
+          +AXQDA, NVivo</p>                                              
+      284 +                                                              
+      285 +      <div class="loss-section loss-warn">                    
+      286 +        <h3>Lost for external tools</h3>                      
+      287 +        <ul>                                                  
+      288 +          <li>Naming history (renames, re-designations) — coll
+          +apsed to latest</li>                                          
+      289 +          <li>CCS gradient (cue/characterization/specification
+          +) — only in description field</li>                            
+      290 +          <li>Phases — invisible in standard QDA</li>         
+      291 +          <li>Silences — not representable</li>               
+      292 +          <li>AI metadata and reasoning</li>                  
+      293 +          <li>Map layouts — only auto-saved positions (seq=0)<
+          +/li>                                                          
+      294 +          <li>Topology snapshot history</li>                  
+      295 +          <li>Researcher identities</li>                      
+      296 +        </ul>                                                 
+      297 +      </div>                                                  
+      298 +                                                              
+      299 +      <div class="loss-section loss-ok">                      
+      300 +        <h3>Preserved</h3>                                    
+      301 +        <ul>                                                  
+      302 +          <li>All codes, documents, annotations</li>          
+      303 +          <li>Memos and memo content</li>                     
+      304 +          <li>Relations between codes</li>                    
+      305 +          <li>Document sets (DocNets)</li>                    
+      306 +          <li>One map with positions</li>                     
+      307 +        </ul>                                                 
+      308 +      </div>                                                  
+      309 +                                                              
+      310 +      <div class="loss-section loss-recovery">                
+      311 +        <h3>Recovery</h3>                                     
+      312 +        <p>The .qdpx file contains a transact-qda namespace th
+          +at preserves full fidelity. Re-importing into transact-qda res
+          +tores everything except topology snapshots.</p>               
+      313 +      </div>                                                  
+      314 +                                                              
+      315 +      <div class="modal-actions">                             
+      316 +        <button class="btn-cancel" onclick={() => qdpxExportId
+          + = null}>Cancel</button>                                      
+      317 +        <a class="btn-export" href="/api/projects/{qdpxExportI
+          +d}/export" download                                           
+      318 +          onclick={() => qdpxExportId = null}>                
+      319 +          Export .qdpx                                        
+      320 +        </a>                                                  
+      321 +      </div>                                                  
+      322 +    </div>                                                    
+      323 +  </div>                                                      
+      324 +{/if}                                                         
+      325 +                                                              
+      326  <style>
+      327    .projects-page {
+      328      max-width: 900px;
+
+● Now add the modal styles.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/+page.sveltesrc/routes/projects/+page.svelte)
+  ⎿  Added 43 lines
+      555      background: rgba(255, 255, 255, 0.08);
+      556      color: #fff;
+      557    }
+      558 +                                                              
+      559 +  /* QDPX Export Modal */                                     
+      560 +  .modal-overlay {                                            
+      561 +    position: fixed; inset: 0; z-index: 1000;                 
+      562 +    background: rgba(0, 0, 0, 0.6); display: flex;            
+      563 +    align-items: center; justify-content: center;             
+      564 +  }                                                           
+      565 +  .modal {                                                    
+      566 +    background: #161822; border: 1px solid #2a2d3a; border-rad
+          +ius: 12px;                                                    
+      567 +    padding: 1.5rem; max-width: 520px; width: 90%;            
+      568 +    max-height: 80vh; overflow-y: auto;                       
+      569 +    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);               
+      570 +  }                                                           
+      571 +  .modal h2 { font-size: 1.1rem; margin: 0 0 0.2rem; color: #e
+          +1e4e8; }                                                      
+      572 +  .modal-subtitle { font-size: 0.8rem; color: #6b7280; margin:
+          + 0 0 1rem; }                                                  
+      573 +  .loss-section { margin-bottom: 0.75rem; padding: 0.6rem 0.75
+          +rem; border-radius: 6px; }                                    
+      574 +  .loss-section h3 { font-size: 0.72rem; text-transform: upper
+          +case; letter-spacing: 0.04em; margin: 0 0 0.3rem; }           
+      575 +  .loss-section ul { margin: 0; padding-left: 1.2rem; font-siz
+          +e: 0.8rem; line-height: 1.6; }                                
+      576 +  .loss-section p { margin: 0; font-size: 0.8rem; line-height:
+          + 1.5; }                                                       
+      577 +  .loss-warn { background: rgba(245, 158, 11, 0.08); border: 1
+          +px solid rgba(245, 158, 11, 0.2); }                           
+      578 +  .loss-warn h3 { color: #f59e0b; }                           
+      579 +  .loss-warn li { color: #c9cdd5; }                           
+      580 +  .loss-ok { background: rgba(16, 185, 129, 0.06); border: 1px
+          + solid rgba(16, 185, 129, 0.2); }                             
+      581 +  .loss-ok h3 { color: #10b981; }                             
+      582 +  .loss-ok li { color: #c9cdd5; }                             
+      583 +  .loss-recovery { background: rgba(139, 156, 247, 0.06); bord
+          +er: 1px solid rgba(139, 156, 247, 0.2); }                     
+      584 +  .loss-recovery h3 { color: #8b9cf7; }                       
+      585 +  .loss-recovery p { color: #c9cdd5; }                        
+      586 +  .modal-actions {                                            
+      587 +    display: flex; gap: 0.5rem; justify-content: flex-end;    
+      588 +    margin-top: 1rem; padding-top: 0.75rem; border-top: 1px so
+          +lid #2a2d3a;                                                  
+      589 +  }                                                           
+      590 +  .btn-cancel {                                               
+      591 +    background: none; border: 1px solid #2a2d3a; border-radius
+          +: 6px;                                                        
+      592 +    color: #8b8fa3; padding: 0.5rem 1rem; font-size: 0.85rem; 
+          +cursor: pointer;                                              
+      593 +  }                                                           
+      594 +  .btn-cancel:hover { border-color: #4b5060; color: #c9cdd5; }
+      595 +  .btn-export {                                               
+      596 +    background: #f59e0b; color: #0f1117; border: none; border-
+          +radius: 6px;                                                  
+      597 +    padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 600
+          +;                                                             
+      598 +    cursor: pointer; text-decoration: none;                   
+      599 +  }                                                           
+      600 +  .btn-export:hover { background: #d97706; }                  
+      601  </style>
+
+● Bash(npx svelte-check --threshold error 2>&1 | tail -5)
+  ⎿  1774361181337 START "/home/joerissen/ai/transact-qda"
+     1774361181338 ERROR "src/routes/api/projects/[projectId]/export/+serve
+     r.ts" 24:22 "Argument of type 'Buffer<ArrayBufferLike>' is not assigna
+     … +5 lines (ctrl+o to expand)
+  ⎿  (timeout 1m)
+
+● Clean. Soll ich committen und dann Ticket 5 (periodischer Sync) angehen?
+
+✻ Churned for 4m 13s
+
+❯ ja                                                                            
+
+● Bash(git add src/routes/projects/+page.svelte && git commit -m "$(cat <<'EOF'
+      QDPX export: add pre-export loss report dialog…)
+  ⎿  [main 7074de8] QDPX export: add pre-export loss report dialog
+      1 file changed, 99 insertions(+), 3 deletions(-)
+
+● 7074de8. Weiter mit Ticket 5 — Periodischer Sync automatisch starten wenn ein
+  Projekt geöffnet wird.
+
+  Aus dem Handover: "Sync startet derzeit nur bei manuellem Export/Load. Sollte
+  automatisch starten wenn ein Projekt geöffnet wird."
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Sync wird nur bei export und load Aktionen gestartet. Wenn man ein Projekt
+  direkt über die UI öffnet (ohne vorher manuell zu exportieren/laden), läuft
+  kein Sync.
+
+  Wo wird ein Projekt "geöffnet"? Wenn man zur Projektseite navigiert.
+
+  Searched for 6 patterns (ctrl+o to expand)
+
+● Es gibt kein +layout.server.ts für [projectId]. Der beste Ort für den
+  Auto-Sync: ein neues +layout.server.ts das bei jeder Navigation unter
+  /projects/[projectId]/ den Sync startet.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● I'll create a +layout.server.ts that auto-starts sync when entering a project.
+
+  Read 1 file (ctrl+o to expand)
+
+● startPeriodicSync already no-ops if the same project is active (it calls
+  stopPeriodicSync() first, but that's fine — it'll restart). I should add a
+  check so it doesn't restart if already syncing the same project.
+
+● Update(src/lib/server/project-sync/index.ts)
+  ⎿  Added 2 lines
+      318  let activeProjectSlug: string | null = null;
+      319  
+      320  export function startPeriodicSync(projectId: string, projectSl
+           ug: string, intervalMs = 60_000): void {
+      321 +  // Skip if already syncing this project                     
+      322 +  if (activeProjectId === projectId && syncInterval) return;  
+      323    stopPeriodicSync();
+      324    activeProjectId = projectId;
+      325    activeProjectSlug = projectSlug;
+
+● Now create the layout server that auto-starts sync.
+● Write(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/+layout.server.tssrc/routes/projects/[projectId]/+layout.server.ts)
+  ⎿  Error writing file
+
+  Read 1 file (ctrl+o to expand)
+
+● There's already a +layout.server.ts and +layout.svelte! Let me read them.
+
+  Read 1 file (ctrl+o to expand)
+
+● Es gibt schon ein Layout! Ich muss nur den Sync-Start dort einfügen. Der
+  Projektname ist bereits geladen.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/+layout.server.tssrc/routes/projects/[projectId]/+layout.server.ts)
+  ⎿  Added 2 lines
+      2  import { queryOne } from '$lib/server/db/index.js';
+      3  import { error } from '@sveltejs/kit';
+      4  import { getMapsByProject } from '$lib/server/db/queries/maps.js
+         ';
+      5 +import { startPeriodicSync } from '$lib/server/project-sync/inde
+        +x.js';                                                          
+      6 +import { slugify } from '$lib/server/files/index.js';           
+      7  
+      8  export const load: LayoutServerLoad = async ({ params, locals })
+          => {
+      9    const project = await queryOne<{ id: string; name: string; des
+         cription: string | null; role: string }>(
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/%5BprojectId%5D/+layout.server.tssrc/routes/projects/[projectId]/+layout.server.ts)
+  ⎿  Added 3 lines
+      18      error(404, 'Project not found');
+      19    }
+      20  
+      21 +  // Auto-start periodic sync when entering a project          
+      22 +  startPeriodicSync(params.projectId, slugify(project.name));  
+      23 +                                                               
+      24    const counts = await queryOne<{ documents: string; namings: s
+          tring; maps: string; memos: string; members: string }>(
+      25      `SELECT
+      26        (SELECT COUNT(*) FROM document_content dc
+
+● Bash(npx svelte-check --threshold error 2>&1 | tail -5)
+  ⎿  1774362833001 START "/home/joerissen/ai/transact-qda"
+     1774362833002 ERROR "src/routes/api/projects/[projectId]/export/+serve
+     r.ts" 24:22 "Argument of type 'Buffer<ArrayBufferLike>' is not assigna
+     … +5 lines (ctrl+o to expand)
+
+● Clean. Ticket 5 fertig — der Sync startet jetzt automatisch bei jedem Betreten
+   eines Projekts. Der Guard if (activeProjectId === projectId && syncInterval) 
+  return; verhindert Neustart bei Navigation innerhalb desselben Projekts.
+
+● Bash(git add src/routes/projects/\[projectId\]/+layout.server.ts
+      src/lib/server/project-sync/index.ts && git commit -m "$(cat <<'EOF'
+      Project sync: auto-start when e…)
+  ⎿  [main 20d4590] Project sync: auto-start when entering a project
+      2 files changed, 7 insertions(+)
+
+● Tickets 1-5 sind durch. Zusammenfassung der Session:
+
+  ┌─────────┬────────────┬──────────────────────────────────────────────────┐
+  │ Commit  │   Ticket   │                       Was                        │
+  ├─────────┼────────────┼──────────────────────────────────────────────────┤
+  │ 6cb1977 │ Memo fix   │ active Memos bekommen Buttons + Memo-Aktionen in │
+  │         │            │  Naming-Detail/Stack                             │
+  ├─────────┼────────────┼──────────────────────────────────────────────────┤
+  │ 79e0439 │ #1 Canvas  │ mapId-Tracking in canvasPositions + reaktives    │
+  │         │            │ mapMeta in mapState                              │
+  ├─────────┼────────────┼──────────────────────────────────────────────────┤
+  │ 64eeb61 │ #3         │ Relative Pfade, Dateien in                       │
+  │         │ file_path  │ projekte/{slug}/files/, Migration                │
+  ├─────────┼────────────┼──────────────────────────────────────────────────┤
+  │ 7074de8 │ #4 QDPX    │ Pre-Export Loss-Report Dialog                    │
+  ├─────────┼────────────┼──────────────────────────────────────────────────┤
+  │ 20d4590 │ #5 Sync    │ Auto-Start bei Projekt-Navigation                │
+  └─────────┴────────────┴──────────────────────────────────────────────────┘
+
+  Ticket #2 (Settings) + #6 (Provider-API aus AI4ArtsEd) sind zusammengelegt für
+   die nächste Session.
+
+✻ Cogitated for 2m 40s
+
+❯ Wie kann ich testen?                                                          
+
+● Dev-Server muss laufen. Läuft er schon?
+
+● Bash(pgrep -f "vite|svelte" -a 2>/dev/null | head -5)
+  ⎿  1820273 node /home/joerissen/ai/transact-qda/node_modules/.bin/vite de
+     v
+     1821274 /bin/bash -c source /home/joerissen/.claude/shell-snapshots/sn
+     … +3 lines (ctrl+o to expand)
+
+● Läuft. Dann ein Projekt laden und testen:
+
+● Bash(psql postgresql://tqda:tqda_dev@localhost:5432/transact_qda -c "SELECT
+      id, name FROM projects LIMIT 3;")
+  ⎿                    id                  |                name
+
+     --------------------------------------+-------------------------------
+     … +6 lines (ctrl+o to expand)
+
+● Projekte sind da. Hier ist dein Testplan:
+
+  1. Memo-Buttons (Ticket Memo)
+
+  - /projects/{berardi-id}/memos öffnen
+  - Filter: Author → AI → die active Memos (ohne Status-Badge) sollten jetzt
+  ack/dismiss Buttons haben
+  - Ein AI-Memo dismissen → wird grau, zeigt "restore"
+  - /projects/{id}/namings → Naming anklicken → Stack aufklappen → Memos haben
+  Badges (AI/R) + dismiss/ack Buttons
+
+  2. Canvas Bugs (#1)
+
+  - Eine Map öffnen (Canvas-View) → Positionen sichtbar
+  - Über die Sidebar zu einer anderen Map navigieren → Positionen sollten sich
+  resetten (neue Map, neues Layout)
+  - Zurück navigieren → erste Map zeigt ihre eigenen Positionen
+
+  3. Relative Pfade (#3)
+
+  - Ein neues Dokument hochladen (Bild oder Text)
+  - Prüfen: projekte/berardi-futurability/files/ sollte die neue Datei enthalten
+  - DB prüfen: psql ... -c "SELECT file_path FROM document_content WHERE 
+  file_path IS NOT NULL LIMIT 5;" → sollte files/uuid.ext zeigen
+  - Bild-Dokument in der UI anzeigen → sollte noch rendern
+
+  4. QDPX Loss-Report (#4)
+
+  - /projects → 📦 Button klicken → Dialog mit Verlust-Info sollte erscheinen
+  - "Export .qdpx" klickt → Download startet
+
+  5. Auto-Sync (#5)
+
+  - In ein Projekt navigieren
+  - ls -la projekte/berardi-futurability/namings.copy → mtime sollte aktuell
+  sein (innerhalb der letzten Minute)
+
+✻ Baked for 48s
+
+❯ 3 - DB Prüfen: Schau ob im "Sample Project" ein neues File "p5.png" liegt     
+
+● Bash(psql postgresql://tqda:tqda_dev@localhost:5432/transact_qda -c "SELECT
+      file_path, mime_type FROM document_content WHERE file_path LIKE '%p5%';")
+  ⎿   file_path | mime_type
+     -----------+-----------
+     (0 rows)
+
+● Nicht in der DB. Vielleicht noch nicht geladen — lass mich in den COPY-Dateien
+   schauen.
+
+  Searched for 3 patterns (ctrl+o to expand)
+
+● p5.png existiert nirgends — weder in der DB, noch in den COPY-Dateien, noch
+  auf Disk. Hast du es gerade hochgeladen? Dann hat der Upload entweder nicht
+  geklappt, oder es wurde unter einem UUID-Namen gespeichert. Lass mich die
+  neuesten Dateien checken.
+
+  Read 1 file (ctrl+o to expand)
+
+● Da! ef817f26...png wurde gerade um 16:58 hochgeladen — das ist dein p5.png
+  unter UUID-Name. Liegt korrekt in projekte/sample-project/files/.
+
+● Bash(psql postgresql://tqda:tqda_dev@localhost:5432/transact_qda -c "SELECT
+      file_path, mime_type FROM document_content WHERE file_path LIKE
+      '%ef817f26%';")
+  ⎿                     file_path                    | mime_type
+     ------------------------------------------------+-----------
+      files/ef817f26-c1cd-4a05-a646-87924463080d.png | image/png
+     (1 row)
+
+● Perfekt — DB speichert files/ef817f26...png (relativ), Datei liegt in
+  projekte/sample-project/files/. Beides korrekt.
+
+✻ Brewed for 44s
+
+❯ Ja, och annotiere es gerade                                                   
+● Gut — wenn das Bild im Document Viewer korrekt angezeigt wird und Annotationen
+   funktionieren, heißt das resolveFilePath() löst den relativen Pfad korrekt
+  auf. Sag Bescheid wenn was nicht geht oder du mit dem nächsten Ticket
+  weitermachen willst.
+
+❯ Mit der Aussage "Recovery                                                     
+                                                                                
+The .qdpx file contains a transact-qda namespace that preserves full fidelity.  
+Re-importing into transact-qda restores everything except topology snapshots."  
+wäre ich vorsichtig. transact2transact machen wir per eigenem Datenformat.      
+Export - Reimport: "insert or update on table "appearances" violates foreign    
+key constraint "appearances_perspective_id_fkey""                               
+
+● Zwei Dinge: Der Dialog-Text ist irreführend, und es gibt einen Bug beim
+  QDPX-Reimport. Lass mich beides fixen.
+
+  Erst der Text — QDPX ist nicht lossless, das native Format ist es.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/+page.sveltesrc/routes/projects/+page.svelte)
+  ⎿  Added 2 lines, removed 2 lines
+      308        </div>
+      309  
+      310        <div class="loss-section loss-recovery">
+      311 -        <h3>Recovery</h3>                                     
+      312 -        <p>The .qdpx file contains a transact-qda namespace th
+          -at preserves full fidelity. Re-importing into transact-qda res
+          -tores everything except topology snapshots.</p>               
+      311 +        <h3>Lossless backup</h3>                              
+      312 +        <p>For full-fidelity backup, use the native project fo
+          +rmat (💾 Save). QDPX is for interop with other tools only.</p>
+      313        </div>
+      314  
+      315        <div class="modal-actions">
+
+● Jetzt der FK-Bug. Lass mich den Import-Code für appearances anschauen.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Der FK appearances_perspective_id_fkey verlangt, dass perspective_id eine
+  gültige namings.id ist. Das Problem: ein Appearance referenziert eine
+  perspective_id die als Naming noch nicht existiert, oder die tq:-Namespace
+  importiert Appearances mit perspective_ids die nicht in der aktuellen
+  Namensliste sind.
+
+  Searched for 2 patterns, read 1 file (ctrl+o to expand)
+
+● Ich sehe das Problem. Bei tq:Appearances (line 275) wird
+  remap(app['@_perspective']) als perspectiveId benutzt. Diese perspective-ID
+  wird ge-remapped, aber das zugehörige Naming (die Map/Perspektive) wird
+  vielleicht erst später in der Graphs-Sektion gesammelt.
+
+  Das Appearance referenziert also eine perspective_id die als Naming noch nicht
+   in der namings-Liste ist, wenn die Appearances VOR den Graphs verarbeitet
+  werden. Aber die Inserts in der DB passieren erst am Ende — also sollte die
+  Reihenfolge im Insert-Code stimmen.
+
+  Lass mich die Insert-Reihenfolge prüfen:
+
+  Read 1 file (ctrl+o to expand)
+
+● Die Reihenfolge ist: (1) Namings, (2) NamingActs, (3) Appearances. Also: wenn
+  ein perspectiveId als Naming nicht in der namings-Liste ist, gibt es den
+  FK-Fehler.
+
+  Das passiert wahrscheinlich wenn ein Appearance auf eine Perspektive verweist,
+   deren GUID nicht als Graph/Map exportiert wurde. Lass mich den Fix machen:
+  vor dem Appearance-Insert sicherstellen, dass die perspectiveId als Naming
+  existiert.
+
+● Update(src/lib/server/qdpx/import.ts)
+  ⎿  Added 17 lines
+      602      }
+      603  
+      604      // 4. All appearances (deduplicated by naming_id + perspec
+           tive_id)
+      605 +    // Ensure all referenced perspective_ids exist as namings 
+      606 +    for (const a of appearances) {                            
+      607 +      if (!seenIds.has(a.perspectiveId)) {                    
+      608 +        seenIds.add(a.perspectiveId);                         
+      609 +        await client.query(                                   
+      610 +          `INSERT INTO namings (id, project_id, inscription, c
+          +reated_by) VALUES ($1, $2, $3, $4)`,                          
+      611 +          [a.perspectiveId, projectId, '(imported perspective)
+          +', userId]                                                    
+      612 +        );                                                    
+      613 +      }                                                       
+      614 +      if (!seenIds.has(a.namingId)) {                         
+      615 +        seenIds.add(a.namingId);                              
+      616 +        await client.query(                                   
+      617 +          `INSERT INTO namings (id, project_id, inscription, c
+          +reated_by) VALUES ($1, $2, $3, $4)`,                          
+      618 +          [a.namingId, projectId, '(imported)', userId]       
+      619 +        );                                                    
+      620 +      }                                                       
+      621 +    }                                                         
+      622      const seenApp = new Set<string>();
+      623      for (const a of appearances) {
+      624        const key = `${a.namingId}|${a.perspectiveId}`;
+
+● Bash(npx svelte-check --threshold error 2>&1 | tail -5)
+  ⎿  1774368220509 START "/home/joerissen/ai/transact-qda"
+     1774368220510 ERROR "src/routes/api/projects/[projectId]/export/+serve
+     r.ts" 24:22 "Argument of type 'Buffer<ArrayBufferLike>' is not assigna
+     … +5 lines (ctrl+o to expand)
+  ⎿  (timeout 1m)
+
+● Bash(git add src/routes/projects/+page.svelte src/lib/server/qdpx/import.ts &&
+       git commit -m "$(cat <<'EOF'
+      QDPX: fix reimport FK violation + honest loss dialog text…)
+  ⎿  [main 152cff2] QDPX: fix reimport FK violation + honest loss dialog te
+     xt
+      2 files changed, 19 insertions(+), 2 deletions(-)
+
+● 152cff2. Zwei Fixes:
+  1. Dialog-Text korrigiert: verweist jetzt auf natives Format (💾) statt
+  falsche "full fidelity" Behauptung
+  2. FK-Bug: Appearances-Insert prüft jetzt ob alle perspective_id und naming_id
+   als Namings existieren, erstellt fehlende
+
+  Kannst du den QDPX-Reimport nochmal testen?
+
+✻ Sautéed for 1m 49s
+
+❯ Das mach tallerdings Sinn: "duplicate key value violates unique constraint    
+"participations_naming_id_participant_id_key""                                  
+
+  Read 1 file (ctrl+o to expand)
+
+● Dedupliziert nach id, aber der Unique-Constraint ist auf (naming_id, 
+  participant_id). Verschiedene IDs können dieselbe Kombination haben.
+
+● Update(src/lib/server/qdpx/import.ts)
+  ⎿  Added 4 lines, removed 3 lines
+      633        );
+      634      }
+      635  
+      636 -    // 5. All participations (deduplicated by id)             
+      636 +    // 5. All participations (deduplicated by naming_id + part
+          +icipant_id)                                                   
+      637      const seenPart = new Set<string>();
+      638      for (const p of participations) {
+      639 -      if (seenPart.has(p.id)) continue;                       
+      640 -      seenPart.add(p.id);                                     
+      639 +      const key = `${p.namingId}|${p.participantId}`;         
+      640 +      if (seenPart.has(key)) continue;                        
+      641 +      seenPart.add(key);                                      
+      642        await client.query(
+      643          `INSERT INTO participations (id, naming_id, participan
+           t_id) VALUES ($1, $2, $3)`,
+      644          [p.id, p.namingId, p.participantId]
+
+● Bash(git add src/lib/server/qdpx/import.ts && git commit -m "$(cat <<'EOF'
+      QDPX import: deduplicate participations by unique constraint key…)
+  ⎿  [main 176e36e] QDPX import: deduplicate participations by unique const
+     raint key
+      1 file changed, 4 insertions(+), 3 deletions(-)
+
+● 176e36e. Probier den Reimport nochmal.
+
+❯ FUnktinoiert (aber nun haben ich 2 Projekt mit identischem Namen ... nicht so 
+ gut                                                                            
+
+● Stimmt — beim Reimport sollte entweder ein Suffix angehängt oder der Name
+  unique erzwungen werden. Lass mich das fixen.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(src/lib/server/qdpx/import.ts)
+  ⎿  Added 11 lines, removed 1 line
+      550    // ---- Phase 2: Insert in dependency order ----
+      551  
+      552    const result = await transaction(async (client) => {
+      553 -    const pName = projectName || project['@_name'] || 'Importe
+          -d Project';                                                   
+      553 +    let pName = projectName || project['@_name'] || 'Imported 
+          +Project';                                                     
+      554  
+      555 +    // Ensure unique project name                             
+      556 +    const existing = await client.query('SELECT 1 FROM project
+          +s WHERE name = $1', [pName]);                                 
+      557 +    if (existing.rows.length > 0) {                           
+      558 +      let suffix = 2;                                         
+      559 +      while ((await client.query('SELECT 1 FROM projects WHERE
+          + name = $1', [`${pName} (${suffix})`])).rows.length > 0) {    
+      560 +        suffix++;                                             
+      561 +      }                                                       
+      562 +      pName = `${pName} (${suffix})`;                         
+      563 +    }                                                         
+      564 +                                                              
+      565      // 1. Project
+      566      const projRes = await client.query(
+      567        `INSERT INTO projects (name, description, created_by) VA
+           LUES ($1, $2, $3) RETURNING id`,
+
+● Bash(git add src/lib/server/qdpx/import.ts && git commit -m "$(cat <<'EOF'
+      QDPX import: auto-suffix duplicate project names…)
+  ⎿  [main 6c6a44e] QDPX import: auto-suffix duplicate project names
+      1 file changed, 11 insertions(+), 1 deletion(-)
+
+● 6c6a44e. Jetzt bekommt ein reimportiertes Projekt automatisch z.B. "Berardi -
+  Futurability (2)".
+
+❯ Die "on disk" Projekte -> Lösch-Option mit Sicherheitsabfrage -> Papierkorb   
+mit 30 Tagen aufbewahrung und bei Start aufräum-Aktion                          
+  ⎿  Interrupted · What should Claude do instead?
+❯ Ach macht keinen Sinn die Aufbwhahrung. Einefach Löschoption                  
+Sicherheitsabfrage DB-Namen eintippen.                                          
+
+  Read 1 file (ctrl+o to expand)
+
+● Jetzt die Delete-Funktion und den Confirmation-Dialog. Lass mich die
+  bestehende deleteProject-Funktion checken.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Gut — die geladene Projekte haben schon deleteProject mit doppeltem confirm().
+   Für die "on disk" Projekte brauche ich eine neue Funktion die nur das
+  Verzeichnis löscht, mit Sicherheitsabfrage (Name eintippen).
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/+page.sveltesrc/routes/projects/+page.svelte)
+  ⎿  Added 24 lines
+      70      }
+      71    }
+      72  
+      73 +  async function deleteDiskProject(slug: string) {             
+      74 +    const typed = prompt(`Permanently delete "${slug}" from dis
+         +k?\nType the project name to confirm:`);                       
+      75 +    if (typed !== slug) {                                      
+      76 +      if (typed !== null) syncMessage = 'Name did not match. De
+         +letion cancelled.';                                            
+      77 +      return;                                                  
+      78 +    }                                                          
+      79 +    syncing = true;                                            
+      80 +    try {                                                      
+      81 +      const res = await fetch('/api/projects/sync', {          
+      82 +        method: 'POST',                                        
+      83 +        headers: { 'Content-Type': 'application/json' },       
+      84 +        body: JSON.stringify({ action: 'delete-dir', slug })   
+      85 +      });                                                      
+      86 +      const result = await res.json();                         
+      87 +      if (!res.ok) throw new Error(result.error);              
+      88 +      syncMessage = `Deleted "${slug}" from disk`;             
+      89 +      await invalidateAll();                                   
+      90 +    } catch (e: any) {                                         
+      91 +      syncMessage = e.message;                                 
+      92 +    } finally {                                                
+      93 +      syncing = false;                                         
+      94 +    }                                                          
+      95 +  }                                                            
+      96 +                                                               
+      97    async function duplicateProject(projectId: string, projectNam
+          e: string) {
+      98      const newName = prompt('Save project as:', `${projectName} 
+          (copy)`);
+      99      if (newName === null) return;
+
+● Now add the delete button to the unloaded project cards.
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/projects/+page.sveltesrc/routes/projects/+page.svelte)
+  ⎿  Added 4 lines
+      282                onclick={() => loadProject(dir.slug)} disabled={
+           syncing}>
+      283                📥
+      284              </button>
+      285 +            <button class="action-btn action-delete" title="De
+          +lete from disk"                                               
+      286 +              onclick={() => deleteDiskProject(dir.slug)} disa
+          +bled={syncing}>                                               
+      287 +              🗑                                               
+      288 +            </button>                                         
+      289            </div>
+      290          </div>
+      291        {/each}
+
+● Now add the delete-dir action to the sync API.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/api/projects/sync/+server.tssrc/routes/api/projects/sync/+server.ts)
+  ⎿  Added 11 lines
+      113          return json({ exported: results });
+      114        }
+      115  
+      116 +      case 'delete-dir': {                                    
+      117 +        const { slug } = body;                                
+      118 +        if (!slug) return json({ error: 'slug required' }, { s
+          +tatus: 400 });                                                
+      119 +                                                              
+      120 +        const dir = getProjectDir(slug);                      
+      121 +        const { rm } = await import('fs/promises');           
+      122 +        await rm(dir, { recursive: true, force: true });      
+      123 +                                                              
+      124 +        return json({ ok: true });                            
+      125 +      }                                                       
+      126 +                                                              
+      127        default:
+      128          return json({ error: `Unknown action: ${action}` }, { 
+           status: 400 });
+      129      }
+
+● Bash(npx svelte-check --threshold error 2>&1 | tail -5)
+  ⎿  1774369187790 START "/home/joerissen/ai/transact-qda"
+     1774369187791 ERROR "src/routes/api/projects/[projectId]/export/+serve
+     r.ts" 24:22 "Argument of type 'Buffer<ArrayBufferLike>' is not assigna
+     … +5 lines (ctrl+o to expand)
+  ⎿  (timeout 1m)
+
+● Bash(git add src/routes/projects/+page.svelte
+      src/routes/api/projects/sync/+server.ts && git commit -m "$(cat <<'EOF'
+      Projects: add delete option for on-disk project…)
+  ⎿  [main 220677a] Projects: add delete option for on-disk projects
+      2 files changed, 39 insertions(+)
+
+● 220677a. On-disk Projekte haben jetzt einen 🗑-Button — Sicherheitsabfrage per
+  Slug-Eingabe.
+
+✻ Worked for 1m 17s
+
+❯ commit                                                                        
+
+● Ist schon committed — 220677a war der letzte Commit. Hier der aktuelle Stand:
+
+● Bash(git log --oneline 8d398b1..HEAD)
+  ⎿  220677a Projects: add delete option for on-disk projects
+     6c6a44e QDPX import: auto-suffix duplicate project names
+     176e36e QDPX import: deduplicate participations by unique constraint k
+     … +9 lines (ctrl+o to expand)
+
+● 9 Commits diese Session. Willst du pushen oder weitermachen?
+
+❯ ja, push                                                                      
+
+● Bash(git push)
+  ⎿  To https://github.com/joeriben/transact-qda.git
+        3dc6875..220677a  main -> main
+
+● 10 Commits gepusht (inkl. Session-Logs). Alles auf main.
+
+❯ Ok! Weg frei zu den letzten beiden großen Dingen?                             
+
+● Du meinst Ticket 2+6 (Settings + Provider-API aus AI4ArtsEd)? Was ist das
+  zweite große Ding — oder sind das die zwei Teile:
+
+  1. Provider-API aus AI4ArtsEd importieren/anpassen
+  2. Settings-Seite aus AI4ArtsEd importieren/anpassen
+
+  Oder hast du noch was anderes im Kopf?
+
+❯ Ja, das zuerst. Ich meinte a) AIdele. Und b) Geheimprojekt: Ich denke wir     
+könnten eien Persona bauen die nicht nur kooperiert, sonder völlig eigenständig 
+ Sit. Analysen durchführt, zumindest mit einzelnen Dokumenten. Es wäre sehr     
+spannend zu sehen was bei so einem agentischen researcher herauskommen würde.   
+Das ist aber etwas für eine nachfolgende Session. Provider-API ncoh in diesr    
+Session oder in der nächsten?                                                   
+
+● Spannende Roadmap — besonders b), ein agentischer Researcher wäre ein echtes
+  Experiment. Passt auch gut zur D/B-Ontologie: der Agent als eigenes Naming im
+  Datenraum.
+
+  Provider-API: Das ist substantiell — SwarmUI-Codebase lesen, adaptieren,
+  Settings-Seite bauen. Sauberer in einer frischen Session mit vollem Kontext.
+  Lass mich das als Handover festhalten.
+
+  Recalled 1 memory, wrote 2 memories (ctrl+o to expand)
+
+● Handover steht. Provider-API → nächste Session. Die Roadmap:
+
+  1. Nächste Session: Provider-API + Settings aus AI4ArtsEd
+  2. Danach: Aidele (didaktische Persona)
+  3. Geheimprojekt: Agentischer Researcher — autonome Situationsanalyse
+
+  Besonders b) finde ich spannend. Der Agent als eigenes Naming im Datenraum ist
+   ontologisch sauber (Forscher-als-Naming, kein Bruch). Und der Vergleich
+  zwischen menschlicher und maschineller SA wäre methodologisch hochinteressant.
+
+✻ Cogitated for 55s

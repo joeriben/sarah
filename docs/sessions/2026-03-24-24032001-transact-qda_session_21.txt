@@ -1,0 +1,1560 @@
+ ▐▛███▜▌   Claude Code v2.1.81
+▝▜█████▛▘  Opus 4.6 (1M context) · Claude Max
+  ▘▘ ▝▝    ~/ai/transact-qda
+
+❯ /clear                                                                        
+  ⎿  (no content)
+
+❯ Hallo Session 21!                                                             
+
+● Hallo! Session 21, let's go.
+
+  Let me check the current state of things first.
+
+● Bash(git status)
+  ⎿  On branch main
+     Your branch is up to date with 'origin/main'.
+     … +6 lines (ctrl+o to expand)
+
+● Bash(git log --oneline -10)
+  ⎿  220677a Projects: add delete option for on-disk projects
+     6c6a44e QDPX import: auto-suffix duplicate project names
+     176e36e QDPX import: deduplicate participations by unique constraint k
+     … +10 lines (ctrl+o to expand)
+
+● Clean tree, up to date with origin. Last session (20) added project delete and
+   QDPX import improvements.
+
+  What's on the agenda today?
+
+❯  project_session19_handover.md                                                
+
+  Recalled 1 memory (ctrl+o to expand)
+
+● Three open priorities from the handover:
+
+  1. Provider-API + Settings — Import from AI4ArtsEd
+  (/home/joerissen/ai/SwarmUI), build settings page (sync interval, backup,
+  etc.), OpenRouter primary + Anthropic fallback
+  2. Aidele — Didactic AI persona, teaches method without writing project data,
+  separate from analytical agent
+  3. Agentischer Researcher — Autonomous situational analysis agent, works with
+  documents, own naming in data space
+
+  What would you like to tackle?
+
+❯ 1                                                                             
+
+● Let me explore both codebases to understand what we're working with.
+
+● 2 Explore agents finished (ctrl+o to expand)
+   ├─ Explore AI4ArtsEd provider API · 39 tool uses · 72.9k tokens
+   │  ⎿  Done
+   └─ Explore transact-qda AI/settings · 46 tool uses · 56.1k tokens
+      ⎿  Done
+
+❯ '/home/joerissen/ai/ai4artsed_development' hier                               
+
+● Got it — wrong repo. Let me explore the correct one.
+
+● Explore(Explore AI4ArtsEd provider API)
+  ⎿  Done (33 tool uses · 95.4k tokens · 1h 8m 29s)
+  (ctrl+o to expand)
+
+❯ -> settings-vue. Wir brauchen keine komplizierte Matrix, sondern 1 LLM für    
+alle Anwendugnsfälle, ollama und die ext. Provider                              
+
+❯ Aber die Abrechnungs-Page sollte übernommen werden zu kostenkontrolle         
+
+● Understood — simplified version:
+  - 1 LLM model for everything (no matrix)
+  - Providers: Ollama (local) + external (OpenRouter, Anthropic, etc.)
+  - Usage/billing page for cost control
+
+  Let me read the key files to plan this properly.
+
+  Read 4 files (ctrl+o to expand)
+
+● Good — now I have the full picture. Let me check a few more things for the
+  plan.
+
+  Searched for 3 patterns, read 1 file (ctrl+o to expand)
+
+● Good — ai_interactions already logs model, tokens_used, request_type per call.
+   No settings routes yet. Let me also check the layout and existing route
+  structure.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Now let me check the ai_interactions schema and what's already being logged.
+
+  Searched for 2 patterns (ctrl+o to expand)
+
+● Now I have everything. Here's my plan:
+
+  Plan: Provider-API + Settings + Usage Page
+
+  What exists
+
+  - ai_interactions table already logs model, tokens_used, request_type,
+  created_at per AI call
+  - client.ts reads .key files at startup, hardcodes claude-opus-4-6
+  - No settings route, no settings UI
+
+  What to build
+
+  1. Settings route /settings with two sections:
+  - AI Provider config: Pick provider (Ollama / OpenRouter / Anthropic), enter
+  model name, API key management (masked display, save to .key files)
+  - Usage/billing: Query ai_interactions — totals, by model, by request_type,
+  with time period filter (like AI4ArtsEd)
+
+  2. Backend changes:
+  - client.ts → make provider/model runtime-configurable (read from a
+  settings.json or DB table)
+  - Migration 013: add input_tokens/output_tokens columns to ai_interactions
+  (currently only tokens_used total)
+  - API routes: GET/POST /api/settings/ai for provider config, GET 
+  /api/settings/usage for usage data
+  - API route: POST /api/settings/ai/test to verify key works
+
+  3. Simplified vs AI4ArtsEd:
+  - 1 model for everything (no matrix)
+  - 3 providers: Ollama (local, no key), OpenRouter (key), Anthropic (key)
+  - Usage page adapted from AI4ArtsEd's ApiManagementTab (by model, by
+  request_type, period filter)
+
+  Does this plan look right, or do you want to adjust anything before I start?
+
+✻ Crunched for 4m 50s
+
+❯ ok. Wieso 3 Provider von 6, hast Du zuwengi Platz auf der Festplatte?         
+● Fair point. Alle 7 Provider aus AI4ArtsEd, plus Ollama — sind ja alles
+  OpenAI-kompatible APIs bis auf Anthropic direkt. Der Client kann das schon,
+  ist nur eine baseURL + apiKey pro Provider. Kein Grund zu kürzen.
+
+  Also: Ollama, Mistral, IONOS, Mammouth, Anthropic, OpenAI, OpenRouter — alle
+  rein. Ich starte.
+
+● Write(migrations/013_ai_usage_details.sql)
+  ⎿  Wrote 12 lines to migrations/013_ai_usage_details.sql
+       1 -- Split tokens_used into input_tokens + output_tokens for cost 
+         tracking.
+       2 -- Add provider column to know which provider was used.
+       3 
+       4 ALTER TABLE ai_interactions
+       5   ADD COLUMN IF NOT EXISTS input_tokens INTEGER,
+       6   ADD COLUMN IF NOT EXISTS output_tokens INTEGER,
+       7   ADD COLUMN IF NOT EXISTS provider TEXT;
+       8 
+       9 -- Backfill: existing rows have tokens_used but no split — assig
+         n all to input as rough estimate
+      10 UPDATE ai_interactions
+     … +2 lines (ctrl+o to expand)
+
+● Now let me check the AI4ArtsEd provider URLs and the existing agent.ts to
+  understand how the client is consumed.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Good. Now let me look at how logAiInteraction is called to understand what
+  needs updating.
+
+  Searched for 2 patterns (ctrl+o to expand)
+
+● Good — only agent.ts calls logAiInteraction. Now let me also check how the
+  suggest-codes and other AI routes call the client.
+
+  Searched for 2 patterns, read 1 file (ctrl+o to expand)
+
+● Now I have the full picture. Let me build the refactored client and update the
+   dependent code.
+
+  Read 1 file (ctrl+o to expand)
+
+● Write(src/lib/server/ai/client.ts)
+  ⎿  Added 178 lines, removed 48 lines
+        1 -// Provider-agnostic AI client: OpenRouter (OpenAI SDK) or Ant
+          -hropic direct.                                                
+        2 -// OpenRouter only supports OpenAI-format API (/chat/completio
+          -ns), not Anthropic's /messages.                               
+        1 +// Provider-agnostic AI client with runtime-configurable provi
+          +der and model.                                                
+        2 +// All providers except Anthropic use the OpenAI-compatible SD
+          +K.                                                            
+        3 +// Settings from ai-settings.json, API keys from *.key files (
+          +gitignored).                                                  
+        4  
+        5  import Anthropic from '@anthropic-ai/sdk';
+        6  import OpenAI from 'openai';
+        6 -import { readFileSync } from 'node:fs';                       
+        7 +import { readFileSync, writeFileSync, existsSync } from 'node:
+          +fs';                                                          
+        8  import { join } from 'node:path';
+        9  
+        9 -type Provider = 'openrouter' | 'anthropic';                   
+       10 +// ── Provider definitions ───────────────────────────────────
+          +───────                                                       
+       11  
+       11 -let provider: Provider | null = null;                         
+       12 +export type Provider = 'ollama' | 'mistral' | 'ionos' | 'mammo
+          +uth' | 'anthropic' | 'openai' | 'openrouter';                 
+       13 +                                                              
+       14 +export interface ProviderDef {                                
+       15 +  label: string;                                              
+       16 +  baseURL: string;                                            
+       17 +  defaultModel: string;                                       
+       18 +  keyFile: string | null; // null = no key needed (e.g. Ollama
+          +)                                                             
+       19 +  dsgvo: boolean;                                             
+       20 +  region: string;                                             
+       21 +}                                                             
+       22 +                                                              
+       23 +export const PROVIDERS: Record<Provider, ProviderDef> = {     
+       24 +  ollama:     { label: 'Ollama (local)',  baseURL: 'http://loc
+          +alhost:11434/v1',                            defaultModel: 'll
+          +ama3.1',                            keyFile: null,            
+          + dsgvo: true,  region: 'local' },                             
+       25 +  mistral:    { label: 'Mistral AI',      baseURL: 'https://ap
+          +i.mistral.ai/v1',                           defaultModel: 'mis
+          +tral-large-latest',                 keyFile: 'mistral.key',   
+          + dsgvo: true,  region: 'EU' },                                
+       26 +  ionos:      { label: 'IONOS',           baseURL: 'https://op
+          +enai.inference.de-txl.ionos.com/v1',        defaultModel: 'met
+          +a-llama/Meta-Llama-3.1-70B-Instruct', keyFile: 'ionos.key',   
+          +dsgvo: true,  region: 'EU (Berlin)' },                        
+       27 +  mammouth:   { label: 'Mammouth AI',     baseURL: 'https://ap
+          +i.mammouth.ai/v1',                          defaultModel: 'cla
+          +ude-sonnet-4-6',                    keyFile: 'mammouth.key',  
+          + dsgvo: true,  region: 'EU' },                                
+       28 +  anthropic:  { label: 'Anthropic',       baseURL: 'https://ap
+          +i.anthropic.com',                           defaultModel: 'cla
+          +ude-opus-4-6',                      keyFile: 'anthropic.key', 
+          + dsgvo: false, region: 'US' },                                
+       29 +  openai:     { label: 'OpenAI',          baseURL: 'https://ap
+          +i.openai.com/v1',                           defaultModel: 'gpt
+          +-4o',                               keyFile: 'openai.key',    
+          +dsgvo: false, region: 'US' },                                 
+       30 +  openrouter: { label: 'OpenRouter',      baseURL: 'https://op
+          +enrouter.ai/api/v1',                        defaultModel: 'ant
+          +hropic/claude-opus-4-6',            keyFile: 'openrouter.key',
+          + dsgvo: false, region: 'US' },                                
+       31 +};                                                            
+       32 +                                                              
+       33 +// ── Settings persistence ───────────────────────────────────
+          +───────                                                       
+       34 +                                                              
+       35 +export interface AiSettings {                                 
+       36 +  provider: Provider;                                         
+       37 +  model: string;                                              
+       38 +}                                                             
+       39 +                                                              
+       40 +const SETTINGS_FILE = join(process.cwd(), 'ai-settings.json');
+       41 +                                                              
+       42 +const DEFAULT_SETTINGS: AiSettings = { provider: 'openrouter',
+          + model: '' };                                                 
+       43 +                                                              
+       44 +export function loadSettings(): AiSettings {                  
+       45 +  try {                                                       
+       46 +    const raw = readFileSync(SETTINGS_FILE, 'utf-8');         
+       47 +    const parsed = JSON.parse(raw);                           
+       48 +    return {                                                  
+       49 +      provider: parsed.provider && parsed.provider in PROVIDER
+          +S ? parsed.provider : DEFAULT_SETTINGS.provider,              
+       50 +      model: parsed.model || ''                               
+       51 +    };                                                        
+       52 +  } catch {                                                   
+       53 +    return { ...DEFAULT_SETTINGS };                           
+       54 +  }                                                           
+       55 +}                                                             
+       56 +                                                              
+       57 +export function saveSettings(settings: AiSettings): void {    
+       58 +  writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 
+          +2) + '\n', 'utf-8');                                          
+       59 +  // Force re-init on next call                               
+       60 +  _initialized = false;                                       
+       61 +}                                                             
+       62 +                                                              
+       63 +// ── API key management ─────────────────────────────────────
+          +───────                                                       
+       64 +                                                              
+       65 +export function readApiKey(provider: Provider): string | null 
+          +{                                                             
+       66 +  const def = PROVIDERS[provider];                            
+       67 +  if (!def.keyFile) return null; // Ollama needs no key       
+       68 +  try {                                                       
+       69 +    return readFileSync(join(process.cwd(), def.keyFile), 'utf
+          +-8').trim();                                                  
+       70 +  } catch {                                                   
+       71 +    return null;                                              
+       72 +  }                                                           
+       73 +}                                                             
+       74 +                                                              
+       75 +export function writeApiKey(provider: Provider, key: string): 
+          +void {                                                        
+       76 +  const def = PROVIDERS[provider];                            
+       77 +  if (!def.keyFile) return;                                   
+       78 +  writeFileSync(join(process.cwd(), def.keyFile), key.trim() +
+          + '\n', 'utf-8');                                              
+       79 +  // Force re-init on next call                               
+       80 +  _initialized = false;                                       
+       81 +}                                                             
+       82 +                                                              
+       83 +export function maskKey(key: string | null): string {         
+       84 +  if (!key) return '';                                        
+       85 +  if (key.length <= 12) return '***';                         
+       86 +  return key.slice(0, 7) + '...' + key.slice(-4);             
+       87 +}                                                             
+       88 +                                                              
+       89 +// ── Client init ────────────────────────────────────────────
+          +───────                                                       
+       90 +                                                              
+       91 +let _initialized = false;                                     
+       92 +let _provider: Provider = 'openrouter';                       
+       93 +let _model = '';                                              
+       94  let anthropicClient: Anthropic | null = null;
+       95  let openaiClient: OpenAI | null = null;
+       14 -let _model = 'claude-opus-4-6';                               
+       96  
+       97  function init() {
+       17 -  if (provider) return;                                       
+       98 +  if (_initialized) return;                                   
+       99  
+       19 -  try {                                                       
+       20 -    const apiKey = readFileSync(join(process.cwd(), 'openroute
+          -r.key'), 'utf-8').trim();                                     
+       21 -    openaiClient = new OpenAI({ apiKey, baseURL: 'https://open
+          -router.ai/api/v1' });                                         
+       22 -    _model = 'anthropic/claude-opus-4-6';                     
+       23 -    provider = 'openrouter';                                  
+       24 -  } catch {                                                   
+       25 -    try {                                                     
+       26 -      const apiKey = readFileSync(join(process.cwd(), 'anthrop
+          -ic.key'), 'utf-8').trim();                                    
+       27 -      anthropicClient = new Anthropic({ apiKey });            
+       28 -      _model = 'claude-opus-4-6';                             
+       29 -      provider = 'anthropic';                                 
+       30 -    } catch {                                                 
+       31 -      throw new Error('No API key found. Place openrouter.key 
+          -or anthropic.key in the project root.');                      
+      100 +  const settings = loadSettings();                            
+      101 +  _provider = settings.provider;                              
+      102 +  const def = PROVIDERS[_provider];                           
+      103 +  _model = settings.model || def.defaultModel;                
+      104 +                                                              
+      105 +  if (_provider === 'anthropic') {                            
+      106 +    const apiKey = readApiKey('anthropic');                   
+      107 +    if (!apiKey) throw new Error('No API key found. Add anthro
+          +pic.key or change provider in settings.');                    
+      108 +    anthropicClient = new Anthropic({ apiKey });              
+      109 +    openaiClient = null;                                      
+      110 +  } else {                                                    
+      111 +    // All other providers use OpenAI-compatible API          
+      112 +    const apiKey = readApiKey(_provider);                     
+      113 +    if (def.keyFile && !apiKey) {                             
+      114 +      throw new Error(`No API key found for ${def.label}. Add 
+          +${def.keyFile} or change provider in settings.`);             
+      115      }
+      116 +    openaiClient = new OpenAI({                               
+      117 +      apiKey: apiKey || 'ollama', // Ollama doesn't need a rea
+          +l key                                                         
+      118 +      baseURL: def.baseURL                                    
+      119 +    });                                                       
+      120 +    anthropicClient = null;                                   
+      121    }
+      122 +                                                              
+      123 +  _initialized = true;                                        
+      124  }
+      125  
+      126  export function getModel(): string {
+     ...
+      128    return _model;
+      129  }
+      130  
+       41 -// Unified tool format (Anthropic-style, converted for OpenAI 
+          -internally)                                                   
+      131 +export function getProvider(): Provider {                     
+      132 +  init();                                                     
+      133 +  return _provider;                                           
+      134 +}                                                             
+      135 +                                                              
+      136 +// ── Unified types ──────────────────────────────────────────
+          +───────                                                       
+      137 +                                                              
+      138  export interface ToolDef {
+      139    name: string;
+      140    description: string;
+     ...
+      151    text: string;
+      152    toolCalls: ToolCall[];
+      153    model: string;
+       58 -  tokensUsed: number;                                         
+      154 +  provider: Provider;                                         
+      155 +  inputTokens: number;                                        
+      156 +  outputTokens: number;                                       
+      157 +  tokensUsed: number; // sum, for backwards compat            
+      158    stopReason: string;
+      159  }
+      160  
+      161 +// ── Chat ───────────────────────────────────────────────────
+          +───────                                                       
+      162 +                                                              
+      163  export async function chat(opts: {
+      164    system?: string;
+      165    messages: { role: 'user' | 'assistant'; content: string }[];
+     ...
+      168  }): Promise<ChatResponse> {
+      169    init();
+      170  
+       70 -  if (provider === 'openrouter') {                            
+      171 +  if (_provider === 'anthropic') {                            
+      172 +    const response = await anthropicClient!.messages.create({ 
+      173 +      model: _model,                                          
+      174 +      max_tokens: opts.maxTokens,                             
+      175 +      system: opts.system,                                    
+      176 +      messages: opts.messages,                                
+      177 +      tools: opts.tools as Anthropic.Messages.Tool[]          
+      178 +    });                                                       
+      179 +                                                              
+      180 +    const inputTokens = response.usage.input_tokens;          
+      181 +    const outputTokens = response.usage.output_tokens;        
+      182 +                                                              
+      183 +    return {                                                  
+      184 +      text: response.content                                  
+      185 +        .filter((b): b is Anthropic.Messages.TextBlock => b.ty
+          +pe === 'text')                                                
+      186 +        .map(b => b.text)                                     
+      187 +        .join(''),                                            
+      188 +      toolCalls: response.content                             
+      189 +        .filter((b): b is Anthropic.Messages.ToolUseBlock => b
+          +.type === 'tool_use')                                         
+      190 +        .map(b => ({                                          
+      191 +          name: b.name,                                       
+      192 +          input: b.input as Record<string, unknown>,          
+      193 +          id: b.id                                            
+      194 +        })),                                                  
+      195 +      model: response.model,                                  
+      196 +      provider: _provider,                                    
+      197 +      inputTokens,                                            
+      198 +      outputTokens,                                           
+      199 +      tokensUsed: inputTokens + outputTokens,                 
+      200 +      stopReason: response.stop_reason || 'end_turn'          
+      201 +    };                                                        
+      202 +  } else {                                                    
+      203 +    // OpenAI-compatible path (OpenRouter, Mistral, IONOS, Mam
+          +mouth, OpenAI, Ollama)                                        
+      204      const messages: OpenAI.Chat.Completions.ChatCompletionMess
+           ageParam[] = [];
+      205      if (opts.system) messages.push({ role: 'system', content: 
+           opts.system });
+      206      for (const m of opts.messages) messages.push({ role: m.rol
+           e, content: m.content });
+     ...
+      232          });
+      233        }
+      234      }
+      235 +                                                              
+      236 +    const inputTokens = response.usage?.prompt_tokens || 0;   
+      237 +    const outputTokens = response.usage?.completion_tokens || 
+          +0;                                                            
+      238 +                                                              
+      239      return {
+      240        text: choice.message.content || '',
+      241        toolCalls,
+      242        model: response.model || _model,
+      106 -      tokensUsed: response.usage?.total_tokens || 0,          
+      243 +      provider: _provider,                                    
+      244 +      inputTokens,                                            
+      245 +      outputTokens,                                           
+      246 +      tokensUsed: inputTokens + outputTokens,                 
+      247        stopReason: choice.finish_reason || 'end_turn'
+      248      };
+      109 -  } else {                                                    
+      110 -    const response = await anthropicClient!.messages.create({ 
+      111 -      model: _model,                                          
+      112 -      max_tokens: opts.maxTokens,                             
+      113 -      system: opts.system,                                    
+      114 -      messages: opts.messages,                                
+      115 -      tools: opts.tools as Anthropic.Messages.Tool[]          
+      116 -    });                                                       
+      249 +  }                                                           
+      250 +}                                                             
+      251  
+      118 -    return {                                                  
+      119 -      text: response.content                                  
+      120 -        .filter((b): b is Anthropic.Messages.TextBlock => b.ty
+          -pe === 'text')                                                
+      121 -        .map(b => b.text)                                     
+      122 -        .join(''),                                            
+      123 -      toolCalls: response.content                             
+      124 -        .filter((b): b is Anthropic.Messages.ToolUseBlock => b
+          -.type === 'tool_use')                                         
+      125 -        .map(b => ({                                          
+      126 -          name: b.name,                                       
+      127 -          input: b.input as Record<string, unknown>,          
+      128 -          id: b.id                                            
+      129 -        })),                                                  
+      130 -      model: response.model,                                  
+      131 -      tokensUsed: response.usage.input_tokens + response.usage
+          -.output_tokens,                                               
+      132 -      stopReason: response.stop_reason || 'end_turn'          
+      133 -    };                                                        
+      252 +// ── Connection test ────────────────────────────────────────
+          +───────                                                       
+      253 +                                                              
+      254 +export async function testConnection(): Promise<{ ok: boolean;
+          + error?: string; model?: string }> {                          
+      255 +  try {                                                       
+      256 +    init();                                                   
+      257 +    const response = await chat({                             
+      258 +      messages: [{ role: 'user', content: 'Reply with exactly:
+          + OK' }],                                                      
+      259 +      maxTokens: 16                                           
+      260 +    });                                                       
+      261 +    return { ok: true, model: response.model };               
+      262 +  } catch (e: unknown) {                                      
+      263 +    return { ok: false, error: e instanceof Error ? e.message 
+          +: String(e) };                                                
+      264    }
+      265  }
+
+● Now update logAiInteraction to accept the new fields and update agent.ts
+  calls.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(src/lib/server/db/queries/ai.ts)
+  ⎿  Added 7 lines, removed 4 lines
+      53    model: string,
+      54    inputContext: Record<string, unknown>,
+      55    response: Record<string, unknown>,
+      56 -  tokensUsed: number                                           
+      56 +  tokensUsed: number,                                          
+      57 +  provider?: string,                                           
+      58 +  inputTokens?: number,                                        
+      59 +  outputTokens?: number                                        
+      60  ) {
+      61    await query(
+      59 -    `INSERT INTO ai_interactions (project_id, naming_id, reques
+         -t_type, model, input_context, response, tokens_used)           
+      60 -     VALUES ($1, $2, $3, $4, $5, $6, $7)`,                     
+      61 -    [projectId, aiNamingId, requestType, model, JSON.stringify(
+         -inputContext), JSON.stringify(response), tokensUsed]           
+      62 +    `INSERT INTO ai_interactions (project_id, naming_id, reques
+         +t_type, model, input_context, response, tokens_used, provider, 
+         +input_tokens, output_tokens)                                   
+      63 +     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,        
+      64 +    [projectId, aiNamingId, requestType, model, JSON.stringify(
+         +inputContext), JSON.stringify(response), tokensUsed, provider |
+         +| null, inputTokens || null, outputTokens || null]             
+      65    );
+      66  }
+
+● Now update agent.ts — the three logAiInteraction calls to pass the new fields.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(src/lib/server/ai/agent.ts)
+  ⎿  Added 1 line, removed 1 line
+      1  // The AI agent: builds context, calls Claude with tools, execut
+         es tool calls as naming acts.
+      2  // Every tool call produces namings in the data space — the AI i
+         s a co-analyst.
+      3  
+      4 -import { chat, getModel } from './client.js';                   
+      4 +import { chat, getModel, getProvider } from './client.js';      
+      5  import { getMapStructure, getMap, addElementToMap, relateElement
+         s, createPhase, assignToPhase, getCrossMapParticipations } from 
+         '../db/queries/maps.js';
+      6  import { getOrCreateAiNaming, logAiInteraction } from '../db/que
+         ries/ai.js';
+      7  import { createMemo, updateMemoContent } from '../db/queries/mem
+         os.js';
+● Now update the three logAiInteraction calls in agent.ts.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(src/lib/server/ai/agent.ts)
+  ⎿  Added 4 lines, removed 1 line
+      548        model,
+      549        { mapId, triggerEvent, contextSummary: { elements: conte
+           xt.elements.length, relations: context.relations.length } },
+      550        { toolResults, stopReason: response.stopReason },
+      551 -      response.tokensUsed                                     
+      551 +      response.tokensUsed,                                    
+      552 +      response.provider,                                      
+      553 +      response.inputTokens,                                   
+      554 +      response.outputTokens                                   
+      555      );
+      556    } catch (error) {
+      557      console.error('[AI Agent] Error:', error instanceof Error 
+           ? error.stack || error.message : error);
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(src/lib/server/ai/agent.ts)
+  ⎿  Added 4 lines, removed 1 line
+      724      model,
+      725      { mapId, namingId, researcherMessage },
+      726      { actions, text: responseText, stopReason: response.stopRe
+           ason },
+      727 -    response.tokensUsed                                       
+      727 +    response.tokensUsed,                                      
+      728 +    response.provider,                                        
+      729 +    response.inputTokens,                                     
+      730 +    response.outputTokens                                     
+      731    );
+      732  
+      733    // Build response text for frontend
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(src/lib/server/ai/agent.ts)
+  ⎿  Added 4 lines, removed 1 line
+      886      model,
+      887      { mapId, memoId, researcherMessage },
+      888      { actions, text: responseText, stopReason: response.stopRe
+           ason },
+      889 -    response.tokensUsed                                       
+      889 +    response.tokensUsed,                                      
+      890 +    response.provider,                                        
+      891 +    response.inputTokens,                                     
+      892 +    response.outputTokens                                     
+      893    );
+      894  
+      895    const aiResponseText = actions
+
+● Now update index.ts (the logInteraction there also needs the new fields).
+
+● Update(src/lib/server/ai/index.ts)
+  ⎿  Added 1 line, removed 1 line
+      1 -import { chat, getModel } from './client.js';                   
+      1 +import { chat, getModel, getProvider } from './client.js';      
+      2  import { query } from '../db/index.js';
+      3  
+      4  export async function suggestCodes(
+
+● Update(src/lib/server/ai/index.ts)
+  ⎿  Added 7 lines, removed 4 lines
+      128    model: string,
+      129    inputContext: Record<string, unknown>,
+      130    response: Record<string, unknown>,
+      131 -  tokensUsed: number                                          
+      131 +  tokensUsed: number,                                         
+      132 +  provider?: string,                                          
+      133 +  inputTokens?: number,                                       
+      134 +  outputTokens?: number                                       
+      135  ) {
+      136    await query(
+      134 -    `INSERT INTO ai_interactions (project_id, request_type, mo
+          -del, input_context, response, tokens_used)                    
+      135 -     VALUES ($1, $2, $3, $4, $5, $6)`,                        
+      136 -    [projectId, requestType, model, JSON.stringify(inputContex
+          -t), JSON.stringify(response), tokensUsed]                     
+      137 +    `INSERT INTO ai_interactions (project_id, request_type, mo
+          +del, input_context, response, tokens_used, provider, input_tok
+          +ens, output_tokens)                                           
+      138 +     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,            
+      139 +    [projectId, requestType, model, JSON.stringify(inputContex
+          +t), JSON.stringify(response), tokensUsed, provider || null, in
+          +putTokens || null, outputTokens || null]                      
+      140    );
+      141  }
+
+● Now check if logInteraction from index.ts is called anywhere.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● The existing logInteraction calls just pass the old args — they still work
+  since the new params are optional. Good, backwards compatible.
+
+● Now let me create the API routes. First check what the route structure looks
+  like.
+
+  Read 1 file (ctrl+o to expand)
+
+● Good — standard SvelteKit API routes. Now create the settings API routes.
+
+● Bash(mkdir -p /home/joerissen/ai/transact-qda/src/routes/api/settings/ai
+      /home/joerissen/ai/transact-qda/src/routes/api/settings/usage)
+  ⎿  Done
+
+● Write(ile:///home/joerissen/ai/transact-qda/src/routes/api/settings/ai/+server.tssrc/routes/api/settings/ai/+server.ts)
+  ⎿  Wrote 65 lines to src/routes/api/settings/ai/+server.ts
+       1 import { json } from '@sveltejs/kit';
+       2 import type { RequestHandler } from './$types.js';
+       3 import {
+       4        type Provider,
+       5        PROVIDERS,
+       6        loadSettings,
+       7        saveSettings,
+       8        readApiKey,
+       9        writeApiKey,
+      10        maskKey,
+     … +55 lines (ctrl+o to expand)
+
+● Write(ile:///home/joerissen/ai/transact-qda/src/routes/api/settings/ai/test/+server.tssrc/routes/api/settings/ai/test/+server.ts)
+  ⎿  Wrote 8 lines to src/routes/api/settings/ai/test/+server.ts
+      1 import { json } from '@sveltejs/kit';
+      2 import type { RequestHandler } from './$types.js';
+      3 import { testConnection } from '$lib/server/ai/client.js';
+      4 
+      5 export const POST: RequestHandler = async () => {
+      6         const result = await testConnection();
+      7         return json(result);
+      8 };
+
+● Now the usage endpoint. It queries ai_interactions and aggregates.
+
+● Write(ile:///home/joerissen/ai/transact-qda/src/routes/api/settings/usage/+server.tssrc/routes/api/settings/usage/+server.ts)
+  ⎿  Wrote 117 lines to src/routes/api/settings/usage/+server.ts
+       1 import { json } from '@sveltejs/kit';
+       2 import type { RequestHandler } from './$types.js';
+       3 import { query } from '$lib/server/db/index.js';
+       4 
+       5 export const GET: RequestHandler = async ({ url }) => {
+       6        const days = parseInt(url.searchParams.get('days') || '30');
+       7        const dateFrom = url.searchParams.get('from') || null;
+       8        const dateTo = url.searchParams.get('to') || null;
+       9 
+      10        // Build date filter
+     … +107 lines (ctrl+o to expand)
+
+● Now the settings page. Let me check the existing page patterns first.
+
+  Read 1 file (ctrl+o to expand)
+● Bash(mkdir -p /home/joerissen/ai/transact-qda/src/routes/settings)
+  ⎿  Done
+
+● Write(ile:///home/joerissen/ai/transact-qda/src/routes/settings/+page.sveltesrc/routes/settings/+page.svelte)
+  ⎿  Wrote 634 lines to src/routes/settings/+page.svelte
+       1 <script lang="ts">
+       2        let activeTab: 'provider' | 'usage' = $state('provider');
+       3 
+       4        // ── Provider state ────────────────────────────────────────
+       5        interface ProviderInfo {
+       6                id: string;
+       7                label: string;
+       8                defaultModel: string;
+       9                needsKey: boolean;
+      10                keyConfigured: boolean;
+     … +624 lines (ctrl+o to expand)
+
+● Now link the settings page from the header dropdown.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/+layout.sveltesrc/routes/+layout.svelte)
+  ⎿  Added 1 line
+      51              {#if settingsOpen}
+      52                <div class="dropdown-menu">
+      53                  <a href="/projects" class="dropdown-item" oncli
+          ck={() => settingsOpen = false}>Projects</a>
+      54 +                <a href="/settings" class="dropdown-item" oncli
+         +ck={() => settingsOpen = false}>Settings</a>                   
+      55                  <div class="dropdown-divider"></div>
+      56                  <span class="dropdown-label">User</span>
+      57                  <span class="dropdown-info">{data.user.displayN
+          ame || data.user.username}</span>
+
+● Now add ai-settings.json to gitignore (it may contain hints about what
+  provider is used, keep it local).
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(.gitignore)
+  ⎿  Added 2 lines, removed 1 line
+      22  vite.config.js.timestamp-*
+      23  vite.config.ts.timestamp-*
+      24  
+      25 -# API keys                                                     
+      25 +# API keys & local settings                                    
+      26  *.key
+      27 +ai-settings.json                                               
+      28  
+      29  # Uploads
+      30  /uploads/
+
+● Now let me build and check for errors.
+
+● Bash(npx svelte-check --threshold error 2>&1 | tail -40)
+  ⎿  1774376568493 START "/home/joerissen/ai/transact-qda"
+     1774376568495 ERROR "src/routes/api/projects/[projectId]/export/+serve
+     r.ts" 24:22 "Argument of type 'Buffer<ArrayBufferLike>' is not assigna
+     … +5 lines (ctrl+o to expand)
+  ⎿  (timeout 1m)
+
+● Only the pre-existing Buffer type error (not from our changes). Let me also
+  verify the build works.
+
+● Bash(npx vite build 2>&1 | tail -20)
+  ⎿  .svelte-kit/output/server/entries/pages/projects/_projectId_/namings/_
+     namingId_/_page.svelte.js                    15.95 kB
+     .svelte-kit/output/server/chunks/namings.js
+     … +24 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+● Clean build. Now run the migration.
+
+● Bash(psql "$DATABASE_URL" -f migrations/013_ai_usage_details.sql 2>&1)
+  ⎿  Error: Exit code 2
+     psql: error: connection to server on socket 
+     "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory
+        Is the server running locally and accepting connections on that socket?
+
+
+  Read 1 file (ctrl+o to expand)
+
+● Bash(psql "postgresql://tqda:tqda_dev@localhost:5432/transact_qda" -f
+      /home/joerissen/ai/transact-qda/migrations/013_ai_usage_details.sql 2>&1)
+  ⎿  ALTER TABLE
+     UPDATE 36
+
+● Migration applied, 36 existing rows backfilled.
+
+● Done. Here's what was built:
+
+  Migration 013 — input_tokens, output_tokens, provider columns added to
+  ai_interactions
+
+  client.ts refactored — 7 providers:
+
+  ┌───────────┬─────────────────────────────────┬─────────┬───────────────┐
+  │ Provider  │            Base URL             │  DSGVO  │      Key      │
+  ├───────────┼─────────────────────────────────┼─────────┼───────────────┤
+  │ Ollama    │ localhost:11434                 │ local   │ none          │
+  ├───────────┼─────────────────────────────────┼─────────┼───────────────┤
+  │ Mistral   │ api.mistral.ai                  │ EU      │ mistral.key   │
+  ├───────────┼─────────────────────────────────┼─────────┼───────────────┤
+  │ IONOS     │ openai.inference.de-txl.ionos.c │ EU (Ber │ ionos.key     │
+  │           │ om                              │ lin)    │               │
+  ├───────────┼─────────────────────────────────┼─────────┼───────────────┤
+  │ Mammouth  │ api.mammouth.ai                 │ EU      │ mammouth.key  │
+  ├───────────┼─────────────────────────────────┼─────────┼───────────────┤
+  │ Anthropic │ api.anthropic.com               │ US      │ anthropic.key │
+  ├───────────┼─────────────────────────────────┼─────────┼───────────────┤
+  │ OpenAI    │ api.openai.com                  │ US      │ openai.key    │
+  ├───────────┼─────────────────────────────────┼─────────┼───────────────┤
+  │ OpenRoute │ openrouter.ai                   │ US      │ openrouter.ke │
+  │ r         │                                 │         │ y             │
+  └───────────┴─────────────────────────────────┴─────────┴───────────────┘
+
+  Settings in ai-settings.json (gitignored). All except Anthropic use OpenAI
+  SDK. Backwards compatible — existing openrouter.key still works as fallback.
+
+  API routes:
+  - GET/POST /api/settings/ai — provider config + key management
+  - POST /api/settings/ai/test — connection test
+  - GET /api/settings/usage?days=30 — aggregated usage from DB
+
+  Settings page at /settings — Provider tab (card grid for selection, model
+  input, key management, test button) + Usage tab (period filter, tables by
+  model/type/provider). Linked from header dropdown.
+
+  Want to start the dev server and test it?
+
+✻ Baked for 6m 47s
+
+❯ Sieht gut aus. Bei "Model" erscheint "Manage Passwords" Anstatt Model-Liste   
+(zumindest bei Ollama)                                                          
+
+● Browser-Autofill — der erkennt das type="password" Feld in der Nähe und bietet
+   Passwort-Manager an. Fix:
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/settings/+page.sveltesrc/routes/settings/+page.svelte)
+  ⎿  Added 1 line, removed 1 line
+      207        <div class="section">
+      208          <h2>Model</h2>
+      209          <div class="form-row">
+      210 -          <input type="text" bind:value={model} placeholder="M
+          -odel name" class="input-field model-input" />                 
+      210 +          <input type="text" bind:value={model} placeholder="M
+          +odel name" class="input-field model-input" autocomplete="off" 
+          +data-1p-ignore data-lpignore="true" />                        
+      211            <span class="hint">Default: {currentProviderInfo?.de
+           faultModel || '—'}</span>
+      212          </div>
+      213        </div>
+
+● Update(ile:///home/joerissen/ai/transact-qda/src/routes/settings/+page.sveltesrc/routes/settings/+page.svelte)
+  ⎿  Added 3 lines
+      224                bind:value={apiKeyInput}
+      225                placeholder={currentProviderInfo.keyConfigured ?
+            'Enter new key to replace' : 'Enter API key'}
+      226                class="input-field"
+      227 +              autocomplete="new-password"                     
+      228 +              data-1p-ignore                                  
+      229 +              data-lpignore="true"                            
+      230              />
+      231            </div>
+      232          </div>
+
+● autocomplete="off" + data-1p-ignore (1Password) + data-lpignore (LastPass) —
+  sollte den Passwort-Manager fernhalten.
+
+❯ funktioniert. GPt 4o, interessant. ich habe 5.4 eingetragen, erhalte dann     
+"Connection failed: 400 Unsupported parameter: 'max_tokens' is not supported    
+with this model. Use 'max_completion_tokens' instead."                          
+● Neuere OpenAI-Modelle erwarten max_completion_tokens statt max_tokens. Quick
+  fix:
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(src/lib/server/ai/client.ts)
+  ⎿  Added 6 lines, removed 1 line
+      214        }
+      215      }));
+      216  
+      217 +    // OpenAI newer models (o-series, gpt-4.1+) require max_co
+          +mpletion_tokens                                               
+      218 +    const tokenParam = _provider === 'openai'                 
+      219 +      ? { max_completion_tokens: opts.maxTokens }             
+      220 +      : { max_tokens: opts.maxTokens };                       
+      221 +                                                              
+      222      const response = await openaiClient!.chat.completions.crea
+           te({
+      223        model: _model,
+      219 -      max_tokens: opts.maxTokens,                             
+      224 +      ...tokenParam,                                          
+      225        messages,
+      226        tools
+      227      });
+
+● Für OpenAI-direkt jetzt max_completion_tokens, alle anderen bleiben bei
+  max_tokens. Sollte jetzt mit GPT-5.4 funktionieren.
+
+✻ Churned for 34s
+
+❯ Ja!                                                                           
+
+● Was steht als nächstes an? Aidele, agentischer Researcher, oder etwas anderes?
+
+❯ Aidele                                                                        
+
+  Recalled 3 memories (ctrl+o to expand)
+
+● Let me review the existing AI architecture to understand how Aidele fits in.
+
+  Read 1 file (ctrl+o to expand)
+
+● Good, I've read the full prompts.ts and understand the analytical agent's
+  architecture. Let me check where the AI toggle lives in the UI.
+
+  Searched for 2 patterns, read 1 file (ctrl+o to expand)
+
+● Now I have the full picture. Here's my plan for Aidele:
+
+  Aidele Architecture
+
+  Backend:
+  - src/lib/server/ai/aidele.ts — Aidele system prompt + chat function. Reads
+  project state (maps, namings, memos, documents) for context. Returns text only
+   — NO tools, NO write access to data.
+  - src/routes/api/projects/[projectId]/aidele/+server.ts — POST endpoint for
+  chat messages, with conversation history
+
+  System prompt: Focuses on teaching Clarke's SA, Dewey/Bentley, Strauss/Corbin,
+   Charmaz, Foucault. Process-oriented ("you have 15 entities but no
+  relations"), non-evaluative ("Clarke would ask here..."). Reads current
+  project state to give contextual guidance.
+
+  Frontend:
+  - Chat panel accessible within a project — a slide-in panel or floating button
+   (not a full page, so the researcher can keep working while asking Aidele)
+  - Conversation persisted client-side (session), logged to ai_interactions for
+  usage tracking
+  - Toggle in project header or sidebar
+
+  Key constraints from memory:
+  - NOT a naming in the data space
+  - Read-only access to project data
+  - Separate from the analytical agent entirely
+  - Non-evaluative, Socratic, didactic
+
+  Does this approach fit what you have in mind, or should the UI work
+  differently?
+
+✻ Cogitated for 46s
+
+❯ Ich mache das in einer frischen Session. Session 20 ist damit beendet, oder   
+bleibt noch etwas zu tun?                                                       
+
+● Die Provider-API + Settings müssen noch committed werden.
+
+● Bash(git status && echo "---" && git diff --stat)
+  ⎿  On branch main
+     Your branch is up to date with 'origin/main'.
+     … +22 lines (ctrl+o to expand)
+
+● Soll ich committen? Und soll ich das Handover-Dokument für die nächste Session
+   aktualisieren?
+
+❯ ja. Achja, Du könntest das Manual updaten. Ist ja einiges neues dazugekommen. 
+ Das ist auch die Basis für Aidele. Sie muss Sit. Analysis vermitteln, aber     
+auch die Besonderheiten unserer Plattfrom mit einbeziehen könenn.               
+
+● Explore(Find existing manual/docs)
+  ⎿  Done (11 tool uses · 60.0k tokens · 1m 0s)
+  (ctrl+o to expand)
+
+  Read 1 file (ctrl+o to expand)
+
+● Now let me check the platform features that are missing from the manual — SW/A
+   maps, positional maps, memos, QDPX, project management.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● 2 Explore agents finished (ctrl+o to expand)
+   ├─ Explore memo system features · 27 tool uses · 41.7k tokens
+   │  ⎿  Done
+   └─ Explore QDPX and project management · 12 tool uses · 52.7k tokens
+      ⎿  Done
+
+● Now I have everything. Let me update the manual comprehensively.
+
+● Write(docs/manual.md)
+  ⎿  Added 126 lines, removed 12 lines
+      1 -# transact-qda — Manual -- Claude Opus 4.6, derived from full co
+        -ding session protocols (expt technical bughunting), redacted by 
+        -Benjamin Jörissen. March 14, 2026 - Manual Version: 1.0         
+      1 +# transact-qda — Manual -- Claude Opus 4.6, derived from full co
+        +ding session protocols (expt technical bughunting), redacted by 
+        +Benjamin Jörissen. March 14, 2026 - Manual Version: 2.0 (March 2
+        +4, 2026)                                                        
+      2  
+      3  A qualitative data analysis platform grounded in Situational Ana
+         lysis (Clarke) and transactional philosophy (Dewey/Bentley), des
+         igned for research at the intersection of Science and Technology
+          Studies and educational theory (*Erziehungswissenschaft*, Sünke
+         l). Open-source, self-hosted, with an AI co-researcher that oper
+         ates within the same data ontology as the human analyst.
+      4  
+     ...
+      17  4. [The Three-Layer Hierarchy](#4-the-three-layer-hierarchy)
+      18  5. [Working With transact-qda](#5-working-with-transact-qda)
+      19     - [5.1 Situational Mapping](#51-situational-mapping)
+      20 -   - [5.2 The Grounding Layer](#52-the-grounding-layer)        
+      21 -   - [5.3 The AI Co-Researcher](#53-the-ai-co-researcher)      
+      22 -   - [5.4 Collaboration](#54-collaboration)                    
+      20 +   - [5.2 Social Worlds/Arenas Maps](#52-social-worldsarenas-ma
+         +ps)                                                            
+      21 +   - [5.3 Positional Maps](#53-positional-maps)                
+      22 +   - [5.4 The Grounding Layer](#54-the-grounding-layer)        
+      23 +   - [5.5 Memos](#55-memos)                                    
+      24 +   - [5.6 The AI Co-Researcher](#56-the-ai-co-researcher)      
+      25 +   - [5.7 Collaboration](#57-collaboration)                    
+      26 +   - [5.8 Project Management](#58-project-management)          
+      27  6. [Design Commitments Beyond Clarke](#6-design-commitments-bey
+          ond-clarke)
+      28  7. [Technical Overview](#7-technical-overview)
+      29  
+     ...
+      208  
+      209  A **map** is a naming that serves as a perspective. Creating a
+            map creates a naming with a self-referential appearance (`per
+           spective_id = naming_id`, `mode = 'perspective'`). Everything 
+           "on the map" is a naming that has an appearance from this pers
+           pective.
+      210  
+      207 -**Multiple maps** are both supported and expected. The Namings
+          - list (Section 4) is the complete, dimensionless representatio
+          -n; maps are curated perspectives on that ground truth. A proje
+          -ct may have several situational maps (one per document explore
+          -d, one for the overall situation), social worlds maps, positio
+          -nal maps, or network maps — all sharing the same naming pool. 
+          -Clarke herself distinguishes different map types; transact-qda
+          - does not constrain you to one.                               
+      211 +**Multiple maps** are both supported and expected. The Namings
+          + list (Section 4) is the complete, dimensionless representatio
+          +n; maps are curated perspectives on that ground truth. A proje
+          +ct may have several situational maps (one per document explore
+          +d, one for the overall situation), social worlds maps, positio
+          +nal maps — all sharing the same naming pool.                  
+      212  
+      213  **Adding elements** creates a naming with an initial designati
+           on of `cue` and an entity-appearance on the map. At this stage
+           , nothing is determined — the element is a pointing gesture, a
+            registered signal. The map's designation profile (aggregate c
+           ounts per CCS stage) shows predominantly cues: the map is in i
+           ts messy phase. The input searches existing project namings: y
+           ou can **place an existing naming** on this map (creating an a
+           ppearance without a new naming) or **create a new naming**. Th
+           is prevents unintended duplication across maps.
+      214  
+     ...
+      224  
+      225  **Pairwise interrogation** — Clarke's procedure of centering o
+           n one element and systematically examining its relation to eve
+           ry other — is available as a workflow mode. A transactional ex
+           tension is equally available: center on a *relation* and ask w
+           hich entities it connects, which other relations it participat
+           es in, what its inscription history reveals.
+      226  
+      223 -### 5.2 The Grounding Layer                                   
+      227 +**Topology snapshots** preserve the spatial layout of a map at
+          + a given moment. These enable temporal comparison (how did the
+          + map look before this round of analysis?) without overwriting 
+          +the current state.                                            
+      228  
+      229 +### 5.2 Social Worlds/Arenas Maps                             
+      230 +                                                              
+      231 +Clarke's second map type moves from "What is in the situation?
+          +" to **"How is the situation organized, stabilized, contested?
+          +"** Social Worlds/Arenas (SW/A) maps operate at the mesolevel 
+          +of social organization.                                       
+      232 +                                                              
+      233 +**Formations** are the primary analytical objects on SW/A maps
+          +. They are not groups of elements but **universes of discourse
+          +** (Strauss), **dispositif configurations** (Foucault), perfor
+          +matively constituted through ongoing activity. A social world 
+          +exists because actors DO it — commit to shared activities, pro
+          +duce discourse, maintain boundaries. Formations carry four rol
+          +es:                                                           
+      234 +                                                              
+      235 +- **Social world** (dashed ellipse): A universe of discourse —
+          + shared activity, commitment, identity. *What holds them toget
+          +her?*                                                         
+      236 +- **Arena** (long-dashed ellipse): A site of contestation wher
+          +e multiple worlds meet over shared issues. *What is at stake?*
+      237 +- **Discourse** (filled ellipse): A discursive formation — a s
+          +ystem of statements that produces objects, subjects, concepts.
+          + *What does this discourse make sayable/unsayable?*           
+      238 +- **Organization** (dashed rectangle): A formal organization t
+          +hat may host, constrain, or enable worlds and arenas. *How doe
+          +s organizational structure shape participation?*              
+      239 +                                                              
+      240 +**Spatial semantics** on SW/A maps carry analytical meaning: c
+          +ontainment (element inside formation) = membership/participati
+          +on in that world; formation-in-formation = nesting (a discours
+          +e operating within an arena); overlap between formations = con
+          +tested or shared boundary territory. This spatial meaning is d
+          +istinct from the purely layout-oriented positioning on situati
+          +onal maps.                                                    
+      241 +                                                              
+      242 +**Clarke's heuristic questions** structure the analytical work
+          +. For social worlds: 14 questions about activities, commitment
+          +s, technologies, boundaries, segments, implicated actors. For 
+          +arenas: 11 questions about contested issues, positions, power 
+          +dynamics, boundary objects. These are sensitizing prompts, not
+          + a mandatory checklist.                                       
+      243 +                                                              
+      244 +**Analytical deepening** proceeds through five moments (non-se
+          +quential, used when productive):                              
+      245 +                                                              
+      246 +1. **Stabilization**: How is this formation held together? Wha
+          +t commitments, routines, or material arrangements stabilize it
+          +?                                                             
+      247 +2. **Conflict**: What is contested here? Where do worlds colli
+          +de, and what is at stake?                                     
+      248 +3. **Dispositif**: What apparatus of knowledge/power operates 
+          +through this formation? What discursive and material arrangeme
+          +nts enable it?                                                
+      249 +4. **Discursive constitution**: How is this formation discursi
+          +vely constituted? Which discourses produce it as a recognizabl
+          +e entity?                                                     
+      250 +5. **Cross-map**: How do situational map elements map onto thi
+          +s formation? Which SitMap entities are constitutive of this wo
+          +rld/arena?                                                    
+      251 +                                                              
+      252 +**Cross-map context** connects SW/A maps to situational maps: 
+          +when a naming from a situational map participates in a formati
+          +on on a SW/A map, this cross-map participation is tracked and 
+          +displayed. The researcher can see which concrete situational e
+          +lements constitute or participate in each social world or aren
+          +a.                                                            
+      253 +                                                              
+      254 +### 5.3 Positional Maps                                       
+      255 +                                                              
+      256 +Clarke's third map type projects **comparative discourse analy
+          +sis into 2D** (Clarke, Chapter 7). Positional maps answer: **"
+          +What positions are taken — and NOT taken — on contested issues
+          +?"**                                                          
+      257 +                                                              
+      258 +The fundamental shift: positions are **discursive positions**,
+          + not entities or actors. The goal is disarticulation — separat
+          +ing positions from the actors who hold them. Multiple actors c
+          +an hold the same position; one actor can hold contradictory po
+          +sitions. Clarke insists: "map what people SAY, not who people 
+          +ARE."                                                         
+      259 +                                                              
+      260 +**Axes** define the analytical space. Two axes represent dimen
+          +sions of difference, concern, or controversy. Each axis runs f
+          +rom "less so" (---) to "more so" (+++). Choosing and refining 
+          +axes IS the analytical work — Clarke reports 12+ iterations ar
+          +e typical. Axes are themselves namings with CCS designation: a
+          +n axis at cue-level is a first attempt at naming a dimension o
+          +f the controversy; at specification, it is a precisely articul
+          +ated analytical dimension.                                    
+      261 +                                                              
+      262 +**Positions** are placed in the 2D field defined by the axes. 
+          +Coordinates indicate qualitative placement, not quantitative m
+          +easurement. Each position is a naming: it has an inscription, 
+          +a designation, a stack of acts. The analytical questions for p
+          +ositions: Can you point to specific data? What makes this posi
+          +tion distinct from nearby ones? Is this genuinely a discursive
+          + stance, or is it still tied to a specific actor?             
+      263 +                                                              
+      264 +**Absences** are analytically crucial. Empty quadrants demand 
+          +systematic questioning: what would a position there look like?
+          + Is this silence accidental or structural? Why might no one sa
+          +y this? The platform marks absent positions distinctly and sup
+          +ports systematic quadrant analysis.                           
+      265 +                                                              
+      266 +**Multiple positional maps per project** are expected — one pe
+          +r contested issue. Each reveals a different dimension of the d
+          +iscursive field.                                              
+      267 +                                                              
+      268 +### 5.4 The Grounding Layer                                   
+      269 +                                                              
+      270  Documents — interview transcripts, photographs, policy texts, 
+           theoretical chapters, media artifacts — form the empirical cor
+           pus. "There is no such thing as context": a Foucault chapter i
+           s data, not external framing. It belongs in the corpus and is 
+           codeable.
+      271  
+      272  **Text annotation** uses character-offset anchors (`pos0`, `po
+           s1`) to mark passages. **Image annotation** uses rectangle reg
+           ions in normalized coordinates (`[0,1]`), resolution-independe
+           nt. Both produce the same analytical object: an annotation lin
+           king a naming to a specific location in the corpus. This is wh
+           ere empirical grounding is produced.
+     ...
+      275  
+      276  **Codes are not a separate ontological domain.** They are nami
+           ngs — from any map, from any perspective — that have been used
+            to annotate documents. The "code list" is a derived view: a q
+           uery showing "namings with document anchors." This eliminates 
+           the artificial boundary between map elements and document code
+           s that existing QDA tools enforce.
+      277  
+      233 -### 5.3 The AI Co-Researcher                                  
+      278 +**Documents are stored in project directories** (`projekte/{sl
+          +ug}/files/`), with relative paths in the database. This ensure
+          +s portability: a project directory contains everything needed 
+          +to reconstruct the project, including all media files.        
+      279  
+      280 +### 5.5 Memos                                                 
+      281 +                                                              
+      282 +Memos are the **shared inquiry medium** of the analytical proc
+          +ess. They capture observations, questions, tensions, and theor
+          +etical connections that span the research situation. In transa
+          +ct-qda, a memo is a first-class naming — it participates in th
+          +e core data model alongside entities, relations, and documents
+          +.                                                             
+      283 +                                                              
+      284 +**Memo creation** produces a naming with content stored in a d
+          +edicated `memo_content` table. Memos can be linked to any numb
+          +er of namings (elements, relations, silences, other memos) via
+          + participations. The linked elements provide analytical contex
+          +t: a memo about a tension between two formations links to both
+          +.                                                             
+      285 +                                                              
+      286 +**Status lifecycle.** Memos follow a lifecycle that tracks how
+          + the researcher engages with them:                            
+      287 +                                                              
+      288 +- **Active**: Default for newly created researcher memos. A li
+          +ve observation awaiting engagement.                           
+      289 +- **Presented**: An AI-generated memo or a restored dismissed 
+          +memo. Awaiting researcher attention.                          
+      290 +- **Discussed**: Has an active discussion thread between resea
+          +rcher and AI.                                                 
+      291 +- **Acknowledged**: The researcher confirmed reading and engag
+          +ement. The observation is absorbed into the analytical process
+          +.                                                             
+      292 +- **Promoted**: Elevated to a naming on a map — the memo's ins
+          +ight becomes a cue-designation entity. This is the transition 
+          +from reflexive observation to analytical substance.           
+      293 +- **Dismissed**: Archived. Can be restored to "presented" if l
+          +ater relevant.                                                
+      294 +                                                              
+      295 +**Memo discussions** use the same infrastructure as cue discus
+          +sions (Section 5.6): the researcher can engage the AI in dialo
+          +gue about a memo's content. Discussion turns are themselves me
+          +mo-namings linked to the parent memo. The AI can respond with 
+          +analytical depth or revise the memo if the discussion warrants
+          + it.                                                          
+      296 +                                                              
+      297 +**Memos are NOT grounding.** They document reflexive reasoning
+          + — CCS movement, analytical process, theoretical connections. 
+          +Only document anchors constitute empirical grounding. This dis
+          +tinction is epistemologically important: a memo about a patter
+          +n of silences is an analytical observation, not evidence.     
+      298 +                                                              
+      299 +### 5.6 The AI Co-Researcher                                  
+      300 +                                                              
+      301  The AI is not an external tool that responds on command. It is
+            a **naming in the data space** — it has its own researcher-na
+           ming per project, and its analytical acts (suggestions, memos,
+            withdrawals) are naming acts attributed to this AI-naming. Th
+           e AI is a co-actor in the analytical situation, not an instrum
+           ent applied to it.
+      302  
+      303  The AI's operational constraint: it can only produce **cues**.
+            Every AI suggestion — a new element, a relation, a pattern ob
+           servation — enters the map as a cue with `by = ai_naming_id`. 
+           Only the researcher can elevate a cue to characterization (acc
+           eptance) or leave it as a cue (implicit non-engagement). Desig
+           nation authority remains with the researcher; cue production i
+           s shared.
+      304  
+      239 -**Discussion, not accept/reject.** When the AI produces a cue,
+          - the researcher does not face a binary accept/decline button. 
+          -Instead, they can enter dialogue *at the cue itself*: question
+          - the AI's reasoning, request revision, challenge the framing. 
+          -This discussion is a memo chain linked to the naming — not a s
+          -eparate chat interface. A discussion can result in: the AI rew
+          -riting the cue (new inscription in the stack, old preserved), 
+          -the AI withdrawing the cue (soft-delete with discussion histor
+          -y preserved), or the AI responding with a deepening memo (no r
+          -ewrite, but richer analytical context).                       
+      305 +**Socratic posture.** The AI's fundamental posture across all 
+          +map types is Socratic accompaniment:                          
+      306  
+      307 +1. **Ask** — questions that help the researcher articulate the
+          +ir analytical choices                                         
+      308 +2. **Remind** — of Clarke's methodological principles when rel
+          +evant                                                         
+      309 +3. **Reflect** — in justified cases, prompt critical self-refl
+          +ection about the researcher's decisions                       
+      310 +                                                              
+      311 +The AI does NOT proactively suggest elements, relations, or an
+          +alytical content by default. The researcher is the epistemic a
+          +uthority. AI suggestions are available when explicitly request
+          +ed, but the default mode is questioning, not answering.       
+      312 +                                                              
+      313  **Deconstructive questioning.** The AI does not reproduce Clar
+           ke's categories as slots to fill. It does not ask "did you con
+           sider nonhuman actors?" — which reinstates the category. Inste
+           ad, it questions the distinctions the researcher has drawn:
+      314  
+      315  - "What are the hybrid human/nonhuman moments in this element?
+           "
+     ...
+      318  - "Which discourse constitutes this as a 'human' element?"
+      319  - "What is the relational pattern around this absence?"
+      320  
+      321 +**Discussion, not accept/reject.** When the AI produces a cue,
+          + the researcher does not face a binary accept/decline button. 
+          +Instead, they can enter dialogue *at the cue itself*: question
+          + the AI's reasoning, request revision, challenge the framing. 
+          +This discussion is a memo chain linked to the naming. A discus
+          +sion can result in: the AI rewriting the cue (new inscription 
+          +in the stack, old preserved), the AI withdrawing the cue (soft
+          +-delete with discussion history preserved), or the AI respondi
+          +ng with a deepening memo (no rewrite, but richer analytical co
+          +ntext).                                                       
+      322 +                                                              
+      323  The AI sees the full map context — all elements, relations, de
+           signations, participations, phases, discussion histories, with
+           drawn cues — so its questions emerge from the actual analytica
+           l state, not from a fixed checklist.
+      324  
+      251 -### 5.4 Collaboration                                         
+      325 +**Map-type awareness.** The AI adapts its posture and availabl
+          +e operations to the map type:                                 
+      326  
+      327 +- On **situational maps**: primary tool is `write_memo` for qu
+          +estions and observations; `suggest_element`, `suggest_relation
+          +`, `identify_silence` available on explicit request.          
+      328 +- On **SW/A maps**: uses `suggest_formation` (not `suggest_ele
+          +ment`) for social worlds, arenas, discourses, and organization
+          +s; attends to relations between formations; draws from Clarke'
+          +s 14 social world and 11 arena questions; applies the five ana
+          +lytical deepening moments.                                    
+      329 +- On **positional maps**: attends to axis refinement, disartic
+          +ulation (separating positions from actors), empty quadrants, c
+          +lustering, and grounding. Does NOT proactively suggest positio
+          +ns.                                                           
+      330 +                                                              
+      331 +**Provider-agnostic AI.** The AI client supports seven provide
+          +rs: Ollama (local, DSGVO-compliant), Mistral AI (EU), IONOS (E
+          +U, Berlin), Mammouth AI (EU), Anthropic (US), OpenAI (US), and
+          + OpenRouter (US). One model is configured for all use cases. P
+          +rovider and model are selected in the settings page; API keys 
+          +are stored in `.key` files (gitignored). All providers except 
+          +Anthropic use the OpenAI-compatible API format.               
+      332 +                                                              
+      333 +**Usage tracking.** Every AI interaction is logged to the `ai_
+          +interactions` table with provider, model, request type, and to
+          +ken counts (input/output). The settings page provides aggregat
+          +ed usage data by model, request type, and time period for cost
+          + control.                                                     
+      334 +                                                              
+      335 +### 5.7 Collaboration                                         
+      336 +                                                              
+      337  Multiple researchers can work on the same project. Each user r
+           eceives a **researcher-naming** in the data space — a naming w
+           hose inscription is the researcher's name. All naming acts rec
+           ord `by = researcher_naming_id`, not a user account ID. This m
+           eans the analytical provenance chain tracks namings, not syste
+           m users. The researcher's acts are events in the same relation
+           al fabric as the data they study.
+      338  
+      339  Roles follow a hierarchy: owner (immutable, full control), adm
+           in (can manage members), member (can work on maps and document
+           s), viewer (read-only). Discussion between team members uses t
+           he same memo-chain infrastructure as AI discussions — no separ
+           ate communication layer.
+      340  
+      341 +### 5.8 Project Management                                    
+      342 +                                                              
+      343 +#### Native format                                            
+      344 +                                                              
+      345 +The canonical project format is **PostgreSQL COPY files** — on
+          +e file per table — stored in project directories (`projekte/{s
+          +lug}/`). Media files live in `projekte/{slug}/files/`. This is
+          + a lossless format: it preserves the full transactional data m
+          +odel including naming acts, appearances, designations, and AI 
+          +metadata.                                                     
+      346 +                                                              
+      347 +**Periodic sync** automatically exports the database state to 
+          +the project directory every 60 seconds while a project is acti
+          +ve. This provides continuous backup without manual interventio
+          +n. Sync starts automatically when entering a project.         
+      348 +                                                              
+      349 +**Operations:**                                               
+      350 +                                                              
+      351 +- **Save**: Manual sync from database to project directory.   
+      352 +- **Load**: Import a project directory into the database for a
+          +ctive work.                                                   
+      353 +- **Unload**: Final sync, then remove from database. Data stay
+          +s safe in the project directory.                              
+      354 +- **Delete**: Remove from both database and disk, with safety 
+          +confirmation (loaded projects require double-confirm; on-disk 
+          +projects require typing the project slug).                    
+      355 +- **Duplicate**: Full transactional copy with fresh UUIDs, inc
+          +luding media files.                                           
+      356 +                                                              
+      357 +#### QDPX interoperability                                    
+      358 +                                                              
+      359 +QDPX is the open exchange format for qualitative data analysis
+          + projects (supported by ATLAS.ti, MAXQDA, NVivo, and others). 
+          +transact-qda supports both import and export.                 
+      360 +                                                              
+      361 +**Export** uses a dual-namespace approach: a standard QDPX nam
+          +espace (readable by any compliant tool) plus a custom `urn:tra
+          +nsact-qda:1.0` namespace for lossless re-import. A **pre-expor
+          +t loss report dialog** shows what external tools will and will
+          + not see:                                                     
+      362 +                                                              
+      363 +- **Preserved for external tools**: All codes, documents, anno
+          +tations, memos, relations, one map with positions.            
+      364 +- **Lost for external tools**: Naming history (collapsed to la
+          +test inscription), CCS gradient (only in description text), ph
+          +ases, silences, AI metadata, map snapshot history, researcher 
+          +identities.                                                   
+      365 +- **Lossless**: The native format (save to directory) preserve
+          +s everything.                                                 
+      366 +                                                              
+      367 +**Import** detects the namespace: transact-qda exports are rei
+          +mported with full fidelity; standard QDPX files from other too
+          +ls are imported as cues on a default map, with codes becoming 
+          +namings and document annotations becoming grounding anchors. A
+          +ll GUIDs are remapped to fresh UUIDs to prevent collisions.   
+      368 +                                                              
+      369  ---
+      370  
+      371  ## 6. Design Commitments Beyond Clarke
+     ...
+      396  |-------|-----------|-----------|
+      397  | Framework | SvelteKit 5 (Node adapter) | Full-stack, shared 
+           types, reactive model for interactive maps |
+      398  | Database | PostgreSQL with JSONB | Self-hosted, GIN-indexed 
+           JSONB for flexible properties |
+      287 -| AI | Provider-agnostic client (will be configurable in the a
+          -dmin settins) | No vendor lock-in |                           
+      399 +| AI | Provider-agnostic client (7 providers) | No vendor lock
+          +-in; Ollama (local) + EU/US cloud providers |                 
+      400  | Auth | Argon2id + server-side sessions | Simple, secure, no 
+           external dependency |
+      401  | Layout | ELK.js | Hierarchical/stress/force graph layout for
+            canvas |
+      402 +| Storage | PostgreSQL COPY + project directories | Lossless n
+          +ative format, automatic periodic sync |                       
+      403 +| Interop | QDPX (dual-namespace) | Import/export for ATLAS.ti
+          +, MAXQDA, NVivo compatibility |                               
+      404  | Deployment | Self-hosted server, Cloudflare tunnel | Full co
+           ntrol, no cloud dependency |
+      405  
+      292 -No ORM — direct SQL with `pg` to preserve full control over th
+          -e transactional data model. An ORM would impose its own ontolo
+          -gy. API keys in `*.key` files (gitignored), never in configura
+          -tion.                                                         
+      406 +No ORM — direct SQL with `pg` to preserve full control over th
+          +e transactional data model. An ORM would impose its own ontolo
+          +gy. API keys in `*.key` files (gitignored), never in configura
+          +tion. AI settings (provider, model) in `ai-settings.json` (git
+          +ignored).                                                     
+      407  
+      408  ---
+      409  
+      410  ## References
+      411  
+      298 -- Bibbert, M. (2025). Assembling the Situation: Situational An
+          -alysis After the Nonhuman Turn. *Forum Qualitative Sozialforsc
+          -hung / FQS*, 26(2). https://doi.org/10.17169/fqs-26.2.4306    
+      412 +- Bibbert, M. (2025). Assembling the Situation: Situational An
+          +alysis After the Nonhuman Turn. *Forum Qualitative Sozialforsc
+          +hung / FQS*, 26(2). https://doi.org/10.17169/fqs-26.2.4306    
+      413  - Clarke, A. E. (2005). *Situational Analysis: Grounded Theory
+            After the Postmodern Turn*. Sage.
+      414  - Clarke, A. E., Friese, C., & Washburn, R. S. (2018). *Situat
+           ional Analysis: Grounded Theory After the Interpretive Turn* (
+           2nd ed.). Sage.
+      415  - Dewey, J., & Bentley, A. F. (1949). *Knowing and the Known*.
+            Beacon Press.
+
+● Now commit everything and update the handover.
+
+● Bash(git -C /home/joerissen/ai/transact-qda status)
+  ⎿  On branch main
+     Your branch is up to date with 'origin/main'.
+     … +20 lines (ctrl+o to expand)
+● Bash(git -C /home/joerissen/ai/transact-qda diff --stat)
+  ⎿   .gitignore                      |   3 +-
+      docs/manual.md                  | 138 +++++++++++++++++++++---
+      src/lib/server/ai/agent.ts      |  17 ++-
+     … +6 lines (ctrl+o to expand)
+
+● Bash(git -C /home/joerissen/ai/transact-qda log --oneline -5)
+  ⎿  220677a Projects: add delete option for on-disk projects
+     6c6a44e QDPX import: auto-suffix duplicate project names
+     176e36e QDPX import: deduplicate participations by unique constraint k
+     … +3 lines (ctrl+o to expand)
+
+● Bash(git add .gitignore docs/manual.md src/lib/server/ai/agent.ts
+      src/lib/server/ai/client.ts src/lib/server/ai/index.ts
+      src/lib/server/db/queries/ai.ts src/routes/+…)
+  ⎿  (No output)
+
+● Bash(git commit -m "$(cat <<'EOF'
+      Provider-agnostic AI settings + usage tracking + manual v2.0…)
+  ⎿  [main fc20dfd] Provider-agnostic AI settings + usage tracking + manual
+      v2.0
+      12 files changed, 1180 insertions(+), 75 deletions(-)
+     … +5 lines (ctrl+o to expand)
+
+● Now update the handover for the next session.
+
+  Recalled 1 memory, wrote 1 memory (ctrl+o to expand)
+
+● Update MEMORY.md to reflect the handover name change.
+
+  Recalled 1 memory, wrote 3 memories (ctrl+o to expand)
+
+● Alles erledigt. Session 21 Bilanz:
+
+  Commit fc20dfd:
+  - 7-Provider AI client (runtime-konfigurierbar)
+  - Settings-Page mit Provider-Grid, Usage-Tracking, Connection-Test
+  - Migration 013 (input_tokens, output_tokens, provider)
+  - Manual v2.0 (SW/A, PosMap, Memos, Project Mgmt, QDPX, AI Providers)
+
+  Handover für Session 22:
+  1. Aidele (Manual als Systemprompt-Basis steht bereit)
+  2. Agentischer Researcher
+  3. Kleinigkeiten (Sync-Intervall, Impressum/Datenschutz)
+
+✻ Crunched for 8m 18s
