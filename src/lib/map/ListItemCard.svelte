@@ -78,8 +78,8 @@
 			{:else if !ms.relatingFrom}
 				<button class="btn-sm" onclick={() => { ms.relatingFrom = item.naming_id; ms.relatingTo = null; }}>relate</button>
 			{/if}
-			{#if ms.assigningToPhase}
-				<button class="btn-sm btn-phase" onclick={() => ms.assignElement(ms.assigningToPhase!, item.naming_id)}>+ phase</button>
+			{#if ms.assigningToCluster}
+				<button class="btn-sm btn-cluster" onclick={() => ms.assignToCluster(ms.assigningToCluster!, item.naming_id)}>+ cluster</button>
 			{/if}
 		</div>
 	</div>
@@ -186,8 +186,8 @@
 			{:else if !ms.relatingFrom}
 				<button class="btn-sm" onclick={() => { ms.relatingFrom = item.naming_id; ms.relatingTo = null; }}>relate</button>
 			{/if}
-			{#if ms.assigningToPhase}
-				<button class="btn-sm btn-phase" onclick={() => ms.assignElement(ms.assigningToPhase!, item.naming_id)}>+ phase</button>
+			{#if ms.assigningToCluster}
+				<button class="btn-sm btn-cluster" onclick={() => ms.assignToCluster(ms.assigningToCluster!, item.naming_id)}>+ cluster</button>
 			{/if}
 		</div>
 	</div>
@@ -252,7 +252,7 @@
 	.btn-withdraw { border-color: #6b7280; color: #6b7280; font-size: 0.65rem; }
 	.btn-withdraw:hover { background: rgba(107, 114, 128, 0.1); }
 	.btn-relate { border-color: #f59e0b; color: #f59e0b; }
-	.btn-phase { border-color: #10b981; color: #10b981; }
+	.btn-cluster { border-color: #10b981; color: #10b981; }
 	.pos-coord { font-size: 0.65rem; color: #6b7280; margin-left: 0.4rem; font-family: monospace; }
 	.pos-axis-badge {
 		font-size: 0.6rem; font-weight: 600; color: #8b9cf7; background: rgba(139, 156, 247, 0.12);

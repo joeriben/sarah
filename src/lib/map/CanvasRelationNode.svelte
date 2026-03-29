@@ -13,8 +13,8 @@
 	const ms = getMapState();
 </script>
 
-<div class="relation-diamond" class:ai-suggested={rel.properties?.aiSuggested} class:ai-withdrawn={ms.isWithdrawn(rel.properties)} class:phase-member={ms.highlightedPhase && ms.isPhaseHighlighted(rel)} class:phase-dimmed={ms.highlightedPhase && !ms.isPhaseHighlighted(rel)} class:centered-dim={cp.centeredConnections && !cp.centeredConnections.has(rel.naming_id)} class:centered-anchor={cp.centeredId === rel.naming_id}
-	style="{ms.highlightedPhase && ms.isPhaseHighlighted(rel) ? `--phase-color: ${ms.phaseColorMap.get(ms.highlightedPhase)};` : ''}">
+<div class="relation-diamond" class:ai-suggested={rel.properties?.aiSuggested} class:ai-withdrawn={ms.isWithdrawn(rel.properties)} class:cluster-member={ms.highlightedCluster && ms.isClusterHighlighted(rel)} class:cluster-dimmed={ms.highlightedCluster && !ms.isClusterHighlighted(rel)} class:centered-dim={cp.centeredConnections && !cp.centeredConnections.has(rel.naming_id)} class:centered-anchor={cp.centeredId === rel.naming_id}
+	style="{ms.highlightedCluster && ms.isClusterHighlighted(rel) ? `--cluster-color: ${ms.clusterColorMap.get(ms.highlightedCluster)};` : ''}">
 	<svg class="diamond-bg" viewBox="0 0 100 100" preserveAspectRatio="none">
 		<polygon points="12,0 88,0 100,50 88,100 12,100 0,50" fill="#161822" stroke="#2a2d3a" stroke-width="1.5"/>
 	</svg>
@@ -39,8 +39,8 @@
 	.diamond-content { position: relative; z-index: 1; padding: 0.3rem 1.2rem; display: flex; flex-direction: column; align-items: center; gap: 0.1rem; }
 	.relation-diamond.ai-suggested .diamond-bg polygon { fill: #1a1d2e; }
 	.relation-diamond.ai-withdrawn { opacity: 0.3; }
-	.relation-diamond.phase-member { filter: drop-shadow(0 0 3px var(--phase-color)); }
-	.relation-diamond.phase-dimmed { opacity: 0.25; }
+	.relation-diamond.cluster-member { filter: drop-shadow(0 0 3px var(--cluster-color)); }
+	.relation-diamond.cluster-dimmed { opacity: 0.25; }
 	.relation-diamond.centered-dim { opacity: 0.15; }
 	.relation-diamond.centered-anchor .diamond-bg polygon { stroke: #f59e0b; }
 	.rd-valence { font-size: 0.65rem; color: #8b8fa3; font-style: italic; }

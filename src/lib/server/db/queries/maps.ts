@@ -117,8 +117,8 @@ export async function duplicateMap(
 			[sourceMapId, newMapId]
 		);
 
-		// 6. Copy phases (sub-perspectives): each phase is its own naming
-		const srcPhases = (await client.query(
+		// 6. Copy clusters (sub-perspectives): each cluster is its own naming
+		const srcClusters = (await client.query(
 			`SELECT a.naming_id, n.inscription, a.properties
 			 FROM appearances a
 			 JOIN namings n ON n.id = a.naming_id
@@ -127,43 +127,43 @@ export async function duplicateMap(
 			[sourceMapId]
 		)).rows;
 
-		for (const phase of srcPhases) {
-			// Create new phase naming
-			const phaseRes = await client.query(
+		for (const cluster of srcClusters) {
+			// Create new cluster naming
+			const clusterRes = await client.query(
 				`INSERT INTO namings (project_id, inscription, created_by)
 				 VALUES ($1, $2, $3) RETURNING id`,
-				[projectId, phase.inscription, userId]
+				[projectId, cluster.inscription, userId]
 			);
-			const newPhaseId = phaseRes.rows[0].id;
+			const newClusterId = clusterRes.rows[0].id;
 
-			// Phase appears on the new map as a sub-perspective
+			// Cluster appears on the new map as a sub-perspective
 			await client.query(
 				`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 				 VALUES ($1, $2, 'perspective', $3)`,
-				[newPhaseId, newMapId, JSON.stringify(phase.properties || {})]
+				[newClusterId, newMapId, JSON.stringify(cluster.properties || {})]
 			);
 
-			// Phase's self-referential appearance
+			// Cluster's self-referential appearance
 			await client.query(
 				`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 				 VALUES ($1, $1, 'perspective', '{}')`,
-				[newPhaseId]
+				[newClusterId]
 			);
 
-			// Initial naming act for the phase
+			// Initial naming act for the cluster
 			await client.query(
 				`INSERT INTO naming_acts (naming_id, designation, by)
-				 VALUES ($1, 'cue', $2)`,
-				[newPhaseId, researcherNamingId]
+				 VALUES ($1, 'characterization', $2)`,
+				[newClusterId, researcherNamingId]
 			);
 
-			// Copy phase memberships: elements that appear in this phase
+			// Copy cluster memberships: elements that appear in this cluster
 			await client.query(
 				`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 				 SELECT naming_id, $2, mode, properties
 				 FROM appearances
 				 WHERE perspective_id = $1 AND naming_id != $1`,
-				[phase.naming_id, newPhaseId]
+				[cluster.naming_id, newClusterId]
 			);
 		}
 
@@ -427,10 +427,10 @@ export async function relateElements(
 	});
 }
 
-// Create a phase: a sub-perspective within the map.
-// A phase is a naming that appears as 'perspective' from the map.
+// Create a cluster: a sub-perspective within the map.
+// A cluster is a naming that appears as 'perspective' from the map.
 // It produces its own set of appearances for elements assigned to it.
-export async function createPhase(
+export async function createCluster(
 	projectId: string,
 	userId: string,
 	mapId: string,
@@ -440,53 +440,53 @@ export async function createPhase(
 	return transaction(async (client) => {
 		const researcherNamingId = await getOrCreateResearcherNaming(projectId, userId);
 
-		// The phase is a naming
-		const phaseRes = await client.query(
+		// The cluster is a naming
+		const clusterRes = await client.query(
 			`INSERT INTO namings (project_id, inscription, created_by)
 			 VALUES ($1, $2, $3) RETURNING *`,
 			[projectId, inscription, userId]
 		);
-		const phase = phaseRes.rows[0];
+		const cluster = clusterRes.rows[0];
 
-		// Self-referential: the phase appears as perspective from itself
+		// Self-referential: the cluster appears as perspective from itself
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $1, 'perspective', $2)`,
-			[phase.id, JSON.stringify({ parentMapId: mapId, ...properties })]
+			[cluster.id, JSON.stringify({ parentMapId: mapId, ...properties })]
 		);
 
-		// The phase also appears on the map as a perspective-naming
+		// The cluster also appears on the map as a perspective-naming
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $2, 'perspective', $3)`,
-			[phase.id, mapId, JSON.stringify(properties || {})]
+			[cluster.id, mapId, JSON.stringify(properties || {})]
 		);
 
-		// Participation: the phase co-constitutes with the map
+		// Participation: the cluster co-constitutes with the map
 		await client.query(
 			`INSERT INTO participations (id, naming_id, participant_id)
 			 VALUES ($1, $2, $3)`,
-			[phase.id, phase.id, mapId]
+			[cluster.id, cluster.id, mapId]
 		);
 
-		// Initial act: cue
+		// Initial act: characterization (clustering IS characterizing — D/B)
 		await client.query(
 			`INSERT INTO naming_acts (naming_id, designation, by)
-			 VALUES ($1, 'cue', $2)`,
-			[phase.id, researcherNamingId]
+			 VALUES ($1, 'characterization', $2)`,
+			[cluster.id, researcherNamingId]
 		);
 
-		return phase;
+		return cluster;
 	});
 }
 
-// Assign an element to a phase: the element gets an appearance
-// from the phase-as-perspective.
-// Captures the naming's current seq as collapseAt — the phase freezes
+// Assign an element to a cluster: the element gets an appearance
+// from the cluster-as-perspective.
+// Captures the naming's current seq as collapseAt — the cluster freezes
 // the naming's state at the moment of assignment.
-// If byNamingId is provided, logs the act to phase_memberships (append-only).
-export async function assignToPhase(
-	phaseId: string,
+// If byNamingId is provided, logs the act to cluster_memberships (append-only).
+export async function assignToCluster(
+	clusterId: string,
 	namingId: string,
 	mode?: string,
 	properties?: Record<string, unknown>,
@@ -512,51 +512,51 @@ export async function assignToPhase(
 		 ON CONFLICT (naming_id, perspective_id)
 		 DO UPDATE SET mode = $3, properties = appearances.properties || $4::jsonb, updated_at = now()
 		 RETURNING *`,
-		[namingId, phaseId, resolvedMode, JSON.stringify(props)]
+		[namingId, clusterId, resolvedMode, JSON.stringify(props)]
 	);
 
 	// Log the membership act (append-only history)
 	if (byNamingId) {
 		await query(
-			`INSERT INTO phase_memberships (phase_id, naming_id, action, mode, by, properties)
+			`INSERT INTO cluster_memberships (cluster_id, naming_id, action, mode, by, properties)
 			 VALUES ($1, $2, 'assign', $3, $4, $5)`,
-			[phaseId, namingId, resolvedMode, byNamingId, JSON.stringify(props)]
+			[clusterId, namingId, resolvedMode, byNamingId, JSON.stringify(props)]
 		);
 	}
 
 	return result;
 }
 
-// Remove an element from a phase.
-// If byNamingId is provided, logs the removal act to phase_memberships (append-only).
-export async function removeFromPhase(phaseId: string, namingId: string, byNamingId?: string) {
+// Remove an element from a cluster.
+// If byNamingId is provided, logs the removal act to cluster_memberships (append-only).
+export async function removeFromCluster(clusterId: string, namingId: string, byNamingId?: string) {
 	await query(
 		`DELETE FROM appearances WHERE naming_id = $1 AND perspective_id = $2`,
-		[namingId, phaseId]
+		[namingId, clusterId]
 	);
 
 	// Log the membership act (append-only history)
 	if (byNamingId) {
 		await query(
-			`INSERT INTO phase_memberships (phase_id, naming_id, action, mode, by)
+			`INSERT INTO cluster_memberships (cluster_id, naming_id, action, mode, by)
 			 VALUES ($1, $2, 'remove', 'entity', $3)`,
-			[phaseId, namingId, byNamingId]
+			[clusterId, namingId, byNamingId]
 		);
 	}
 }
 
-// Get the full membership history for a phase (append-only chain).
+// Get the full membership history for a cluster (append-only chain).
 // Returns all assign/remove acts in chronological order.
-export async function getPhaseMembershipHistory(phaseId: string) {
+export async function getClusterMembershipHistory(clusterId: string) {
 	return (
 		await query(
-			`SELECT pm.*, n.inscription as naming_inscription, b.inscription as by_inscription
-			 FROM phase_memberships pm
-			 JOIN namings n ON n.id = pm.naming_id
-			 JOIN namings b ON b.id = pm.by
-			 WHERE pm.phase_id = $1
-			 ORDER BY pm.seq ASC`,
-			[phaseId]
+			`SELECT cm.*, n.inscription as naming_inscription, b.inscription as by_inscription
+			 FROM cluster_memberships cm
+			 JOIN namings n ON n.id = cm.naming_id
+			 JOIN namings b ON b.id = cm.by
+			 WHERE cm.cluster_id = $1
+			 ORDER BY cm.seq ASC`,
+			[clusterId]
 		)
 	).rows;
 }
@@ -795,7 +795,7 @@ export async function getMapAppearances(mapId: string, projectId: string) {
 			           AND pa.mode = 'perspective'
 			           AND pa.naming_id != $1
 			       )
-			   ) as phase_ids,
+			   ) as cluster_ids,
 			   -- Cross-boundary: participations where the other endpoint is not on this map
 			   (SELECT count(DISTINCT p_out.id)
 			    FROM participations p_out
@@ -921,8 +921,8 @@ export async function placeMultipleOnMap(
 	return placed;
 }
 
-// Get phases (sub-perspectives) within a map
-export async function getMapPhases(mapId: string, projectId: string) {
+// Get clusters (sub-perspectives) within a map
+export async function getMapClusters(mapId: string, projectId: string) {
 	return (
 		await query(
 			`SELECT a.naming_id as id, n.inscription as label, a.properties,
@@ -1015,11 +1015,11 @@ export async function getCrossMapParticipations(mapId: string, projectId: string
 	).rows;
 }
 
-// Get the full structure of a map: elements, relations, phases, designations
+// Get the full structure of a map: elements, relations, clusters, designations
 export async function getMapStructure(mapId: string, projectId: string) {
-	const [appearances, phases, designationProfile] = await Promise.all([
+	const [appearances, clusters, designationProfile] = await Promise.all([
 		getMapAppearances(mapId, projectId),
-		getMapPhases(mapId, projectId),
+		getMapClusters(mapId, projectId),
 		getMapDesignationProfile(mapId, projectId)
 	]);
 
@@ -1037,7 +1037,7 @@ export async function getMapStructure(mapId: string, projectId: string) {
 		silences,
 		processes,
 		constellations,
-		phases,
+		clusters,
 		designationProfile
 	};
 }

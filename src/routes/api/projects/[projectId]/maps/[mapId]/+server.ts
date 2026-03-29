@@ -11,10 +11,10 @@ import {
 	getDocumentNamingsForPlacement,
 	relateElements,
 	withdrawRelation,
-	createPhase,
-	assignToPhase,
-	removeFromPhase,
-	getPhaseMembershipHistory,
+	createCluster,
+	assignToCluster,
+	removeFromCluster,
+	getClusterMembershipHistory,
 	setCollapse,
 	getNamingStack
 } from '$lib/server/db/queries/maps.js';
@@ -51,7 +51,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	// Read-only maps: reject all mutations except read-only queries
 	const readOnlyActions = ['getStack', 'getHistory', 'getOutsideParticipations', 'getMemosForNaming',
 		'searchForPlacement', 'listDocumentsForImport', 'getDocumentNamings', 'listTopologySnapshots',
-		'getPhaseMembershipHistory'];
+		'getClusterMembershipHistory'];
 	if (!readOnlyActions.includes(action)) {
 		const map = await getMap(mapId, projectId);
 		if (map?.properties?.readOnly) {
@@ -200,33 +200,33 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			return json(relation, { status: 201 });
 		}
 
-		case 'createPhase': {
+		case 'createCluster': {
 			const { inscription, properties } = body;
 			if (!inscription?.trim()) return json({ error: 'inscription required' }, { status: 400 });
-			const phase = await createPhase(projectId, userId, mapId, inscription.trim(), properties);
-			return json(phase, { status: 201 });
+			const cluster = await createCluster(projectId, userId, mapId, inscription.trim(), properties);
+			return json(cluster, { status: 201 });
 		}
 
-		case 'assignToPhase': {
-			const { phaseId, namingId, mode, properties } = body;
-			if (!phaseId || !namingId) return json({ error: 'phaseId and namingId required' }, { status: 400 });
+		case 'assignToCluster': {
+			const { clusterId, namingId, mode, properties } = body;
+			if (!clusterId || !namingId) return json({ error: 'clusterId and namingId required' }, { status: 400 });
 			const researcherNamingId = await getOrCreateResearcherNaming(projectId, userId);
-			const appearance = await assignToPhase(phaseId, namingId, mode, properties, researcherNamingId);
+			const appearance = await assignToCluster(clusterId, namingId, mode, properties, researcherNamingId);
 			return json(appearance);
 		}
 
-		case 'removeFromPhase': {
-			const { phaseId, namingId } = body;
-			if (!phaseId || !namingId) return json({ error: 'phaseId and namingId required' }, { status: 400 });
+		case 'removeFromCluster': {
+			const { clusterId, namingId } = body;
+			if (!clusterId || !namingId) return json({ error: 'clusterId and namingId required' }, { status: 400 });
 			const researcherNamingId = await getOrCreateResearcherNaming(projectId, userId);
-			await removeFromPhase(phaseId, namingId, researcherNamingId);
+			await removeFromCluster(clusterId, namingId, researcherNamingId);
 			return json({ ok: true });
 		}
 
-		case 'getPhaseMembershipHistory': {
-			const { phaseId } = body;
-			if (!phaseId) return json({ error: 'phaseId required' }, { status: 400 });
-			const history = await getPhaseMembershipHistory(phaseId);
+		case 'getClusterMembershipHistory': {
+			const { clusterId } = body;
+			if (!clusterId) return json({ error: 'clusterId required' }, { status: 400 });
+			const history = await getClusterMembershipHistory(clusterId);
 			return json({ memberships: history });
 		}
 

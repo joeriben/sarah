@@ -13,8 +13,8 @@
 	const ms = getMapState();
 </script>
 
-<div class="map-node" class:absent={el.properties?.absent} class:ai-suggested={el.properties?.aiSuggested} class:ai-withdrawn={ms.isWithdrawn(el.properties)} class:phase-member={ms.highlightedPhase && ms.isPhaseHighlighted(el)} class:phase-dimmed={ms.highlightedPhase && !ms.isPhaseHighlighted(el)} class:centered-dim={cp.centeredConnections && !cp.centeredConnections.has(el.naming_id)} class:centered-anchor={cp.centeredId === el.naming_id}
-	style="{ms.highlightedPhase && ms.isPhaseHighlighted(el) ? `--phase-color: ${ms.phaseColorMap.get(ms.highlightedPhase)};` : ''}">
+<div class="map-node" class:absent={el.properties?.absent} class:ai-suggested={el.properties?.aiSuggested} class:ai-withdrawn={ms.isWithdrawn(el.properties)} class:cluster-member={ms.highlightedCluster && ms.isClusterHighlighted(el)} class:cluster-dimmed={ms.highlightedCluster && !ms.isClusterHighlighted(el)} class:centered-dim={cp.centeredConnections && !cp.centeredConnections.has(el.naming_id)} class:centered-anchor={cp.centeredId === el.naming_id}
+	style="{ms.highlightedCluster && ms.isClusterHighlighted(el) ? `--cluster-color: ${ms.clusterColorMap.get(ms.highlightedCluster)};` : ''}">
 	<div class="node-header">
 		<span class="designation-dot" style="background: {ms.designationColor(el.designation)}"></span>
 		{#if el.has_document_anchor}
@@ -32,11 +32,11 @@
 				{el.memo_previews.length}
 			</span>
 		{/if}
-		{#if el.phase_ids?.length}
-			<span class="phase-dots">
-				{#each el.phase_ids as pid}
-					{@const c = ms.phaseColorMap.get(pid)}
-					{#if c}<span class="phase-dot" style="background: {c}" title={ms.phases.find((p: any) => p.id === pid)?.label}></span>{/if}
+		{#if el.cluster_ids?.length}
+			<span class="cluster-dots">
+				{#each el.cluster_ids as cid}
+					{@const c = ms.clusterColorMap.get(cid)}
+					{#if c}<span class="cluster-dot" style="background: {c}" title={ms.clusters.find((p: any) => p.id === cid)?.label}></span>{/if}
 				{/each}
 			</span>
 		{/if}
@@ -89,11 +89,11 @@
 	.map-node.absent .node-label { color: #6b7280; font-style: italic; }
 	.map-node.ai-suggested { border-style: dashed; border-color: rgba(139, 156, 247, 0.5); background: rgba(139, 156, 247, 0.04); }
 	.map-node.ai-withdrawn { opacity: 0.3; border-color: rgba(139, 156, 247, 0.2); }
-	.map-node.phase-dimmed { opacity: 0.85; transition: opacity 0.3s; }
+	.map-node.cluster-dimmed { opacity: 0.85; transition: opacity 0.3s; }
 	.map-node.centered-dim { opacity: 0.35; transition: opacity 0.3s; }
 	.map-node.centered-anchor { box-shadow: 0 0 12px rgba(245, 158, 11, 0.6), 0 0 4px rgba(245, 158, 11, 0.3); }
-	.map-node.phase-member { animation: phase-pulse 2s ease-in-out infinite; --pulse-color: var(--phase-color, #8b9cf7); }
-	@keyframes phase-pulse {
+	.map-node.cluster-member { animation: cluster-pulse 2s ease-in-out infinite; --pulse-color: var(--cluster-color, #8b9cf7); }
+	@keyframes cluster-pulse {
 		0%, 100% { box-shadow: 0 0 6px var(--pulse-color); }
 		50% { box-shadow: 0 0 20px var(--pulse-color), inset 0 0 0 2px var(--pulse-color); }
 	}
@@ -101,8 +101,8 @@
 	.designation-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 	.prov-icon { width: 12px; height: 12px; opacity: 0.5; }
 	.node-designation { font-size: 0.6rem; color: var(--el-color); text-transform: uppercase; letter-spacing: 0.04em; }
-	.phase-dots { display: inline-flex; gap: 2px; margin-left: auto; }
-	.phase-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+	.cluster-dots { display: inline-flex; gap: 2px; margin-left: auto; }
+	.cluster-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 	.node-label { font-size: 0.85rem; color: #e1e4e8; word-break: break-word; display: block; }
 	.collapsed-hint { font-size: 0.65rem; color: #4b5563; font-style: italic; }
 	.memo-badge {

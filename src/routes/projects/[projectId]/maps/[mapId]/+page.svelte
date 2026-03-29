@@ -15,7 +15,7 @@
 	import RelationForm from '$lib/map/RelationForm.svelte';
 	import StackPanel from '$lib/map/StackPanel.svelte';
 	import ContextMenu from '$lib/map/ContextMenu.svelte';
-	import PhasesSidebar from '$lib/map/PhasesSidebar.svelte';
+	import ClustersSidebar from '$lib/map/ClustersSidebar.svelte';
 	import ListItemCard from '$lib/map/ListItemCard.svelte';
 	import OutsidePanel from '$lib/map/OutsidePanel.svelte';
 	import MemoCreateForm from '$lib/map/MemoCreateForm.svelte';
@@ -58,7 +58,7 @@
 	});
 
 	let displayMode = $state<'entities' | 'relations' | 'full'>('full');
-	let listGroupBy = $state<'mode' | 'designation' | 'phase' | 'provenance' | 'flat'>('mode');
+	let listGroupBy = $state<'mode' | 'designation' | 'cluster' | 'provenance' | 'flat'>('mode');
 
 	// Restore preferences from localStorage
 	$effect(() => {
@@ -80,7 +80,7 @@
 
 	function handleNodeClick(id: string, e: MouseEvent) {
 		if (ms.relatingFrom) { ms.completeRelating(id); return; }
-		if (ms.assigningToPhase) { ms.assignElement(ms.assigningToPhase, id); return; }
+		if (ms.assigningToCluster) { ms.assignToCluster(ms.assigningToCluster, id); return; }
 		selection.select(id, e.ctrlKey || e.metaKey);
 		ctxMenuId = null;
 	}
@@ -98,7 +98,7 @@
 		selection.clear();
 		ctxMenuId = null;
 		canvasCtxMenu = null;
-		ms.highlightedPhase = null;
+		ms.highlightedCluster = null;
 		if (ms.relatingFrom) ms.relatingFrom = null;
 	}
 
@@ -185,12 +185,12 @@
 					label: d.charAt(0).toUpperCase() + d.slice(1) + 's',
 					items: items.filter((n: any) => (n.designation || 'cue') === d)
 				})).filter(g => g.items.length > 0);
-			case 'phase': {
+			case 'cluster': {
 				const groups: Array<{ label: string; items: any[] }> = [];
-				for (const phase of ms.phases) {
-					groups.push({ label: phase.label, items: items.filter((n: any) => n.phase_ids?.includes(phase.id)) });
+				for (const cluster of ms.clusters) {
+					groups.push({ label: cluster.label, items: items.filter((n: any) => n.cluster_ids?.includes(cluster.id)) });
 				}
-				const assigned = new Set(ms.phases.flatMap((p: any) => items.filter((n: any) => n.phase_ids?.includes(p.id)).map((n: any) => n.naming_id)));
+				const assigned = new Set(ms.clusters.flatMap((c: any) => items.filter((n: any) => n.cluster_ids?.includes(c.id)).map((n: any) => n.naming_id)));
 				const unassigned = items.filter((n: any) => !assigned.has(n.naming_id));
 				if (unassigned.length > 0) groups.push({ label: 'Unassigned', items: unassigned });
 				return groups.filter(g => g.items.length > 0);
@@ -221,8 +221,8 @@
 			ctxMenuId = null;
 			canvasCtxMenu = null;
 			ms.editingId = null;
-			ms.assigningToPhase = null;
-			ms.highlightedPhase = null;
+			ms.assigningToCluster = null;
+			ms.highlightedCluster = null;
 		}
 	}
 </script>
@@ -405,7 +405,7 @@
 							onclick={handleNodeClick}
 							oncontextmenu={handleNodeContextMenu}
 						>
-							<div class="silence-node" class:phase-dimmed={ms.highlightedPhase} class:centered-dim={cp.centeredConnections && !cp.centeredConnections.has(s.naming_id)}>
+							<div class="silence-node" class:cluster-dimmed={ms.highlightedCluster} class:centered-dim={cp.centeredConnections && !cp.centeredConnections.has(s.naming_id)}>
 								<span class="node-label">{s.inscription}</span>
 							</div>
 						</CanvasElement>
@@ -446,7 +446,7 @@
 				<select class="grouping-select" value={listGroupBy} onchange={e => { listGroupBy = (e.target as HTMLSelectElement).value as typeof listGroupBy; localStorage.setItem(`map:${data.map.id}:listGroupBy`, listGroupBy); }}>
 					<option value="mode">Mode (entity / relation / silence)</option>
 					<option value="designation">Designation (cue / char / spec)</option>
-					<option value="phase">Phase</option>
+					<option value="cluster">Cluster</option>
 					<option value="provenance">Provenance</option>
 					<option value="flat">Flat (all mixed)</option>
 				</select>
@@ -473,7 +473,7 @@
 			{/if}
 		</div>
 
-		<PhasesSidebar {selection} />
+		<ClustersSidebar {selection} />
 	</div>
 </div>
 
@@ -552,7 +552,7 @@
 		padding: 0.4rem 0.6rem; min-width: 80px; max-width: 220px;
 		opacity: 0.7;
 	}
-	.silence-node.phase-dimmed { opacity: 0.85; transition: opacity 0.3s; }
+	.silence-node.cluster-dimmed { opacity: 0.85; transition: opacity 0.3s; }
 	.silence-node.centered-dim { opacity: 0.35; transition: opacity 0.3s; }
 	.node-label { font-size: 0.85rem; color: #e1e4e8; word-break: break-word; display: block; }
 

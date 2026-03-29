@@ -3,14 +3,14 @@
 
 import { query, transaction } from '../../db/index.js';
 import { createMemo, updateMemoContent } from '../../db/queries/memos.js';
-import { assignToPhase } from '../../db/queries/maps.js';
+import { assignToCluster } from '../../db/queries/maps.js';
 import { emit } from '../sse.js';
 import { SW_ROLE_DEFAULTS } from '$lib/shared/constants.js';
 import { createAnnotation, createOrphanNaming, getOrCreateGroundingWorkspace } from '../../db/queries/codes.js';
 import { designate as designateNaming } from '../../db/queries/namings.js';
 import type {
 	SuggestElementInput, SuggestRelationInput, IdentifySilenceInput,
-	WriteMemoInput, CreatePhaseInput, SuggestFormationInput,
+	WriteMemoInput, CreateClusterInput, SuggestFormationInput,
 	SuggestPositionInput, SuggestAxisRefinementInput, IdentifyEmptyRegionInput,
 	RewriteCueInput, RespondInput, WithdrawCueInput, ReviseMemoInput,
 	ReadDocumentInput, CodePassageInput, DesignateInput,
@@ -70,14 +70,14 @@ export async function executeMapTool(
 				return { success: true, result: { id: memo.id, title } };
 			}
 
-			case 'create_phase': {
-				const { inscription, element_ids, reasoning } = input as unknown as CreatePhaseInput;
-				const phase = await createPhaseAsAi(projectId, aiNamingId, mapId, inscription, { aiReasoning: reasoning });
+			case 'create_cluster': {
+				const { inscription, element_ids, reasoning } = input as unknown as CreateClusterInput;
+				const cluster = await createClusterAsAi(projectId, aiNamingId, mapId, inscription, { aiReasoning: reasoning });
 				for (const elementId of element_ids) {
-					await assignToPhase(phase.id, elementId, undefined, undefined, aiNamingId);
+					await assignToCluster(cluster.id, elementId, undefined, undefined, aiNamingId);
 				}
-				emit(mapId, 'ai:phase', { phase, elementIds: element_ids, reasoning });
-				return { success: true, result: { id: phase.id, inscription, elementCount: element_ids.length } };
+				emit(mapId, 'ai:cluster', { cluster, elementIds: element_ids, reasoning });
+				return { success: true, result: { id: cluster.id, inscription, elementCount: element_ids.length } };
 			}
 
 			case 'suggest_formation': {
@@ -661,7 +661,7 @@ async function addSilenceToMap(
 	});
 }
 
-async function createPhaseAsAi(
+async function createClusterAsAi(
 	projectId: string,
 	aiNamingId: string,
 	mapId: string,
@@ -669,38 +669,39 @@ async function createPhaseAsAi(
 	properties?: Record<string, unknown>
 ) {
 	return transaction(async (client) => {
-		const phaseRes = await client.query(
+		const clusterRes = await client.query(
 			`INSERT INTO namings (project_id, inscription, created_by)
 			 VALUES ($1, $2, $3) RETURNING *`,
 			[projectId, inscription, AI_SYSTEM_UUID]
 		);
-		const phase = phaseRes.rows[0];
+		const cluster = clusterRes.rows[0];
 
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $1, 'perspective', $2)`,
-			[phase.id, JSON.stringify({ parentMapId: mapId, ...properties, aiSuggested: true })]
+			[cluster.id, JSON.stringify({ parentMapId: mapId, ...properties, aiSuggested: true })]
 		);
 
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $2, 'perspective', $3)`,
-			[phase.id, mapId, JSON.stringify({ ...properties, aiSuggested: true })]
+			[cluster.id, mapId, JSON.stringify({ ...properties, aiSuggested: true })]
 		);
 
 		await client.query(
 			`INSERT INTO participations (id, naming_id, participant_id)
 			 VALUES ($1, $1, $2)`,
-			[phase.id, mapId]
+			[cluster.id, mapId]
 		);
 
+		// Clustering IS characterizing (D/B)
 		await client.query(
 			`INSERT INTO naming_acts (naming_id, designation, by)
-			 VALUES ($1, 'cue', $2)`,
-			[phase.id, aiNamingId]
+			 VALUES ($1, 'characterization', $2)`,
+			[cluster.id, aiNamingId]
 		);
 
-		return phase;
+		return cluster;
 	});
 }
 

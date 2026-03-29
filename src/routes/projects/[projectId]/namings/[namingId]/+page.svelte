@@ -183,8 +183,8 @@
 							</a>
 							<span class="appearance-type">{app.map_type}</span>
 							<span class="appearance-mode">as {app.mode}</span>
-							{#if app.phase_label}
-								<span class="appearance-phase">{app.phase_label}</span>
+							{#if app.cluster_label}
+								<span class="appearance-cluster">{app.cluster_label}</span>
 							{/if}
 						</div>
 					{/each}
@@ -403,7 +403,7 @@
 		background: rgba(107, 114, 128, 0.15); padding: 0.05rem 0.3rem; border-radius: 3px;
 	}
 	.appearance-mode { font-size: 0.72rem; color: #8b8fa3; }
-	.appearance-phase {
+	.appearance-cluster {
 		font-size: 0.65rem; color: #f59e0b;
 		background: rgba(245, 158, 11, 0.1); padding: 0.05rem 0.3rem; border-radius: 3px;
 		margin-left: auto;

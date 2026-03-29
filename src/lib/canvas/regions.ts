@@ -1,7 +1,7 @@
-// Phase color palette for consistent phase visualization.
-// Used by sidebar borders, node phase dots, and highlight glow.
+// Cluster color palette for consistent cluster visualization.
+// Used by sidebar borders, node cluster dots, and highlight glow.
 
-const PHASE_COLORS = [
+const CLUSTER_COLORS = [
 	'#5b6abf', // muted indigo
 	'#4a9e7e', // muted teal
 	'#b07840', // muted amber
@@ -11,5 +11,5 @@ const PHASE_COLORS = [
 ];
 
 export function regionColor(index: number): string {
-	return PHASE_COLORS[index % PHASE_COLORS.length];
+	return CLUSTER_COLORS[index % CLUSTER_COLORS.length];
 }

@@ -331,10 +331,10 @@ export async function buildMapDetail(
 			}
 		}
 
-		// Phases
-		if (structure.phases.length > 0) {
-			parts.push('\nPHASES:');
-			for (const p of structure.phases) {
+		// Clusters
+		if (structure.clusters.length > 0) {
+			parts.push('\nCLUSTERS:');
+			for (const p of structure.clusters) {
 				parts.push(`  "${p.label}" (${p.element_count} elements, id: ${p.id})`);
 			}
 		}
@@ -472,7 +472,7 @@ export interface MapContext {
 		aiWithdrawn?: boolean;
 		discussionSummary?: string;
 	}>;
-	phases: Array<{
+	clusters: Array<{
 		id: string;
 		label: string;
 		elementCount: number;
@@ -608,8 +608,8 @@ export async function buildStructuredMapContext(mapId: string, projectId: string
 		discussionSummary: discussionMap.get(s.naming_id)
 	}));
 
-	// Phases
-	const phases = structure.phases.map((p: any) => ({
+	// Clusters
+	const clusters = structure.clusters.map((p: any) => ({
 		id: p.id,
 		label: p.label,
 		elementCount: parseInt(p.element_count) || 0
@@ -699,7 +699,7 @@ export async function buildStructuredMapContext(mapId: string, projectId: string
 		elements,
 		relations,
 		silences,
-		phases,
+		clusters,
 		designationProfile,
 		recentMemos,
 		crossMapParticipations,

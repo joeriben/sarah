@@ -279,10 +279,10 @@ export function buildContextMessage(ctx: MapContext, triggerEvent: TriggerEvent)
 		}
 	}
 
-	// Phases
-	if (ctx.phases.length > 0) {
-		parts.push('\nPHASES:');
-		for (const p of ctx.phases) {
+	// Clusters
+	if (ctx.clusters.length > 0) {
+		parts.push('\nCLUSTERS:');
+		for (const p of ctx.clusters) {
 			parts.push(`  "${p.label}" (${p.elementCount} elements, id: ${p.id})`);
 		}
 	}
@@ -337,8 +337,8 @@ function describeTrigger(event: TriggerEvent): string {
 			return `Researcher changed designation of "${event.details.inscription}" to ${event.details.designation}`;
 		case 'rename':
 			return `Researcher renamed "${event.details.oldInscription}" to "${event.details.newInscription}"`;
-		case 'createPhase':
-			return `Researcher created phase "${event.details.inscription}"`;
+		case 'createCluster':
+			return `Researcher created cluster "${event.details.inscription}"`;
 		case 'requestAnalysis':
 			return `Researcher explicitly requested AI analysis`;
 		default:

@@ -5,7 +5,7 @@
  * Phase 2: Insert in dependency order — no forward references, no ON CONFLICT
  *
  * Mode detection:
- * - tq: namespace present → full fidelity (naming_acts, appearances, phases, AI)
+ * - tq: namespace present → full fidelity (naming_acts, appearances, clusters, AI)
  * - standard QDPX only → codes as cues, documents + annotations, memos
  */
 
@@ -136,8 +136,8 @@ interface CollectedMemoContent {
 	status: string;
 }
 
-interface CollectedPhaseMembership {
-	phaseId: string;
+interface CollectedClusterMembership {
+	clusterId: string;
 	namingId: string;
 	by: string;
 }
@@ -194,7 +194,7 @@ export async function importProject(
 	const participations: CollectedParticipation[] = [];
 	const docContents: CollectedDocContent[] = [];
 	const memoContents: CollectedMemoContent[] = [];
-	const phaseMemberships: CollectedPhaseMembership[] = [];
+	const clusterMemberships: CollectedClusterMembership[] = [];
 	const topologies: CollectedTopology[] = [];
 	const counts = { codes: 0, documents: 0, annotations: 0, memos: 0, relations: 0, maps: 0 };
 
@@ -481,15 +481,15 @@ export async function importProject(
 				topologies.push({ mapId: id, positions });
 			}
 
-			// Phases
-			for (const phase of arr(graph['tq:Phases']?.['tq:Phase'])) {
-				const phaseId = remap(phase['@_guid']);
-				namings.push({ id: phaseId, inscription: phase['@_name'] || 'Phase' });
-				appearances.push({ namingId: phaseId, perspectiveId: id, mode: 'perspective', properties: {} });
+			// Clusters (XML tags: tq:Phase for backward compat)
+			for (const clusterEl of arr(graph['tq:Phases']?.['tq:Phase'])) {
+				const clusterId = remap(clusterEl['@_guid']);
+				namings.push({ id: clusterId, inscription: clusterEl['@_name'] || 'Cluster' });
+				appearances.push({ namingId: clusterId, perspectiveId: id, mode: 'perspective', properties: {} });
 
-				for (const member of arr(phase['tq:Member'])) {
-					phaseMemberships.push({
-						phaseId, namingId: remap(member['@_targetGUID']), by: researcherNamingId
+				for (const member of arr(clusterEl['tq:Member'])) {
+					clusterMemberships.push({
+						clusterId, namingId: remap(member['@_targetGUID']), by: researcherNamingId
 					});
 				}
 			}
@@ -688,11 +688,11 @@ export async function importProject(
 			);
 		}
 
-		// 8. Phase memberships
-		for (const pm of phaseMemberships) {
+		// 8. Cluster memberships
+		for (const cm of clusterMemberships) {
 			await client.query(
-				`INSERT INTO phase_memberships (phase_id, naming_id, action, by) VALUES ($1, $2, 'assign', $3)`,
-				[pm.phaseId, pm.namingId, pm.by]
+				`INSERT INTO cluster_memberships (cluster_id, naming_id, action, by) VALUES ($1, $2, 'assign', $3)`,
+				[cm.clusterId, cm.namingId, cm.by]
 			);
 		}
 

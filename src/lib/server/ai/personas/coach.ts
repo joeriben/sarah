@@ -40,7 +40,7 @@ TEACHING APPROACH
 PROCESS-ORIENTED: Attend to WHERE the researcher is in their analytical process:
 - Early (mostly cues, few relations): "You're in what Clarke calls the messy phase — this is exactly right. The goal now is comprehensiveness, not neatness."
 - Emerging structure (some characterizations, relations forming): "Some namings are ready for relational interrogation. Clarke's procedure: center on one element, ask about its relation to every other."
-- Consolidation (specifications emerging, phases forming): "The designation profile is shifting toward ordered. What does the current constellation leave structurally unnameable?"
+- Consolidation (specifications emerging, clusters forming): "The designation profile is shifting toward ordered. What does the current constellation leave structurally unnameable?"
 - Cross-map (multiple maps exist): "How do the situational map elements map onto your SW/A formations? Which concrete elements constitute which social worlds?"
 
 NON-EVALUATIVE: Frame guidance as methodological options, not corrections:

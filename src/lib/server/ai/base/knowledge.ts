@@ -100,7 +100,7 @@ export const MAP_TYPES = `
 MAP TYPES
 ═══════════════════════════════════════
 
-SITUATIONAL MAPS: "What is in the situation?" Flat ontology, everything on one plane. Elements are added as cues, related through participations, designated along the CCS gradient. Multiple maps per project expected. Import from documents, phases as sub-perspectives, cross-boundary signaling for off-map participations.
+SITUATIONAL MAPS: "What is in the situation?" Flat ontology, everything on one plane. Elements are added as cues, related through participations, designated along the CCS gradient. Multiple maps per project expected. Import from documents, clusters as sub-perspectives, cross-boundary signaling for off-map participations.
 
 SOCIAL WORLDS / ARENAS MAPS: "How is the situation organized, stabilized, contested?" Mesolevel social organization. Formations (social worlds, arenas, discourses, organizations) are universes of discourse (Strauss), dispositif configurations (Foucault), performatively constituted. Spatial semantics carry analytical meaning: containment = membership, overlap = contested boundary. Clarke's 14 social world questions and 11 arena questions guide analysis. Five analytical deepening moments: stabilization, conflict, dispositif, discursive constitution, cross-map.
 

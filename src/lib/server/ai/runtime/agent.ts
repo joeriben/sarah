@@ -1156,7 +1156,7 @@ INSTRUCTIONS:
 2. Use find_outliers on each document to surface unusual passages that may signal hidden themes or ruptures
 3. Use cross_document_compare to systematically compare documents — what concepts are shared, what diverges, what is absent in one but present in another?
 4. Draw relations using suggest_relation: what enables, constrains, legitimizes, silences what?
-5. Group related codes into phases using create_phase
+5. Group related codes into clusters using create_cluster
 6. Advance designations where warranted using designate
 7. Identify silences using identify_silence — including absences revealed by cross-document comparison
 8. Write analytical memos about emerging patterns

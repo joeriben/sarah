@@ -102,20 +102,20 @@ export const AI_TOOLS: ToolDef[] = [
 		}
 	},
 	{
-		name: 'create_phase',
+		name: 'create_cluster',
 		description:
-			'Suggest a phase (thematic grouping) for elements on the map. Phases are sub-perspectives that organize elements into meaningful clusters.',
+			'Suggest a cluster (thematic grouping) for elements on the map. Clusters are sub-perspectives that organize related cues into characterizations.',
 		input_schema: {
 			type: 'object' as const,
 			properties: {
 				inscription: {
 					type: 'string',
-					description: 'Name of the phase/grouping'
+					description: 'Name of the cluster'
 				},
 				element_ids: {
 					type: 'array',
 					items: { type: 'string' },
-					description: 'IDs of elements to include in this phase'
+					description: 'IDs of elements to include in this cluster'
 				},
 				reasoning: {
 					type: 'string',
@@ -253,7 +253,7 @@ export interface WriteMemoInput {
 	linked_element_ids?: string[];
 }
 
-export interface CreatePhaseInput {
+export interface CreateClusterInput {
 	inscription: string;
 	element_ids: string[];
 	reasoning: string;
