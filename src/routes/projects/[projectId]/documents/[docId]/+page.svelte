@@ -2,6 +2,8 @@
 	import { untrack } from 'svelte';
 	import ImageAnnotationViewer from '$lib/components/ImageAnnotationViewer.svelte';
 	import ComparisonPanel from './ComparisonPanel.svelte';
+	import NamingContextMenu from './NamingContextMenu.svelte';
+	import ClusterAssignDialog from './ClusterAssignDialog.svelte';
 
 	let { data } = $props();
 	const doc = $derived(data.document);
@@ -94,8 +96,20 @@
 	const clusterMemberMap = $derived<Record<string, string[]>>(data.clusterMemberMap ?? {});
 	let clusterFilter = $state<string | null>(null);
 
-	// Passages panel filter + expand
+	// Passages panel text search filter
 	let annFilter = $state('');
+	// Naming selection state
+	let selectedNamingIds = $state<Set<string>>(new Set());
+	let lastClickedNamingId = $state<string | null>(null);
+	// Context menu state
+	let ctxMenuNamingIds = $state<string[] | null>(null);
+	let ctxMenuPos = $state({ x: 0, y: 0 });
+	let showClusterDialog = $state(false);
+	// Drag-drop state
+	let dragOverDoc = $state(false);
+	// Rubber-band selection state
+	let namingDragSelecting = $state(false);
+	let namingDragStartY = $state(0);
 	// Namings panel: expanded naming (shows memos)
 	let expandedNamingId = $state<string | null>(null);
 	// Passage memo: inline memo input on a passage card
@@ -109,6 +123,9 @@
 		if (clusterFilter) {
 			const memberIds = new Set(clusterMemberMap[clusterFilter] || []);
 			result = result.filter((a: any) => memberIds.has(a.code_id));
+		}
+		if (selectedNamingIds.size > 0) {
+			result = result.filter((a: any) => selectedNamingIds.has(a.code_id));
 		}
 		if (annFilter.trim()) {
 			const q = annFilter.trim().toLowerCase();
@@ -188,7 +205,7 @@
 	}
 
 	// Build text segments for color-coded annotation display
-	type TextSegment = { text: string; codes: { id: string; annId: string; label: string; color: string }[]; elementId?: string };
+	type TextSegment = { text: string; codes: { id: string; annId: string; label: string; color: string }[]; elementId?: string; start: number; end: number };
 	const textSegments = $derived.by((): TextSegment[] => {
 		const text = doc.full_text;
 		if (!text) return [];
@@ -197,7 +214,7 @@
 			const anchor = a.properties?.anchor;
 			return anchor && anchor.pos0 != null && anchor.pos1 != null;
 		});
-		if (textAnns.length === 0) return [{ text, codes: [] }];
+		if (textAnns.length === 0) return [{ text, codes: [], start: 0, end: text.length }];
 
 		// Build boundary points (annotations + element boundaries)
 		const points = new Set<number>();
@@ -237,7 +254,7 @@
 			// Find which element this segment belongs to
 			const el = leafElements.find((e: any) => e.char_start <= start && e.char_end >= end);
 
-			segments.push({ text: text.slice(start, end), codes: activeCodes, elementId: el?.id });
+			segments.push({ text: text.slice(start, end), codes: activeCodes, elementId: el?.id, start, end });
 		}
 		return segments;
 	});
@@ -456,6 +473,76 @@
 		setTimeout(() => { highlightedAnnotationId = null; }, 2000);
 	}
 
+	// Naming click handler: select naming(s) to show their passages
+	function handleNamingClick(namingId: string, e: MouseEvent) {
+		if (e.shiftKey && lastClickedNamingId) {
+			// Range selection
+			const ids = scopedCandidates.map((c: any) => c.id);
+			const fromIdx = ids.indexOf(lastClickedNamingId);
+			const toIdx = ids.indexOf(namingId);
+			if (fromIdx >= 0 && toIdx >= 0) {
+				const start = Math.min(fromIdx, toIdx);
+				const end = Math.max(fromIdx, toIdx);
+				const next = new Set(selectedNamingIds);
+				for (let i = start; i <= end; i++) next.add(ids[i]);
+				selectedNamingIds = next;
+			}
+		} else if (e.altKey) {
+			// Toggle individual
+			const next = new Set(selectedNamingIds);
+			if (next.has(namingId)) next.delete(namingId);
+			else next.add(namingId);
+			selectedNamingIds = next;
+			lastClickedNamingId = namingId;
+		} else {
+			// Exclusive select
+			selectedNamingIds = new Set([namingId]);
+			lastClickedNamingId = namingId;
+		}
+	}
+
+	// Context menu on naming right-click
+	function handleNamingContextMenu(namingId: string, e: MouseEvent) {
+		e.preventDefault();
+		if (!selectedNamingIds.has(namingId)) {
+			selectedNamingIds = new Set([namingId]);
+			lastClickedNamingId = namingId;
+		}
+		ctxMenuNamingIds = [...selectedNamingIds];
+		ctxMenuPos = { x: e.clientX, y: e.clientY };
+	}
+
+	// Drag-and-drop: naming onto selected text = code
+	function handleNamingDragStart(namingId: string, e: DragEvent) {
+		if (!hasSelection) {
+			e.preventDefault();
+			return;
+		}
+		e.dataTransfer!.setData('application/x-naming-id', namingId);
+		e.dataTransfer!.effectAllowed = 'copy';
+	}
+
+	function handleDocDragOver(e: DragEvent) {
+		if (e.dataTransfer?.types.includes('application/x-naming-id')) {
+			e.preventDefault();
+			e.dataTransfer.dropEffect = 'copy';
+			dragOverDoc = true;
+		}
+	}
+
+	function handleDocDragLeave() {
+		dragOverDoc = false;
+	}
+
+	function handleDocDrop(e: DragEvent) {
+		e.preventDefault();
+		dragOverDoc = false;
+		const codeId = e.dataTransfer?.getData('application/x-naming-id');
+		if (codeId && (selection || regionSelection)) {
+			annotate(codeId);
+		}
+	}
+
 	async function annotate(codeId: string) {
 		if (annotating) return;
 		if (!selection && !regionSelection) return;
@@ -608,7 +695,9 @@
 	}
 </script>
 
-<div class="doc-viewer">
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="doc-viewer" onclick={() => { ctxMenuNamingIds = null; }}>
 	<div class="doc-body">
 		<div class="doc-with-margin">
 			<div class="content-panel" class:image-mode={isImage}>
@@ -622,15 +711,16 @@
 					/>
 				{:else if doc.full_text}
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<pre class="document-text" bind:this={textEl} onmouseup={handleMouseUp}>{#each textSegments as seg, i}{#if seg.codes.length > 0}{@const isAnnStart = i === 0 || !textSegments[i - 1].codes.some(c => c.annId === seg.codes[0].annId)}<span
+					<pre class="document-text" class:drop-target-active={dragOverDoc && hasSelection} bind:this={textEl} onmouseup={handleMouseUp} ondragover={handleDocDragOver} ondragleave={handleDocDragLeave} ondrop={handleDocDrop}>{#each textSegments as seg, i}{#if seg.codes.length > 0}{@const isAnnStart = i === 0 || !textSegments[i - 1].codes.some(c => c.annId === seg.codes[0].annId)}<span
 						class="coded-text"
 						class:coded-highlighted={seg.codes.some(c => c.annId === highlightedAnnotationId)}
+						class:selection-highlight={selection && seg.start < selection.pos1 && seg.end > selection.pos0}
 						style="background: {codedBackground(seg.codes)}; border-bottom: 2px solid {seg.codes[0].color};"
 						data-element-id={seg.elementId || undefined}
 						data-ann-start={isAnnStart ? seg.codes[0].annId : undefined}
 						onmouseenter={() => { highlightedAnnotationId = seg.codes[0].annId; }}
 						onmouseleave={() => { highlightedAnnotationId = null; }}
-					>{seg.text}<span class="code-tooltip">{seg.codes.map(c => c.label).join(', ')}</span></span>{:else}<span data-element-id={seg.elementId || undefined}>{seg.text}</span>{/if}{/each}</pre>
+					>{seg.text}<span class="code-tooltip">{seg.codes.map(c => c.label).join(', ')}</span></span>{:else}<span data-element-id={seg.elementId || undefined} class:selection-highlight={selection && seg.start < selection.pos1 && seg.end > selection.pos0}>{seg.text}</span>{/if}{/each}</pre>
 				{:else}
 					<p class="placeholder">No text content available</p>
 				{/if}
@@ -657,7 +747,11 @@
 		<!-- Namings: permanent code overview -->
 		<div class="namings-panel">
 			<div class="panel-header">
-				<h3>Namings <span class="count">({scopedCandidates.length})</span></h3>
+				<h3>Namings <span class="count">({scopedCandidates.length})</span>
+						{#if selectedNamingIds.size > 0}
+							<button class="btn-xs" onclick={() => { selectedNamingIds = new Set(); }}>Clear</button>
+						{/if}
+					</h3>
 				<div class="scope-toggle">
 					<button class="scope-btn" class:active={namingsScope === 'this'} onclick={() => namingsScope = 'this'}>Document</button>
 					<div class="scope-right">
@@ -713,15 +807,41 @@
 				</form>
 			{/if}
 
-			<div class="namings-scroll">
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="namings-scroll"
+				onclick={(e) => { if (!(e.target as HTMLElement).closest('.naming-row')) { selectedNamingIds = new Set(); } ctxMenuNamingIds = null; }}
+				onpointerdown={(e) => {
+					if ((e.target as HTMLElement).closest('.naming-row')) return;
+					namingDragSelecting = true;
+					namingDragStartY = e.clientY;
+					(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+				}}
+				onpointermove={(e) => {
+					if (!namingDragSelecting) return;
+					const container = e.currentTarget as HTMLElement;
+					const rows = container.querySelectorAll('.naming-row[data-naming-id]');
+					const minY = Math.min(namingDragStartY, e.clientY);
+					const maxY = Math.max(namingDragStartY, e.clientY);
+					const next = new Set<string>();
+					rows.forEach(row => {
+						const rect = row.getBoundingClientRect();
+						if (rect.bottom >= minY && rect.top <= maxY) {
+							const id = (row as HTMLElement).dataset.namingId;
+							if (id) next.add(id);
+						}
+					});
+					selectedNamingIds = next;
+				}}
+				onpointerup={() => { namingDragSelecting = false; }}
+			>
 				{#if scopedCandidates.length > 0}
 					{#each [...candidateGroups] as [key, group] (key)}
 						<div class="naming-group">
 							<span class="naming-group-label">{group.label}</span>
 							{#each group.items as c (c.id)}
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
-								<div class="naming-row" class:naming-expanded={expandedNamingId === c.id}>
-									<div class="naming-main" onclick={() => { if (hasSelection) annotate(c.id); }}>
+								<div class="naming-row" class:naming-expanded={expandedNamingId === c.id} class:naming-selected={selectedNamingIds.has(c.id)} data-naming-id={c.id} draggable="true" ondragstart={(e) => handleNamingDragStart(c.id, e)}>
+									<div class="naming-main" onclick={(e) => handleNamingClick(c.id, e)} oncontextmenu={(e) => handleNamingContextMenu(c.id, e)}>
 										<span class="color-dot" style="background: {c.color || '#8b9cf7'}"></span>
 										<span
 										class="naming-label"
@@ -734,11 +854,6 @@
 											title="Show memos"
 											onclick={(e) => { e.stopPropagation(); expandedNamingId = expandedNamingId === c.id ? null : c.id; }}
 										>{expandedNamingId === c.id ? '▽' : '▼'}</button>
-										<button
-											class="naming-action"
-											title="Filter passages"
-											onclick={(e) => { e.stopPropagation(); annFilter = annFilter === c.label ? '' : c.label; }}
-										>▶</button>
 									</div>
 									{#if expandedNamingId === c.id}
 										{#each [scopedAnnotations.filter((a) => a.code_id === c.id)] as codeAnns}
@@ -965,6 +1080,25 @@
 
 <!-- Naming tooltip: fixed position, outside overflow containers -->
 <div class="naming-tooltip-fixed" style={namingTooltipStyle}>{namingTooltipText}</div>
+
+{#if ctxMenuNamingIds}
+	<NamingContextMenu
+		namingIds={ctxMenuNamingIds}
+		position={ctxMenuPos}
+		namingLabels={ctxMenuNamingIds.map(id => candidates.find((c: any) => c.id === id)?.label || '')}
+		onclose={() => ctxMenuNamingIds = null}
+		onaddtocluster={() => { showClusterDialog = true; }}
+	/>
+{/if}
+
+{#if showClusterDialog && ctxMenuNamingIds}
+	<ClusterAssignDialog
+		namingIds={ctxMenuNamingIds}
+		{clusters}
+		projectId={data.projectId}
+		onclose={() => { showClusterDialog = false; ctxMenuNamingIds = null; }}
+	/>
+{/if}
 
 <style>
 	.doc-viewer { }
@@ -1423,13 +1557,20 @@
 	}
 	.naming-row {
 		border-bottom: 1px solid rgba(42, 45, 58, 0.5);
+		user-select: none;
+	}
+	.naming-row.naming-selected {
+		background: rgba(139, 156, 247, 0.12);
+	}
+	.naming-row.naming-selected .naming-label {
+		color: #a5b4fc;
 	}
 	.naming-main {
 		display: flex;
 		align-items: center;
 		gap: 0.3rem;
 		padding: 0.2rem 0;
-		cursor: pointer;
+		cursor: default;
 	}
 	.naming-main:hover { background: rgba(139, 156, 247, 0.05); }
 	.naming-label {
@@ -1657,4 +1798,27 @@
 		color: #6b7280;
 		padding: 3rem 0;
 	}
+
+	/* Drop target feedback */
+	.document-text.drop-target-active {
+		outline: 2px dashed #8b9cf7;
+		outline-offset: -2px;
+	}
+
+	/* Selection highlight (persists after DOM re-render) */
+	.selection-highlight {
+		background: rgba(139, 156, 247, 0.25) !important;
+	}
+
+	/* Small utility button */
+	.btn-xs {
+		background: none;
+		border: none;
+		color: #6b7280;
+		font-size: 0.6rem;
+		cursor: pointer;
+		padding: 0 0.2rem;
+		margin-left: 0.3rem;
+	}
+	.btn-xs:hover { color: #a5b4fc; }
 </style>

@@ -438,6 +438,19 @@ export async function createCluster(
 	properties?: Record<string, unknown>
 ) {
 	return transaction(async (client) => {
+		// Duplicate name check
+		const existing = await client.query(
+			`SELECT n.id FROM namings n
+			 JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = n.id
+			   AND a.mode = 'perspective' AND a.properties->>'role' = 'cluster'
+			 WHERE n.project_id = $1 AND n.inscription = $2 AND n.deleted_at IS NULL
+			 LIMIT 1`,
+			[projectId, inscription]
+		);
+		if (existing.rows.length > 0) {
+			return existing.rows[0];
+		}
+
 		const researcherNamingId = await getOrCreateResearcherNaming(projectId, userId);
 
 		// The cluster is a naming
@@ -452,7 +465,7 @@ export async function createCluster(
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $1, 'perspective', $2)`,
-			[cluster.id, JSON.stringify({ parentMapId: mapId, ...properties })]
+			[cluster.id, JSON.stringify({ role: 'cluster', parentMapId: mapId, ...properties })]
 		);
 
 		// The cluster also appears on the map as a perspective-naming
@@ -945,16 +958,14 @@ export async function getMapClusters(mapId: string, projectId: string) {
 	).rows;
 }
 
-// Shared CTE for finding project clusters
+// Shared CTE for finding project clusters (positive match on role='cluster')
 const PROJECT_CLUSTERS_CTE = `
   SELECT DISTINCT ON (n.id) n.id, n.inscription as label
   FROM namings n
   JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = n.id
-    AND a.mode = 'perspective'
+    AND a.mode = 'perspective' AND a.properties->>'role' = 'cluster'
   WHERE n.project_id = $2
     AND n.deleted_at IS NULL
-    AND NOT (a.properties ? 'mapType')
-    AND NOT (a.properties->>'role' = 'grounding-workspace')
   ORDER BY n.id, n.seq
 `;
 
@@ -1072,11 +1083,9 @@ export async function getProjectClusters(projectId: string) {
 			   SELECT DISTINCT ON (n.id) n.id, n.inscription as label
 			   FROM namings n
 			   JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = n.id
-			     AND a.mode = 'perspective'
+			     AND a.mode = 'perspective' AND a.properties->>'role' = 'cluster'
 			   WHERE n.project_id = $1
 			     AND n.deleted_at IS NULL
-			     AND NOT (a.properties ? 'mapType')
-			     AND NOT (a.properties->>'role' = 'grounding-workspace')
 			   ORDER BY n.id, n.seq
 			 ) c
 			 ORDER BY c.label`,
@@ -1134,6 +1143,19 @@ export async function createProjectCluster(
 	inscription: string
 ) {
 	return transaction(async (client) => {
+		// Duplicate name check
+		const existing = await client.query(
+			`SELECT n.id, n.inscription FROM namings n
+			 JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = n.id
+			   AND a.mode = 'perspective' AND a.properties->>'role' = 'cluster'
+			 WHERE n.project_id = $1 AND n.inscription = $2 AND n.deleted_at IS NULL
+			 LIMIT 1`,
+			[projectId, inscription]
+		);
+		if (existing.rows.length > 0) {
+			return existing.rows[0];
+		}
+
 		const { getOrCreateGroundingWorkspace } = await import('./codes.js');
 		const gwId = await getOrCreateGroundingWorkspace(projectId, userId);
 		const researcherNamingId = await getOrCreateResearcherNaming(projectId, userId);
@@ -1146,11 +1168,11 @@ export async function createProjectCluster(
 		);
 		const cluster = clusterRes.rows[0];
 
-		// Self-referential appearance
+		// Self-referential appearance with role: 'cluster'
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $1, 'perspective', $2)`,
-			[cluster.id, JSON.stringify({ parentMapId: gwId })]
+			[cluster.id, JSON.stringify({ role: 'cluster', parentMapId: gwId })]
 		);
 
 		// Appear on grounding workspace as sub-perspective
