@@ -20,10 +20,11 @@ A qualitative data analysis platform grounded in Situational Analysis (Clarke) a
    - [5.2 Social Worlds/Arenas Maps](#52-social-worldsarenas-maps)
    - [5.3 Positional Maps](#53-positional-maps)
    - [5.4 The Grounding Layer](#54-the-grounding-layer)
-   - [5.5 Memos](#55-memos)
-   - [5.6 The AI Co-Researcher](#56-the-ai-co-researcher)
-   - [5.7 Collaboration](#57-collaboration)
-   - [5.8 Project Management](#58-project-management)
+   - [5.5 Clusters](#55-clusters)
+   - [5.6 Memos](#56-memos)
+   - [5.7 The AI Co-Researcher](#57-the-ai-co-researcher)
+   - [5.8 Collaboration](#58-collaboration)
+   - [5.9 Project Management](#59-project-management)
 6. [Design Commitments Beyond Clarke](#6-design-commitments-beyond-clarke)
 7. [Technical Overview](#7-technical-overview)
 
@@ -194,7 +195,7 @@ Three constraints follow from this hierarchy:
 
 - No operation may exist only on the canvas.
 - No analytically relevant state may be visible only on the canvas.
-- The list must be able to show everything the canvas shows (phase membership, provenance, designation, stack depth).
+- The list must be able to show everything the canvas shows (cluster membership, provenance, designation, stack depth).
 
 A critical clarification: core operations — designate, rename, relate, withdraw, inspect stack — operate on the **naming itself**, not on its appearance on a specific map. The `naming_acts` table has no `perspective_id` column. Designation belongs to the naming; participations are global bonds; the inscription chain belongs to the naming. Appearances determine how a naming *looks* from a perspective, but the operations that constitute analytical work act on the naming directly.
 
@@ -220,7 +221,7 @@ A **map** is a naming that serves as a perspective. Creating a map creates a nam
 
 **Import from document**: all annotation-namings (codes) from a specific document can be batch-placed on a map. This supports the workflow: create a map → import from a document → begin relational analysis.
 
-**Phases** emerge as sub-perspectives. A phase is a naming with `mode = 'perspective'` that groups elements by analytical affinity — Clarke's in-vivo categories (human elements, discourses, political-economic forces, etc.), or categories that emerge from the material itself. Phase membership is a naming act. As elements receive characterizations and specifications, as phases crystallize, the designation profile shifts: the map moves from messy toward ordered. This is not a toggle but a continuous process.
+**Clusters** group related namings by analytical affinity. A cluster is a naming with `mode = 'perspective'` — Dewey/Bentley: "Characterization develops out of cue through the clustering of cues and the growth of language." Clustering IS characterizing; accordingly, a new cluster's initial designation is `characterization`, not `cue`. Clusters are project-level: they appear on any map where at least one member is present, and they are managed on the Namings page independently of maps. On maps, cluster membership is visualized through colored dots and highlight filtering. Cluster membership is tracked in an append-only history table (`cluster_memberships`) for full analytical provenance.
 
 **Pairwise interrogation** — Clarke's procedure of centering on one element and systematically examining its relation to every other — is available as a workflow mode. A transactional extension is equally available: center on a *relation* and ask which entities it connects, which other relations it participates in, what its inscription history reveals.
 
@@ -277,7 +278,21 @@ Documents — interview transcripts, photographs, policy texts, theoretical chap
 
 **Documents are stored in project directories** (`projekte/{slug}/files/`), with relative paths in the database. This ensures portability: a project directory contains everything needed to reconstruct the project, including all media files.
 
-### 5.5 Memos
+### 5.5 Clusters
+
+Clusters are the bridge between document coding and situational mapping. Dewey/Bentley: "Characterization develops out of cue through the **clustering** of cues and the growth of language." Clustering IS characterization — grouping related cues and naming the group is the act that moves from cue to characterization on the CCS gradient.
+
+**A cluster is a naming** with `mode = 'perspective'`. It has its own inscription, designation (starts at `characterization`), and stack. Cluster membership is tracked in an append-only history table for full provenance.
+
+**Project-level, not map-bound.** Clusters belong to the project, not to a specific map. They appear automatically on any map where at least one of their members is present. This means a researcher can create clusters during coding and find them on the map when they move to relational analysis.
+
+**Cluster management** lives on the **Namings page** — the privileged representation (Section 4). The right panel shows all clusters; clicking one reveals its members and all their passages, grouped by naming and document. Namings are assigned to clusters by entering assign mode and clicking. This is an analytical operation on naming-level, not a passage-level operation.
+
+**Cluster filter in the Document view.** The Passages panel (right column in the document viewer) provides a cluster filter dropdown. Selecting a cluster narrows the passage list to codes that belong to that cluster — enabling focused review of the empirical basis for a cluster while coding.
+
+**Recursive clustering** is supported: a cluster can itself be a member of another cluster. This enables multi-level analytical organization without imposing a fixed hierarchy.
+
+### 5.6 Memos
 
 Memos are the **shared inquiry medium** of the analytical process. They capture observations, questions, tensions, and theoretical connections that span the research situation. In transact-qda, a memo is a first-class naming — it participates in the core data model alongside entities, relations, and documents.
 
@@ -292,11 +307,11 @@ Memos are the **shared inquiry medium** of the analytical process. They capture 
 - **Promoted**: Elevated to a naming on a map — the memo's insight becomes a cue-designation entity. This is the transition from reflexive observation to analytical substance.
 - **Dismissed**: Archived. Can be restored to "presented" if later relevant.
 
-**Memo discussions** use the same infrastructure as cue discussions (Section 5.6): the researcher can engage the AI in dialogue about a memo's content. Discussion turns are themselves memo-namings linked to the parent memo. The AI can respond with analytical depth or revise the memo if the discussion warrants it.
+**Memo discussions** use the same infrastructure as cue discussions (Section 5.7): the researcher can engage the AI in dialogue about a memo's content. Discussion turns are themselves memo-namings linked to the parent memo. The AI can respond with analytical depth or revise the memo if the discussion warrants it.
 
 **Memos are NOT grounding.** They document reflexive reasoning — CCS movement, analytical process, theoretical connections. Only document anchors constitute empirical grounding. This distinction is epistemologically important: a memo about a pattern of silences is an analytical observation, not evidence.
 
-### 5.6 The AI Co-Researcher
+### 5.7 The AI Co-Researcher
 
 The AI is not an external tool that responds on command. It is a **naming in the data space** — it has its own researcher-naming per project, and its analytical acts (suggestions, memos, withdrawals) are naming acts attributed to this AI-naming. The AI is a co-actor in the analytical situation, not an instrument applied to it.
 
@@ -320,7 +335,7 @@ The AI does NOT proactively suggest elements, relations, or analytical content b
 
 **Discussion, not accept/reject.** When the AI produces a cue, the researcher does not face a binary accept/decline button. Instead, they can enter dialogue *at the cue itself*: question the AI's reasoning, request revision, challenge the framing. This discussion is a memo chain linked to the naming. A discussion can result in: the AI rewriting the cue (new inscription in the stack, old preserved), the AI withdrawing the cue (soft-delete with discussion history preserved), or the AI responding with a deepening memo (no rewrite, but richer analytical context).
 
-The AI sees the full map context — all elements, relations, designations, participations, phases, discussion histories, withdrawn cues — so its questions emerge from the actual analytical state, not from a fixed checklist.
+The AI sees the full map context — all elements, relations, designations, participations, clusters, discussion histories, withdrawn cues — so its questions emerge from the actual analytical state, not from a fixed checklist.
 
 **Map-type awareness.** The AI adapts its posture and available operations to the map type:
 
@@ -332,13 +347,13 @@ The AI sees the full map context — all elements, relations, designations, part
 
 **Usage tracking.** Every AI interaction is logged to the `ai_interactions` table with provider, model, request type, and token counts (input/output). The settings page provides aggregated usage data by model, request type, and time period for cost control.
 
-### 5.7 Collaboration
+### 5.8 Collaboration
 
 Multiple researchers can work on the same project. Each user receives a **researcher-naming** in the data space — a naming whose inscription is the researcher's name. All naming acts record `by = researcher_naming_id`, not a user account ID. This means the analytical provenance chain tracks namings, not system users. The researcher's acts are events in the same relational fabric as the data they study.
 
 Roles follow a hierarchy: owner (immutable, full control), admin (can manage members), member (can work on maps and documents), viewer (read-only). Discussion between team members uses the same memo-chain infrastructure as AI discussions — no separate communication layer.
 
-### 5.8 Project Management
+### 5.9 Project Management
 
 #### Native format
 
@@ -361,7 +376,7 @@ QDPX is the open exchange format for qualitative data analysis projects (support
 **Export** uses a dual-namespace approach: a standard QDPX namespace (readable by any compliant tool) plus a custom `urn:transact-qda:1.0` namespace for lossless re-import. A **pre-export loss report dialog** shows what external tools will and will not see:
 
 - **Preserved for external tools**: All codes, documents, annotations, memos, relations, one map with positions.
-- **Lost for external tools**: Naming history (collapsed to latest inscription), CCS gradient (only in description text), phases, silences, AI metadata, map snapshot history, researcher identities.
+- **Lost for external tools**: Naming history (collapsed to latest inscription), CCS gradient (only in description text), clusters, silences, AI metadata, map snapshot history, researcher identities.
 - **Lossless**: The native format (save to directory) preserves everything.
 
 **Import** detects the namespace: transact-qda exports are reimported with full fidelity; standard QDPX files from other tools are imported as cues on a default map, with codes becoming namings and document annotations becoming grounding anchors. All GUIDs are remapped to fresh UUIDs to prevent collisions.
@@ -378,13 +393,13 @@ Clarke's relational analysis ("center on one element, draw lines to all others")
 
 **2. No enforced procedure — diffractory methods.** The platform does not enforce Clarke's messy-ordered-relational sequence. It is available for those who want it, but not normative. The platform encourages exploring the non-identical, superpositional nature of namings through multiple methods:
 
-- Multiple competing narrative drafts about the same map/phase (differing narrations)
+- Multiple competing narrative drafts about the same map/cluster (differing narrations)
 - Map iterations understood as superpositions, not linear progress — each version a perspective, not a superseded draft
 - Diffraction (Barad): making difference patterns visible, not reflecting the same
 
-This is architecturally supported: different `collapseAt` values on the same naming, different phases of the same map, are literally different superposition collapses placed side by side.
+This is architecturally supported: different `collapseAt` values on the same naming, different clusters of the same map, are literally different superposition collapses placed side by side.
 
-**3. Theories as visible namings on the map.** Theoretical commitments are placed ON the map as explicit namings — with their own inscription chains, designation histories, and provenance. This prevents hidden social theories from entering the analytical process as unexamined dogmata. From the transactional standpoint, the distinction between "empirical situation" and "research situation" does not need to be imposed a priori — it will emerge through the analytical process itself, through different phases, maps, and perspectival collapses.
+**3. Theories as visible namings on the map.** Theoretical commitments are placed ON the map as explicit namings — with their own inscription chains, designation histories, and provenance. This prevents hidden social theories from entering the analytical process as unexamined dogmata. From the transactional standpoint, the distinction between "empirical situation" and "research situation" does not need to be imposed a priori — it will emerge through the analytical process itself, through different clusters, maps, and perspectival collapses.
 
 ---
 

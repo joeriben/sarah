@@ -1,10 +1,26 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { marked } from 'marked';
 
 	let { data, children }: { data: { user: any }; children: Snippet } = $props();
 
 	let settingsOpen = $state(false);
 	let legalOpen = $state(false);
+
+	// Overlay state
+	let overlay = $state<'manual' | 'impressum' | null>(null);
+	let manualHtml = $state<string | null>(null);
+
+	async function openManual() {
+		overlay = 'manual';
+		if (!manualHtml) {
+			const res = await fetch('/api/manual');
+			if (res.ok) {
+				const { content } = await res.json();
+				manualHtml = marked(content) as string;
+			}
+		}
+	}
 
 	async function logout() {
 		await fetch('/api/auth/logout', { method: 'POST' });
@@ -42,7 +58,7 @@
 				</div>
 
 				<div class="header-right">
-					<button class="nav-btn" title="Help" onclick={() => alert('Help – coming soon')}>?</button>
+					<button class="nav-btn" title="Manual" onclick={openManual}>?</button>
 
 					<div class="dropdown">
 						<button class="nav-btn" title="Settings" onclick={() => { settingsOpen = !settingsOpen; legalOpen = false; }}>
@@ -64,8 +80,7 @@
 						<button class="nav-btn nav-btn-text" title="Legal" onclick={() => { legalOpen = !legalOpen; settingsOpen = false; }}>§</button>
 						{#if legalOpen}
 							<div class="dropdown-menu">
-								<button class="dropdown-item" onclick={() => { legalOpen = false; alert('Impressum – coming soon'); }}>Impressum</button>
-								<button class="dropdown-item" onclick={() => { legalOpen = false; alert('Datenschutz – coming soon'); }}>Datenschutz</button>
+								<button class="dropdown-item" onclick={() => { legalOpen = false; overlay = 'impressum'; }}>Impressum</button>
 							</div>
 						{/if}
 					</div>
@@ -76,6 +91,51 @@
 		<main class="content">
 			{@render children()}
 		</main>
+
+		<!-- Overlays -->
+		{#if overlay}
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="overlay-backdrop" onclick={() => overlay = null}>
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div class="overlay-panel" onclick={e => e.stopPropagation()}>
+					<button class="overlay-close" onclick={() => overlay = null}>×</button>
+					{#if overlay === 'manual'}
+						<div class="overlay-content manual-content">
+							{#if manualHtml}
+								{@html manualHtml}
+							{:else}
+								<p>Loading...</p>
+							{/if}
+						</div>
+					{:else if overlay === 'impressum'}
+						<div class="overlay-content">
+							<h1>Impressum</h1>
+							<p><strong>Herausgeber</strong><br>
+							Friedrich-Alexander-Universität Erlangen-Nürnberg<br>
+							Vertreten durch den Präsidenten Prof. Dr. Joachim Hornegger<br>
+							Freyeslebenstraße 1, 91058 Erlangen<br>
+							E-Mail: <a href="mailto:poststelle@fau.de">poststelle@fau.de</a></p>
+
+							<p><strong>Inhaltlich verantwortlich gem. § 18 Abs. 2 MStV</strong><br>
+							Prof. Dr. Benjamin Jörissen<br>
+							Bismarckstraße 1a, 91054 Erlangen<br>
+							E-Mail: <a href="mailto:benjamin.joerissen@fau.de">benjamin.joerissen@fau.de</a></p>
+
+							<p><strong>Zuständige Aufsichtsbehörde</strong><br>
+							Bayerisches Staatsministerium für Wissenschaft und Kunst<br>
+							Salvatorstraße 2, 80327 München<br>
+							<a href="https://www.stmwk.bayern.de/" target="_blank" rel="noopener">www.stmwk.bayern.de</a></p>
+
+							<p><strong>Weitere Informationen</strong><br>
+							Das vollständige Impressum der FAU finden Sie unter:<br>
+							<a href="https://www.fau.de/impressum" target="_blank" rel="noopener">www.fau.de/impressum</a></p>
+						</div>
+					{/if}
+				</div>
+			</div>
+		{/if}
 	</div>
 {:else}
 	{@render children()}
@@ -265,4 +325,65 @@
 		overflow-y: auto;
 		height: 0; /* flex child: let flex: 1 control actual height */
 	}
+
+	/* Overlay */
+	.overlay-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.7);
+		z-index: 2000;
+		display: flex;
+		justify-content: center;
+		align-items: flex-start;
+		padding: 3rem 1rem;
+		overflow-y: auto;
+	}
+	.overlay-panel {
+		position: relative;
+		background: #161822;
+		border: 1px solid #2a2d3a;
+		border-radius: 10px;
+		max-width: 800px;
+		width: 100%;
+		max-height: calc(100vh - 6rem);
+		overflow-y: auto;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+	}
+	.overlay-close {
+		position: sticky;
+		top: 0;
+		float: right;
+		margin: 0.5rem;
+		background: #1e2030;
+		border: 1px solid #2a2d3a;
+		border-radius: 6px;
+		color: #c9cdd5;
+		font-size: 1.2rem;
+		width: 32px;
+		height: 32px;
+		cursor: pointer;
+		z-index: 1;
+	}
+	.overlay-close:hover { border-color: #8b9cf7; color: #e1e4e8; }
+	.overlay-content {
+		padding: 1.5rem 2rem 2rem;
+		color: #e1e4e8;
+		line-height: 1.7;
+	}
+	.overlay-content :global(h1) { font-size: 1.5rem; margin: 1.5rem 0 0.8rem; color: #e1e4e8; border-bottom: 1px solid #2a2d3a; padding-bottom: 0.3rem; }
+	.overlay-content :global(h2) { font-size: 1.25rem; margin: 1.5rem 0 0.6rem; color: #c9cdd5; border-bottom: 1px solid #1e2030; padding-bottom: 0.2rem; }
+	.overlay-content :global(h3) { font-size: 1.05rem; margin: 1.2rem 0 0.4rem; color: #8b9cf7; }
+	.overlay-content :global(h4) { font-size: 0.95rem; margin: 0.8rem 0 0.3rem; color: #f59e0b; }
+	.overlay-content :global(p) { margin: 0.5rem 0; }
+	.overlay-content :global(code) { background: #1e2030; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.9em; color: #f59e0b; }
+	.overlay-content :global(pre) { background: #0f1117; border: 1px solid #2a2d3a; border-radius: 6px; padding: 0.8rem; overflow-x: auto; }
+	.overlay-content :global(pre code) { background: none; padding: 0; color: #c9cdd5; }
+	.overlay-content :global(ul), .overlay-content :global(ol) { padding-left: 1.5rem; }
+	.overlay-content :global(li) { margin: 0.3rem 0; }
+	.overlay-content :global(strong) { color: #e1e4e8; }
+	.overlay-content :global(blockquote) { border-left: 3px solid #8b9cf7; padding-left: 1rem; margin: 0.5rem 0; color: #9ca3af; }
+	.overlay-content :global(table) { border-collapse: collapse; width: 100%; margin: 0.5rem 0; }
+	.overlay-content :global(th), .overlay-content :global(td) { border: 1px solid #2a2d3a; padding: 0.4rem 0.6rem; font-size: 0.85rem; }
+	.overlay-content :global(th) { background: #1e2030; color: #8b8fa3; text-align: left; }
+	.overlay-content :global(hr) { border: none; border-top: 1px solid #2a2d3a; margin: 1.5rem 0; }
 </style>
