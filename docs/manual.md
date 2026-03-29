@@ -6,7 +6,7 @@ A qualitative data analysis platform grounded in Situational Analysis (Clarke) a
 
 ## Contents
 
-1. [Why Another QDA Tool?](#1-why-another-qda-tool)
+1. [Why transact-qda?](#1-why-transact-qda)
 2. [Foundations](#2-foundations)
    - [2.1 Transactional Ontology](#21-transactional-ontology-deweybentley)
    - [2.2 The Designation Gradient](#22-the-designation-gradient-ccs)

@@ -17,7 +17,12 @@
 			if (res.ok) {
 				const { content } = await res.json();
 				const { marked } = await import('marked');
-				manualHtml = marked(content) as string;
+				const renderer = new marked.Renderer();
+				renderer.heading = ({ text, depth }: { text: string; depth: number }) => {
+					const slug = text.toLowerCase().replace(/[^\w]+/g, '-').replace(/(^-|-$)/g, '');
+					return `<h${depth} id="${slug}">${text}</h${depth}>`;
+				};
+				manualHtml = marked(content, { renderer }) as string;
 			}
 		}
 	}
@@ -99,7 +104,16 @@
 			<div class="overlay-backdrop" onclick={() => overlay = null}>
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="overlay-panel" onclick={e => e.stopPropagation()}>
+				<div class="overlay-panel" onclick={e => {
+					e.stopPropagation();
+					const target = e.target as HTMLElement;
+					if (target.tagName === 'A' && target.getAttribute('href')?.startsWith('#')) {
+						e.preventDefault();
+						const id = target.getAttribute('href')!.slice(1);
+						const el = (e.currentTarget as HTMLElement).querySelector('#' + CSS.escape(id));
+						if (el) el.scrollIntoView({ behavior: 'smooth' });
+					}
+				}}>
 					<button class="overlay-close" onclick={() => overlay = null}>×</button>
 					{#if overlay === 'manual'}
 						<div class="overlay-content manual-content">
