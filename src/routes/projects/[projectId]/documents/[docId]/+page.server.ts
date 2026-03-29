@@ -1,6 +1,7 @@
 import type { PageServerLoad } from './$types.js';
 import { query, queryOne } from '$lib/server/db/index.js';
 import { getAnnotationsByDocument, getAnnotationsByProject, getAnnotationCandidates } from '$lib/server/db/queries/codes.js';
+import { getProjectClusters, getClusterMembers } from '$lib/server/db/queries/maps.js';
 import { error } from '@sveltejs/kit';
 
 export interface DocumentElement {
@@ -30,7 +31,7 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	if (!doc) error(404, 'Document not found');
 
-	const [annotations, candidates, elementsResult, projectAnnotations, documentsResult, stackResult] = await Promise.all([
+	const [annotations, candidates, elementsResult, projectAnnotations, documentsResult, stackResult, clusters] = await Promise.all([
 		getAnnotationsByDocument(params.projectId, params.docId),
 		getAnnotationCandidates(params.projectId),
 		query<DocumentElement>(
@@ -55,8 +56,16 @@ export const load: PageServerLoad = async ({ params }) => {
 			 WHERE n.project_id = $1
 			 ORDER BY na.naming_id, na.seq`,
 			[params.projectId]
-		)
+		),
+		getProjectClusters(params.projectId)
 	]);
+
+	// Resolve cluster members for filter support
+	const clusterMemberMap: Record<string, string[]> = {};
+	for (const c of clusters) {
+		const members = await getClusterMembers(c.id);
+		clusterMemberMap[c.id] = members.map((m: any) => m.naming_id);
+	}
 
 	return {
 		document: doc,
@@ -66,6 +75,8 @@ export const load: PageServerLoad = async ({ params }) => {
 		projectId: params.projectId,
 		projectAnnotations,
 		documents: documentsResult.rows,
-		namingStacks: stackResult.rows
+		namingStacks: stackResult.rows,
+		clusters,
+		clusterMemberMap
 	};
 };

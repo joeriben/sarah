@@ -89,6 +89,11 @@
 	// Similar passages from ComparisonPanel (replaces Passages list when active)
 	let similarPassages = $state<any[] | null>(null);
 
+	// Cluster data
+	const clusters = $derived(data.clusters ?? []);
+	const clusterMemberMap = $derived<Record<string, string[]>>(data.clusterMemberMap ?? {});
+	let clusterFilter = $state<string | null>(null);
+
 	// Passages panel filter + expand
 	let annFilter = $state('');
 	// Namings panel: expanded naming (shows memos)
@@ -99,12 +104,19 @@
 	let namingTooltipText = $state('');
 	let namingTooltipStyle = $state('display:none');
 	let expandedAnnId = $state<string | null>(null);
-	const filteredAnnotations = $derived(
-		annFilter.trim()
-			? scopedAnnotations.filter((a: any) => a.code_label.toLowerCase().includes(annFilter.trim().toLowerCase())
-				|| (a.properties?.anchor?.text || '').toLowerCase().includes(annFilter.trim().toLowerCase()))
-			: scopedAnnotations
-	);
+	const filteredAnnotations = $derived.by(() => {
+		let result = scopedAnnotations;
+		if (clusterFilter) {
+			const memberIds = new Set(clusterMemberMap[clusterFilter] || []);
+			result = result.filter((a: any) => memberIds.has(a.code_id));
+		}
+		if (annFilter.trim()) {
+			const q = annFilter.trim().toLowerCase();
+			result = result.filter((a: any) => a.code_label.toLowerCase().includes(q)
+				|| (a.properties?.anchor?.text || '').toLowerCase().includes(q));
+		}
+		return result;
+	});
 
 	// Image viewer ref
 	let imageViewer = $state<{ clearRegion: () => void }>();
@@ -809,6 +821,21 @@
 					</div>
 				</div>
 			</div>
+			{#if clusters.length > 0}
+				<div class="cluster-filter-row">
+					<select class="cluster-filter-select"
+						value={clusterFilter || ''}
+						onchange={(e) => { const v = (e.target as HTMLSelectElement).value; clusterFilter = v || null; }}>
+						<option value="">All clusters</option>
+						{#each clusters as c}
+							<option value={c.id}>{c.label} ({c.member_count})</option>
+						{/each}
+					</select>
+					{#if clusterFilter}
+						<button class="btn-xs" onclick={() => clusterFilter = null}>×</button>
+					{/if}
+				</div>
+			{/if}
 			{#if !isImage && selection}
 				<div class="comparison-section">
 					<ComparisonPanel
@@ -1195,6 +1222,15 @@
 		overflow-y: auto;
 		padding: 0.4rem 0.5rem;
 	}
+	.cluster-filter-row {
+		display: flex; align-items: center; gap: 0.3rem;
+		padding: 0.2rem 0.6rem; border-bottom: 1px solid #2a2d3a;
+	}
+	.cluster-filter-select {
+		flex: 1; background: #0f1117; border: 1px solid #2a2d3a; border-radius: 4px;
+		padding: 0.2rem 0.4rem; color: #c9cdd5; font-size: 0.75rem;
+	}
+	.cluster-filter-select:focus { outline: none; border-color: #8b9cf7; }
 	.passages-panel .panel-header,
 	.annotations-header {
 		display: flex;

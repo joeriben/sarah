@@ -1041,3 +1041,123 @@ export async function getMapStructure(mapId: string, projectId: string) {
 		designationProfile
 	};
 }
+
+// ---- Project-level cluster operations ----
+
+// Get all clusters in a project (across all maps + grounding workspace)
+export async function getProjectClusters(projectId: string) {
+	return (
+		await query(
+			`SELECT DISTINCT ON (n.id)
+			   n.id, n.inscription as label,
+			   (SELECT count(*) FROM appearances sub
+			    WHERE sub.perspective_id = n.id
+			      AND sub.naming_id != n.id) as member_count,
+			   a.properties->>'parentMapId' as parent_map_id
+			 FROM namings n
+			 JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = n.id
+			   AND a.mode = 'perspective'
+			 WHERE n.project_id = $1
+			   AND n.deleted_at IS NULL
+			   -- Exclude maps themselves (they have mapType in their self-appearance)
+			   AND NOT (a.properties ? 'mapType')
+			   -- Exclude grounding workspace
+			   AND NOT (a.properties->>'role' = 'grounding-workspace')
+			 ORDER BY n.id, n.seq`,
+			[projectId]
+		)
+	).rows;
+}
+
+// Get members of a cluster with their current state
+export async function getClusterMembers(clusterId: string) {
+	return (
+		await query(
+			`SELECT a.naming_id, n.inscription,
+			   (SELECT na.designation FROM naming_acts na
+			    WHERE na.naming_id = n.id AND na.designation IS NOT NULL
+			    ORDER BY na.seq DESC LIMIT 1) as designation,
+			   a.mode, a.properties
+			 FROM appearances a
+			 JOIN namings n ON n.id = a.naming_id AND n.deleted_at IS NULL
+			 WHERE a.perspective_id = $1
+			   AND a.naming_id != $1
+			 ORDER BY n.inscription`,
+			[clusterId]
+		)
+	).rows;
+}
+
+// Get all passages (annotations) for all members of a cluster
+export async function getClusterPassages(clusterId: string, projectId: string) {
+	return (
+		await query(
+			`SELECT ann.naming_id as id, ann.directed_from as code_id,
+			   code.inscription as code_label,
+			   ann.directed_to as document_id,
+			   doc.inscription as document_label,
+			   ann.properties
+			 FROM appearances member
+			 JOIN appearances ann ON ann.directed_from = member.naming_id
+			   AND ann.valence = 'codes'
+			 JOIN namings code ON code.id = ann.directed_from AND code.deleted_at IS NULL
+			 JOIN namings doc ON doc.id = ann.directed_to AND doc.deleted_at IS NULL
+			 WHERE member.perspective_id = $1
+			   AND member.naming_id != $1
+			   AND code.project_id = $2
+			 ORDER BY code.inscription, doc.inscription, (ann.properties->'anchor'->>'pos0')::int`,
+			[clusterId, projectId]
+		)
+	).rows;
+}
+
+// Create a project-level cluster (anchored to grounding workspace)
+export async function createProjectCluster(
+	projectId: string,
+	userId: string,
+	inscription: string
+) {
+	return transaction(async (client) => {
+		const { getOrCreateGroundingWorkspace } = await import('./codes.js');
+		const gwId = await getOrCreateGroundingWorkspace(projectId, userId);
+		const researcherNamingId = await getOrCreateResearcherNaming(projectId, userId);
+
+		// The cluster is a naming
+		const clusterRes = await client.query(
+			`INSERT INTO namings (project_id, inscription, created_by)
+			 VALUES ($1, $2, $3) RETURNING *`,
+			[projectId, inscription, userId]
+		);
+		const cluster = clusterRes.rows[0];
+
+		// Self-referential appearance
+		await client.query(
+			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
+			 VALUES ($1, $1, 'perspective', $2)`,
+			[cluster.id, JSON.stringify({ parentMapId: gwId })]
+		);
+
+		// Appear on grounding workspace as sub-perspective
+		await client.query(
+			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
+			 VALUES ($1, $2, 'perspective', '{}')`,
+			[cluster.id, gwId]
+		);
+
+		// Participation: cluster co-constitutes with grounding workspace
+		await client.query(
+			`INSERT INTO participations (id, naming_id, participant_id)
+			 VALUES ($1, $2, $3)`,
+			[cluster.id, cluster.id, gwId]
+		);
+
+		// Clustering IS characterizing (D/B)
+		await client.query(
+			`INSERT INTO naming_acts (naming_id, designation, by)
+			 VALUES ($1, 'characterization', $2)`,
+			[cluster.id, researcherNamingId]
+		);
+
+		return cluster;
+	});
+}
