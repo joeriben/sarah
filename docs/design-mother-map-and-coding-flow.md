@@ -1,4 +1,4 @@
-# Mother Map, Doc-Clusters, and the Coding→Mapping Flow
+# Primary Situational Map, Doc-Clusters, and the Coding→Mapping Flow
 
 Design decision document. Established session 30 (2026-04-12).
 
@@ -13,7 +13,7 @@ Clarke (2005) assumes coding happens first and maps come "on top." Clarke (2018)
 
 The transact-qda ontology already resolves this at the data level (codes ARE namings, the CCS gradient replaces the open/axial/selective phase distinction), but the UI has no workflow that connects coding a document to building the situational map. The two activities live on separate pages with no bridge.
 
-## Design Decision: One Mother Map per Project
+## Design Decision: One Primary Situational Map per Project
 
 ### Clarke's actual practice
 
@@ -25,12 +25,12 @@ Clarke describes ONE situational map that grows and evolves:
 
 Relational Maps are not independent maps. They are focused interrogations of the one map. Social Worlds/Arenas Maps and Positional Maps are different map TYPES, not additional situational maps.
 
-### The Situational Map (Primary/Mother Map)
+### The Situational Map
 
 Each project has one primary Situational Map — simply called **"Situational Map"** in the UI. It is the accumulating analytical space where all namings converge. Like Clarke's definite article ("the situational map"), it needs no qualifying name — it IS the analysis.
 
 - Created automatically with the project (or on first coding act)
-- Marked as primary (`is_mother: true`); cannot be deleted while project has namings
+- Marked as primary (`isPrimary: true` in perspective properties); cannot be deleted while project has namings
 - All namings from document coding default to this map — no "which map?" prompt
 - The map starts messy (all cues, no relations, no clusters) and becomes ordered through CCS progress
 - The stack IS the revision history (messy → ordered is not a mode switch but the aggregate designation state)
@@ -38,11 +38,13 @@ Each project has one primary Situational Map — simply called **"Situational Ma
 
 Additional SitMaps are permitted (e.g., for different research questions within one corpus), but only ONE is the primary — the default target for all coding. The primary is visually marked (● in map list). Switching the primary is a deliberate act with a confirmation prompt ("All future coding will target map X").
 
-### What "landing on the Mother Map" means
+**Epistemological grounding**: The primary map's **list** is the source of truth — the privileged, complete, dimensionless representation of all namings (per the three-layer hierarchy: data structure → list → canvas). The canvas is a derivative projection. This is not a new concept but the existing architectural principle applied to the coding→mapping bridge: coding produces namings that enter the list; the canvas is where they get spatially situated.
+
+### What "landing on the Situational Map" means
 
 When a researcher codes a document passage and creates a naming, that naming:
 
-1. Gets an Appearance on the Mother Map's perspective
+1. Gets an Appearance on the primary Situational Map's perspective
 2. Has **no canvas coordinates** — it exists in the list but not on the canvas
 3. Is visible in the left-column list, marked as "unplaced"
 4. Waits for the researcher to deliberately drag it onto the canvas
@@ -84,7 +86,7 @@ The indicator is deliberately prominent. The analytical process aims for full re
 
 ### The concept
 
-A **Doc-Cluster** is a query-based cluster that shows all namings on the Mother Map grounded in a specific document. It is not manually assigned — it is derived from the document-anchor relationship.
+A **Doc-Cluster** is a query-based cluster that shows all namings on the Situational Map grounded in a specific document. It is not manually assigned — it is derived from the document-anchor relationship.
 
 ```
 Manual Cluster:  cluster_memberships → naming_ids → highlight on map
@@ -145,8 +147,8 @@ There is no fixed sequence. The workflow is bidirectional:
 
 ```
 1. Open document, select passage, create naming (= grounded cue)
-2. Naming appears in Mother Map list (unplaced)
-3. Switch to Mother Map (or open in second tab)
+2. Naming appears in Situational Map list (unplaced)
+3. Switch to Situational Map (or open in second tab)
 4. See new unplaced namings in list
 5. Drag onto canvas — analytical placement act
 6. Clustering and relating follow naturally
@@ -155,7 +157,7 @@ There is no fixed sequence. The workflow is bidirectional:
 ### Map → Coding (theory-first)
 
 ```
-1. On Mother Map, create naming from analytical intuition (= ungrounded cue, ∅)
+1. On Situational Map, create naming from analytical intuition (= ungrounded cue, ∅)
 2. Provenance indicator shows: ∅ (no document anchor)
 3. Open documents, look for evidence
 4. Code passages with the existing naming (= grounding the cue)
@@ -177,10 +179,10 @@ The system shows these states. The researcher decides the order. "Messy" is when
 
 ### Situational Map creation
 - Auto-created with project, or on first naming act that needs a map
-- Marked as `is_mother: true` in the perspectives/maps table
+- Marked as `isPrimary: true` in perspective properties (JSONB)
 - Default inscription: "Situational Map"
 - Cannot be deleted while project has namings
-- Additional SitMaps permitted; only one can be `is_mother: true` at a time
+- Additional SitMaps permitted; only one can be `isPrimary: true` at a time
 
 ### Unresolved namings
 - Appearance record exists (naming is on this map's perspective) but `properties.x` and `properties.y` are null AND not declined
@@ -195,20 +197,20 @@ The system shows these states. The researcher decides the order. "Messy" is when
 - Cached per page load, invalidated on annotation changes
 
 ### Coding page integration
-- When creating an annotation, the naming automatically gets an Appearance on the Mother Map (if not already present)
+- When creating an annotation, the naming automatically gets an Appearance on the Situational Map (if not already present)
 - No UI prompt for map selection
-- The document page could show a subtle indicator: "3 new namings → Mother Map" after a coding session
+- The document page could show a subtle indicator: "3 new namings → Situational Map" after a coding session
 
 ## Relation to Existing Design Documents
 
-- **design-provenance-and-codes.md**: Codes as derived view from maps — the Mother Map IS where codes live. The "code list" is a query on the Mother Map's grounded namings.
-- **design-clusters.md**: Clusters as characterization — manual clusters on the Mother Map are the primary clustering mechanism. Doc-Clusters extend this with query-based provenance clusters.
-- **design-documents-and-docnets.md**: DocNets group documents. A DocNet-Cluster would be the union of its documents' Doc-Clusters. The "Generate SitMap from DocNet" operation (point 4) becomes: "Generate a secondary map from the Mother Map, filtered to namings grounded in this DocNet's documents."
+- **design-provenance-and-codes.md**: Codes as derived view from maps — the Situational Map IS where codes live. The "code list" is a query on the Situational Map's grounded namings.
+- **design-clusters.md**: Clusters as characterization — manual clusters on the Situational Map are the primary clustering mechanism. Doc-Clusters extend this with query-based provenance clusters.
+- **design-documents-and-docnets.md**: DocNets group documents. A DocNet-Cluster would be the union of its documents' Doc-Clusters. The "Generate SitMap from DocNet" operation (point 4) becomes: "Generate a secondary map from the Situational Map, filtered to namings grounded in this DocNet's documents."
 
 ## Resolved Questions (Session 30)
 
 1. **Name**: "Situational Map" — definite article, like Clarke. No qualifying name needed for the primary. Additional SitMaps (if created) require names.
-2. **Multiple SitMaps**: Permitted, but only one is primary (`is_mother: true`). The primary is the default target for all coding. Switching primary requires confirmation.
+2. **Multiple SitMaps**: Permitted, but only one is primary (`isPrimary: true`). The primary is the default target for all coding. Its list is the source of truth (three-layer hierarchy). Switching primary requires confirmation.
 3. **Unresolved indicator**: Prominent. Full resolution (placed or declined) is the methodological goal. The system communicates this clearly: `7 unresolved [show]` → `✓ all resolved`.
 4. **No "Phase" for secondary maps**: Rejected after critical examination. D/B's "Phase" is ontological (aspects of fact), not methodological (researcher's analytical operations). The UX confusion that motivated Phase→Cluster rename applies equally here. Secondary maps are simply maps with a type attribute.
 
