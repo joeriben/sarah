@@ -21,7 +21,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 						send('progress', progress);
 					});
 
-					send('done', { mapId: result.mapId, summary: result.summary });
+					send('done', { mapId: result.mapId, summary: result.summary, runId: result.runId });
 				} catch (error) {
 					const msg = error instanceof Error ? error.message : String(error);
 					send('error', { error: msg });

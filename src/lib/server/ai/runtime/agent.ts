@@ -20,7 +20,7 @@ import { retrieveComparisonMaterial } from '../coding-companion/index.js';
 import { createMemo } from '../../db/queries/memos.js';
 import { getMap } from '../../db/queries/maps.js';
 import { query, transaction } from '../../db/index.js';
-import { executeMapTool, executeCueDiscussionTool, executeMemoDiscussionTool, executeAutonomousTool, isAiEnabled } from './tool-executor.js';
+import { executeMapTool, executeCueDiscussionTool, executeMemoDiscussionTool, executeAutonomousTool, isAiEnabled, type WriteProvenance } from './tool-executor.js';
 import { buildContextMessage, buildDiscussionMessage, buildMemoDiscussionMessage, DISCUSSION_SYSTEM_PROMPT, MEMO_DISCUSSION_PROMPT, type TriggerEvent, type DiscussionContext, type MemoDiscussionContext } from '../prompts.js';
 import { DISCUSSION_TOOLS, MEMO_DISCUSSION_TOOLS } from '../tools.js';
 import type { ToolDef } from '../client.js';
@@ -290,7 +290,7 @@ export async function runMapAgent(
 				continue;
 			}
 			// Map-specific tools (naming acts)
-			const result = await executeMapTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+			const result = await executeMapTool(tc.name, tc.input, projectId, mapId, aiNamingId, { persona: 'cowork' });
 			toolResults.push({ tool: tc.name, input: tc.input, result: result.result });
 		}
 
@@ -602,7 +602,8 @@ async function executeToolLoop(
 	projectId: string,
 	mapId: string,
 	aiNamingId: string,
-	progress: (p: Partial<AutonomousProgress>) => void
+	progress: (p: Partial<AutonomousProgress>) => void,
+	prov: WriteProvenance
 ): Promise<{ text: string; totalToolCalls: number }> {
 	const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
 		{ role: 'user', content: initialMessage }
@@ -638,12 +639,12 @@ async function executeToolLoop(
 					result = infraResult;
 				} else {
 					// Try autonomous-specific tools
-					const autonomousResult = await executeAutonomousTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+					const autonomousResult = await executeAutonomousTool(tc.name, tc.input, projectId, mapId, aiNamingId, prov);
 					if (autonomousResult.success || ['read_document', 'code_passage', 'designate'].includes(tc.name)) {
 						result = autonomousResult;
 					} else {
 						// Try map tools
-						result = await executeMapTool(tc.name, tc.input, projectId, mapId, aiNamingId);
+						result = await executeMapTool(tc.name, tc.input, projectId, mapId, aiNamingId, prov);
 					}
 				}
 			} catch (err) {
@@ -722,11 +723,16 @@ async function processSegmentDirectly(
 export async function runAutonomousAnalysis(
 	projectId: string,
 	onProgress?: (progress: AutonomousProgress) => void
-): Promise<{ mapId: string; summary: string }> {
+): Promise<{ mapId: string; summary: string; runId: string }> {
 	const model = getModel();
 	const aiNamingId = await getOrCreateAiNaming(projectId, model);
 	const persona = getPersona('autonomous');
 	const progress = (p: AutonomousProgress) => onProgress?.(p);
+
+	// Every autonomous run gets its own runId; stamped on every write so the run
+	// can be listed, filtered, or rolled back as a unit.
+	const runId = crypto.randomUUID();
+	const prov: WriteProvenance = { persona: 'autonoma', runId };
 
 	progress({ phase: 'starting', message: 'Listing documents and preparing map...' });
 
@@ -1006,7 +1012,7 @@ When in doubt, skip — a missed passage can be found later, but code inflation 
 
 			const result = await executeAutonomousTool(
 				'code_passage', toolInput,
-				projectId, mapId, aiNamingId
+				projectId, mapId, aiNamingId, prov
 			);
 
 			if (result.success) {
@@ -1090,7 +1096,8 @@ INSTRUCTIONS:
 			await executeToolLoop(
 				systemPrompt, tools, consolidationMessage,
 				projectId, mapId, aiNamingId,
-				(p2) => progress({ phase: 'coding', document: doc.title, ...p2 })
+				(p2) => progress({ phase: 'coding', document: doc.title, ...p2 }),
+				prov
 			);
 		}
 
@@ -1107,7 +1114,8 @@ Write a memo (use write_memo tool) with title "Document: ${doc.title}" summarizi
 		await executeToolLoop(
 			systemPrompt, tools, docMemoMessage,
 			projectId, mapId, aiNamingId,
-			(p2) => progress({ phase: 'coding', document: doc.title, ...p2 })
+			(p2) => progress({ phase: 'coding', document: doc.title, ...p2 }),
+			prov
 		);
 
 		// Increment coding_runs counter for this document
@@ -1165,7 +1173,8 @@ INSTRUCTIONS:
 	await executeToolLoop(
 		systemPrompt, tools, crossMessage,
 		projectId, mapId, aiNamingId,
-		(p) => progress({ phase: 'cross-analysis', ...p })
+		(p) => progress({ phase: 'cross-analysis', ...p }),
+		prov
 	);
 
 	} // end if (docs.length >= 2)
@@ -1203,14 +1212,15 @@ Do NOT create new namings. Focus on the integrative memo only.`;
 	const { text: integrationText } = await executeToolLoop(
 		systemPrompt, tools, integrationMessage,
 		projectId, mapId, aiNamingId,
-		(p) => progress({ phase: 'integration', ...p })
+		(p) => progress({ phase: 'integration', ...p }),
+		prov
 	);
 
 	const summary = integrationText || 'Analysis complete.';
 
 	progress({ phase: 'done', message: summary.slice(0, 200) });
 
-	return { mapId, summary };
+	return { mapId, summary, runId };
 }
 
 // Helper: get or create a situational map for autonomous analysis

@@ -22,6 +22,23 @@ import {
 
 const AI_SYSTEM_UUID = '00000000-0000-0000-0000-000000000000';
 
+// ── Persona provenance ───────────────────────────────────────────
+// Every AI write tags its appearances/annotations with {aiPersona, aiRunId?}
+// so filters (hide by persona) and rollback (revert a run) can target them.
+
+export type AiPersona = 'cowork' | 'autonoma';
+export type WriteProvenance = { persona: AiPersona; runId?: string };
+
+const DEFAULT_PROV: WriteProvenance = { persona: 'cowork' };
+
+function personaLabelOf(prov: WriteProvenance): string {
+	return prov.persona === 'autonoma' ? 'Autonoma' : 'Cowork';
+}
+
+export function provenanceProps(prov: WriteProvenance): Record<string, unknown> {
+	return prov.runId ? { aiPersona: prov.persona, aiRunId: prov.runId } : { aiPersona: prov.persona };
+}
+
 // ── Map agent tool execution ─────────────────────────────────────
 
 export async function executeMapTool(
@@ -30,13 +47,14 @@ export async function executeMapTool(
 	projectId: string,
 	mapId: string,
 	aiNamingId: string,
-	personaLabel: string = 'Cowork'
+	prov: WriteProvenance = DEFAULT_PROV
 ): Promise<{ success: boolean; result: unknown }> {
+	const personaLabel = personaLabelOf(prov);
 	try {
 		switch (toolName) {
 			case 'suggest_element': {
 				const { inscription, reasoning } = input as unknown as SuggestElementInput;
-				const element = await addElementToAiMap(projectId, aiNamingId, mapId, inscription, { aiReasoning: reasoning });
+				const element = await addElementToAiMap(projectId, aiNamingId, mapId, inscription, { aiReasoning: reasoning }, prov);
 				emit(mapId, 'ai:element', { element, reasoning });
 				return { success: true, result: { id: element.id, inscription } };
 			}
@@ -45,14 +63,14 @@ export async function executeMapTool(
 				const { source_id, target_id, inscription, valence, symmetric, reasoning } = input as unknown as SuggestRelationInput;
 				const relation = await relateElementsAsAi(projectId, aiNamingId, mapId, source_id, target_id, {
 					inscription, valence, symmetric, properties: { aiReasoning: reasoning }
-				});
+				}, prov);
 				emit(mapId, 'ai:relation', { relation, reasoning });
 				return { success: true, result: { id: relation.id, sourceId: source_id, targetId: target_id } };
 			}
 
 			case 'identify_silence': {
 				const { inscription, reasoning } = input as unknown as IdentifySilenceInput;
-				const silence = await addSilenceToMap(projectId, aiNamingId, mapId, inscription, { aiReasoning: reasoning });
+				const silence = await addSilenceToMap(projectId, aiNamingId, mapId, inscription, { aiReasoning: reasoning }, prov);
 				emit(mapId, 'ai:silence', { silence, reasoning });
 				return { success: true, result: { id: silence.id, inscription } };
 			}
@@ -72,7 +90,7 @@ export async function executeMapTool(
 
 			case 'create_cluster': {
 				const { inscription, element_ids, reasoning } = input as unknown as CreateClusterInput;
-				const cluster = await createClusterAsAi(projectId, aiNamingId, mapId, inscription, { aiReasoning: reasoning });
+				const cluster = await createClusterAsAi(projectId, aiNamingId, mapId, inscription, { aiReasoning: reasoning }, prov);
 				for (const elementId of element_ids) {
 					await assignToCluster(cluster.id, elementId, undefined, undefined, aiNamingId);
 				}
@@ -93,7 +111,7 @@ export async function executeMapTool(
 				const defaults = SW_ROLE_DEFAULTS[sw_role] || SW_ROLE_DEFAULTS['social-world'];
 				const element = await addElementToAiMap(projectId, aiNamingId, mapId, inscription, {
 					...defaults, aiReasoning: reasoning
-				});
+				}, prov);
 				await createMemo(projectId, AI_SYSTEM_UUID,
 					`Formation: ${sw_role}`, reasoning, [element.id]);
 				emit(mapId, 'ai:formation', { element, swRole: sw_role, reasoning });
@@ -107,7 +125,7 @@ export async function executeMapTool(
 					y: -Math.max(0, Math.min(800, y)),
 					absent: absent || false,
 					aiReasoning: reasoning
-				});
+				}, prov);
 				emit(mapId, 'ai:element', { element, reasoning });
 				return { success: true, result: { id: element.id, inscription, x, y, absent } };
 			}
@@ -131,7 +149,7 @@ export async function executeMapTool(
 					y: -Math.max(0, Math.min(800, y)),
 					absent: true,
 					aiReasoning: reasoning
-				});
+				}, prov);
 				emit(mapId, 'ai:element', { element, reasoning });
 				return { success: true, result: { id: element.id, inscription, x, y } };
 			}
@@ -238,8 +256,9 @@ export async function executeAutonomousTool(
 	projectId: string,
 	mapId: string,
 	aiNamingId: string,
-	personaLabel: string = 'Autonoma'
+	prov: WriteProvenance = { persona: 'autonoma' }
 ): Promise<{ success: boolean; result: unknown }> {
+	const personaLabel = personaLabelOf(prov);
 	try {
 		switch (toolName) {
 			case 'read_document': {
@@ -319,7 +338,7 @@ export async function executeAutonomousTool(
 					}
 
 					const anchor = { pos0: char_start, pos1: char_end, text, elementId: element_id };
-					return await createCodeAndAnnotation(projectId, mapId, aiNamingId, document_id, code_label, anchor, reasoning);
+					return await createCodeAndAnnotation(projectId, mapId, aiNamingId, document_id, code_label, anchor, reasoning, prov);
 				}
 
 				if (passage) {
@@ -346,11 +365,11 @@ export async function executeAutonomousTool(
 						const origStart = mapNormalizedPosToOriginal(fullText, normPos);
 						const origEnd = mapNormalizedPosToOriginal(fullText, normPos + normPassage.length);
 						const anchor = { pos0: origStart, pos1: origEnd, text: fullText.slice(origStart, origEnd) };
-						return await createCodeAndAnnotation(projectId, mapId, aiNamingId, document_id, code_label, anchor, reasoning);
+						return await createCodeAndAnnotation(projectId, mapId, aiNamingId, document_id, code_label, anchor, reasoning, prov);
 					}
 
 					const anchor = { pos0, pos1: pos0 + passage.length, text: passage };
-					return await createCodeAndAnnotation(projectId, mapId, aiNamingId, document_id, code_label, anchor, reasoning);
+					return await createCodeAndAnnotation(projectId, mapId, aiNamingId, document_id, code_label, anchor, reasoning, prov);
 				}
 
 				return { success: false, result: 'Either element_id or passage is required' };
@@ -478,7 +497,8 @@ async function createCodeAndAnnotation(
 	documentId: string,
 	codeLabel: string,
 	anchor: { pos0: number; pos1: number; text: string; elementId?: string },
-	reasoning: string
+	reasoning: string,
+	prov: WriteProvenance = DEFAULT_PROV
 ): Promise<{ success: boolean; result: unknown }> {
 	// Check if code already exists (case-insensitive)
 	const existing = await query(
@@ -498,7 +518,8 @@ async function createCodeAndAnnotation(
 	} else {
 		// Create new code naming on grounding workspace
 		const code = await createOrphanNaming(projectId, AI_SYSTEM_UUID, codeLabel, {
-			description: reasoning
+			description: reasoning,
+			provenance: provenanceProps(prov)
 		});
 		codeId = code.id;
 		isNewCode = true;
@@ -516,7 +537,7 @@ async function createCodeAndAnnotation(
 	// Create annotation (grounded relation: code → document with passage anchor)
 	await createAnnotation(
 		projectId, AI_SYSTEM_UUID, codeId, documentId,
-		'text', anchor, reasoning
+		'text', anchor, reasoning, provenanceProps(prov)
 	);
 
 	// Place code on map if not already there
@@ -528,7 +549,7 @@ async function createCodeAndAnnotation(
 		await query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $2, 'entity', $3)`,
-			[codeId, mapId, JSON.stringify({ aiSuggested: true, aiReasoning: reasoning })]
+			[codeId, mapId, JSON.stringify({ aiSuggested: true, aiReasoning: reasoning, ...provenanceProps(prov) })]
 		);
 	}
 
@@ -552,7 +573,8 @@ async function addElementToAiMap(
 	aiNamingId: string,
 	mapId: string,
 	inscription: string,
-	properties?: Record<string, unknown>
+	properties?: Record<string, unknown>,
+	prov: WriteProvenance = DEFAULT_PROV
 ) {
 	return transaction(async (client) => {
 		// Dedup: check if a naming with the same label already exists on this map
@@ -577,7 +599,7 @@ async function addElementToAiMap(
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $2, 'entity', $3)`,
-			[naming.id, mapId, JSON.stringify({ ...properties, aiSuggested: true })]
+			[naming.id, mapId, JSON.stringify({ ...properties, aiSuggested: true, ...provenanceProps(prov) })]
 		);
 
 		await client.query(
@@ -596,7 +618,8 @@ async function relateElementsAsAi(
 	mapId: string,
 	sourceId: string,
 	targetId: string,
-	opts?: { inscription?: string; valence?: string; symmetric?: boolean; properties?: Record<string, unknown> }
+	opts?: { inscription?: string; valence?: string; symmetric?: boolean; properties?: Record<string, unknown> },
+	prov: WriteProvenance = DEFAULT_PROV
 ) {
 	return transaction(async (client) => {
 		const partNamingRes = await client.query(
@@ -617,7 +640,7 @@ async function relateElementsAsAi(
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, directed_from, directed_to, valence, properties)
 			 VALUES ($1, $2, 'relation', $3, $4, $5, $6)`,
-			[partNaming.id, mapId, dirFrom, dirTo, opts?.valence || null, JSON.stringify({ ...opts?.properties, aiSuggested: true })]
+			[partNaming.id, mapId, dirFrom, dirTo, opts?.valence || null, JSON.stringify({ ...opts?.properties, aiSuggested: true, ...provenanceProps(prov) })]
 		);
 
 		await client.query(
@@ -635,7 +658,8 @@ async function addSilenceToMap(
 	aiNamingId: string,
 	mapId: string,
 	inscription: string,
-	properties?: Record<string, unknown>
+	properties?: Record<string, unknown>,
+	prov: WriteProvenance = DEFAULT_PROV
 ) {
 	return transaction(async (client) => {
 		const namingRes = await client.query(
@@ -648,7 +672,7 @@ async function addSilenceToMap(
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $2, 'silence', $3)`,
-			[naming.id, mapId, JSON.stringify({ ...properties, aiSuggested: true })]
+			[naming.id, mapId, JSON.stringify({ ...properties, aiSuggested: true, ...provenanceProps(prov) })]
 		);
 
 		await client.query(
@@ -666,7 +690,8 @@ async function createClusterAsAi(
 	aiNamingId: string,
 	mapId: string,
 	inscription: string,
-	properties?: Record<string, unknown>
+	properties?: Record<string, unknown>,
+	prov: WriteProvenance = DEFAULT_PROV
 ) {
 	return transaction(async (client) => {
 		const clusterRes = await client.query(
@@ -679,13 +704,13 @@ async function createClusterAsAi(
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $1, 'perspective', $2)`,
-			[cluster.id, JSON.stringify({ parentMapId: mapId, ...properties, aiSuggested: true })]
+			[cluster.id, JSON.stringify({ parentMapId: mapId, ...properties, aiSuggested: true, ...provenanceProps(prov) })]
 		);
 
 		await client.query(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
 			 VALUES ($1, $2, 'perspective', $3)`,
-			[cluster.id, mapId, JSON.stringify({ ...properties, aiSuggested: true })]
+			[cluster.id, mapId, JSON.stringify({ ...properties, aiSuggested: true, ...provenanceProps(prov) })]
 		);
 
 		await client.query(

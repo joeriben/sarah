@@ -84,7 +84,7 @@ export async function createOrphanNaming(
 	projectId: string,
 	userId: string,
 	label: string,
-	opts?: { color?: string; description?: string }
+	opts?: { color?: string; description?: string; provenance?: Record<string, unknown> }
 ) {
 	return transaction(async (client) => {
 		const perspectiveId = await getOrCreateGroundingWorkspace(projectId, userId);
@@ -111,7 +111,7 @@ export async function createOrphanNaming(
 		const naming = namingRes.rows[0];
 
 		// It appears as entity from the grounding workspace
-		const props: Record<string, unknown> = {};
+		const props: Record<string, unknown> = { ...(opts?.provenance || {}) };
 		if (opts?.color) props.color = opts.color;
 		if (opts?.description) props.description = opts.description;
 
@@ -133,11 +133,12 @@ export async function createOrphanNaming(
 			[projectId]
 		);
 		if (primaryMap.rows.length > 0) {
+			const primaryProps = opts?.provenance ? JSON.stringify(opts.provenance) : '{}';
 			await client.query(
 				`INSERT INTO appearances (naming_id, perspective_id, mode, properties)
-				 VALUES ($1, $2, 'entity', '{}')
+				 VALUES ($1, $2, 'entity', $3)
 				 ON CONFLICT (naming_id, perspective_id) DO NOTHING`,
-				[naming.id, primaryMap.rows[0].id]
+				[naming.id, primaryMap.rows[0].id, primaryProps]
 			);
 		}
 
@@ -152,7 +153,8 @@ export async function createAnnotation(
 	documentId: string,
 	anchorType: 'text' | 'image_region',
 	anchor: Record<string, unknown>,
-	comment?: string
+	comment?: string,
+	provenance?: Record<string, unknown>
 ) {
 	return transaction(async (client) => {
 		const perspectiveId = await getOrCreateGroundingWorkspace(projectId, userId);
@@ -200,7 +202,7 @@ export async function createAnnotation(
 			`INSERT INTO appearances (naming_id, perspective_id, mode, directed_from, directed_to, valence, properties)
 			 VALUES ($1, $2, 'relation', $3, $4, 'codes', $5)`,
 			[annId, perspectiveId, codeId, documentId,
-			 JSON.stringify({ anchorType, anchor, comment: comment || null })]
+			 JSON.stringify({ anchorType, anchor, comment: comment || null, ...(provenance || {}) })]
 		);
 
 		// Ensure the code naming has an appearance on the primary Situational Map.
