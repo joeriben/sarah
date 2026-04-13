@@ -6,8 +6,8 @@ import { startPeriodicSync } from '$lib/server/project-sync/index.js';
 import { slugify } from '$lib/server/files/index.js';
 
 export const load: LayoutServerLoad = async ({ params, locals }) => {
-	const project = await queryOne<{ id: string; name: string; description: string | null; role: string }>(
-		`SELECT p.id, p.name, p.description, pm.role
+	const project = await queryOne<{ id: string; name: string; description: string | null; role: string; properties: Record<string, unknown> | null }>(
+		`SELECT p.id, p.name, p.description, p.properties, pm.role
 		 FROM projects p
 		 JOIN project_members pm ON pm.project_id = p.id
 		 WHERE p.id = $1 AND pm.user_id = $2`,

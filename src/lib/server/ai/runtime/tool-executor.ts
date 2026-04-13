@@ -733,15 +733,23 @@ async function createClusterAsAi(
 // ── Map AI state ─────────────────────────────────────────────────
 
 export async function isAiEnabled(mapId: string): Promise<boolean> {
-	const map = await query(
-		`SELECT a.properties FROM appearances a
+	// Read both the map-level appearance properties and the owning project's
+	// AI-modes setting in a single query. The map's readOnly flag still wins
+	// (read-only maps never trigger reactive responses). Otherwise, reactive
+	// Cowork is off by default and only on when the project enables it.
+	const row = await query<{ map_props: Record<string, any> | null; project_props: Record<string, any> | null }>(
+		`SELECT a.properties as map_props, p.properties as project_props
+		 FROM appearances a
+		 JOIN namings n ON n.id = a.naming_id
+		 JOIN projects p ON p.id = n.project_id
 		 WHERE a.naming_id = $1 AND a.perspective_id = $1 AND a.mode = 'perspective'`,
 		[mapId]
 	);
-	if (map.rows.length === 0) return false;
-	const props = map.rows[0].properties;
-	if (props?.readOnly) return false;
-	return props?.aiEnabled !== false;
+	if (row.rows.length === 0) return false;
+	const mapProps = row.rows[0].map_props || {};
+	const projectProps = row.rows[0].project_props || {};
+	if (mapProps.readOnly) return false;
+	return projectProps.coworkReactive === true;
 }
 
 export async function setAiEnabled(mapId: string, enabled: boolean): Promise<void> {

@@ -1,6 +1,7 @@
-import { json } from '@sveltejs/kit';
+import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
 import { runAutonomousAnalysis, type AutonomousProgress } from '$lib/server/ai/runtime/index.js';
+import { queryOne } from '$lib/server/db/index.js';
 
 export const POST: RequestHandler = async ({ params, request }) => {
 	const { projectId } = params;
@@ -8,6 +9,15 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	const { action } = body;
 
 	if (action === 'start') {
+		// Autonoma is project-gated: opt-in via Project Settings to avoid
+		// accidentally bulk-coding a non-empty project.
+		const proj = await queryOne<{ properties: Record<string, unknown> | null }>(
+			`SELECT properties FROM projects WHERE id = $1`,
+			[projectId]
+		);
+		if (!proj || (proj.properties as any)?.autonomaEnabled !== true) {
+			error(403, 'Autonoma is disabled for this project. Enable it in Project Settings first.');
+		}
 		// SSE streaming response — client sees Autonomous's thinking live
 		const encoder = new TextEncoder();
 		const stream = new ReadableStream({
