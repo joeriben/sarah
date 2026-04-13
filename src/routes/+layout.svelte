@@ -419,11 +419,15 @@
 		to { transform: rotate(360deg); }
 	}
 
-	/* Content */
+	/* Content
+	 * Bounded flex child of .app (height: 100vh). Does NOT scroll itself —
+	 * scrolling is delegated to .project-content (or to inline columns on
+	 * pages that need their own scroll containers). This keeps the app
+	 * header and the project sidebar fixed in place. */
 	.content {
 		flex: 1;
-		overflow-y: auto;
-		height: 0; /* flex child: let flex: 1 control actual height */
+		min-height: 0;
+		overflow: hidden;
 	}
 
 	/* Overlay */

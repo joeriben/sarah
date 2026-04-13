@@ -265,18 +265,17 @@
 	.project-layout {
 		display: flex;
 		gap: 0;
-		min-height: 100%;
+		height: 100%;
+		min-height: 0;
 	}
 
 	.project-sidebar {
 		width: 200px;
+		flex-shrink: 0;
 		padding: 1.25rem;
 		border-right: 1px solid #2a2d3a;
 		background: #13151e;
-		position: sticky;
-		top: 0;
-		align-self: flex-start;
-		height: 100vh;
+		overflow-y: auto;
 	}
 
 	.project-sidebar h2 {
@@ -538,6 +537,8 @@
 
 	.project-content {
 		flex: 1;
+		min-width: 0;
 		padding: 2rem;
+		overflow-y: auto;
 	}
 </style>

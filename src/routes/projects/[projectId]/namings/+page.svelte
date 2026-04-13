@@ -1168,7 +1168,7 @@
 <style>
 	.namings-layout {
 		display: flex;
-		height: 100vh;
+		height: 100%;
 		overflow: hidden;
 	}
 
@@ -1178,7 +1178,7 @@
 		max-width: 800px;
 		padding-bottom: 2rem;
 		overflow-y: auto;
-		height: 100vh;
+		height: 100%;
 		padding-right: 1rem;
 	}
 
@@ -1189,7 +1189,7 @@
 		border-left: 1px solid #2a2d3a;
 		padding: 1rem;
 		overflow-y: auto;
-		height: 100vh;
+		height: 100%;
 		background: #13151e;
 	}
 	.cluster-panel-header {

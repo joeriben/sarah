@@ -516,7 +516,9 @@
 <style>
 	.map-page {
 		display: flex; flex-direction: column;
-		height: calc(100vh - 6rem); margin: -2rem;
+		/* Fill the bounded .project-content (Session 32 layout discipline)
+		 * and overlap its 2rem padding so the map reaches the edges. */
+		height: calc(100% + 4rem); margin: -2rem;
 	}
 
 	/* Status bar */

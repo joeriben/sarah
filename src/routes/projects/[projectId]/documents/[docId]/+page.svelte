@@ -1101,17 +1101,35 @@
 {/if}
 
 <style>
-	.doc-viewer { }
+	/* Layout discipline (Session 32): the doc viewer fits exactly into its
+	 * parent .project-content. Nothing scrolls the page or the project
+	 * sidebar; scroll happens INSIDE columns. The code-margin sits inside
+	 * the same scroll container as the text so its labels stay glued to
+	 * the spans they annotate (positions are absolute relative to the
+	 * shared scroll container, so when the container scrolls both the text
+	 * and the labels move together). */
+	.doc-viewer {
+		height: 100%;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
 
 	.doc-body {
+		flex: 1;
+		min-height: 0;
 		display: flex;
 		gap: 1rem;
+		overflow: hidden;
 	}
 
 	.doc-with-margin {
 		flex: 1;
-		display: flex;
 		min-width: 0;
+		min-height: 0;
+		display: flex;
+		overflow-y: auto;
+		overflow-x: hidden;
 		background: #161822;
 		border: 1px solid #2a2d3a;
 		border-radius: 8px;
@@ -1153,21 +1171,14 @@
 		cursor: col-resize;
 		background: #2a2d3a;
 		transition: background 0.15s;
-		position: sticky;
-		top: 0;
-		align-self: flex-start;
-		height: 100vh;
 	}
 	.margin-divider:hover { background: #8b9cf7; }
 
-	/* Code margin column — sticky, stays in place while document scrolls */
+	/* Code margin column — flex-stretches to text height, scrolls together
+	 * with the text inside .doc-with-margin (single shared scroll container). */
 	.code-margin {
 		flex-shrink: 0;
-		position: sticky;
-		top: 0;
-		align-self: flex-start;
-		height: 100vh;
-		overflow: hidden;
+		position: relative;
 		padding-left: 0.4rem;
 	}
 	.margin-label {
@@ -1239,14 +1250,10 @@
 	}
 	.coded-text:hover > .code-tooltip { display: block; }
 
-	/* Namings panel: permanent code overview */
+	/* Namings panel: permanent code overview — flex item, height handled by parent */
 	.namings-panel {
 		width: 260px;
 		flex-shrink: 0;
-		position: sticky;
-		top: 0;
-		align-self: flex-start;
-		height: 100vh;
 		display: flex;
 		flex-direction: column;
 		background: #161822;
@@ -1336,14 +1343,10 @@
 		padding-top: 0.5rem;
 	}
 
-	/* Passages panel: permanent passage overview */
+	/* Passages panel: permanent passage overview — flex item, height handled by parent */
 	.passages-panel {
 		width: 320px;
 		flex-shrink: 0;
-		position: sticky;
-		top: 0;
-		align-self: flex-start;
-		height: 100vh;
 		display: flex;
 		flex-direction: column;
 		background: #161822;
