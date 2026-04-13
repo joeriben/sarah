@@ -90,7 +90,7 @@
 					onclick={() => openMap(map.id)}
 					oncontextmenu={(e) => onCardContext(map.id, e)}
 					onkeydown={(e) => { if (e.key === 'Enter') openMap(map.id); }}>
-					<div class="map-type">{mapTypeLabels[map.properties?.mapType] || map.properties?.mapType}{#if map.properties?.isPrimary} <span style="color: #8b9cf7">● primary</span>{/if}</div>
+					<div class="map-type">{mapTypeLabels[map.properties?.mapType] || map.properties?.mapType}</div>
 					<h3>{map.label}</h3>
 					<span class="meta">{new Date(map.created_at).toLocaleDateString()}</span>
 				</div>

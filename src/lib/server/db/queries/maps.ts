@@ -29,7 +29,7 @@ export async function getOrCreatePrimarySitMap(projectId: string, userId: string
 	if (existing) return existing.id;
 
 	// No primary exists — create one
-	const map = await createMap(projectId, userId, 'Situational Map', 'situational', { isPrimary: true });
+	const map = await createMap(projectId, userId, 'Primary', 'situational', { isPrimary: true });
 	return map.id;
 }
 

@@ -191,7 +191,7 @@
 							href="{base}/maps/{map.id}"
 							class="map-link"
 							class:active={pathname === `${base}/maps/${map.id}`}
-						>{#if map.isPrimary}<span class="primary-dot" title="Primary Situational Map">●</span> {/if}{map.label}</a>
+						>{map.label}</a>
 					{/each}
 				{/if}
 			{/each}
@@ -288,7 +288,6 @@
 		margin-top: 0;
 	}
 
-	.primary-dot { color: #8b9cf7; font-size: 0.6rem; }
 	.map-link, .doc-link {
 		padding-left: 1.2rem !important;
 		font-size: 0.78rem !important;
