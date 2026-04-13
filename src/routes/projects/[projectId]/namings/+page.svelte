@@ -39,7 +39,8 @@
 	let filterGrounding = $state<'all' | 'grounded' | 'memo' | 'ungrounded'>('all');
 	let filterMode = $state<'all' | 'entity' | 'relation' | 'silence'>('all');
 	let searchQuery = $state('');
-	let hideAI = $state(false);
+	let hideCowork = $state(false);
+	let hideAutonoma = $state(false);
 	let hideWithdrawn = $state(true);
 
 	// Cluster state
@@ -142,13 +143,22 @@
 		if (filterMode !== 'all') {
 			result = result.filter(n => (n.mode || 'entity') === filterMode);
 		}
-		if (hideAI) {
-			result = result.filter(n =>
-				!n.properties?.aiSuggested
-				&& !(n.current_inscription || n.inscription).startsWith('AI:')
-				&& !(n.source_inscription?.startsWith('AI:'))
-				&& !(n.target_inscription?.startsWith('AI:'))
-			);
+		if (hideCowork || hideAutonoma) {
+			result = result.filter(n => {
+				const persona = (n as any).ai_persona as string | null;
+				if (hideCowork && persona === 'cowork') return false;
+				if (hideAutonoma && persona === 'autonoma') return false;
+				// Legacy AI-created namings without persona tag: hide when either toggle is on
+				// so the filter is not silently broken on older projects
+				if (!persona && (hideCowork || hideAutonoma)) {
+					const looksAi = n.properties?.aiSuggested
+						|| (n.current_inscription || n.inscription).startsWith('AI:')
+						|| n.source_inscription?.startsWith('AI:')
+						|| n.target_inscription?.startsWith('AI:');
+					if (looksAi) return false;
+				}
+				return true;
+			});
 		}
 		if (hideWithdrawn) {
 			result = result.filter(n => !isWithdrawn(n.naming_id, n.properties));
@@ -540,7 +550,8 @@
 
 		<div class="filter-group">
 			<button class="filter-btn toggle" class:active={hideWithdrawn} onclick={() => hideWithdrawn = !hideWithdrawn}>Hide withdrawn</button>
-			<button class="filter-btn toggle" class:active={hideAI} onclick={() => hideAI = !hideAI}>Hide AI</button>
+			<button class="filter-btn toggle" class:active={hideCowork} onclick={() => hideCowork = !hideCowork}>Hide Cowork</button>
+			<button class="filter-btn toggle" class:active={hideAutonoma} onclick={() => hideAutonoma = !hideAutonoma}>Hide Autonoma</button>
 		</div>
 
 		<input

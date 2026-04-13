@@ -13,13 +13,22 @@
 	let discussInput = $state('');
 	let discussLoading = $state(false);
 
+	function memoPersona(m: any): 'cowork' | 'autonoma' | 'researcher' {
+		if (!m.isAiAuthored) return 'researcher';
+		const label: string = m.label || '';
+		if (/^Autonoma[:\s]/i.test(label) || /^Document:/i.test(label) || /^Formation:/i.test(label) || /^Near-duplicates:/i.test(label)) return 'autonoma';
+		return 'cowork';
+	}
+
 	const filteredMemos = $derived.by(() => {
 		let memos = data.memos;
 		if (filterStatus !== 'all') {
 			memos = memos.filter((m: any) => m.status === filterStatus);
 		}
-		if (filterAuthor === 'ai') {
-			memos = memos.filter((m: any) => m.isAiAuthored);
+		if (filterAuthor === 'cowork') {
+			memos = memos.filter((m: any) => memoPersona(m) === 'cowork');
+		} else if (filterAuthor === 'autonoma') {
+			memos = memos.filter((m: any) => memoPersona(m) === 'autonoma');
 		} else if (filterAuthor === 'researcher') {
 			memos = memos.filter((m: any) => !m.isAiAuthored);
 		}
@@ -127,8 +136,9 @@
 		<div class="filter-group">
 			<span class="filter-label">Author</span>
 			<button class="filter-btn" class:active={filterAuthor === 'all'} onclick={() => filterAuthor = 'all'}>All</button>
-			<button class="filter-btn" class:active={filterAuthor === 'ai'} onclick={() => filterAuthor = 'ai'}>AI</button>
 			<button class="filter-btn" class:active={filterAuthor === 'researcher'} onclick={() => filterAuthor = 'researcher'}>Researcher</button>
+			<button class="filter-btn" class:active={filterAuthor === 'cowork'} onclick={() => filterAuthor = 'cowork'}>Cowork</button>
+			<button class="filter-btn" class:active={filterAuthor === 'autonoma'} onclick={() => filterAuthor = 'autonoma'}>Autonoma</button>
 		</div>
 	</div>
 

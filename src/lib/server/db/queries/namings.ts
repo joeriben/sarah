@@ -502,6 +502,7 @@ export async function getAllProjectNamings(projectId: string) {
 			target_inscription: string | null;
 			valence: string | null;
 			properties: Record<string, any> | null;
+			ai_persona: string | null;
 			appears_on_maps: { id: string; label: string }[] | null;
 		}>(
 			`SELECT n.id as naming_id, n.inscription, n.created_at, n.seq,
@@ -543,6 +544,10 @@ export async function getAllProjectNamings(projectId: string) {
 			   (SELECT a.properties FROM appearances a
 			    WHERE a.naming_id = n.id AND a.naming_id != a.perspective_id
 			    LIMIT 1) as properties,
+			   -- AI persona that created this naming (derived from any appearance that carries it)
+			   (SELECT a.properties->>'aiPersona' FROM appearances a
+			    WHERE a.naming_id = n.id AND a.properties->>'aiPersona' IS NOT NULL
+			    LIMIT 1) as ai_persona,
 			   -- Which maps does this naming appear on?
 			   (SELECT json_agg(json_build_object('id', mp.id, 'label', mp.inscription))
 			    FROM (SELECT DISTINCT m.id, m.inscription
