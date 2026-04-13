@@ -9,7 +9,7 @@
 import { pool } from '$lib/server/db';
 import { pipeline } from 'stream/promises';
 import { createWriteStream, createReadStream } from 'fs';
-import { mkdir, rename, readdir, stat, rm, copyFile } from 'fs/promises';
+import { mkdir, rename, readdir, stat, rm, copyFile, open as openFile } from 'fs/promises';
 import { join, basename } from 'path';
 import { from as copyFrom, to as copyTo } from 'pg-copy-streams';
 import type pg from 'pg';
@@ -191,6 +191,61 @@ export async function exportProjectToDir(projectId: string, projectSlug: string)
 }
 
 /**
+ * Read the column count of the first data row in a COPY text file.
+ * Returns null on empty file or single end-of-data marker. Used to make
+ * imports forward-compatible: when newer migrations have appended columns
+ * at the end of a table, an older .copy file can still be loaded by
+ * naming only the columns it actually contains; the rest take DEFAULTs.
+ */
+async function countColumnsInFile(filePath: string): Promise<number | null> {
+	const fh = await openFile(filePath, 'r');
+	try {
+		const buf = Buffer.alloc(8192);
+		const { bytesRead } = await fh.read(buf, 0, 8192, 0);
+		if (bytesRead === 0) return null;
+		const text = buf.subarray(0, bytesRead).toString('utf8');
+		const nl = text.indexOf('\n');
+		const firstLine = nl === -1 ? text : text.slice(0, nl);
+		if (!firstLine || firstLine === '\\.') return null;
+		// COPY text format: tab-separated; tabs in data are escaped as \t,
+		// so a literal \t separator is always a single tab character.
+		return firstLine.split('\t').length;
+	} finally {
+		await fh.close();
+	}
+}
+
+async function getTableColumns(client: pg.PoolClient, tableName: string): Promise<string[]> {
+	const r = await client.query<{ column_name: string }>(
+		`SELECT column_name FROM information_schema.columns
+		 WHERE table_schema = 'public' AND table_name = $1
+		 ORDER BY ordinal_position`,
+		[tableName]
+	);
+	return r.rows.map((x) => x.column_name);
+}
+
+/**
+ * Build the COPY FROM target clause. If the file has fewer columns than the
+ * current table (older export, newer schema), explicitly name the leading
+ * columns; the trailing ones get their DEFAULT. Postgres always appends new
+ * columns at the end, so taking the first N is correct.
+ */
+async function buildCopyTarget(
+	client: pg.PoolClient,
+	tableName: string,
+	filePath: string
+): Promise<string> {
+	const fileCols = await countColumnsInFile(filePath);
+	const tableCols = await getTableColumns(client, tableName);
+	if (fileCols === null || fileCols >= tableCols.length) {
+		return `COPY ${tableName} FROM STDIN`;
+	}
+	const useCols = tableCols.slice(0, fileCols).map((c) => `"${c}"`).join(', ');
+	return `COPY ${tableName} (${useCols}) FROM STDIN`;
+}
+
+/**
  * Import a project from its directory into PostgreSQL.
  * Reads COPY text files in FK order, uses COPY FROM STDIN.
  * Users are imported with ON CONFLICT DO NOTHING (UPSERT).
@@ -213,16 +268,18 @@ export async function importProjectFromDir(dir: string): Promise<string> {
 				await client.query(`
 					CREATE TEMP TABLE _tmp_users (LIKE users INCLUDING ALL) ON COMMIT DROP
 				`);
+				const copyTarget = await buildCopyTarget(client, '_tmp_users', filePath);
 				const inStream = createReadStream(filePath);
-				const pgStream = client.query(copyFrom(`COPY _tmp_users FROM STDIN`));
+				const pgStream = client.query(copyFrom(copyTarget));
 				await pipeline(inStream, pgStream);
 				await client.query(`
 					INSERT INTO users SELECT * FROM _tmp_users
 					ON CONFLICT (id) DO NOTHING
 				`);
 			} else {
+				const copyTarget = await buildCopyTarget(client, table.copyFromTable, filePath);
 				const inStream = createReadStream(filePath);
-				const pgStream = client.query(copyFrom(`COPY ${table.copyFromTable} FROM STDIN`));
+				const pgStream = client.query(copyFrom(copyTarget));
 				await pipeline(inStream, pgStream);
 			}
 
