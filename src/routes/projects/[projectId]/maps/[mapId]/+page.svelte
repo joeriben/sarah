@@ -33,7 +33,7 @@
 	// Sync data from server when props change
 	$effect(() => { ms.syncData(data); });
 
-	let viewMode = $state<'canvas' | 'list'>('list');
+	let viewMode = $state<'canvas' | 'list'>('canvas');
 	let canvasContainerEl = $state<HTMLDivElement | null>(null);
 	let posMapFitted = false;
 

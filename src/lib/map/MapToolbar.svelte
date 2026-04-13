@@ -203,8 +203,8 @@
 			{/if}
 		</div>
 		<div class="view-toggle">
-			<button class="btn-view" class:active={viewMode === 'list'} onclick={() => onswitchview('list')}>List</button>
 			<button class="btn-view" class:active={viewMode === 'canvas'} onclick={() => onswitchview('canvas')}>Canvas</button>
+			<button class="btn-view" class:active={viewMode === 'list'} onclick={() => onswitchview('list')}>List</button>
 		</div>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="import-wrapper" onclick={(e) => e.stopPropagation()}>
