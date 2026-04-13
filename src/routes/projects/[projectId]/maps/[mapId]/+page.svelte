@@ -121,13 +121,33 @@
 	let topoSnapshots = $state<any[]>([]);
 	let showTopoPanel = $state(false);
 
+	async function refreshSnapshots() {
+		topoSnapshots = await cp.loadTopoSnapshots();
+	}
+
+	// Eager load so the toolbar can show the snapshot count
+	$effect(() => {
+		void data.map.id;
+		refreshSnapshots();
+	});
+
 	async function openTopoPanel() {
 		showTopoPanel = !showTopoPanel;
-		if (showTopoPanel) topoSnapshots = await cp.loadTopoSnapshots();
+		if (showTopoPanel) await refreshSnapshots();
 	}
 
 	async function handleTopoRestore(seq: number) {
 		await cp.restoreTopologySnapshot(seq);
+	}
+
+	async function handleTopoSave() {
+		await cp.saveTopologySnapshot();
+		await refreshSnapshots();
+	}
+
+	async function runAutoLayoutWithRefresh() {
+		await cp.runAutoLayout();
+		await refreshSnapshots();
 	}
 
 	function switchView(mode: 'list' | 'canvas') {
@@ -233,9 +253,10 @@
 		{viewMode}
 		{displayMode}
 		centeredId={cp.centeredId}
+		snapshotCount={topoSnapshots.length}
 		onswitchview={switchView}
 		onsetdisplaymode={(mode) => { displayMode = mode; localStorage.setItem(`map:${data.map.id}:displayMode`, mode); }}
-		onrunautolayout={cp.runAutoLayout}
+		onrunautolayout={runAutoLayoutWithRefresh}
 		onuncenter={cp.uncenter}
 		onopentopo={openTopoPanel}
 	/>
@@ -244,7 +265,7 @@
 		<TopoPanel
 			snapshots={topoSnapshots}
 			onclose={() => showTopoPanel = false}
-			onsave={cp.saveTopologySnapshot}
+			onsave={handleTopoSave}
 			onrestore={handleTopoRestore}
 		/>
 	{/if}

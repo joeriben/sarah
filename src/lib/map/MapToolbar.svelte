@@ -7,6 +7,7 @@
 		viewMode,
 		displayMode,
 		centeredId,
+		snapshotCount = 0,
 		onswitchview,
 		onsetdisplaymode,
 		onrunautolayout,
@@ -16,6 +17,7 @@
 		viewMode: 'canvas' | 'list';
 		displayMode: 'entities' | 'relations' | 'full';
 		centeredId: string | null;
+		snapshotCount?: number;
 		onswitchview: (mode: 'canvas' | 'list') => void;
 		onsetdisplaymode: (mode: 'entities' | 'relations' | 'full') => void;
 		onrunautolayout: () => void;
@@ -264,12 +266,14 @@
 				title="Full view: entities + relations + connections">Full</button>
 		</div>
 		{#if ms.mapType !== 'positional'}
-			<button class="btn-sm" onclick={onrunautolayout} title="Re-compute layout"
+			<button class="btn-sm" onclick={onrunautolayout} title="Re-compute layout (saves a snapshot first so you can revert)"
 				disabled={viewMode !== 'canvas'} style="{viewMode !== 'canvas' ? 'opacity: 0.3;' : ''}">Layout</button>
 		{/if}
-		<button class="btn-sm" onclick={onopentopo}
-			title="Topology snapshots"
-			disabled={viewMode !== 'canvas'} style="{viewMode !== 'canvas' ? 'opacity: 0.3;' : ''}">Topo</button>
+		<button class="btn-sm btn-snapshots" onclick={onopentopo}
+			title="Topology snapshots — save and restore map layouts"
+			disabled={viewMode !== 'canvas'} style="{viewMode !== 'canvas' ? 'opacity: 0.3;' : ''}">
+			Snapshots{#if snapshotCount > 0} <span class="snapshot-count">{snapshotCount}</span>{/if}
+		</button>
 		{#if centeredId}
 			<button class="btn-sm btn-centered" onclick={onuncenter}
 				title="Centered on: {ms.findInscription(centeredId)} — click to uncenter">
@@ -403,6 +407,12 @@
 		color: #c9cdd5; font-size: 0.75rem; padding: 0.25rem 0.5rem; cursor: pointer;
 	}
 	.btn-sm:hover { border-color: #8b9cf7; color: #e1e4e8; }
+	.btn-snapshots { display: inline-flex; align-items: center; gap: 0.35rem; }
+	.snapshot-count {
+		background: rgba(245, 158, 11, 0.18); color: #f59e0b;
+		font-size: 0.65rem; font-weight: 600;
+		padding: 0.05rem 0.35rem; border-radius: 8px; line-height: 1.2;
+	}
 	/* Display mode selector */
 	.display-mode-group {
 		display: flex; border: 1px solid #2a2d3a; border-radius: 5px; overflow: hidden;

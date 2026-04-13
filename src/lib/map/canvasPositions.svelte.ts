@@ -299,10 +299,19 @@ export function createCanvasPositions(
 		await ms.mapAction('saveTopologyBuffer', { positions: positionsToObj() });
 	}
 
-	async function saveTopologySnapshot() {
-		const label = prompt('Snapshot label:');
-		if (label === null) return;
+	async function saveTopologySnapshot(autoLabel?: string) {
+		// Two call sites: TopoPanel "Save" (no arg → prompt the user) and
+		// runAutoLayout (auto-label, no prompt). Returning a boolean lets
+		// callers distinguish cancel-by-user from snapshot-was-taken.
+		let label: string | null;
+		if (autoLabel !== undefined) {
+			label = autoLabel;
+		} else {
+			label = prompt('Snapshot label:');
+			if (label === null) return false;
+		}
 		await ms.mapAction('saveTopologySnapshot', { label: label || undefined, positions: positionsToObj() });
+		return true;
 	}
 
 	async function restoreTopologySnapshot(seq: number) {
@@ -324,6 +333,12 @@ export function createCanvasPositions(
 	// ─── Auto-layout ───
 
 	async function runAutoLayout() {
+		// Layout overwrites every position. Snapshot the current state first
+		// with an auto-label so the user can revert from the Snapshots panel.
+		if (positions.size > 0) {
+			const ts = new Date().toLocaleString();
+			await saveTopologySnapshot(`Before Layout — ${ts}`);
+		}
 		centeredId = null; preRadialPositions = null;
 		const result = await computeLayout(ms.elements as any, ms.relations as any, ms.silences as any);
 		const newPos = new Map<string, { x: number; y: number }>();
