@@ -89,6 +89,7 @@
 
 				<div class="header-center">
 					<span class="app-name">transact-qda</span>
+					<span class="app-version" title="Beta — feature-complete, rough edges remain">v0.7 beta</span>
 				</div>
 
 				<div class="header-right">
@@ -274,7 +275,9 @@
 	/* Center: App name */
 	.header-center {
 		display: flex;
+		align-items: baseline;
 		justify-content: center;
+		gap: 0.4rem;
 	}
 
 	.app-name {
@@ -282,6 +285,18 @@
 		font-weight: 700;
 		color: #a5b4fc;
 		letter-spacing: -0.02em;
+	}
+
+	.app-version {
+		font-size: 0.65rem;
+		font-weight: 600;
+		color: #f59e0b;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		padding: 0.05rem 0.35rem;
+		border: 1px solid rgba(245, 158, 11, 0.4);
+		border-radius: 4px;
+		line-height: 1.3;
 	}
 
 	/* Right: Nav buttons */
