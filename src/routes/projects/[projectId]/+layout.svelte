@@ -182,7 +182,7 @@
 
 <div class="project-layout">
 	<div class="project-sidebar">
-		<h2>{p.name}</h2>
+		<h2><a href={base} class:active={pathname === base} class="project-name-link">{p.name}</a></h2>
 		{#if p.description}
 			<p class="desc">{p.description}</p>
 		{/if}
@@ -283,6 +283,22 @@
 		font-size: 0.95rem;
 		font-weight: 600;
 		margin-bottom: 0.25rem;
+	}
+	.project-name-link {
+		color: inherit;
+		text-decoration: none;
+		display: inline-block;
+		padding: 0.1rem 0.3rem;
+		margin: -0.1rem -0.3rem;
+		border-radius: 4px;
+	}
+	.project-name-link:hover {
+		color: #a5b4fc;
+		background: #1e2030;
+	}
+	.project-name-link.active {
+		color: #fff;
+		background: #1e2030;
 	}
 
 	.desc {
