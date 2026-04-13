@@ -371,18 +371,23 @@
 					{/if}
 				{/each}
 
-				<!-- Relation nodes as inline diamonds (hidden in 'entities' mode) — skip spatially derived -->
+				<!-- Relation nodes as inline diamonds (hidden in 'entities' mode) — skip spatially derived.
+				     The diamond sits at the live midpoint of source/target so it stays glued to
+				     the connection line; it is not independently draggable. -->
 				{#if displayMode !== 'entities'}
 				{#each ms.relations.filter((r: any) => !r.properties?.spatiallyDerived) as rel}
-					{@const pos = cp.positions.get(rel.naming_id)}
-					{#if pos && !ms.isHiddenByFilter(rel)}
+					{@const relSrcId = rel.directed_from || rel.part_source_id}
+					{@const relTgtId = rel.directed_to || rel.part_target_id}
+					{#if relSrcId && relTgtId && cp.positions.has(relSrcId) && cp.positions.has(relTgtId) && !ms.isHiddenByFilter(rel)}
+						{@const sc = cp.nodeCenter(relSrcId)}
+						{@const tc = cp.nodeCenter(relTgtId)}
 						<CanvasElement
 							id={rel.naming_id}
-							x={pos.x} y={pos.y}
+							x={(sc.x + tc.x) / 2} y={(sc.y + tc.y) / 2}
 							color={ms.designationColor(rel.designation)}
 							selected={selection.isSelected(rel.naming_id)}
 							zoom={viewport.zoom}
-							ondragend={cp.handleNodeDragEnd}
+							draggable={false}
 							onclick={handleNodeClick}
 							oncontextmenu={handleNodeContextMenu}
 						>

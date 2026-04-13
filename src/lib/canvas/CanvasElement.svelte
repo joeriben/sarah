@@ -10,6 +10,7 @@
 		selected = false,
 		kind = 'entity',
 		zoom = 1,
+		draggable = true,
 		ondragend,
 		onclick,
 		oncontextmenu,
@@ -23,6 +24,7 @@
 		selected?: boolean;
 		kind?: string;
 		zoom?: number;
+		draggable?: boolean;
 		ondragend?: (id: string, x: number, y: number) => void;
 		onclick?: (id: string, e: MouseEvent) => void;
 		oncontextmenu?: (id: string, e: MouseEvent) => void;
@@ -44,6 +46,7 @@
 
 	function onPointerDown(e: PointerEvent) {
 		if (e.button !== 0 || e.altKey) return;
+		if (!draggable) return;
 		if ((e.target as Element).closest('.handle, .inline-rename')) return;
 		e.stopPropagation();
 		isDragging = true;
