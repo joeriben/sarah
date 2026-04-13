@@ -42,10 +42,44 @@
 	});
 
 	// Overlay state
-	let overlay = $state<'manual' | 'impressum' | 'about' | null>(null);
+	let overlay = $state<'manual' | 'impressum' | 'about' | 'change-password' | null>(null);
 	let manualHtml = $state<string | null>(null);
 	let impressumHtml = $state<string | null>(null);
 	let impressumLoaded = $state(false);
+
+	// Change-password form
+	let cpOld = $state('');
+	let cpNew = $state('');
+	let cpNew2 = $state('');
+	let cpError = $state<string | null>(null);
+	let cpSubmitting = $state(false);
+
+	async function submitChangePassword(e: Event) {
+		e.preventDefault();
+		cpError = null;
+		if (cpNew !== cpNew2) {
+			cpError = 'New passwords do not match.';
+			return;
+		}
+		cpSubmitting = true;
+		try {
+			const res = await fetch('/api/auth/change-password', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ oldPassword: cpOld, newPassword: cpNew })
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				cpError = body.error ?? 'Could not change password.';
+				return;
+			}
+			cpOld = cpNew = cpNew2 = '';
+			overlay = null;
+			location.reload();
+		} finally {
+			cpSubmitting = false;
+		}
+	}
 
 	async function openImpressum() {
 		overlay = 'impressum';
@@ -152,6 +186,13 @@
 			</div>
 		</header>
 
+		{#if data.user?.mustChangePassword}
+			<div class="security-banner">
+				<span>⚠️ You are still using the default password. Please change it now to secure this installation.</span>
+				<button class="security-banner-btn" onclick={() => overlay = 'change-password'}>Change password</button>
+			</div>
+		{/if}
+
 		{#if dbStatusValue !== 'healthy'}
 			<div class="db-banner" class:db-error={dbStatusValue === 'error'}>
 				{#if dbStatusValue === 'starting'}
@@ -209,6 +250,37 @@
 									See <code>static/brand/README.md</code>.
 								</p>
 							{/if}
+						</div>
+					{:else if overlay === 'change-password'}
+						<div class="overlay-content">
+							<h1>Change password</h1>
+							<p style="opacity: 0.8;">
+								Set a new password for your account. The new password must be
+								at least 8 characters and different from the current one.
+							</p>
+							<form onsubmit={submitChangePassword} class="cp-form">
+								<label>
+									Current password
+									<input type="password" bind:value={cpOld} required autocomplete="current-password" />
+								</label>
+								<label>
+									New password
+									<input type="password" bind:value={cpNew} required minlength={8} autocomplete="new-password" />
+								</label>
+								<label>
+									Confirm new password
+									<input type="password" bind:value={cpNew2} required minlength={8} autocomplete="new-password" />
+								</label>
+								{#if cpError}
+									<div class="cp-error">{cpError}</div>
+								{/if}
+								<div class="cp-actions">
+									<button type="button" class="cp-btn cp-btn-secondary" onclick={() => { overlay = null; cpError = null; }}>Later</button>
+									<button type="submit" class="cp-btn cp-btn-primary" disabled={cpSubmitting}>
+										{cpSubmitting ? 'Saving…' : 'Save'}
+									</button>
+								</div>
+							</form>
 						</div>
 					{:else if overlay === 'about'}
 						<div class="overlay-content">
@@ -439,6 +511,54 @@
 		background: rgba(255, 255, 255, 0.1);
 		margin: 0.25rem 0;
 	}
+
+	/* Security Banner (default-password warning) */
+	.security-banner {
+		background: #5f3b1e;
+		color: #fcd9a5;
+		text-align: center;
+		padding: 0.45rem 1rem;
+		font-size: 0.85rem;
+		font-weight: 500;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.75rem;
+		flex-shrink: 0;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	}
+	.security-banner-btn {
+		background: #fcd9a5;
+		color: #5f3b1e;
+		border: none;
+		border-radius: 4px;
+		padding: 0.25rem 0.75rem;
+		font-size: 0.8rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.security-banner-btn:hover { background: #fde4bb; }
+
+	/* Change-password form */
+	.cp-form { display: flex; flex-direction: column; gap: 0.9rem; margin-top: 1rem; }
+	.cp-form label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: #c9cdd5; }
+	.cp-form input {
+		background: #0f1117;
+		border: 1px solid #2a2d3a;
+		border-radius: 6px;
+		padding: 0.5rem 0.7rem;
+		color: #e1e4e8;
+		font-size: 0.9rem;
+	}
+	.cp-form input:focus { outline: none; border-color: #8b9cf7; }
+	.cp-error { background: #5f1e1e; color: #fca5a5; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem; }
+	.cp-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.5rem; }
+	.cp-btn { border: none; border-radius: 6px; padding: 0.5rem 1rem; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+	.cp-btn-primary { background: #8b9cf7; color: #0f1117; }
+	.cp-btn-primary:hover:not(:disabled) { background: #a5b4fc; }
+	.cp-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+	.cp-btn-secondary { background: transparent; color: #c9cdd5; border: 1px solid #2a2d3a; }
+	.cp-btn-secondary:hover { border-color: #8b9cf7; }
 
 	/* DB Status Banner */
 	.db-banner {

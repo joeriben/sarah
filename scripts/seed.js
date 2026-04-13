@@ -16,8 +16,8 @@ async function seed() {
 	} else {
 		const passwordHash = await hash('adminadmin', { type: 2 }); // argon2id
 		const userResult = await client.query(
-			`INSERT INTO users (username, email, password_hash, display_name, role)
-			 VALUES ('admin', 'admin@localhost', $1, 'Administrator', 'admin')
+			`INSERT INTO users (username, email, password_hash, display_name, role, must_change_password)
+			 VALUES ('admin', 'admin@localhost', $1, 'Administrator', 'admin', TRUE)
 			 RETURNING id`,
 			[passwordHash]
 		);

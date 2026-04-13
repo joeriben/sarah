@@ -13,6 +13,7 @@ export interface User {
 	email: string;
 	displayName: string | null;
 	role: 'admin' | 'user';
+	mustChangePassword?: boolean;
 }
 
 export interface Project {

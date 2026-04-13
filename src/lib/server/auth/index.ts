@@ -33,9 +33,10 @@ export async function validateSession(token: string) {
 		email: string;
 		display_name: string | null;
 		role: string;
+		must_change_password: boolean;
 	}>(
 		`SELECT s.id, s.user_id, s.expires_at,
-		        u.username, u.email, u.display_name, u.role
+		        u.username, u.email, u.display_name, u.role, u.must_change_password
 		 FROM sessions s
 		 JOIN users u ON u.id = s.user_id
 		 WHERE s.token = $1 AND s.expires_at > now()`,
@@ -51,9 +52,33 @@ export async function validateSession(token: string) {
 			username: session.username,
 			email: session.email,
 			displayName: session.display_name,
-			role: session.role
+			role: session.role,
+			mustChangePassword: session.must_change_password
 		}
 	};
+}
+
+export async function changePassword(userId: string, oldPassword: string, newPassword: string): Promise<{ ok: boolean; error?: string }> {
+	const user = await queryOne<{ password_hash: string }>(
+		'SELECT password_hash FROM users WHERE id = $1',
+		[userId]
+	);
+	if (!user) return { ok: false, error: 'User not found' };
+	if (!(await verifyPassword(user.password_hash, oldPassword))) {
+		return { ok: false, error: 'Current password is incorrect' };
+	}
+	if (newPassword.length < 8) {
+		return { ok: false, error: 'New password must be at least 8 characters' };
+	}
+	if (newPassword === oldPassword) {
+		return { ok: false, error: 'New password must differ from current password' };
+	}
+	const newHash = await hashPassword(newPassword);
+	await query(
+		'UPDATE users SET password_hash = $1, must_change_password = FALSE WHERE id = $2',
+		[newHash, userId]
+	);
+	return { ok: true };
 }
 
 export async function deleteSession(token: string): Promise<void> {
