@@ -1,6 +1,11 @@
 import type { Handle } from '@sveltejs/kit';
 import { validateSession } from '$lib/server/auth/index.js';
 import { SESSION_COOKIE } from '$lib/shared/constants.js';
+import { preloadEmbedModel } from '$lib/server/documents/embeddings.js';
+
+// Kick off model download/warm-up on server start so AI features are ready
+// when the user first triggers them (and so the UI can report progress).
+preloadEmbedModel();
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const token = event.cookies.get(SESSION_COOKIE);

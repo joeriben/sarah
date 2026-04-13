@@ -41,6 +41,36 @@
 		return () => clearInterval(interval);
 	});
 
+	// Embedding-model download status (first run pulls ~150 MB from HuggingFace Hub).
+	type EmbedStatus = { phase: 'idle' | 'downloading' | 'ready' | 'error'; model: string; file?: string; percent?: number; error?: string };
+	let embedStatus = $state<EmbedStatus>({ phase: 'idle', model: '' });
+	let embedDismissed = $state(false);
+
+	$effect(() => {
+		if (!data.user) return;
+		let stopped = false;
+		const tick = async () => {
+			try {
+				const res = await fetch('/api/embed-status');
+				if (res.ok) {
+					embedStatus = await res.json();
+					if (embedStatus.phase === 'ready' || embedStatus.phase === 'error') {
+						// One more render (to flash ready/error), then stop polling.
+						stopped = true;
+					}
+				}
+			} catch {
+				// ignore
+			}
+		};
+		void tick();
+		const interval = setInterval(() => {
+			if (stopped) { clearInterval(interval); return; }
+			void tick();
+		}, 2000);
+		return () => clearInterval(interval);
+	});
+
 	// Overlay state
 	let overlay = $state<'manual' | 'impressum' | 'about' | 'change-password' | null>(null);
 	let manualHtml = $state<string | null>(null);
@@ -207,6 +237,39 @@
 		<main class="content">
 			{@render children()}
 		</main>
+
+		{#if !embedDismissed && embedStatus.phase === 'downloading'}
+			<div class="embed-toast" role="status" aria-live="polite">
+				<div class="embed-toast-head">
+					<span class="embed-toast-title">Loading embedding model (first run)</span>
+					<button class="embed-toast-close" onclick={() => embedDismissed = true} aria-label="Dismiss">×</button>
+				</div>
+				<div class="embed-toast-body">
+					Downloading <code>{embedStatus.model}</code> from the Hugging Face Hub
+					(~150 MB, Apache-2.0). This happens once; later starts run offline.
+				</div>
+				<div class="embed-progress">
+					<div class="embed-progress-bar" style="width: {embedStatus.percent ?? 0}%"></div>
+				</div>
+				<div class="embed-toast-meta">
+					{embedStatus.percent ?? 0}%{embedStatus.file ? ` — ${embedStatus.file}` : ''}
+				</div>
+			</div>
+		{:else if !embedDismissed && embedStatus.phase === 'error'}
+			<div class="embed-toast embed-toast-error" role="status" aria-live="polite">
+				<div class="embed-toast-head">
+					<span class="embed-toast-title">Embedding model failed to load</span>
+					<button class="embed-toast-close" onclick={() => embedDismissed = true} aria-label="Dismiss">×</button>
+				</div>
+				<div class="embed-toast-body">
+					AI features that use semantic search will not work until this is resolved.
+					Check the server logs and network connectivity to huggingface.co.
+					{#if embedStatus.error}
+						<div class="embed-toast-meta">{embedStatus.error}</div>
+					{/if}
+				</div>
+			</div>
+		{/if}
 
 		<!-- Overlays -->
 		{#if overlay}
@@ -511,6 +574,57 @@
 		background: rgba(255, 255, 255, 0.1);
 		margin: 0.25rem 0;
 	}
+
+	/* Embedding-model download toast (bottom-right) */
+	.embed-toast {
+		position: fixed;
+		right: 1rem;
+		bottom: 1rem;
+		width: 340px;
+		background: #161822;
+		border: 1px solid #3a4670;
+		border-radius: 10px;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+		padding: 0.75rem 0.9rem;
+		color: #e1e4e8;
+		font-size: 0.85rem;
+		z-index: 1500;
+	}
+	.embed-toast-error { border-color: #7a2a2a; }
+	.embed-toast-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 0.4rem;
+	}
+	.embed-toast-title { font-weight: 600; color: #a5b4fc; }
+	.embed-toast-error .embed-toast-title { color: #fca5a5; }
+	.embed-toast-close {
+		background: none;
+		border: none;
+		color: #8b8fa3;
+		font-size: 1.1rem;
+		cursor: pointer;
+		line-height: 1;
+		padding: 0 0.3rem;
+	}
+	.embed-toast-close:hover { color: #e1e4e8; }
+	.embed-toast-body { color: #c9cdd5; line-height: 1.45; }
+	.embed-toast-body code { background: #0f1117; padding: 0.05rem 0.3rem; border-radius: 3px; font-size: 0.85em; color: #f59e0b; }
+	.embed-progress {
+		margin-top: 0.5rem;
+		height: 6px;
+		background: #0f1117;
+		border-radius: 3px;
+		overflow: hidden;
+	}
+	.embed-progress-bar {
+		height: 100%;
+		background: linear-gradient(90deg, #8b9cf7, #a5b4fc);
+		transition: width 0.25s ease-out;
+	}
+	.embed-toast-meta { margin-top: 0.35rem; font-size: 0.75rem; color: #8b8fa3; word-break: break-all; }
 
 	/* Security Banner (default-password warning) */
 	.security-banner {
