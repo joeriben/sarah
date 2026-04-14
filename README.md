@@ -128,6 +128,8 @@ licensing arrangement and the DCO sign-off.
   ([`COMMERCIAL-LICENSE.md`](./COMMERCIAL-LICENSE.md)).
 - Third-party attributions: [`NOTICE`](./NOTICE) and
   [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+- Release notes: [`CHANGELOG.md`](./CHANGELOG.md).
+- Community guidelines: [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md).
 
 ## Credits
 
