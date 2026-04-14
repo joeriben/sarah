@@ -1,0 +1,118 @@
+transact-qda — Installation
+
+
+Voraussetzungen
+---------------
+
+  Docker Engine 24+ oder Docker Desktop
+  Node.js 20+ und npm
+  Git
+  bash (nativ unter Linux/macOS; unter Windows via WSL2)
+
+
+Linux
+-----
+
+  1. Docker gemäß https://docs.docker.com/engine/install/ installieren.
+     Den eigenen Benutzer in die docker-Gruppe aufnehmen (der Ausdruck
+     $USER wird von der Shell automatisch ersetzt):
+
+         sudo usermod -aG docker $USER
+         newgrp docker
+
+  2. Node.js 20 und Git installieren.
+
+     Debian/Ubuntu:
+         curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+         sudo apt-get install -y nodejs git
+
+     Fedora:
+         sudo dnf install nodejs npm git
+
+  3. Klonen und konfigurieren:
+         git clone https://github.com/joeriben/transact-qda.git
+         cd transact-qda
+         cp .env.example .env
+
+     In .env den Wert SESSION_SECRET auf eine zufällige Zeichenkette
+     mit mindestens 30 Zeichen setzen.
+
+  4. Installieren und starten:
+         npm install
+         ./scripts/2_start_dev.sh
+
+
+macOS
+-----
+
+  1. Docker Desktop installieren:
+     https://www.docker.com/products/docker-desktop/
+     Einmal starten und auf vollständigen Start warten.
+
+  2. Node.js und Git via Homebrew installieren:
+         brew install node git
+
+  3. Klonen und konfigurieren:
+         git clone https://github.com/joeriben/transact-qda.git
+         cd transact-qda
+         cp .env.example .env
+
+     In .env den Wert SESSION_SECRET auf eine zufällige Zeichenkette
+     mit mindestens 30 Zeichen setzen.
+
+  4. Installieren und starten:
+         npm install
+         ./scripts/2_start_dev.sh
+
+
+Windows
+-------
+
+Setup unter WSL2 ausführen.
+
+  1. In PowerShell als Administrator:
+         wsl --install
+     Bei Aufforderung neu starten. Beim Erststart Benutzer und
+     Passwort festlegen.
+
+  2. Docker Desktop für Windows mit aktiviertem WSL-2-Backend
+     installieren.
+
+  3. Ubuntu-Terminal aus dem Startmenü öffnen. Ab Schritt 2 des
+     Linux-Abschnitts fortfahren.
+
+
+Erster Start
+------------
+
+http://localhost:5174 im Browser öffnen.
+Mit Benutzername admin und Passwort adminadmin anmelden.
+Passwort am gelben Banner ändern.
+
+Der erste KI-Aufruf lädt das Embedding-Modell
+nomic-ai/nomic-embed-text-v1.5 (ca. 150 MB) nach .model-cache/.
+
+
+Starten und stoppen
+-------------------
+
+Starten:
+    ./scripts/2_start_dev.sh
+
+Stoppen:
+    Strg+C im Terminal, dann ./scripts/1_stop_all.sh
+
+
+Aktualisieren
+-------------
+
+    ./scripts/1_stop_all.sh
+    git pull
+    npm install
+    ./scripts/2_start_dev.sh
+
+
+Fehler melden
+-------------
+
+https://github.com/joeriben/transact-qda/issues
