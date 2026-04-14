@@ -81,11 +81,6 @@
 	let relateSource = $state<string | null>(null);
 	let relateTarget = $state<string | null>(null);
 
-	// Reify-as-relation mode: entity → relation
-	// Step 1: pick source, Step 2: pick target
-	let reifyNamingId = $state<string | null>(null);
-	let reifySourceId = $state<string | null>(null);
-
 	// Merge mode: select survivor, then merged
 	let mergeSurvivorId = $state<string | null>(null);
 
@@ -122,7 +117,6 @@
 			if (assigningToPhase) { assigningToPhase = null; e.preventDefault(); return; }
 			if (mergeSurvivorId) { cancelMerge(); e.preventDefault(); return; }
 			if (actTarget) { cancelAct(); e.preventDefault(); return; }
-			if (reifyNamingId) { cancelReify(); e.preventDefault(); return; }
 			if (relateSource || relateTarget) { cancelRelate(); e.preventDefault(); return; }
 			if (editingValenceId) { editingValenceId = null; e.preventDefault(); return; }
 			if (editingId) { editingId = null; e.preventDefault(); return; }
@@ -176,8 +170,10 @@
 		return result;
 	});
 
-	const entities = $derived(filtered.filter(n => (n.mode || 'entity') === 'entity'));
-	const relations = $derived(filtered.filter(n => n.mode === 'relation'));
+	// Mode is a per-appearance collapse, not a naming category. Entities and
+	// relations share one list; silences stay separate because absence is a
+	// distinct analytical move (Barad) rather than a mode of the same gesture.
+	const entitiesAndRelations = $derived(filtered.filter(n => n.mode !== 'silence'));
 	const silences = $derived(filtered.filter(n => n.mode === 'silence'));
 
 	const counts = $derived({
@@ -390,40 +386,6 @@
 		mergeTargetId = null;
 	}
 
-	// ---- Mode switching ----
-	async function switchToEntity(namingId: string) {
-		await apiAction('switchToEntity', { namingId });
-		const module = await import('$app/navigation');
-		module.invalidateAll();
-	}
-
-	function startReifyAsRelation(namingId: string) {
-		reifyNamingId = namingId;
-		reifySourceId = null;
-	}
-
-	async function reifyPickTarget(targetId: string) {
-		if (!reifyNamingId || !reifySourceId) return;
-		await apiAction('reifyAsRelation', {
-			namingId: reifyNamingId,
-			sourceId: reifySourceId,
-			targetId
-		});
-		reifyNamingId = null;
-		reifySourceId = null;
-		const module = await import('$app/navigation');
-		module.invalidateAll();
-	}
-
-	function reifyPickSource(sourceId: string) {
-		reifySourceId = sourceId;
-	}
-
-	function cancelReify() {
-		reifyNamingId = null;
-		reifySourceId = null;
-	}
-
 	// ---- Phase API ----
 	async function phaseAction(action: string, params: Record<string, any> = {}) {
 		const res = await fetch(`/api/projects/${data.projectId}/phases`, {
@@ -582,20 +544,6 @@
 		</div>
 	{/if}
 
-	<!-- Reify-as-relation mode indicator -->
-	{#if reifyNamingId}
-		{@const reifyNaming = findNaming(reifyNamingId)}
-		<div class="relate-banner">
-			{#if !reifySourceId}
-				Reify "<strong>{reifyNaming?.current_inscription || reifyNaming?.inscription}</strong>" as relation — click <strong>from</strong> (source)
-			{:else}
-				{@const srcNaming = findNaming(reifySourceId)}
-				<strong>{srcNaming?.current_inscription || srcNaming?.inscription}</strong> —[{reifyNaming?.current_inscription || reifyNaming?.inscription}]→ click <strong>to</strong> (target)
-			{/if}
-			<button class="btn-xs" onclick={cancelReify}>cancel</button>
-		</div>
-	{/if}
-
 	<!-- Merge mode indicator -->
 	{#if mergeSurvivorId}
 		{@const survNaming = findNaming(mergeSurvivorId)}
@@ -664,22 +612,20 @@
 		</div>
 	{/if}
 
-	<!-- Entities -->
-	{#if entities.length > 0}
+	<!-- Namings (entities + relations as a single flat list; mode is a
+	     per-appearance collapse, not a naming category). -->
+	{#if entitiesAndRelations.length > 0}
 		<div class="section">
-			<h2 class="section-label">Entities <span class="section-count">{entities.length}</span></h2>
+			<h2 class="section-label">Namings <span class="section-count">{entitiesAndRelations.length}</span></h2>
 			<div class="naming-list">
-				{#each entities as n (n.naming_id)}
+				{#each entitiesAndRelations as n (n.naming_id)}
 					{@const withdrawn = isWithdrawn(n.naming_id, n.properties)}
-					<div class="naming-card" class:withdrawn class:relate-target={(relateSource && relateSource !== n.naming_id) || (reifyNamingId && reifyNamingId !== n.naming_id)} class:merge-target={mergeSurvivorId && mergeSurvivorId !== n.naming_id} class:merge-survivor={mergeSurvivorId === n.naming_id}
+					{@const isRel = n.mode === 'relation'}
+					<div class="naming-card" class:withdrawn class:relation-card={isRel} class:relate-target={relateSource && relateSource !== n.naming_id} class:merge-target={mergeSurvivorId && mergeSurvivorId !== n.naming_id} class:merge-survivor={mergeSurvivorId === n.naming_id}
 						onclick={() => {
 							if (assigningToPhase) { assignNamingToPhase(n.naming_id); return; }
 							if (mergeSurvivorId && mergeSurvivorId !== n.naming_id) { selectMergeTarget(n.naming_id); return; }
 							if (relateSource && !relateTarget && relateSource !== n.naming_id) { startRelate(n.naming_id); return; }
-							if (reifyNamingId && reifyNamingId !== n.naming_id) {
-								if (!reifySourceId) { reifyPickSource(n.naming_id); return; }
-								reifyPickTarget(n.naming_id); return;
-							}
 						}}>
 						<div class="naming-main">
 							<span class="designation-dot" style="background: {designationColor(n.designation)}" title="{designationLabel(n.designation)}"></span>
@@ -690,8 +636,44 @@
 							{:else}
 								<img class="provenance-indicator" src="/icons/question_mark.svg" alt="ungrounded" title="No grounding yet" />
 							{/if}
+							<span class="mode-hint" class:mode-relation={isRel} title={isRel ? 'Appears as a relation on at least one map' : 'Appears as an entity'}>{isRel ? '◇' : '●'}</span>
 
-							{#if editingId === n.naming_id}
+							{#if isRel}
+								{@const hasInscription = hasMeaningfulInscription(n.current_inscription || n.inscription)}
+								<div class="relation-proposition">
+									{#if hasInscription}
+										<span
+											class="rel-title editable"
+											ondblclick={() => startRename(n.naming_id, n.current_inscription || n.inscription)}
+											onclick={() => showStack(n.naming_id)}
+										>{n.current_inscription || n.inscription}:</span>
+									{/if}
+									<span class="rel-source">{n.source_inscription || '?'}</span>
+									<span class="rel-connector">—</span>
+									{#if editingValenceId === n.naming_id}
+										<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmValence(); }}>
+											<input type="text" bind:value={editingValenceValue} placeholder="valence" />
+											<button type="submit" class="btn-xs">ok</button>
+											<button type="button" class="btn-xs" onclick={() => editingValenceId = null}>x</button>
+										</form>
+										<span class="rel-connector">—</span>
+									{:else if n.valence}
+										<span
+											class="rel-predicate"
+											ondblclick={() => startValenceEdit(n.naming_id, n.valence || '')}
+											onclick={() => showStack(n.naming_id)}
+										>{n.valence}</span>
+										<span class="rel-connector">—</span>
+									{:else}
+										<span
+											class="rel-predicate-empty"
+											ondblclick={() => startValenceEdit(n.naming_id, '')}
+										>+ valence</span>
+										<span class="rel-connector">—</span>
+									{/if}
+									<span class="rel-target">{n.target_inscription || '?'}</span>
+								</div>
+							{:else if editingId === n.naming_id}
 								<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmRename(); }}>
 									<input type="text" bind:value={editingValue} />
 									<button type="submit" class="btn-xs">ok</button>
@@ -709,7 +691,7 @@
 							{/if}
 						</div>
 
-						<div class="naming-actions" onclick={e => { if (relateSource || reifyNamingId) e.stopPropagation(); }}>
+						<div class="naming-actions" onclick={e => { if (relateSource) e.stopPropagation(); }}>
 							<select
 								value={n.designation || 'cue'}
 								onchange={e => startDesignation(n.naming_id, (e.target as HTMLSelectElement).value)}
@@ -720,9 +702,10 @@
 							</select>
 							<button class="btn-xs" onclick={() => showStack(n.naming_id)}>stack</button>
 							<a class="btn-xs btn-detail" href="/projects/{data.projectId}/namings/{n.naming_id}">detail</a>
-							<button class="btn-xs" onclick={() => startRelate(n.naming_id)}>relate</button>
-							<button class="btn-xs btn-mode" onclick={() => startReifyAsRelation(n.naming_id)}>reify</button>
-							<button class="btn-xs btn-merge" onclick={(e) => { e.stopPropagation(); startMerge(n.naming_id); }}>merge</button>
+							{#if !isRel}
+								<button class="btn-xs" onclick={() => startRelate(n.naming_id)}>relate</button>
+								<button class="btn-xs btn-merge" onclick={(e) => { e.stopPropagation(); startMerge(n.naming_id); }}>merge</button>
+							{/if}
 							<button class="btn-xs btn-withdraw" onclick={() => withdraw(n.naming_id)}>
 								{withdrawn ? 'restore' : 'withdraw'}
 							</button>
@@ -822,170 +805,6 @@
 											<div class="discussion-msg" class:ai={msg.role === 'ai'}>
 												<span class="msg-role">{msg.role}</span>
 												<span class="msg-content">{msg.content}</span>
-											</div>
-										{/each}
-									</div>
-								{/if}
-							</div>
-						{/if}
-					</div>
-				{/each}
-			</div>
-		</div>
-	{/if}
-
-	<!-- Relations -->
-	{#if relations.length > 0}
-		<div class="section">
-			<h2 class="section-label">Relations <span class="section-count">{relations.length}</span></h2>
-			<div class="naming-list">
-				{#each relations as n (n.naming_id)}
-					{@const withdrawn = isWithdrawn(n.naming_id, n.properties)}
-					{@const hasInscription = hasMeaningfulInscription(n.current_inscription || n.inscription)}
-					<div class="naming-card relation-card" class:withdrawn>
-						<div class="naming-main">
-							<span class="designation-dot" style="background: {designationColor(n.designation)}" title="{designationLabel(n.designation)}"></span>
-							{#if n.has_document_anchor}
-								<img class="provenance-indicator" src="/icons/text_snippet.svg" alt="empirical" title="Empirically grounded" />
-							{:else if n.has_memo_link}
-								<img class="provenance-indicator" src="/icons/stylus_note.svg" alt="analytical" title="Memo linked" />
-							{:else}
-								<img class="provenance-indicator" src="/icons/question_mark.svg" alt="ungrounded" title="No grounding yet" />
-							{/if}
-
-							<div class="relation-proposition">
-								{#if hasInscription}
-									<span
-										class="rel-title editable"
-										ondblclick={() => startRename(n.naming_id, n.current_inscription || n.inscription)}
-										onclick={() => showStack(n.naming_id)}
-									>{n.current_inscription || n.inscription}:</span>
-								{/if}
-								<span class="rel-source">{n.source_inscription || '?'}</span>
-								<span class="rel-connector">—</span>
-								{#if editingValenceId === n.naming_id}
-									<form class="inline-rename" onsubmit={e => { e.preventDefault(); confirmValence(); }}>
-										<input type="text" bind:value={editingValenceValue} placeholder="valence" />
-										<button type="submit" class="btn-xs">ok</button>
-										<button type="button" class="btn-xs" onclick={() => editingValenceId = null}>x</button>
-									</form>
-									<span class="rel-connector">—</span>
-								{:else if n.valence}
-									<span
-										class="rel-predicate"
-										ondblclick={() => startValenceEdit(n.naming_id, n.valence || '')}
-										onclick={() => showStack(n.naming_id)}
-									>{n.valence}</span>
-									<span class="rel-connector">—</span>
-								{:else}
-									<span
-										class="rel-predicate-empty"
-										ondblclick={() => startValenceEdit(n.naming_id, '')}
-									>+ valence</span>
-									<span class="rel-connector">—</span>
-								{/if}
-								<span class="rel-target">{n.target_inscription || '?'}</span>
-							</div>
-						</div>
-
-						<div class="naming-actions">
-							<select
-								value={n.designation || 'cue'}
-								onchange={e => startDesignation(n.naming_id, (e.target as HTMLSelectElement).value)}
-							>
-								<option value="cue">cue</option>
-								<option value="characterization">characterization</option>
-								<option value="specification">specification</option>
-							</select>
-							<button class="btn-xs" onclick={() => showStack(n.naming_id)}>stack</button>
-							<a class="btn-xs btn-detail" href="/projects/{data.projectId}/namings/{n.naming_id}">detail</a>
-							<button class="btn-xs btn-mode" onclick={() => switchToEntity(n.naming_id)}>→ entity</button>
-							<button class="btn-xs btn-withdraw" onclick={() => withdraw(n.naming_id)}>
-								{withdrawn ? 'restore' : 'withdraw'}
-							</button>
-						</div>
-
-						{#if n.appears_on_maps && n.appears_on_maps.length > 0}
-							<div class="map-links">
-								{#each n.appears_on_maps as m (m.id)}
-									<a href="/projects/{data.projectId}/maps/{m.id}" class="map-link">{m.label}</a>
-								{/each}
-							</div>
-						{/if}
-
-						{#if stackId === n.naming_id && stackData}
-							<div class="stack-panel">
-								{#if stackData.inscriptions.length > 0}
-									<div class="stack-section">
-										<h4>Inscription Chain</h4>
-										{#each stackData.inscriptions as hi}
-											<div class="history-entry">
-												<span class="he-value">{hi.inscription}</span>
-												<span class="he-by">{hi.by_inscription}</span>
-												<span class="he-date">{new Date(hi.created_at).toLocaleString()}</span>
-											</div>
-										{/each}
-									</div>
-								{/if}
-								{#if stackData.designations.length > 0}
-									<div class="stack-section">
-										<h4>Designation Chain</h4>
-										{#each stackData.designations as hd}
-											<div class="history-entry">
-												<span class="he-value" style="color: {designationColor(hd.designation)}">{hd.designation}</span>
-												<span class="he-by">{hd.by_inscription}</span>
-												<span class="he-date">{new Date(hd.created_at).toLocaleString()}</span>
-											</div>
-										{/each}
-									</div>
-								{/if}
-								{#if stackData.memos.length > 0}
-									<div class="stack-section">
-										<h4>Memos</h4>
-										{#each stackData.memos as memo}
-											<div class="memo-entry" class:memo-dismissed={memo.status === 'dismissed'}>
-												<div class="memo-entry-header">
-													<span class="memo-author-badge" class:badge-ai={memo.isAiAuthored}>
-														{memo.isAiAuthored ? 'AI' : 'R'}
-													</span>
-													{#if memo.status && memo.status !== 'active'}
-														<span class="memo-status-badge status-{memo.status}">{memo.status}</span>
-													{/if}
-													<span class="memo-label">{memo.label}</span>
-												</div>
-												<div class="memo-content">{@html memo.content}</div>
-												<div class="memo-entry-actions">
-													{#if memo.status === 'active' || memo.status === 'presented' || memo.status === 'discussed'}
-														<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'dismissed')}>dismiss</button>
-														<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'acknowledged')}>ack</button>
-													{/if}
-													{#if memo.status === 'acknowledged'}
-														<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'dismissed')}>dismiss</button>
-													{/if}
-													{#if memo.status === 'dismissed'}
-														<button class="btn-xs" onclick={() => setMemoStatus(memo.id, 'presented')}>restore</button>
-													{/if}
-												</div>
-											</div>
-										{/each}
-									</div>
-								{/if}
-								{#if (stackData.annotations ?? []).length > 0}
-									{@const annots = stackData.annotations ?? []}
-									<div class="stack-section">
-										<h4>Material ({annots.length})</h4>
-										{#each Object.entries(annots.reduce((groups: Record<string, any>, a: any) => {
-											const key = a.document_id;
-											if (!groups[key]) groups[key] = { docLabel: a.document_label, docId: a.document_id, items: [] };
-											groups[key].items.push(a);
-											return groups;
-										}, {})) as [docId, group]}
-											{@const g = group as any}
-											<div class="material-group">
-												<a class="material-doc-link" href="/projects/{data.projectId}/documents/{g.docId}">{g.docLabel}</a>
-												{#each g.items as p}
-													<div class="material-passage">{p.properties?.anchor?.text || '(no text)'}</div>
-												{/each}
 											</div>
 										{/each}
 									</div>
@@ -1513,8 +1332,14 @@
 	.btn-withdraw:hover { background: rgba(107, 114, 128, 0.1); }
 	.btn-detail { text-decoration: none; border-color: #10b981; color: #10b981; font-size: 0.65rem; }
 	.btn-detail:hover { background: rgba(16, 185, 129, 0.1); }
-	.btn-mode { border-color: #8b9cf7; color: #8b9cf7; font-size: 0.65rem; opacity: 0.6; }
-	.btn-mode:hover { opacity: 1; background: rgba(139, 156, 247, 0.08); }
+	.mode-hint {
+		color: #6b7280;
+		font-size: 0.85rem;
+		line-height: 1;
+		flex-shrink: 0;
+		margin-right: 0.1rem;
+	}
+	.mode-hint.mode-relation { color: #8b9cf7; }
 
 	/* Inline rename */
 	.inline-rename {
