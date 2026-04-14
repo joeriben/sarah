@@ -975,7 +975,14 @@ export async function placeMultipleOnMap(
 
 // Get phases visible on a map: all project phases that have at least one
 // member appearing on this map. Phases are project-level, maps just display them.
-export async function getMapPhases(mapId: string, projectId: string) {
+export async function getMapPhases(_mapId: string, projectId: string) {
+	// Phases are project-level; the map just displays them (see the
+	// PROJECT_PHASES_CTE comment below). Earlier versions filtered this
+	// list down to phases that already had ≥1 member on the current map,
+	// which meant a newly-created phase was silently dropped from the
+	// response and never showed up in the sidebar. Listing all project
+	// phases makes fresh phases visible immediately; element_count is 0
+	// for empty phases, which the UI already renders as an empty state.
 	return (
 		await query(
 			`SELECT c.id, c.label,
@@ -983,27 +990,20 @@ export async function getMapPhases(mapId: string, projectId: string) {
 			    WHERE sub.perspective_id = c.id
 			      AND sub.naming_id != c.id) as element_count
 			 FROM (${PROJECT_PHASES_CTE}) c
-			 WHERE EXISTS (
-			   -- At least one member of this phase appears on this map
-			   SELECT 1 FROM appearances member
-			   JOIN appearances on_map ON on_map.naming_id = member.naming_id
-			     AND on_map.perspective_id = $1
-			   WHERE member.perspective_id = c.id
-			     AND member.naming_id != c.id
-			 )
 			 ORDER BY c.label`,
-			[mapId, projectId]
+			[projectId]
 		)
 	).rows;
 }
 
 // Shared CTE for finding project phases (positive match on role='phase')
+// Parameter $1 is the project id.
 const PROJECT_PHASES_CTE = `
   SELECT DISTINCT ON (n.id) n.id, n.inscription as label
   FROM namings n
   JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = n.id
     AND a.mode = 'perspective' AND a.properties->>'role' = 'phase'
-  WHERE n.project_id = $2
+  WHERE n.project_id = $1
     AND n.deleted_at IS NULL
   ORDER BY n.id, n.seq
 `;

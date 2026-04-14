@@ -114,7 +114,7 @@
 	.sidebar-header h3 { font-size: 0.85rem; color: #8b8fa3; margin: 0; }
 	.phase-form { display: flex; gap: 0.4rem; margin-bottom: 0.5rem; }
 	.phase-form input {
-		flex: 1; background: #0f1117; border: 1px solid #2a2d3a; border-radius: 4px;
+		flex: 1; min-width: 0; background: #0f1117; border: 1px solid #2a2d3a; border-radius: 4px;
 		padding: 0.3rem 0.5rem; color: #e1e4e8; font-size: 0.8rem;
 	}
 	.phase-form input:focus { outline: none; border-color: #8b9cf7; }
