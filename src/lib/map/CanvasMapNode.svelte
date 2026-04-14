@@ -93,7 +93,7 @@
 	.map-node.absent .node-label { color: #6b7280; font-style: italic; }
 	.map-node.ai-suggested { border-style: dashed; border-color: rgba(139, 156, 247, 0.5); background: rgba(139, 156, 247, 0.04); }
 	.map-node.ai-withdrawn { opacity: 0.3; border-color: rgba(139, 156, 247, 0.2); }
-	.map-node.phase-dimmed { opacity: 0.85; transition: opacity 0.3s; }
+	.map-node.phase-dimmed { opacity: 0.3; transition: opacity 0.3s; }
 	.map-node.centered-dim { opacity: 0.35; transition: opacity 0.3s; }
 	.map-node.centered-anchor { box-shadow: 0 0 12px rgba(245, 158, 11, 0.6), 0 0 4px rgba(245, 158, 11, 0.3); }
 	.map-node.phase-member { animation: phase-pulse 2s ease-in-out infinite; --pulse-color: var(--phase-color, #8b9cf7); }

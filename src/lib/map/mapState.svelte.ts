@@ -158,9 +158,23 @@ export function createMapState(
 
 	function isPhaseHighlighted(node: any): boolean {
 		if (!highlightedPhase) return false;
-		// Check manual phases
+		// Direct membership (entity or silence)
 		if (node.phase_ids?.includes(highlightedPhase)) return true;
-		// Check doc-phases
+		// Relation: highlight it when both of its endpoints are in the phase.
+		// Relations themselves are not assigned to phases — but a relation
+		// *between* two phase members is part of the phase's footprint and
+		// should not be dimmed.
+		if (node.mode === 'relation') {
+			const src = node.directed_from || node.part_source_id;
+			const tgt = node.directed_to || node.part_target_id;
+			const isIn = (id: string | null | undefined) => {
+				if (!id) return false;
+				const n = allItems.find((x: any) => x.naming_id === id);
+				return !!n?.phase_ids?.includes(highlightedPhase);
+			};
+			if (isIn(src) && isIn(tgt)) return true;
+		}
+		// Doc-phase fallback
 		const dc = docPhases.find((d: any) => d.doc_id === highlightedPhase);
 		if (dc) return dc.naming_ids?.includes(node.naming_id) ?? false;
 		return false;

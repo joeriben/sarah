@@ -826,16 +826,18 @@ export async function getMapAppearances(mapId: string, projectId: string) {
 			   ) as sw_role,
 			   p.naming_id as part_source_id,
 			   p.participant_id as part_target_id,
+			   -- Project-level phase memberships of this naming (for dots on the node).
+			   -- Phases have a self-referential role='phase' perspective on the grounding
+			   -- workspace, not on this map, so we detect them by that role.
 			   ARRAY(
-			     SELECT sub.perspective_id::text FROM appearances sub
+			     SELECT sub.perspective_id::text
+			     FROM appearances sub
+			     JOIN appearances ph ON ph.naming_id = sub.perspective_id
+			       AND ph.perspective_id = sub.perspective_id
+			       AND ph.mode = 'perspective'
+			       AND ph.properties->>'role' = 'phase'
 			     WHERE sub.naming_id = a.naming_id
 			       AND sub.naming_id != sub.perspective_id
-			       AND sub.perspective_id IN (
-			         SELECT pa.naming_id FROM appearances pa
-			         WHERE pa.perspective_id = $1
-			           AND pa.mode = 'perspective'
-			           AND pa.naming_id != $1
-			       )
 			   ) as phase_ids,
 			   -- Documents this naming is anchored in (via valence='codes' annotations)
 			   COALESCE(
