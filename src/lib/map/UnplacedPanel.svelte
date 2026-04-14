@@ -10,8 +10,14 @@
 	const ms = getMapState();
 
 	type GroupKey = 'phase' | 'document';
-	let groupBy = $state<GroupKey>('phase');
+	let groupBy = $state<GroupKey>('document');
 	let collapsed = $state(false);
+
+	// If the map has no phases, fall back to document grouping so the
+	// selector doesn't offer a useless option.
+	$effect(() => {
+		if (ms.phases.length === 0 && groupBy === 'phase') groupBy = 'document';
+	});
 
 	const unplaced = $derived(
 		ms.isPrimary
@@ -68,8 +74,10 @@
 			<span class="up-title">Unplaced <span class="up-count">{unplaced.length}</span></span>
 			{#if !collapsed}
 				<select class="up-group-select" bind:value={groupBy} aria-label="Group unplaced by">
-					<option value="phase">by Phase</option>
 					<option value="document">by Document</option>
+					{#if ms.phases.length > 0}
+						<option value="phase">by Phase</option>
+					{/if}
 				</select>
 			{/if}
 		</header>
