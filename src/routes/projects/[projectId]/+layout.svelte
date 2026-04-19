@@ -35,7 +35,11 @@
 	}
 
 	// Coach: didactic AI persona
-	const coach = createCoachState(p.id);
+	function getProjectId() {
+		return data.project.id;
+	}
+
+	const coach = createCoachState(getProjectId());
 	setCoachState(coach);
 
 	// Cowork: on-demand co-researcher on the current map.
@@ -424,108 +428,6 @@
 		color: #8b9cf7;
 		padding: 0.1rem 0.5rem 0;
 		font-style: italic;
-	}
-
-	.autonomous-toggle {
-		display: flex;
-		align-items: center;
-		padding: 0.45rem 0.65rem;
-		border-radius: 5px;
-		font-size: 0.85rem;
-		color: #f0abfc;
-		background: none;
-		border: 1px solid #2a2d3a;
-		cursor: pointer;
-		margin-top: 0.15rem;
-		font-family: inherit;
-		font-weight: 500;
-	}
-	.autonomous-toggle:hover:not(:disabled) {
-		background: #1e2030;
-		border-color: #f0abfc;
-	}
-	.autonomous-toggle:disabled {
-		opacity: 0.6;
-		cursor: wait;
-	}
-	.autonomous-active {
-		background: rgba(240, 171, 252, 0.1);
-		border-color: #f0abfc;
-	}
-	.autonomous-status {
-		font-size: 0.72rem;
-		color: #9ca3af;
-		padding: 0.1rem 0.65rem;
-		line-height: 1.3;
-	}
-
-	.autonomous-panel {
-		position: fixed;
-		right: 0;
-		top: 0;
-		bottom: 0;
-		width: 420px;
-		background: #13151e;
-		border-left: 1px solid #2a2d3a;
-		display: flex;
-		flex-direction: column;
-		z-index: 50;
-	}
-	.autonomous-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 0.75rem 1rem;
-		border-bottom: 1px solid #2a2d3a;
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: #f0abfc;
-	}
-	.autonomous-header-actions {
-		display: flex;
-		gap: 0.5rem;
-		align-items: center;
-	}
-	.autonomous-btn {
-		font-size: 0.75rem;
-		padding: 0.25rem 0.5rem;
-		border-radius: 4px;
-		border: 1px solid #2a2d3a;
-		background: none;
-		color: #c9cdd5;
-		cursor: pointer;
-		font-family: inherit;
-		text-decoration: none;
-	}
-	.autonomous-btn:hover {
-		background: #1e2030;
-		border-color: #f0abfc;
-		color: #f0abfc;
-	}
-	.autonomous-close {
-		font-size: 0.85rem;
-		padding: 0.15rem 0.4rem;
-		border-radius: 4px;
-		border: none;
-		background: none;
-		color: #6b7280;
-		cursor: pointer;
-		font-family: inherit;
-	}
-	.autonomous-close:hover { color: #fff; }
-	.autonomous-log {
-		flex: 1;
-		overflow-y: auto;
-		padding: 0.75rem 1rem;
-		font-size: 0.78rem;
-		line-height: 1.5;
-		font-family: 'SF Mono', 'Fira Code', monospace;
-		color: #d1d5db;
-	}
-	.autonomous-line {
-		white-space: pre-wrap;
-		word-break: break-word;
-		margin-bottom: 0.25rem;
 	}
 
 	.back-link {

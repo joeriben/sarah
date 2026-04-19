@@ -282,12 +282,8 @@
 				{#each comparison.comparisons as comp}
 					<div class="comparison-card">
 						<div class="comp-header">
-							<!-- svelte-ignore a11y_no_static_element_interactions -->
-							<span
-								class="comp-code clickable"
-								onclick={() => onannotate(comp.codeId)}
-								title="Click to annotate with this code"
-							>
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<span class="comp-code clickable" role="button" tabindex="-1" onclick={() => onannotate(comp.codeId)} title="Click to annotate with this code">
 								<span class="badge {designationClass(comp.designation)}">{designationBadge(comp.designation)}</span>
 								{comp.codeLabel}
 							</span>

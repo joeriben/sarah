@@ -486,10 +486,10 @@
 					{/each}
 				</div>
 				<div class="period-custom">
-					<label>From</label>
-					<input type="date" bind:value={customFrom} onchange={() => selectPeriod('custom')} />
-					<label>To</label>
-					<input type="date" bind:value={customTo} onchange={() => selectPeriod('custom')} />
+					<label for="usage-from">From</label>
+					<input id="usage-from" type="date" bind:value={customFrom} onchange={() => selectPeriod('custom')} />
+					<label for="usage-to">To</label>
+					<input id="usage-to" type="date" bind:value={customTo} onchange={() => selectPeriod('custom')} />
 				</div>
 			</div>
 
@@ -804,7 +804,6 @@
 	.model-input { max-width: 500px; }
 	.api-key-input {
 		-webkit-text-security: disc;
-		text-security: disc;
 	}
 	.hint { font-size: 0.75rem; color: #666; }
 	.section-hint { font-size: 0.8rem; color: #888; margin: 0.25rem 0 0.75rem; line-height: 1.4; }

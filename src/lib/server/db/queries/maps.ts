@@ -992,7 +992,7 @@ export async function getMapPhases(_mapId: string, projectId: string) {
 			    WHERE sub.perspective_id = c.id
 			      AND sub.naming_id != c.id) as element_count
 			 FROM (${PROJECT_PHASES_CTE}) c
-			 ORDER BY c.label`,
+			 ORDER BY c.seq`,
 			[projectId]
 		)
 	).rows;
@@ -1001,7 +1001,7 @@ export async function getMapPhases(_mapId: string, projectId: string) {
 // Shared CTE for finding project phases (positive match on role='phase')
 // Parameter $1 is the project id.
 const PROJECT_PHASES_CTE = `
-  SELECT DISTINCT ON (n.id) n.id, n.inscription as label
+  SELECT DISTINCT ON (n.id) n.id, n.inscription as label, n.seq
   FROM namings n
   JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = n.id
     AND a.mode = 'perspective' AND a.properties->>'role' = 'phase'
@@ -1147,7 +1147,7 @@ export async function getProjectPhases(projectId: string) {
 			    WHERE sub.perspective_id = c.id
 			      AND sub.naming_id != c.id) as member_count
 			 FROM (
-			   SELECT DISTINCT ON (n.id) n.id, n.inscription as label
+			   SELECT DISTINCT ON (n.id) n.id, n.inscription as label, n.seq
 			   FROM namings n
 			   JOIN appearances a ON a.naming_id = n.id AND a.perspective_id = n.id
 			     AND a.mode = 'perspective' AND a.properties->>'role' = 'phase'
@@ -1155,7 +1155,7 @@ export async function getProjectPhases(projectId: string) {
 			     AND n.deleted_at IS NULL
 			   ORDER BY n.id, n.seq
 			 ) c
-			 ORDER BY c.label`,
+			 ORDER BY c.seq`,
 			[projectId]
 		)
 	).rows;

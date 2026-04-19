@@ -621,7 +621,10 @@
 				{#each entitiesAndRelations as n (n.naming_id)}
 					{@const withdrawn = isWithdrawn(n.naming_id, n.properties)}
 					{@const isRel = n.mode === 'relation'}
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<div class="naming-card" class:withdrawn class:relation-card={isRel} class:relate-target={relateSource && relateSource !== n.naming_id} class:merge-target={mergeSurvivorId && mergeSurvivorId !== n.naming_id} class:merge-survivor={mergeSurvivorId === n.naming_id}
+						role="button"
+						tabindex="-1"
 						onclick={() => {
 							if (assigningToPhase) { assignNamingToPhase(n.naming_id); return; }
 							if (mergeSurvivorId && mergeSurvivorId !== n.naming_id) { selectMergeTarget(n.naming_id); return; }
@@ -642,11 +645,8 @@
 								{@const hasInscription = hasMeaningfulInscription(n.current_inscription || n.inscription)}
 								<div class="relation-proposition">
 									{#if hasInscription}
-										<span
-											class="rel-title editable"
-											ondblclick={() => startRename(n.naming_id, n.current_inscription || n.inscription)}
-											onclick={() => showStack(n.naming_id)}
-										>{n.current_inscription || n.inscription}:</span>
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<span class="rel-title editable" role="button" tabindex="-1" ondblclick={() => startRename(n.naming_id, n.current_inscription || n.inscription)} onclick={() => showStack(n.naming_id)}>{n.current_inscription || n.inscription}:</span>
 									{/if}
 									<span class="rel-source">{n.source_inscription || '?'}</span>
 									<span class="rel-connector">—</span>
@@ -658,17 +658,11 @@
 										</form>
 										<span class="rel-connector">—</span>
 									{:else if n.valence}
-										<span
-											class="rel-predicate"
-											ondblclick={() => startValenceEdit(n.naming_id, n.valence || '')}
-											onclick={() => showStack(n.naming_id)}
-										>{n.valence}</span>
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<span class="rel-predicate" role="button" tabindex="-1" ondblclick={() => startValenceEdit(n.naming_id, n.valence || '')} onclick={() => showStack(n.naming_id)}>{n.valence}</span>
 										<span class="rel-connector">—</span>
 									{:else}
-										<span
-											class="rel-predicate-empty"
-											ondblclick={() => startValenceEdit(n.naming_id, '')}
-										>+ valence</span>
+										<span class="rel-predicate-empty" role="button" tabindex="-1" ondblclick={() => startValenceEdit(n.naming_id, '')}>+ valence</span>
 										<span class="rel-connector">—</span>
 									{/if}
 									<span class="rel-target">{n.target_inscription || '?'}</span>
@@ -680,9 +674,12 @@
 									<button type="button" class="btn-xs" onclick={() => editingId = null}>x</button>
 								</form>
 							{:else}
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<span
 									class="naming-inscription"
 									class:editable={!relateSource}
+									role="button"
+									tabindex="-1"
 									ondblclick={() => startRename(n.naming_id, n.current_inscription || n.inscription)}
 									onclick={() => !relateSource && showStack(n.naming_id)}
 								>
@@ -691,7 +688,7 @@
 							{/if}
 						</div>
 
-						<div class="naming-actions" onclick={e => { if (relateSource) e.stopPropagation(); }}>
+						<div class="naming-actions" role="presentation" onpointerdown={e => { if (relateSource) e.stopPropagation(); }}>
 							<select
 								value={n.designation || 'cue'}
 								onchange={e => startDesignation(n.naming_id, (e.target as HTMLSelectElement).value)}
@@ -826,7 +823,8 @@
 					<div class="naming-card silence-card">
 						<div class="naming-main">
 							<span class="designation-dot" style="background: {designationColor(n.designation)}"></span>
-							<span class="naming-inscription" onclick={() => showStack(n.naming_id)}>
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<span class="naming-inscription" role="button" tabindex="-1" onclick={() => showStack(n.naming_id)}>
 								{n.current_inscription || n.inscription}
 							</span>
 						</div>

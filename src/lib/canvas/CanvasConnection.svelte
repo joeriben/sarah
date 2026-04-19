@@ -51,6 +51,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <svg class="canvas-connection" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; overflow:visible; opacity: {opacity};">
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<path
 		d={pathD}
 		fill="none"

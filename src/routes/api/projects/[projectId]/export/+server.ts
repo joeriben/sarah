@@ -24,7 +24,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
 	const filename = (project?.name || 'project').replace(/[^a-zA-Z0-9_-]/g, '_') + '.qdpx';
 
-	return new Response(buffer, {
+	return new Response(new Uint8Array(buffer), {
 		headers: {
 			'Content-Type': 'application/zip',
 			'Content-Disposition': `attachment; filename="${filename}"`,

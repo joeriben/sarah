@@ -27,6 +27,14 @@
 			{#if item.memo_previews?.length > 0}
 				<span class="memo-count" title="{item.memo_previews.length} memo(s)">{item.memo_previews.length}</span>
 			{/if}
+			{#if item.phase_ids?.length}
+				<span class="phase-dots">
+					{#each item.phase_ids as cid}
+						{@const c = ms.phaseColorMap.get(cid)}
+						{#if c}<span class="phase-dot" style="background: {c}" title={ms.phases.find((p: any) => p.id === cid)?.label}></span>{/if}
+					{/each}
+				</span>
+			{/if}
 			{#if listGroupBy !== 'mode'}<span class="mode-indicator" title="relation">↔</span>{/if}
 			{#if item.outside_participation_count > 0}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -100,6 +108,14 @@
 			{#if item.memo_previews?.length > 0}
 				<span class="memo-count" title="{item.memo_previews.length} memo(s)">{item.memo_previews.length}</span>
 			{/if}
+			{#if item.phase_ids?.length}
+				<span class="phase-dots">
+					{#each item.phase_ids as cid}
+						{@const c = ms.phaseColorMap.get(cid)}
+						{#if c}<span class="phase-dot" style="background: {c}" title={ms.phases.find((p: any) => p.id === cid)?.label}></span>{/if}
+					{/each}
+				</span>
+			{/if}
 			{#if listGroupBy !== 'mode'}<span class="mode-indicator" title="silence">∅</span>{/if}
 			{#if item.outside_participation_count > 0}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -144,6 +160,14 @@
 			{/if}
 			{#if item.memo_previews?.length > 0}
 				<span class="memo-count" title="{item.memo_previews.length} memo(s)">{item.memo_previews.length}</span>
+			{/if}
+			{#if item.phase_ids?.length}
+				<span class="phase-dots">
+					{#each item.phase_ids as cid}
+						{@const c = ms.phaseColorMap.get(cid)}
+						{#if c}<span class="phase-dot" style="background: {c}" title={ms.phases.find((p: any) => p.id === cid)?.label}></span>{/if}
+					{/each}
+				</span>
 			{/if}
 			{#if ms.mapType === 'positional' && item.properties?.isAxis}
 				<span class="pos-axis-badge">{item.properties.axisDimension === 'x' ? 'X' : 'Y'}-axis</span>
@@ -228,6 +252,8 @@
 		padding: 0 3px; min-width: 14px; height: 14px; line-height: 14px;
 		text-align: center; flex-shrink: 0;
 	}
+	.phase-dots { display: inline-flex; gap: 2px; flex-shrink: 0; }
+	.phase-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
 	.collapsed-indicator { width: 12px; height: 12px; flex-shrink: 0; margin-right: 0.2rem; opacity: 0.7; }
 	.collapsed-current { font-size: 0.7rem; color: #6b7280; font-style: italic; margin-left: 0.5rem; }
 	.mode-indicator { font-size: 0.7rem; color: #6b7280; flex-shrink: 0; width: 16px; text-align: center; }

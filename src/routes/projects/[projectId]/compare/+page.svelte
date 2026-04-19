@@ -7,10 +7,15 @@
 
 	let { data } = $props();
 
-	let typeA = $state(data.comparison?.typeA || 'docnet');
-	let typeB = $state(data.comparison?.typeB || 'docnet');
-	let sourceA = $state(data.comparison?.sourceA || '');
-	let sourceB = $state(data.comparison?.sourceB || '');
+	function getInitialComparison() {
+		return data.comparison ?? null;
+	}
+
+	const initialComparison = getInitialComparison();
+	let typeA = $state(initialComparison?.typeA || 'docnet');
+	let typeB = $state(initialComparison?.typeB || 'docnet');
+	let sourceA = $state(initialComparison?.sourceA || '');
+	let sourceB = $state(initialComparison?.sourceB || '');
 
 	function sourcesFor(type: string) {
 		if (type === 'docnet') return data.docnets;
@@ -37,14 +42,14 @@
 
 	<div class="source-selection">
 		<div class="source-col">
-			<label class="source-label">Source A</label>
+			<label class="source-label" for="compare-type-a">Source A</label>
 			<div class="source-controls">
-				<select bind:value={typeA} onchange={() => sourceA = ''}>
+				<select id="compare-type-a" bind:value={typeA} onchange={() => sourceA = ''}>
 					<option value="docnet">DocNet</option>
 					<option value="document">Document</option>
 					<option value="map">Map</option>
 				</select>
-				<select bind:value={sourceA}>
+				<select aria-label="Source A item" bind:value={sourceA}>
 					<option value="">— select —</option>
 					{#each sourcesA as s}
 						<option value={s.id}>{s.label}</option>
@@ -56,13 +61,13 @@
 		<span class="vs">vs.</span>
 
 		<div class="source-col">
-			<label class="source-label">Source B</label>
+			<label class="source-label" for="compare-type-b">Source B</label>
 			<div class="source-controls">
-				<select bind:value={typeB} onchange={() => sourceB = ''}>
+				<select id="compare-type-b" bind:value={typeB} onchange={() => sourceB = ''}>
 					<option value="docnet">DocNet</option>
 					<option value="document">Document</option>
 				</select>
-				<select bind:value={sourceB}>
+				<select aria-label="Source B item" bind:value={sourceB}>
 					<option value="">— select —</option>
 					{#each sourcesB as s}
 						<option value={s.id}>{s.label}</option>
@@ -153,7 +158,6 @@
 	.btn-compare:disabled { opacity: 0.4; cursor: default; }
 
 	/* Results */
-	.comparison-results { }
 	.result-header {
 		display: flex; align-items: center; gap: 0.75rem;
 		margin-bottom: 1rem;

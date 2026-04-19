@@ -31,7 +31,11 @@
 
 	const viewport = createViewport();
 	const selection = createSelection();
-	const ms = createMapState(data, viewport);
+	function getInitialMapData() {
+		return data;
+	}
+
+	const ms = createMapState(getInitialMapData(), viewport);
 	setMapState(ms);
 	const cp = createCanvasPositions(ms, viewport);
 
@@ -63,15 +67,27 @@
 	});
 
 	let displayMode = $state<'entities' | 'relations' | 'full'>('full');
-	let listGroupBy = $state<'mode' | 'designation' | 'phase' | 'provenance' | 'flat'>('mode');
+	let listGroupBy = $state<'mode' | 'designation' | 'phase' | 'provenance' | 'flat'>('flat');
+	let prefsLoadedForMapId = $state<string | null>(null);
+
+	function defaultListGroupBy() {
+		if (ms.mapType === 'situational') return 'phase' as const;
+		return 'mode' as const;
+	}
 
 	// Restore preferences from localStorage
 	$effect(() => {
 		const mapId = data.map.id;
+		if (prefsLoadedForMapId === mapId) return;
 		const savedMode = localStorage.getItem(`map:${mapId}:displayMode`);
 		if (savedMode === 'entities' || savedMode === 'relations' || savedMode === 'full') displayMode = savedMode;
 		const savedGroup = localStorage.getItem(`map:${mapId}:listGroupBy`);
-		if (savedGroup) listGroupBy = savedGroup as typeof listGroupBy;
+		if (savedGroup === 'mode' || savedGroup === 'designation' || savedGroup === 'phase' || savedGroup === 'provenance' || savedGroup === 'flat') {
+			listGroupBy = savedGroup;
+		} else {
+			listGroupBy = defaultListGroupBy();
+		}
+		prefsLoadedForMapId = mapId;
 	});
 
 	// ─── Position init (reset on map navigation) ───
@@ -199,7 +215,8 @@
 
 	const groupedItems = $derived.by(() => {
 		const items = ms.allItems.filter((n: any) => !ms.isHiddenByFilter(n)).filter((n: any) => ms.filterItem(n));
-		switch (listGroupBy) {
+		const effectiveGroupBy = listGroupBy === 'phase' && ms.phases.length === 0 ? 'flat' : listGroupBy;
+		switch (effectiveGroupBy) {
 			case 'mode':
 				return [
 					{ label: 'Elements', items: items.filter((n: any) => n.mode === 'entity') },
@@ -212,13 +229,25 @@
 					items: items.filter((n: any) => (n.designation || 'cue') === d)
 				})).filter(g => g.items.length > 0);
 			case 'phase': {
-				const groups: Array<{ label: string; items: any[] }> = [];
-				for (const phase of ms.phases) {
-					groups.push({ label: phase.label, items: items.filter((n: any) => n.phase_ids?.includes(phase.id)) });
+				const groups: Array<{ id: string; label: string; items: any[] }> = [];
+				const phaseOrder = new Map(ms.phases.map((phase: any, index: number) => [phase.id, index]));
+				for (const phase of ms.phases) groups.push({ id: phase.id, label: phase.label, items: [] });
+				const groupsById = new Map(groups.map((group) => [group.id, group]));
+				const unassigned: any[] = [];
+
+				for (const item of items) {
+					const memberships = (item.phase_ids ?? [])
+						.filter((id: string) => phaseOrder.has(id))
+						.sort((a: string, b: string) => (phaseOrder.get(a) ?? 0) - (phaseOrder.get(b) ?? 0));
+					if (memberships.length === 0) {
+						unassigned.push(item);
+						continue;
+					}
+					const primaryPhaseId = memberships[0];
+					groupsById.get(primaryPhaseId)?.items.push(item);
 				}
-				const assigned = new Set(ms.phases.flatMap((c: any) => items.filter((n: any) => n.phase_ids?.includes(c.id)).map((n: any) => n.naming_id)));
-				const unassigned = items.filter((n: any) => !assigned.has(n.naming_id));
-				if (unassigned.length > 0) groups.push({ label: 'Unassigned', items: unassigned });
+
+				if (unassigned.length > 0) groups.push({ id: '__unassigned__', label: 'Unassigned', items: unassigned });
 				return groups.filter(g => g.items.length > 0);
 			}
 			case 'provenance':
@@ -490,9 +519,9 @@
 			<div class="list-grouping-bar">
 				<span class="grouping-label">Group by</span>
 				<select class="grouping-select" value={listGroupBy} onchange={e => { listGroupBy = (e.target as HTMLSelectElement).value as typeof listGroupBy; localStorage.setItem(`map:${data.map.id}:listGroupBy`, listGroupBy); }}>
+					<option value="phase">Phase</option>
 					<option value="mode">Mode (entity / relation / silence)</option>
 					<option value="designation">Designation (cue / char / spec)</option>
-					<option value="phase">Phase</option>
 					<option value="provenance">Provenance</option>
 					<option value="flat">Flat (all mixed)</option>
 				</select>

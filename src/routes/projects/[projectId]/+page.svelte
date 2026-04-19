@@ -7,8 +7,13 @@
 	const p = $derived(data.project);
 	const c = $derived(data.counts);
 
-	let coworkReactive = $state(((p as any)?.properties as any)?.coworkReactive === true);
-	let autonomaEnabled = $state(((p as any)?.properties as any)?.autonomaEnabled === true);
+	function getInitialProjectProperties() {
+		return ((data.project as any)?.properties as any) ?? {};
+	}
+
+	const initialProjectProperties = getInitialProjectProperties();
+	let coworkReactive = $state(initialProjectProperties.coworkReactive === true);
+	let autonomaEnabled = $state(initialProjectProperties.autonomaEnabled === true);
 	let saving = $state(false);
 	let savedFlash = $state<string | null>(null);
 

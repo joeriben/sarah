@@ -714,7 +714,7 @@
 						onregionselect={(region) => { regionSelection = region; }}
 					/>
 				{:else if doc.full_text}
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_static_element_interactions -->
 					<pre class="document-text" class:drop-target-active={dragOverDoc && hasSelection} bind:this={textEl} onmouseup={handleMouseUp} ondragover={handleDocDragOver} ondragleave={handleDocDragLeave} ondrop={handleDocDrop}>{#each textSegments as seg, i}{#if seg.codes.length > 0}{@const isAnnStart = i === 0 || !textSegments[i - 1].codes.some(c => c.annId === seg.codes[0].annId)}<span
 						class="coded-text"
 						class:coded-highlighted={seg.codes.some(c => c.annId === highlightedAnnotationId)}
@@ -1378,8 +1378,7 @@
 		padding: 0.2rem 0.4rem; color: #c9cdd5; font-size: 0.75rem;
 	}
 	.phase-filter-select:focus { outline: none; border-color: #8b9cf7; }
-	.passages-panel .panel-header,
-	.annotations-header {
+	.passages-panel .panel-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -1387,17 +1386,6 @@
 		border-bottom: 1px solid #2a2d3a;
 		flex-shrink: 0;
 	}
-	.annotations-header h3 { margin: 0; font-size: 0.8rem; }
-	.btn-close-ann {
-		background: none;
-		border: none;
-		color: #6b7280;
-		font-size: 1.1rem;
-		cursor: pointer;
-		padding: 0 0.2rem;
-		line-height: 1;
-	}
-	.btn-close-ann:hover { color: #e1e4e8; }
 	.ann-search {
 		width: 100%;
 		background: #0f1117;
@@ -1410,8 +1398,6 @@
 		flex-shrink: 0;
 	}
 	.ann-search:focus { outline: none; border-bottom-color: #8b9cf7; }
-
-	.section-icon { width: 16px; height: 16px; opacity: 0.5; }
 
 	/* Selection / annotation section */
 	.selection-section {
@@ -1433,26 +1419,6 @@
 		padding: 0.3rem 0.4rem;
 	}
 
-	.section-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin-bottom: 0.5rem;
-	}
-	.header-actions {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-	}
-
-	.section-header h3 {
-		font-size: 0.85rem;
-		color: #e1e4e8;
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		margin: 0;
-	}
 
 	.btn-cancel {
 		font-size: 0.75rem;
@@ -1500,15 +1466,6 @@
 	}
 	.btn-doc-memo-save:hover { background: rgba(76, 175, 80, 0.2); }
 	.btn-doc-memo-save:disabled { opacity: 0.4; cursor: default; }
-
-	.reading-hint {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		font-size: 0.72rem;
-		color: #4b5563;
-		padding-top: 0.25rem;
-	}
 
 	/* In-vivo coding */
 	.invivo-form {
@@ -1681,12 +1638,6 @@
 
 	/* (hint styles removed — replaced by .reading-mode) */
 
-	.annotations-header h3 {
-		font-size: 0.8rem;
-		color: #8b8fa3;
-		margin: 0;
-	}
-
 	.count { color: #6b7280; }
 	.empty { font-size: 0.8rem; color: #6b7280; }
 
@@ -1716,17 +1667,6 @@
 		color: #e1e4e8;
 		flex: 1;
 	}
-
-	.btn-remove {
-		background: none;
-		border: none;
-		color: #6b7280;
-		font-size: 1.1rem;
-		cursor: pointer;
-		padding: 0 0.2rem;
-		line-height: 1;
-	}
-	.btn-remove:hover { color: #ef4444; }
 
 	.ann-text {
 		font-size: 0.78rem;

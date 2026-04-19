@@ -5,13 +5,21 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	let { data } = $props();
-	let documents = $state(data.documents || []);
+	function getInitialDocuments() {
+		return data.documents || [];
+	}
+
+	function getInitialDocnets() {
+		return data.docnets || [];
+	}
+
+	let documents = $state<any[]>(getInitialDocuments());
 	let uploading = $state(false);
 	let dragOver = $state(false);
 	let parsing = $state<string | null>(null);
 
 	// DocNet state
-	let docnets = $state(data.docnets || []);
+	let docnets = $state<any[]>(getInitialDocnets());
 	let creatingDocNet = $state(false);
 	let newDocNetLabel = $state('');
 	let expandedDocNet = $state<string | null>(null);
@@ -246,6 +254,7 @@
 
 		{#if creatingDocNet}
 			<form class="docnet-create" onsubmit={e => { e.preventDefault(); createDocNet(); }}>
+				<!-- svelte-ignore a11y_autofocus -->
 				<input type="text" placeholder="DocNet name..." bind:value={newDocNetLabel} autofocus />
 				<button type="submit" class="btn-sm" disabled={!newDocNetLabel.trim()}>create</button>
 				<button type="button" class="btn-sm btn-cancel" onclick={() => { creatingDocNet = false; newDocNetLabel = ''; }}>cancel</button>
@@ -258,7 +267,8 @@
 					<button class="docnet-toggle" onclick={() => toggleDocNet(dn.id)}>
 						{expandedDocNet === dn.id ? '▾' : '▸'}
 					</button>
-					<span class="docnet-label" onclick={() => toggleDocNet(dn.id)}>{dn.label}</span>
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<span class="docnet-label" role="button" tabindex="-1" onclick={() => toggleDocNet(dn.id)}>{dn.label}</span>
 					<span class="docnet-count">{dn.document_count} doc{dn.document_count !== 1 ? 's' : ''}</span>
 					<button class="btn-xs btn-danger" onclick={() => deleteDocNet(dn.id)}>remove</button>
 				</div>
@@ -496,6 +506,5 @@
 	.btn-parse:disabled { opacity: 0.5; cursor: wait; }
 	.status-parsing { color: #f59e0b; font-size: 0.75rem; }
 	.status-embedding { color: #f59e0b; font-size: 0.75rem; }
-	.status-ok { color: #6b7280; font-size: 0.75rem; }
 	.status-done { color: #10b981; font-size: 0.75rem; }
 </style>

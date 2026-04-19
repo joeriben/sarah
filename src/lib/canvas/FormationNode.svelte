@@ -40,9 +40,21 @@
 	const isRect = $derived(style.shape === 'rect');
 
 	// Local mutable state for interactive dragging
-	let localRx = $state(rxProp);
-	let localRy = $state(ryProp);
-	let localRotation = $state(rotationProp);
+	function getInitialRx() {
+		return rxProp;
+	}
+
+	function getInitialRy() {
+		return ryProp;
+	}
+
+	function getInitialRotation() {
+		return rotationProp;
+	}
+
+	let localRx = $state(getInitialRx());
+	let localRy = $state(getInitialRy());
+	let localRotation = $state(getInitialRotation());
 	let isResizing = $state(false);
 	let isRotating = $state(false);
 

@@ -38,8 +38,16 @@
 	let isDragging = $state(false);
 	let didDrag = $state(false);
 	let dragStart = { x: 0, y: 0 };
-	let currentX = $state(x);
-	let currentY = $state(y);
+	function getInitialX() {
+		return x;
+	}
+
+	function getInitialY() {
+		return y;
+	}
+
+	let currentX = $state(getInitialX());
+	let currentY = $state(getInitialY());
 
 	$effect(() => {
 		if (!isDragging) {
@@ -89,9 +97,10 @@
 	}
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div
 	class="canvas-element"
+	role="presentation"
 	class:selected
 	class:dragging={isDragging}
 	style="left: {currentX}px; top: {currentY}px; transform: translate(-50%, -50%); --el-color: {color};"

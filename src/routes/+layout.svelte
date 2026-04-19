@@ -17,10 +17,16 @@
 	let legalOpen = $state(false);
 
 	// DB status banner
-	let dbStatusValue = $state<'healthy' | 'starting' | 'error'>(
-		(data.dbStatus?.status as 'healthy' | 'starting' | 'error') ?? 'healthy'
-	);
-	let dbError = $state<string | null>(data.dbStatus?.error ?? null);
+	function getInitialDbStatus() {
+		return (data.dbStatus?.status as 'healthy' | 'starting' | 'error') ?? 'healthy';
+	}
+
+	function getInitialDbError() {
+		return data.dbStatus?.error ?? null;
+	}
+
+	let dbStatusValue = $state<'healthy' | 'starting' | 'error'>(getInitialDbStatus());
+	let dbError = $state<string | null>(getInitialDbError());
 
 	$effect(() => {
 		if (dbStatusValue === 'healthy') return;
