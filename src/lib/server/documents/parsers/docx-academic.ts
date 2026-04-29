@@ -266,8 +266,32 @@ function unzipDocxParts(buffer: Buffer): Promise<Record<string, string>> {
 // Subsequent paragraphs are emitted as element_type='bibliography_entry'
 // (one entry per paragraph, no sentence split) until the next heading at
 // the same or shallower level.
-const BIBLIOGRAPHY_RE =
-	/^(literatur(verzeichnis)?|bibliographie?|bibliography|references|quellen(verzeichnis)?)\b/i;
+//
+// Resilient German + English coverage:
+//   Literatur, Literaturverzeichnis, Literaturliste, Literaturhinweise,
+//   Literaturangaben, Bibliografie, Bibliographie, Schrifttum,
+//   Quellen, Quellenverzeichnis, Quellenangaben,
+//   Bibliography, References, Reference list, Works Cited, Cited Works.
+//   Optional prefixes: "Verwendete ", "Zitierte ", "Ausgewählte ",
+//   "Verzeichnis der ".
+//
+// Word-boundary at the end prevents false matches like "Literaturwissen-
+// schaft", "Literarisch", "Bibliographische Einführung", etc.
+const BIBLIOGRAPHY_RE = new RegExp(
+	'^' +
+		'(?:verwendete\\s+|zitierte\\s+|ausgew(?:ä|ae)hlte\\s+|verzeichnis\\s+der\\s+)?' +
+		'(?:' +
+			'literatur(?:verzeichnis|liste|hinweise|angaben|nachweise)?' +
+			'|bibliogra(?:fie|phie|phy)' +
+			'|reference(?:s|\\s+list)?' +
+			'|works\\s+cited' +
+			'|cited\\s+works' +
+			'|quellen(?:verzeichnis|angaben|nachweise)?' +
+			'|schrifttum' +
+		')' +
+		'\\b',
+	'i'
+);
 
 // ── Heading-style resolution (transact-qda-style + DE custom names) ──
 
