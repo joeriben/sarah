@@ -5,23 +5,33 @@ import type pg from 'pg';
 import type { ParsedElement, ParseResult } from './types.js';
 import { parsePlainText } from './plain-text.js';
 import { extractDocxAcademic } from './docx-academic.js';
+import {
+	isAnnotationsExport,
+	parseAnnotationsExport,
+	annotationsExportFullText
+} from './annotations-export.js';
 
 const DOCX_MIME =
 	'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 /**
- * Select parser format based on MIME type.
- *   - DOCX → 'docx-academic' (TOC-bookmark heading detection, German
- *     sentence splitter, footnote-textbox heuristic for PDF-converted DOCX)
- *   - everything else → 'plain-text'
+ * Select parser format based on MIME type plus a content sniff.
+ *   - DOCX MIME → 'docx-academic' (TOC-bookmark heading detection,
+ *     German sentence splitter, footnote-textbox heuristic).
+ *   - text-like content whose first line begins with
+ *     "Zusammenfassung der Anmerkungen in <…>.pdf" →
+ *     'annotations-export' (PDF-annotation summary file).
+ *   - everything else → 'plain-text'.
  */
-export function selectFormat(mimeType: string, _text: string): string {
+export function selectFormat(mimeType: string, text: string): string {
 	if (mimeType === DOCX_MIME) return 'docx-academic';
+	if (text && isAnnotationsExport(text)) return 'annotations-export';
 	return 'plain-text';
 }
 
 /** Plain-text path. The DOCX path needs the raw bytes; see parseDocumentBytes. */
 export function parseDocument(text: string, _mimeType: string): ParseResult {
+	if (text && isAnnotationsExport(text)) return parseAnnotationsExport(text);
 	return parsePlainText(text);
 }
 
@@ -43,6 +53,12 @@ export async function parseDocumentBytes(
 	if (mimeType === DOCX_MIME) {
 		const { result, fullText } = await extractDocxAcademic(bytes);
 		return { result, fullText };
+	}
+	if (fallbackText && isAnnotationsExport(fallbackText)) {
+		return {
+			result: parseAnnotationsExport(fallbackText),
+			fullText: annotationsExportFullText(fallbackText)
+		};
 	}
 	return { result: parsePlainText(fallbackText), fullText: fallbackText };
 }
@@ -70,6 +86,15 @@ export async function parseAndStore(
 		const parsed = await parseDocumentBytes(bytes, mimeType, fullText);
 		result = parsed.result;
 		canonicalFullText = parsed.fullText;
+	} else if (fullText && isAnnotationsExport(fullText)) {
+		// Annotations export: linearize the parsed elements as canonical
+		// full_text so substring(full_text, char_start, char_end) returns
+		// each annotation/heading exactly. The raw export with its blank
+		// lines, page-number footers and chapter-label whitespace is not
+		// suitable as the canonical full_text because the parser drops
+		// those lines from element offsets.
+		result = parseAnnotationsExport(fullText);
+		canonicalFullText = annotationsExportFullText(fullText);
 	} else {
 		result = parseDocument(fullText, mimeType);
 	}
