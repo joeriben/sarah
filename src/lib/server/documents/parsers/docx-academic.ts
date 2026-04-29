@@ -466,11 +466,10 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 	const pendingFootnoteRefs: { sentence: ParsedElement; marker: string }[] = [];
 	const footnoteElements: ParsedElement[] = [];
 
-	function emit(type: string, content: string | null, properties?: Record<string, unknown>): number {
-		const text = content ?? '';
+	function emitLeaf(type: string, content: string, properties?: Record<string, unknown>): number {
 		const start = cursor;
-		textBuf.push(text);
-		cursor += text.length;
+		textBuf.push(content);
+		cursor += content.length;
 		textBuf.push('\n');
 		cursor += 1;
 		const idx = elements.length;
@@ -478,7 +477,31 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 			type,
 			content,
 			charStart: start,
-			charEnd: start + text.length,
+			charEnd: start + content.length,
+			properties: properties ?? {}
+		});
+		return idx;
+	}
+
+	/**
+	 * Emit a container element (paragraph, table, figure). Stores
+	 * `content = null` per schema convention — the container's text is
+	 * the concatenation of its leaf descendants, not its own column. The
+	 * `virtualText` is still appended to the linearized full_text and
+	 * advances the cursor so subsequent elements have correct offsets.
+	 */
+	function emitContainer(type: string, virtualText: string, properties?: Record<string, unknown>): number {
+		const start = cursor;
+		textBuf.push(virtualText);
+		cursor += virtualText.length;
+		textBuf.push('\n');
+		cursor += 1;
+		const idx = elements.length;
+		elements.push({
+			type,
+			content: null,
+			charStart: start,
+			charEnd: start + virtualText.length,
 			properties: properties ?? {}
 		});
 		return idx;
@@ -489,7 +512,7 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 			if (block.tag === 'w:tbl') {
 				const rows = findAll(block.children, 'w:tr');
 				const cols = Math.max(0, ...rows.map((r) => findAll(r.children, 'w:tc').length));
-				emit('table', null, {
+				emitContainer("table", "", {
 					outline_path: [...outlinePath],
 					rows: rows.length,
 					cols
@@ -499,12 +522,12 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 			continue;
 		}
 
-		const p = readParagraph(block);
+		const p = readParagraph(block, superStyleIds);
 
 		// 1) TOC entry
 		if (p.pStyle && p.pStyle.startsWith('TOC')) {
 			const cleanTitle = p.text.trim().replace(/[\s ]*\d+$/, '').trim();
-			emit('toc_entry', cleanTitle, {
+			emitLeaf("toc_entry", cleanTitle, {
 				toc_anchor: p.anchors[0] ?? null,
 				toc_level: parseInt(p.pStyle.slice(3), 10) || 1
 			});
@@ -536,7 +559,7 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 			if (!text) continue;
 			outlinePath = outlinePath.slice(0, headingLevel - 1);
 			outlinePath.push(text);
-			emit('heading', text, {
+			emitLeaf('heading', text, {
 				level: headingLevel,
 				heading_source: headingSource,
 				outline_path: [...outlinePath],
@@ -562,7 +585,10 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 				position_role: positionRole,
 				has_drawing: p.drawingTexts.length > 0
 			};
-			paragraphIdx = emit('paragraph', text, props);
+			// Container: content=NULL by schema convention. virtualText
+			// (the paragraph's plain text) is still appended to the
+			// linearized full_text so subsequent char-offsets line up.
+			paragraphIdx = emitContainer('paragraph', text, props);
 			lastWasHeading = false;
 			pendingPositionFixup.push(paragraphIdx);
 
@@ -622,10 +648,10 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 		// Drawings as footnote-textboxes (PDF-converter rendering)
 		for (const drawingText of p.drawingTexts) {
 			if (drawingText) {
-				const idx = emit('footnote', drawingText, { outline_path: [...outlinePath] });
+				const idx = emitLeaf('footnote', drawingText, { outline_path: [...outlinePath] });
 				footnoteElements.push(elements[idx]);
 			} else {
-				emit('figure', null, { outline_path: [...outlinePath] });
+				emitContainer('figure', '', { outline_path: [...outlinePath] });
 			}
 			lastWasHeading = false;
 		}
