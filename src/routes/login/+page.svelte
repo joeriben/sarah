@@ -43,8 +43,8 @@
 
 <div class="login-page">
 	<div class="login-card">
-		<h1>transact-qda</h1>
-		<p class="subtitle">Qualitative Data Analysis<br>for Situational Analysis</p>
+		<h1>SARAH</h1>
+		<p class="subtitle">Structured Analysis, Review,<br>and Assessment Helper</p>
 
 		<div class="tabs">
 			<button class:active={mode === 'login'} onclick={() => mode = 'login'}>Login</button>

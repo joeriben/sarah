@@ -3,9 +3,6 @@
 
 import type { PageServerLoad } from './$types.js';
 import { query } from '$lib/server/db/index.js';
-import { getProjectsBaseDir } from '$lib/server/project-sync/index.js';
-import { readdir, stat } from 'fs/promises';
-import { join } from 'path';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const result = await query<{
@@ -24,33 +21,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 		[locals.user!.id]
 	);
 
-	// List project directories
-	const baseDir = getProjectsBaseDir();
-	let directories: { slug: string; hasData: boolean }[] = [];
-	try {
-		const entries = await readdir(baseDir, { withFileTypes: true });
-		for (const entry of entries) {
-			if (!entry.isDirectory()) continue;
-			try {
-				await stat(join(baseDir, entry.name, 'namings.copy'));
-				directories.push({ slug: entry.name, hasData: true });
-			} catch {
-				directories.push({ slug: entry.name, hasData: false });
-			}
-		}
-	} catch {
-		// projekte/ doesn't exist yet
-	}
-
 	return {
-		projects: result.rows.map((r: typeof result.rows[number]) => ({
+		projects: result.rows.map((r) => ({
 			id: r.id,
 			name: r.name,
 			description: r.description,
 			createdAt: r.created_at,
 			role: r.role
-		})),
-		directories,
-		projectsDir: getProjectsBaseDir()
+		}))
 	};
 };

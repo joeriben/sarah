@@ -165,7 +165,7 @@
 </script>
 
 <svelte:head>
-	<title>transact-qda</title>
+	<title>SARAH</title>
 </svelte:head>
 
 {#if data.user}
@@ -190,8 +190,8 @@
 				</div>
 
 				<div class="header-center">
-					<span class="app-name">transact-qda</span>
-					<span class="app-version" title="Beta — feature-complete, rough edges remain">v0.7 beta</span>
+					<span class="app-name">SARAH</span>
+					<span class="app-version" title="Fork of transact-qda — see About">v0.1</span>
 				</div>
 
 				<div class="header-right">
@@ -357,11 +357,16 @@
 						</div>
 					{:else if overlay === 'about'}
 						<div class="overlay-content">
-							<h1>About transact-qda</h1>
+							<h1>About SARAH</h1>
 							<p>
-								<strong>transact-qda</strong> is an open-source qualitative-data-analysis
-								platform built on a transactional ontology (namings, participations,
-								appearances) with a designation-gradient model of coding.
+								<strong>SARAH</strong> — Structured Analysis, Review, and Assessment
+								Helper — is a local single-user workstation for hermeneutic reading,
+								peer review and assessment drafting on academic texts. SARAH is forked
+								from <a href="https://github.com/joeriben/transact-qda" target="_blank" rel="noopener">transact-qda</a>
+								and reuses its document model, parsers, embeddings, and AI client; the
+								QDA-specific layer (situational maps, code system, naming acts) is
+								removed in favour of a case-triade and a sequential per-paragraph
+								analysis pipeline.
 							</p>
 							<p>
 								Originally developed at the
