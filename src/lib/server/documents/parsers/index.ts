@@ -88,19 +88,21 @@ export async function parseAndStore(
 	if (flat.length === 0) return { canonicalFullText };
 
 	// Insert all elements; collect generated UUIDs by flat index.
+	// Note: text content is NOT stored — it is derivable as
+	// substring(document_content.full_text, char_start, char_end).
+	// See migration 027.
 	const ids: string[] = [];
 	for (const { element, parentIndex, seq } of flat) {
 		const parentId = parentIndex !== null ? ids[parentIndex] : null;
 		const res = await client.query<{ id: string }>(
-			`INSERT INTO document_elements (document_id, element_type, parent_id, seq, content, char_start, char_end, properties)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			`INSERT INTO document_elements (document_id, element_type, parent_id, seq, char_start, char_end, properties)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)
 			 RETURNING id`,
 			[
 				documentId,
 				element.type,
 				parentId,
 				seq,
-				element.content,
 				element.charStart,
 				element.charEnd,
 				JSON.stringify(element.properties || {})

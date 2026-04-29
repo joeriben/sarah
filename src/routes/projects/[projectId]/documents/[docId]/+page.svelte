@@ -13,7 +13,7 @@
 	const elements = $derived(data.elements as Array<{
 		id: string;
 		element_type: string;
-		content: string | null;
+		text: string | null;
 		parent_id: string | null;
 		seq: number;
 		char_start: number;
@@ -64,7 +64,7 @@
 				<div class="el el-{el.element_type}">
 					<span class="badge">{el.element_type}</span>
 					<span class="anchor mono">{el.char_start}–{el.char_end}</span>
-					{#if el.content}<span class="content">{el.content}</span>{/if}
+					{#if el.text}<span class="content">{el.text}</span>{/if}
 				</div>
 			{/each}
 		</div>

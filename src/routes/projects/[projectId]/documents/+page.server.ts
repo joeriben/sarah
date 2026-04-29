@@ -16,7 +16,9 @@ export const load: PageServerLoad = async ({ params }) => {
 	}>(
 		`SELECT n.id, n.inscription as label, n.created_at, dc.mime_type, dc.file_size,
 		        (SELECT COUNT(*)::int FROM document_elements e
-		           WHERE e.document_id = n.id AND e.content IS NOT NULL) AS element_count,
+		           WHERE e.document_id = n.id
+		             AND e.element_type IN ('sentence','heading','footnote','caption','toc_entry','turn')
+		         ) AS element_count,
 		        (SELECT COUNT(*)::int FROM document_elements e
 		           WHERE e.document_id = n.id AND e.embedding IS NOT NULL) AS embedded_count
 		 FROM namings n

@@ -52,9 +52,13 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 			[namingId, canonicalFullText, filePath, mimeType, buffer.length]
 		);
 
-		// Count parsed leaf elements (sentences/headings with content)
+		// Count parsed leaf elements (sentences/headings/footnotes/...).
+		// Containers (paragraph, table, figure) are excluded.
 		const countRes = await client.query(
-			`SELECT COUNT(*)::int as cnt FROM document_elements WHERE document_id = $1 AND content IS NOT NULL`, [namingId]
+			`SELECT COUNT(*)::int as cnt FROM document_elements
+			 WHERE document_id = $1
+			   AND element_type IN ('sentence','heading','footnote','caption','toc_entry','turn')`,
+			[namingId]
 		);
 
 		return {

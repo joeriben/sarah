@@ -8,7 +8,7 @@ import { error } from '@sveltejs/kit';
 export interface DocumentElement {
 	id: string;
 	element_type: string;
-	content: string | null;
+	text: string | null;          // computed: substring(full_text, char_start, char_end)
 	parent_id: string | null;
 	seq: number;
 	char_start: number;
@@ -32,17 +32,37 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	if (!doc) error(404, 'Document not found');
 
-	const elementsResult = await query<DocumentElement>(
-		`SELECT id, element_type, content, parent_id, seq, char_start, char_end
+	// Element rows carry only structure + char range. The text of any
+	// element is its slice of the document's full_text — computed here
+	// in the loader so the page receives ready-to-render text without
+	// having to JOIN document_content per element on the client.
+	const rawElements = await query<{
+		id: string;
+		element_type: string;
+		parent_id: string | null;
+		seq: number;
+		char_start: number;
+		char_end: number;
+	}>(
+		`SELECT id, element_type, parent_id, seq, char_start, char_end
 		 FROM document_elements
 		 WHERE document_id = $1
 		 ORDER BY char_start ASC, char_end DESC, seq ASC`,
 		[params.docId]
 	);
 
+	const fullText = doc.full_text ?? '';
+	const elements: DocumentElement[] = rawElements.rows.map((r) => ({
+		...r,
+		text:
+			r.char_start != null && r.char_end != null && r.char_end >= r.char_start
+				? fullText.substring(r.char_start, r.char_end)
+				: null
+	}));
+
 	return {
 		document: doc,
-		elements: elementsResult.rows,
+		elements,
 		projectId: params.projectId
 	};
 };
