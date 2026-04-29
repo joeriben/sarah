@@ -35,17 +35,22 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		);
 		const namingId = namingRes.rows[0].id;
 
-		// Store content
+		// Parse into addressable elements (paragraphs, sentences, ...)
+		// For DOCX the structure-aware extractor recomputes a canonical
+		// linearized full_text aligned with element char-offsets; we
+		// persist that instead of mammoth's flat string.
+		let canonicalFullText = fullText;
+		if (fullText || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+			const parsed = await parseAndStore(client, namingId, fullText, mimeType, buffer);
+			canonicalFullText = parsed.canonicalFullText;
+		}
+
+		// Store content (use canonical full_text from the parser)
 		await client.query(
 			`INSERT INTO document_content (naming_id, full_text, file_path, mime_type, file_size)
 			 VALUES ($1, $2, $3, $4, $5)`,
-			[namingId, fullText, filePath, mimeType, buffer.length]
+			[namingId, canonicalFullText, filePath, mimeType, buffer.length]
 		);
-
-		// Parse into addressable elements (paragraphs, sentences, ...)
-		if (fullText) {
-			await parseAndStore(client, namingId, fullText, mimeType);
-		}
 
 		// Count parsed leaf elements (sentences/headings with content)
 		const countRes = await client.query(
