@@ -4,7 +4,7 @@
 import pg from 'pg';
 import { ensureDbRunning } from './docker.js';
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://tqda:tqda_dev@localhost:5432/transact_qda';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://joerissen@localhost:5432/sarah';
 
 export const pool = new pg.Pool({
 	connectionString: DATABASE_URL,

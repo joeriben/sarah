@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = join(__dirname, '..', 'migrations');
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://tqda:tqda_dev@localhost:5432/transact_qda';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://joerissen@localhost:5432/sarah';
 
 async function migrate() {
 	const client = new pg.Client({ connectionString: DATABASE_URL });
