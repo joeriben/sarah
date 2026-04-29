@@ -262,6 +262,17 @@ function unzipDocxParts(buffer: Buffer): Promise<Record<string, string>> {
 	});
 }
 
+// Caption-like prefixes used to identify figure/table caption paragraphs
+// when no explicit pStyle="Caption" is set (PDF→DOCX converters often
+// drop the style). Conservative: only treat short paragraphs (< 300
+// chars) starting with one of these as caption candidates.
+const CAPTION_PREFIX_RE = /^(abb(?:\.|ildung)|tab(?:\.|elle)|fig(?:\.|ure)|schaubild|diagramm)\s*\d/i;
+
+// Numeric-only textbox content is almost certainly a page-number footer
+// from a PDF→DOCX rendering (running footer pulled into a floating
+// textbox). Emit as `page_marker` rather than `footnote`.
+const PAGE_NUMBER_RE = /^\s*\d{1,5}\s*$/;
+
 // Headings whose title matches this regex open a bibliography section.
 // Subsequent paragraphs are emitted as element_type='bibliography_entry'
 // (one entry per paragraph, no sentence split) until the next heading at
@@ -342,6 +353,7 @@ interface BodyParagraph {
 	text: string;
 	supMarkers: SuperMarker[];  // numeric superscript markers with text-offset
 	drawingTexts: (string | null)[];   // text content of inline <wps:txbx> drawings, or null
+	hasInlineImage: boolean;    // <w:drawing> without textbox content present (true figure)
 }
 
 function readParagraph(p: OoxmlNode, superStyleIds: Set<string>): BodyParagraph {
@@ -355,8 +367,10 @@ function readParagraph(p: OoxmlNode, superStyleIds: Set<string>): BodyParagraph 
 	const { text, markers: supMarkers } = paragraphTextAndMarkers(p, superStyleIds);
 
 	// Drawings: look for <wps:txbx>/<w:txbxContent> text — PDF converters render
-	// footnotes as floating textboxes here.
+	// footnotes / floating headers / annotations as textboxes here. A drawing
+	// without textbox content is an actual inline image (true figure).
 	const drawingTexts: (string | null)[] = [];
+	let hasInlineImage = false;
 	for (const d of findAll(p.children, 'w:drawing')) {
 		const txbx = findFirst([d], 'wps:txbx') ?? findFirst([d], 'w:txbxContent');
 		if (txbx) {
@@ -364,10 +378,23 @@ function readParagraph(p: OoxmlNode, superStyleIds: Set<string>): BodyParagraph 
 			drawingTexts.push(txt || null);
 		} else {
 			drawingTexts.push(null);
+			hasInlineImage = true;
 		}
 	}
 
-	return { pStyle, bookmarks, anchors, text, supMarkers, drawingTexts };
+	return { pStyle, bookmarks, anchors, text, supMarkers, drawingTexts, hasInlineImage };
+}
+
+// Caption detection: pStyle-based first (most reliable), then text-prefix
+// fallback for converters that drop the style.
+const CAPTION_PSTYLE_RE = /^(caption|beschriftung|bildunterschrift|tabellen?(?:beschriftung|titel))\b/i;
+function isCaptionByStyle(pStyle: string | undefined): boolean {
+	return !!pStyle && CAPTION_PSTYLE_RE.test(pStyle);
+}
+function isCaptionByText(text: string): boolean {
+	const t = text.trim();
+	if (!t || t.length > 300) return false;
+	return CAPTION_PREFIX_RE.test(t);
 }
 
 // ── Main extract ─────────────────────────────────────────────────
@@ -716,15 +743,55 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 			}
 		}
 
-		// Drawings as footnote-textboxes (PDF-converter rendering)
+		// Drawings: classify each drawing in the paragraph.
+		//   - <w:drawing> with no textbox  → 'figure' (true inline image)
+		//   - textbox with pure-numeric    → 'page_marker' (PDF page-number footer)
+		//   - textbox with other text      → 'footnote' (default; PDF converters
+		//                                    render real footnotes here)
+		// The figure index is tracked so a following caption can attach.
+		let lastFigureOrTableIdx: number | null = null;
 		for (const drawingText of p.drawingTexts) {
 			if (drawingText) {
-				const idx = emitLeaf('footnote', drawingText, { outline_path: [...outlinePath] });
-				footnoteElements.push(elements[idx]);
+				if (PAGE_NUMBER_RE.test(drawingText)) {
+					emitLeaf('page_marker', drawingText.trim(), {
+						outline_path: [...outlinePath],
+						kind: 'page_number'
+					});
+				} else {
+					const idx = emitLeaf('footnote', drawingText, {
+						outline_path: [...outlinePath]
+					});
+					footnoteElements.push(elements[idx]);
+				}
 			} else {
-				emitContainer('figure', '', { outline_path: [...outlinePath] });
+				const figIdx = emitContainer('figure', '', {
+					outline_path: [...outlinePath]
+				});
+				lastFigureOrTableIdx = figIdx;
 			}
 			lastWasHeading = false;
+		}
+		// Caption pairing: if THIS paragraph itself is a caption candidate
+		// (by pStyle or text-prefix), the just-emitted paragraph element
+		// is reclassified as 'caption' and linked via caption_of to the
+		// preceding figure/table. We can't reclassify after-the-fact in
+		// the existing element rows array, so we track this by adding
+		// a ref. For paragraphs that are captions to a FOLLOWING figure,
+		// we keep `pendingCaptionIdx` and resolve on the next emit.
+		if (paragraphIdx != null) {
+			const isCaption = isCaptionByStyle(p.pStyle) || isCaptionByText(text);
+			if (isCaption) {
+				// Mark the paragraph as a caption via properties, plus
+				// record a ref to the preceding figure/table if any.
+				(elements[paragraphIdx].properties as Record<string, unknown>).is_caption = true;
+				if (lastFigureOrTableIdx != null) {
+					if (!elements[paragraphIdx].refs) elements[paragraphIdx].refs = [];
+					elements[paragraphIdx].refs!.push({
+						toIndex: lastFigureOrTableIdx,
+						refType: 'caption_of'
+					});
+				}
+			}
 		}
 	}
 
