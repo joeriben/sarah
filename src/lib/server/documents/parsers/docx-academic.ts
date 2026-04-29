@@ -131,6 +131,101 @@ function nodeText(node: OoxmlNode): string {
 	return out;
 }
 
+interface SuperMarker {
+	marker: string;     // marker text (typically a numeric digit string)
+	atOffset: number;   // char index in the cleaned paragraph text where the
+	                    // marker would have appeared inline (i.e. after the
+	                    // preceding non-superscript text). Used to assign
+	                    // the marker to the sentence whose range contains
+	                    // this offset.
+}
+
+/**
+ * Walk a `<w:p>` and concatenate ALL text (including superscripted
+ * footnote-reference numbers — they belong to the sentence). Record
+ * the offset of each numeric superscript so we can wire a cross-ref
+ * from the containing sentence to the corresponding footnote element.
+ *
+ * `superStyleIds` is the set of styleId values resolved by walking
+ * styles.xml (basedOn chain). Empty set → only inline vertAlign considered.
+ */
+function paragraphTextAndMarkers(
+	p: OoxmlNode,
+	superStyleIds: Set<string>
+): { text: string; markers: SuperMarker[] } {
+	let out = '';
+	const markers: SuperMarker[] = [];
+
+	function isSuperRun(r: OoxmlNode): boolean {
+		const rPr = r.children.find((c) => c.tag === 'w:rPr');
+		if (!rPr) return false;
+		const vertAlign = rPr.children.find((c) => c.tag === 'w:vertAlign');
+		if (vertAlign?.attrs['w:val'] === 'superscript') return true;
+		const rStyle = rPr.children.find((c) => c.tag === 'w:rStyle');
+		const sid = rStyle?.attrs['w:val'];
+		if (sid && superStyleIds.has(sid)) return true;
+		return false;
+	}
+
+	function walk(n: OoxmlNode, inSuperRun: boolean) {
+		if (n.tag === 'w:r') {
+			const sup = inSuperRun || isSuperRun(n);
+			if (sup && !inSuperRun) {
+				// Top-level superscript run — emit text AND record marker.
+				const startOffset = out.length;
+				for (const c of n.children) walk(c, true);
+				const text = out.slice(startOffset).trim();
+				if (/^\d+$/.test(text)) {
+					markers.push({ marker: text, atOffset: startOffset });
+				}
+				return;
+			}
+			for (const c of n.children) walk(c, sup);
+			return;
+		}
+		if (n.tag === 'w:t' && n.text) out += n.text;
+		else if (n.tag === 'w:tab' || n.tag === 'w:br') out += ' ';
+		else for (const c of n.children) walk(c, inSuperRun);
+	}
+	for (const c of p.children) walk(c, false);
+	return { text: out, markers };
+}
+
+/**
+ * Resolve every styleId in styles.xml whose effective rPr has
+ * vertAlign='superscript' (directly or via the basedOn chain).
+ * Used to detect named-style superscript runs (PDF converters often
+ * render footnote refs via a custom 'FootnoteReference' style).
+ */
+function resolveSuperscriptStyleIds(stylesTree: OoxmlNode[]): Set<string> {
+	const direct = new Map<string, boolean>();
+	const basedOn = new Map<string, string | undefined>();
+	for (const styleNode of findAll(stylesTree, 'w:style')) {
+		const sid = styleNode.attrs['w:styleId'];
+		if (!sid) continue;
+		const rPr = styleNode.children.find((c) => c.tag === 'w:rPr');
+		let isSuper = false;
+		if (rPr) {
+			const vertAlign = rPr.children.find((c) => c.tag === 'w:vertAlign');
+			if (vertAlign?.attrs['w:val'] === 'superscript') isSuper = true;
+		}
+		direct.set(sid, isSuper);
+		const base = styleNode.children.find((c) => c.tag === 'w:basedOn');
+		basedOn.set(sid, base?.attrs['w:val']);
+	}
+	function resolve(sid: string | undefined, seen: Set<string>): boolean {
+		if (!sid || seen.has(sid) || !direct.has(sid)) return false;
+		if (direct.get(sid)) return true;
+		seen.add(sid);
+		return resolve(basedOn.get(sid), seen);
+	}
+	const out = new Set<string>();
+	for (const sid of direct.keys()) {
+		if (resolve(sid, new Set())) out.add(sid);
+	}
+	return out;
+}
+
 // ── ZIP unwrap ───────────────────────────────────────────────────
 
 function unzipDocxParts(buffer: Buffer): Promise<Record<string, string>> {
@@ -214,11 +309,11 @@ interface BodyParagraph {
 	bookmarks: string[];        // names of <w:bookmarkStart> within this paragraph
 	anchors: string[];          // anchor attrs of <w:hyperlink> within this paragraph
 	text: string;
-	supMarkers: string[];       // numeric superscript markers (footnote refs)
+	supMarkers: SuperMarker[];  // numeric superscript markers with text-offset
 	drawingTexts: (string | null)[];   // text content of inline <wps:txbx> drawings, or null
 }
 
-function readParagraph(p: OoxmlNode): BodyParagraph {
+function readParagraph(p: OoxmlNode, superStyleIds: Set<string>): BodyParagraph {
 	const pStyle = findFirst(p.children, 'w:pStyle')?.attrs['w:val'];
 	const bookmarks = findAll(p.children, 'w:bookmarkStart')
 		.map((b) => b.attrs['w:name'])
@@ -226,19 +321,7 @@ function readParagraph(p: OoxmlNode): BodyParagraph {
 	const anchors = findAll(p.children, 'w:hyperlink')
 		.map((h) => h.attrs['w:anchor'])
 		.filter(Boolean);
-	const text = nodeText(p);
-
-	// Superscript markers in run-level rPr/vertAlign='superscript'
-	const supMarkers: string[] = [];
-	for (const r of findAll(p.children, 'w:r')) {
-		const rPr = r.children.find((c) => c.tag === 'w:rPr');
-		if (!rPr) continue;
-		const vertAlign = rPr.children.find((c) => c.tag === 'w:vertAlign');
-		const isSuper = vertAlign?.attrs['w:val'] === 'superscript';
-		if (!isSuper) continue;
-		const t = nodeText(r).trim();
-		if (/^\d+$/.test(t)) supMarkers.push(t);
-	}
+	const { text, markers: supMarkers } = paragraphTextAndMarkers(p, superStyleIds);
 
 	// Drawings: look for <wps:txbx>/<w:txbxContent> text — PDF converters render
 	// footnotes as floating textboxes here.
@@ -286,7 +369,65 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 		}
 	}
 
-	const blocks = [...iterBlocks(body)];
+	const rawBlocks = [...iterBlocks(body)];
+
+	// Pre-compute styleIds whose effective rPr is superscript so footnote
+	// reference markers rendered via a named style are excluded from text.
+	const superStyleIds = resolveSuperscriptStyleIds(stylesTree);
+
+	/**
+	 * Merge consecutive plain `<w:p>` blocks where the first one does not
+	 * end with a sentence-terminator. PDF→DOCX converters (and some Word
+	 * writers) introduce spurious paragraph breaks at line-wraps, so the
+	 * sentence "Auch internationale Programme legte einen" + "Schwerpunkt
+	 * auf Mädchen…" arrives as two `<w:p>` even though it is one sentence.
+	 *
+	 * Rules:
+	 * - Both blocks must be plain paragraphs (not headings, TOC, tables,
+	 *   etc. — those are detected via pStyle / non-w:p tag).
+	 * - First block's text must end with anything OTHER than `. ? ! … :`
+	 *   (after trimming trailing whitespace).
+	 * - First block's text must be non-empty (empty paragraphs are visual
+	 *   spacers and are not merge candidates either).
+	 *
+	 * Merging concatenates child arrays so subsequent paragraph reading
+	 * (text, markers, drawings) sees the joined run sequence.
+	 */
+	const TERMINATORS = /[.?!…:][)\]"'»”]*\s*$/;
+	function isProseParagraph(b: OoxmlNode): boolean {
+		if (b.tag !== 'w:p') return false;
+		const pStyleEl = findFirst(b.children, 'w:pStyle');
+		const sid = pStyleEl?.attrs['w:val'];
+		if (!sid) return true;
+		if (sid.startsWith('TOC')) return false;
+		// Headings (TOC-bookmark or pStyle) — same heuristic check would be
+		// expensive here; skip merge if the style resolves to a heading level.
+		if (resolveHeadingLevelByStyleId(sid, stylesTree) != null) return false;
+		return true;
+	}
+
+	const blocks: OoxmlNode[] = [];
+	for (const b of rawBlocks) {
+		const last = blocks.length ? blocks[blocks.length - 1] : null;
+		if (
+			last &&
+			isProseParagraph(last) &&
+			isProseParagraph(b) &&
+			!last.attrs['__sarah_no_merge']
+		) {
+			const lastText = paragraphTextAndMarkers(last, superStyleIds).text;
+			if (lastText.trim() && !TERMINATORS.test(lastText)) {
+				// Merge: append b's children into last's children, drop b.
+				// Insert a soft-space between to avoid run collisions.
+				last.children.push(
+					{ tag: 'w:r', attrs: {}, children: [{ tag: 'w:t', attrs: {}, children: [], text: ' ' }] }
+				);
+				for (const c of b.children) last.children.push(c);
+				continue;
+			}
+		}
+		blocks.push(b);
+	}
 
 	// Pass 1 — TOC: paragraphs with pStyle ∈ TOC1..TOC9
 	const bookmarkToLevel = new Map<string, number>();
@@ -294,7 +435,7 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 
 	for (const b of blocks) {
 		if (b.tag !== 'w:p') continue;
-		const p = readParagraph(b);
+		const p = readParagraph(b, superStyleIds);
 		if (!p.pStyle?.startsWith('TOC')) continue;
 		const tail = p.pStyle.slice(3);
 		let level = 1;
@@ -318,8 +459,12 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 	let lastWasHeading = false;
 	let pendingPositionFixup: number[] = []; // indices of paragraphs that may become 'before_heading'
 
-	const pendingFootnoteMarkers: { paragraphIndex: number; marker: string }[] = [];
-	const footnoteIndices: number[] = [];
+	// Footnote refs originate from the SENTENCE that carries the marker,
+	// not from the surrounding paragraph (the footnote refers to that
+	// specific sentence). Order-paired against footnote elements appearing
+	// later in body order.
+	const pendingFootnoteRefs: { sentence: ParsedElement; marker: string }[] = [];
+	const footnoteElements: ParsedElement[] = [];
 
 	function emit(type: string, content: string | null, properties?: Record<string, unknown>): number {
 		const text = content ?? '';
@@ -417,31 +562,60 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 				position_role: positionRole,
 				has_drawing: p.drawingTexts.length > 0
 			};
-			if (p.supMarkers.length) props.footnote_markers = p.supMarkers;
 			paragraphIdx = emit('paragraph', text, props);
 			lastWasHeading = false;
 			pendingPositionFixup.push(paragraphIdx);
 
-			// Sentence split (German-aware), char offsets relative to paragraph start
+			// Sentence split (German-aware), char offsets relative to paragraph start.
+			// Note: text was trimmed before sentence-split, but supMarkers' atOffset
+			// indices are against the UNTRIMMED text. Compute the offset shift caused
+			// by the leading trim so we can map markers into the trimmed text.
+			const leadingTrim = p.text.length - p.text.trimStart().length;
 			const paragraphStart = elements[paragraphIdx].charStart;
 			const sents = splitGermanSentences(text, paragraphStart);
+			const sentenceElems: ParsedElement[] = [];
 			for (const s of sents) {
-				const idx = elements.length;
-				elements.push({
+				const sentEl: ParsedElement = {
 					type: 'sentence',
 					content: s.text,
 					charStart: s.start,
 					charEnd: s.end,
 					properties: {}
-				});
-				// Track parent via children-array: we'll attach later in flatten
+				};
+				elements.push(sentEl);
+				sentenceElems.push(sentEl);
 				if (!elements[paragraphIdx].children) elements[paragraphIdx].children = [];
-				elements[paragraphIdx].children!.push(elements[idx]);
+				elements[paragraphIdx].children!.push(sentEl);
 			}
 
-			// Track sup-markers for footnote_at refs
-			for (const marker of p.supMarkers) {
-				pendingFootnoteMarkers.push({ paragraphIndex: paragraphIdx, marker });
+			// Bind each marker to the sentence whose paragraph-relative range
+			// contains the marker's offset (with a 1-char tolerance so a marker
+			// sitting exactly on a sentence boundary attaches to the preceding
+			// sentence). Falls back to the last sentence if the marker is past
+			// the end of the trimmed text (rare but possible).
+			for (const m of p.supMarkers) {
+				const offsetInTrimmed = m.atOffset - leadingTrim;
+				const docOffset = paragraphStart + Math.max(0, offsetInTrimmed);
+				let bound: ParsedElement | null = null;
+				// Prefer the sentence whose [start, end] strictly contains the offset.
+				for (const s of sentenceElems) {
+					if (docOffset >= s.charStart && docOffset <= s.charEnd) {
+						bound = s;
+						break;
+					}
+				}
+				// Otherwise: the sentence whose end is closest to the marker offset
+				// (typically: marker comes immediately after a terminator).
+				if (!bound && sentenceElems.length) {
+					let best = sentenceElems[0];
+					for (const s of sentenceElems) {
+						if (s.charEnd <= docOffset && s.charEnd >= best.charEnd) best = s;
+					}
+					bound = best;
+				}
+				if (bound) {
+					pendingFootnoteRefs.push({ sentence: bound, marker: m.marker });
+				}
 			}
 		}
 
@@ -449,7 +623,7 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 		for (const drawingText of p.drawingTexts) {
 			if (drawingText) {
 				const idx = emit('footnote', drawingText, { outline_path: [...outlinePath] });
-				footnoteIndices.push(idx);
+				footnoteElements.push(elements[idx]);
 			} else {
 				emit('figure', null, { outline_path: [...outlinePath] });
 			}
@@ -457,17 +631,18 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 		}
 	}
 
-	// Refs: footnote_at by paired body order (super-marker N → footnote N)
-	const refs: ElementRef[] = [];
-	for (let i = 0; i < pendingFootnoteMarkers.length && i < footnoteIndices.length; i++) {
-		const fn = pendingFootnoteMarkers[i];
-		// Wire as ref on the paragraph element, pointing to footnote
-		const paragraph = elements[fn.paragraphIndex];
-		if (!paragraph.refs) paragraph.refs = [];
-		paragraph.refs.push({
-			toIndex: footnoteIndices[i],
+	// Refs: footnote_at, FROM the sentence that carries the marker TO the
+	// matching footnote element (paired by body order).
+	for (let i = 0; i < pendingFootnoteRefs.length && i < footnoteElements.length; i++) {
+		const { sentence, marker } = pendingFootnoteRefs[i];
+		const footnote = footnoteElements[i];
+		const toIndex = elements.indexOf(footnote);
+		if (toIndex < 0) continue;
+		if (!sentence.refs) sentence.refs = [];
+		sentence.refs.push({
+			toIndex,
 			refType: 'footnote_at',
-			properties: { footnote_match: 'order_heuristic', marker: fn.marker }
+			properties: { footnote_match: 'order_heuristic', marker }
 		});
 	}
 

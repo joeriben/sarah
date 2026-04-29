@@ -36,7 +36,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		`SELECT id, element_type, content, parent_id, seq, char_start, char_end
 		 FROM document_elements
 		 WHERE document_id = $1
-		 ORDER BY char_start, seq`,
+		 ORDER BY char_start ASC, char_end DESC, seq ASC`,
 		[params.docId]
 	);
 
