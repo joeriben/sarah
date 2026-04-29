@@ -31,7 +31,7 @@
 import yauzl from 'yauzl';
 import { Buffer } from 'node:buffer';
 import { XMLParser } from 'fast-xml-parser';
-import type { ParsedElement, ParseResult, ElementRef } from './types.js';
+import type { ParsedElement, ParseResult, ElementRef, SectionKind } from './types.js';
 import { splitGermanSentences } from './sentences-de.js';
 
 // ── XML helpers ──────────────────────────────────────────────────
@@ -299,6 +299,63 @@ const BIBLIOGRAPHY_RE = new RegExp(
 			'|cited\\s+works' +
 			'|quellen(?:verzeichnis|angaben|nachweise)?' +
 			'|schrifttum' +
+		')' +
+		'\\b',
+	'i'
+);
+
+// Front-matter heading anchors. These titles appear in the introductory
+// apparatus of a qualification work (before the main body). When section
+// state is still 'front_matter', a heading matching this regex KEEPS the
+// state at front_matter (it does not promote to main) — that's the only
+// reason this regex exists. Mid-document occurrences (e.g. a final
+// "Zusammenfassung" chapter) leave the state alone, so they end up
+// classified by the surrounding state (typically 'main').
+const FRONT_MATTER_RE = new RegExp(
+	'^' +
+		'(?:' +
+			'vorwort' +
+			'|geleitwort' +
+			'|widmung' +
+			'|danksagung' +
+			'|abstract' +
+			'|zusammenfassung' +
+			'|kurzfassung' +
+			'|kurzzusammenfassung' +
+			'|executive\\s+summary' +
+			'|preface' +
+			'|foreword' +
+			'|acknowledg(?:e)?ments?' +
+			'|dedication' +
+			'|inhaltsverzeichnis' +
+			'|inhalt' +
+			'|table\\s+of\\s+contents' +
+			'|abbildungsverzeichnis' +
+			'|tabellenverzeichnis' +
+			'|abk(?:ü|ue)rzungsverzeichnis' +
+			'|formelverzeichnis' +
+			'|verzeichnis\\s+der\\s+(?:abbildungen|tabellen|abk(?:ü|ue)rzungen|formeln)' +
+			'|list\\s+of\\s+(?:figures|tables|abbreviations|symbols)' +
+			'|eidesstattliche\\s+erkl(?:ä|ae)rung' +
+			'|selbst(?:st)?(?:ä|ae)ndigkeitserkl(?:ä|ae)rung' +
+		')' +
+		'\\b',
+	'i'
+);
+
+// Appendix / back-matter heading anchors. Switches section state into
+// 'appendix' (a terminal state — the only legal exit is into 'bibliography'
+// for works that place Anhang before Literaturverzeichnis, handled by
+// BIBLIOGRAPHY_RE running after this check).
+const APPENDIX_RE = new RegExp(
+	'^' +
+		'(?:' +
+			'anhang(?:\\s+[a-z0-9])?' +
+			'|anh(?:ä|ae)nge' +
+			'|anlage(?:n|\\s+[a-z0-9])?' +
+			'|appendi(?:x|ces)(?:\\s+[a-z0-9])?' +
+			'|nachwort' +
+			'|epilog' +
 		')' +
 		'\\b',
 	'i'
@@ -830,6 +887,92 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 	}
 
 	const fullText = textBuf.join('');
+
+	// Pass 3 — assign section_kind and page_from/page_to to every element.
+	// Runs over the flat array (still includes sentence children at this
+	// point) so paragraphs and their sentences get the same labels.
+	//
+	// section_kind state machine — driven by heading text:
+	//   • start: 'front_matter'
+	//   • BIBLIOGRAPHY_RE  → 'bibliography' (chapter-level bibliographies
+	//     close again on a heading at same/shallower level than the bib
+	//     heading itself; mirrors the `inBibliography` logic above)
+	//   • APPENDIX_RE      → 'appendix'
+	//   • FRONT_MATTER_RE  → no transition (anchor; prevents the next
+	//     non-apparatus heading from promoting front_matter → main)
+	//   • any other heading → if state is 'front_matter', promote to 'main';
+	//     otherwise the state is sticky.
+	//
+	// page_from / page_to — footer convention: a `page_marker` element with
+	// numeric content N closes its own page. Every element emitted since the
+	// previous page_marker (or since document start, for the leading run) is
+	// assigned page_from = page_to = N. Elements before the very first
+	// page_marker are left NULL — typically Roman-numbered or unnumbered
+	// front matter where Arabic page numbers do not yet apply.
+	{
+		let sectionKind: SectionKind = 'front_matter';
+		let bibSectionLevel: number | null = null;
+		let pendingForPage: ParsedElement[] = [];
+
+		for (const el of elements) {
+			if (el.type === 'heading') {
+				const text = (el.content ?? '').trim();
+				const level =
+					typeof (el.properties as any)?.level === 'number'
+						? ((el.properties as any).level as number)
+						: 1;
+				const isBib = BIBLIOGRAPHY_RE.test(text);
+				const isAppendix = APPENDIX_RE.test(text);
+				const isFront = FRONT_MATTER_RE.test(text);
+
+				// Close a bibliography section on a same- or shallower-level
+				// heading that is not itself a bib heading.
+				let exitedBib = false;
+				if (
+					sectionKind === 'bibliography' &&
+					bibSectionLevel != null &&
+					level <= bibSectionLevel &&
+					!isBib
+				) {
+					exitedBib = true;
+					bibSectionLevel = null;
+				}
+
+				if (isBib) {
+					sectionKind = 'bibliography';
+					bibSectionLevel = level;
+				} else if (isAppendix) {
+					sectionKind = 'appendix';
+				} else if (isFront) {
+					// anchor: keep state
+				} else if (exitedBib) {
+					// post-bib regular heading: drop back to main (not appendix —
+					// APPENDIX_RE already would have caught Anhang etc. above).
+					sectionKind = 'main';
+				} else if (sectionKind === 'front_matter') {
+					sectionKind = 'main';
+				}
+			}
+			el.sectionKind = sectionKind;
+
+			if (el.type === 'page_marker') {
+				const pageNum = parseInt((el.content ?? '').trim(), 10);
+				if (Number.isFinite(pageNum)) {
+					for (const p of pendingForPage) {
+						p.pageFrom = pageNum;
+						p.pageTo = pageNum;
+					}
+					el.pageFrom = pageNum;
+					el.pageTo = pageNum;
+				}
+				pendingForPage = [];
+			} else {
+				pendingForPage.push(el);
+			}
+		}
+		// Trailing elements after the last page_marker keep pageFrom/pageTo
+		// undefined → stored as NULL.
+	}
 
 	// We've been building elements as a flat array, but using children for
 	// paragraph→sentence nesting. Promote those children into a top-level

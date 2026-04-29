@@ -120,8 +120,10 @@ export async function parseAndStore(
 	for (const { element, parentIndex, seq } of flat) {
 		const parentId = parentIndex !== null ? ids[parentIndex] : null;
 		const res = await client.query<{ id: string }>(
-			`INSERT INTO document_elements (document_id, element_type, parent_id, seq, char_start, char_end, properties)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7)
+			`INSERT INTO document_elements
+			   (document_id, element_type, parent_id, seq,
+			    char_start, char_end, page_from, page_to, section_kind, properties)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			 RETURNING id`,
 			[
 				documentId,
@@ -130,6 +132,9 @@ export async function parseAndStore(
 				seq,
 				element.charStart,
 				element.charEnd,
+				element.pageFrom ?? null,
+				element.pageTo ?? null,
+				element.sectionKind ?? null,
 				JSON.stringify(element.properties || {})
 			]
 		);

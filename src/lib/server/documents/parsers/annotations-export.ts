@@ -35,15 +35,20 @@
  *
  * Parser output: one `annotation` element per entry, plus `heading`
  * elements for the chapter context lines. Each annotation carries:
+ *   pageFrom = pageTo = the explicit page from "[Seite N]"
+ *     (single-page constraint: PDF readers don't allow annotations
+ *     spanning page breaks — the range degenerates to a point)
  *   properties = {
  *     type:            'Hervorheben'|'Notiz'|'Wellenlinie'|...,
- *     page:            int,
  *     semantic:        'citing'|'commenting',
  *     chapter_context: string|null,
  *     paired_with_index: int|null   // for commenting: index of the
- *                                   // most recent citing annotation
- *                                   // (Note typically follows the
- *                                   // Highlight it comments on)
+ *                                   // most recent citing annotation;
+ *                                   // weak hint only — Notiz/Text can
+ *                                   // sit pages away from any prior
+ *                                   // markup. The annotates-resolver
+ *                                   // is an LLM task with page-scoped
+ *                                   // candidates, not a positional rule.
  *   }
  *
  * Cross-document refs (`annotates` from annotation→sentence) are
@@ -91,7 +96,8 @@ export function parseAnnotationsExport(text: string): ParseResult {
 	function emitLeaf(
 		type: string,
 		content: string,
-		properties: Record<string, unknown>
+		properties: Record<string, unknown>,
+		page: number | null = null
 	): number {
 		const start = cursor;
 		buf.push(content);
@@ -104,6 +110,8 @@ export function parseAnnotationsExport(text: string): ParseResult {
 			content,
 			charStart: start,
 			charEnd: start + content.length,
+			pageFrom: page,
+			pageTo: page,
 			properties
 		});
 		return idx;
@@ -151,7 +159,6 @@ export function parseAnnotationsExport(text: string): ParseResult {
 
 			const properties: Record<string, unknown> = {
 				type,
-				page,
 				semantic,
 				chapter_context: chapterContext
 			};
@@ -159,7 +166,7 @@ export function parseAnnotationsExport(text: string): ParseResult {
 				properties.paired_with_index = lastCitingIdx;
 			}
 
-			const idx = emitLeaf('annotation', content, properties);
+			const idx = emitLeaf('annotation', content, properties, page);
 			if (semantic === 'citing') lastCitingIdx = idx;
 
 			i = j;
