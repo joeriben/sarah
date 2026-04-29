@@ -1,16 +1,16 @@
 {
-	"name": "transact-qda",
+	"name": "sarah",
 	"private": true,
-	"version": "0.7.0",
+	"version": "0.1.0",
 	"type": "module",
 	"license": "AGPL-3.0-or-later",
 	"author": "Benjamin Jörissen <benjamin.joerissen@fau.de>",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/joeriben/transact-qda.git"
+		"url": "git+https://github.com/joeriben/sarah.git"
 	},
-	"homepage": "https://github.com/joeriben/transact-qda#readme",
-	"bugs": "https://github.com/joeriben/transact-qda/issues",
+	"homepage": "https://github.com/joeriben/sarah#readme",
+	"bugs": "https://github.com/joeriben/sarah/issues",
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
