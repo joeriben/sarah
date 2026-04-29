@@ -7,7 +7,9 @@ import { transaction } from '$lib/server/db/index.js';
 import { saveFile } from '$lib/server/files/index.js';
 import { extractText, detectMimeType } from '$lib/server/documents/index.js';
 import { parseAndStore } from '$lib/server/documents/parsers/index.js';
-import { embedDocumentElements } from '$lib/server/documents/embed-elements.js';
+// Embeddings are deferred (ticket: SARAH use case for retrieval is unclear;
+// onnxruntime-node + Vite SSR currently incompatible). The /embed endpoint
+// still works on demand for explicit triggering.
 
 export const POST: RequestHandler = async ({ request, locals, url }) => {
 	const projectId = url.searchParams.get('projectId');
@@ -72,12 +74,6 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		};
 	});
 
-	// Compute embeddings after transaction commits (async, non-blocking)
-	if (fullText) {
-		embedDocumentElements(doc.id).catch(err =>
-			console.error(`Embedding failed for document ${doc.id}:`, err)
-		);
-	}
-
+	// Embeddings deferred — see import-comment above.
 	return json(doc, { status: 201 });
 };

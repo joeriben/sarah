@@ -262,6 +262,13 @@ function unzipDocxParts(buffer: Buffer): Promise<Record<string, string>> {
 	});
 }
 
+// Headings whose title matches this regex open a bibliography section.
+// Subsequent paragraphs are emitted as element_type='bibliography_entry'
+// (one entry per paragraph, no sentence split) until the next heading at
+// the same or shallower level.
+const BIBLIOGRAPHY_RE =
+	/^(literatur(verzeichnis)?|bibliographie?|bibliography|references|quellen(verzeichnis)?)\b/i;
+
 // ── Heading-style resolution (transact-qda-style + DE custom names) ──
 
 const HEADING_PREFIXES = ['heading ', 'überschrift ', 'ueberschrift '];
@@ -466,6 +473,14 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 	const pendingFootnoteRefs: { sentence: ParsedElement; marker: string }[] = [];
 	const footnoteElements: ParsedElement[] = [];
 
+	// Bibliography section detection. When the body walk hits a heading
+	// whose title matches BIBLIOGRAPHY_RE, every subsequent paragraph is
+	// emitted as element_type='bibliography_entry' (no sentence split, no
+	// footnote pairing). The bibliography section ends at the next heading
+	// of the same or shallower level, or at end of document.
+	let inBibliography = false;
+	let bibliographyHeadingLevel: number | null = null;
+
 	function emitLeaf(type: string, content: string, properties?: Record<string, unknown>): number {
 		const start = cursor;
 		textBuf.push(content);
@@ -559,12 +574,33 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 			if (!text) continue;
 			outlinePath = outlinePath.slice(0, headingLevel - 1);
 			outlinePath.push(text);
-			emitLeaf('heading', text, {
+
+			// Bibliography section state machine: opens here if the title
+			// matches; closes when we encounter a heading at the same or
+			// shallower level than the bibliography heading itself.
+			const isBibliographyHeading = BIBLIOGRAPHY_RE.test(text);
+			if (
+				inBibliography &&
+				bibliographyHeadingLevel != null &&
+				headingLevel <= bibliographyHeadingLevel &&
+				!isBibliographyHeading
+			) {
+				inBibliography = false;
+				bibliographyHeadingLevel = null;
+			}
+
+			const headingProps: Record<string, unknown> = {
 				level: headingLevel,
 				heading_source: headingSource,
 				outline_path: [...outlinePath],
 				bookmarks: p.bookmarks
-			});
+			};
+			if (isBibliographyHeading) {
+				headingProps.is_bibliography_section = true;
+				inBibliography = true;
+				bibliographyHeadingLevel = headingLevel;
+			}
+			emitLeaf('heading', text, headingProps);
 			lastWasHeading = true;
 			for (const fixIdx of pendingPositionFixup) {
 				(elements[fixIdx].properties as any).position_role = 'before_heading';
@@ -576,6 +612,17 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 		// 4) Plain paragraph (with optional drawings/footnotes from textboxes)
 		const text = p.text.trim();
 		if (!text && p.drawingTexts.every((dt) => !dt)) continue;
+
+		// 4a) Bibliography section: emit each non-empty paragraph as a
+		//      single bibliography_entry. No sentence split (entries are
+		//      records, not prose), no footnote-marker pairing.
+		if (inBibliography && text) {
+			emitLeaf('bibliography_entry', text, {
+				outline_path: [...outlinePath]
+			});
+			lastWasHeading = false;
+			continue;
+		}
 
 		let paragraphIdx: number | null = null;
 		if (text) {
