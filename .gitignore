@@ -30,6 +30,13 @@ ai-settings.json
 /uploads/
 /coach-library/
 
+# Benchmark / experiment exports — können reale Forschungsdaten (Habil-Texte
+# etc.) enthalten; werden per Default außerhalb des Repos abgelegt
+# (~/sarah-benchmarks/), aber zur Sicherheit hier blockiert, falls jemand das
+# Verzeichnis manuell anlegt.
+/docs/experiments/benchmark-*/
+/docs/experiments/*-data/
+
 # ML model cache
 /.model-cache/
 
