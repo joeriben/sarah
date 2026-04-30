@@ -18,20 +18,27 @@ const t0 = Date.now();
 const run = await runGraphCollapse(CASE_ID, SUBCHAPTER_HEADING_ID, USER_ID);
 const dt = ((Date.now() - t0) / 1000).toFixed(1);
 
-const t = run.tokens;
+console.log(`\n=== Graph-fed Collapse: "Anforderungen an Professionalität" ===`);
+
+if (run.skipped) {
+	console.log(`SKIPPED (existing memo ${run.existingMemoId}; DELETE FROM namings WHERE id = '${run.existingMemoId}' to re-run)`);
+	await pool.end();
+	process.exit(0);
+}
+
+const t = run.tokens!;
 const cost = (t.input * 3 + t.cacheCreation * 3.75 + t.cacheRead * 0.30 + t.output * 15) / 1_000_000;
 
-console.log(`\n=== Graph-fed Collapse: "Anforderungen an Professionalität" ===`);
 console.log(`${dt}s   in=${t.input} cache_r=${t.cacheRead} out=${t.output}  ~$${cost.toFixed(4)}`);
 console.log(`paragraphs=${run.paragraphsSynthesized} arguments=${run.totalArguments} scaffolding=${run.totalScaffolding}`);
-console.log(`memo: ${run.stored.memoId}`);
+console.log(`memo: ${run.stored!.memoId}`);
 
 console.log(`\n--- SYNTHESE ---\n`);
-console.log(run.result.synthese);
+console.log(run.result!.synthese);
 
-if (run.result.auffaelligkeiten.length > 0) {
+if (run.result!.auffaelligkeiten.length > 0) {
 	console.log(`\n--- AUFFÄLLIGKEITEN ---`);
-	for (const a of run.result.auffaelligkeiten) {
+	for (const a of run.result!.auffaelligkeiten) {
 		console.log(`  ${a.scope}: ${a.observation}`);
 	}
 } else {

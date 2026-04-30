@@ -508,20 +508,26 @@ async function storeGraphCollapseMemo(
 // ── Public orchestration ──────────────────────────────────────────
 
 export interface GraphCollapseRun {
-	result: GraphCollapseResult;
-	stored: { memoId: string };
+	skipped: boolean;
+	// On `skipped: true` (existing graph-fed memo for this subchapter),
+	// only `existingMemoId` is populated; the LLM-derived fields are null.
+	// To re-run, DELETE the namings row whose id is `existingMemoId`
+	// (cascades to memo_content + appearances).
+	existingMemoId: string | null;
+	result: GraphCollapseResult | null;
+	stored: { memoId: string } | null;
 	tokens: {
 		input: number;
 		output: number;
 		cacheCreation: number;
 		cacheRead: number;
 		total: number;
-	};
-	model: string;
-	provider: string;
-	paragraphsSynthesized: number;
-	totalArguments: number;
-	totalScaffolding: number;
+	} | null;
+	model: string | null;
+	provider: string | null;
+	paragraphsSynthesized: number | null;
+	totalArguments: number | null;
+	totalScaffolding: number | null;
 }
 
 export async function runGraphCollapse(
@@ -529,6 +535,38 @@ export async function runGraphCollapse(
 	subchapterHeadingId: string,
 	userId: string
 ): Promise<GraphCollapseRun> {
+	// Idempotency guard: skip if a graph-fed kontextualisierend memo for this
+	// subchapter already exists. The Auto-Trigger from the per-paragraph
+	// endpoint (after Promotion B / Migration 034) re-fires this function on
+	// every paragraph that completes a subchapter, so the LLM call must not
+	// run if the memo is already there. To re-run, DELETE the namings row by
+	// id (cascades to memo_content + appearances via FK).
+	const existingMemo = await queryOne<{ id: string }>(
+		`SELECT n.id
+		 FROM namings n
+		 JOIN memo_content mc ON mc.naming_id = n.id
+		 WHERE n.inscription LIKE '[kontextualisierend/subchapter/graph]%'
+		   AND mc.scope_element_id = $1
+		   AND mc.scope_level = 'subchapter'
+		   AND n.deleted_at IS NULL
+		 LIMIT 1`,
+		[subchapterHeadingId]
+	);
+	if (existingMemo) {
+		return {
+			skipped: true,
+			existingMemoId: existingMemo.id,
+			result: null,
+			stored: null,
+			tokens: null,
+			model: null,
+			provider: null,
+			paragraphsSynthesized: null,
+			totalArguments: null,
+			totalScaffolding: null,
+		};
+	}
+
 	const ctx = await loadCollapseContext(caseId, subchapterHeadingId);
 
 	if (ctx.paragraphs.length === 0) {
@@ -573,6 +611,8 @@ export async function runGraphCollapse(
 	const stored = await storeGraphCollapseMemo(ctx, parsed, userId);
 
 	return {
+		skipped: false,
+		existingMemoId: null,
 		result: parsed,
 		stored,
 		tokens: {

@@ -1,0 +1,21 @@
+-- Migration 034: Promote argumentation_graph to DEFAULT true
+--
+-- After validation across three structurally distinct subchapters of the
+-- Habilitation-Timm test project (Methodologische Grundlegung,
+-- Schule und Globalität, Anforderungen an die Professionalität von
+-- Lehrkräften — see project_argumentations_graph_experiment.md, validation
+-- table), the analytical line consistently met or exceeded the synthetic-
+-- hermeneutic line on all four S3 Pflichtbestandteile, with emergent cross-
+-- subchapter style-pattern recognition. The original opt-in default
+-- (false) is no longer empirically defensible.
+--
+-- This migration ONLY shifts the default for NEW briefs. Existing briefs
+-- retain whatever value they were inserted with. The synthetic-hermeneutic
+-- pass becomes opt-in on demand per paragraph/subchapter via request
+-- parameter (no separate brief flag); see Memory `Promotion (Stand
+-- 2026-04-30)` section.
+--
+-- TO REVERT (e.g. if validation evidence is later contested):
+--   ALTER TABLE assessment_briefs ALTER COLUMN argumentation_graph SET DEFAULT false;
+
+ALTER TABLE assessment_briefs ALTER COLUMN argumentation_graph SET DEFAULT true;
