@@ -191,9 +191,11 @@ export interface ChatResponse {
 	toolCalls: ToolCall[];
 	model: string;
 	provider: Provider;
-	inputTokens: number;
+	inputTokens: number;          // fresh input tokens (neither cached nor cache-creating)
 	outputTokens: number;
-	tokensUsed: number; // sum, for backwards compat
+	cacheCreationTokens: number;  // tokens written into cache on this call (1.25× input rate on Anthropic)
+	cacheReadTokens: number;      // tokens served from cache (10% of input rate on Anthropic)
+	tokensUsed: number;           // sum of all input + output, for backwards compat
 	stopReason: string;
 }
 
@@ -204,20 +206,37 @@ export async function chat(opts: {
 	messages: { role: 'user' | 'assistant'; content: string }[];
 	maxTokens: number;
 	tools?: ToolDef[];
+	/**
+	 * If true, mark the system prompt as cacheable (Anthropic prompt caching,
+	 * 5-min TTL). Honoured natively on the Anthropic provider, passed through
+	 * on OpenAI-compatible providers that proxy Anthropic models (OpenRouter,
+	 * Mammouth). Silently ignored elsewhere.
+	 *
+	 * Caching is prefix-based: identical leading text across calls hits cache.
+	 * Order the system prompt so the most stable parts come first and the
+	 * variable parts come last for maximum hit ratio.
+	 */
+	cacheSystem?: boolean;
 }): Promise<ChatResponse> {
 	init();
 
 	if (_provider === 'anthropic') {
+		const systemParam = opts.cacheSystem && opts.system
+			? [{ type: 'text' as const, text: opts.system, cache_control: { type: 'ephemeral' as const } }]
+			: opts.system;
+
 		const response = await anthropicClient!.messages.create({
 			model: _model,
 			max_tokens: opts.maxTokens,
-			system: opts.system,
+			system: systemParam,
 			messages: opts.messages,
 			tools: opts.tools as Anthropic.Messages.Tool[]
 		});
 
 		const inputTokens = response.usage.input_tokens;
 		const outputTokens = response.usage.output_tokens;
+		const cacheCreationTokens = response.usage.cache_creation_input_tokens ?? 0;
+		const cacheReadTokens = response.usage.cache_read_input_tokens ?? 0;
 
 		return {
 			text: response.content
@@ -235,13 +254,29 @@ export async function chat(opts: {
 			provider: _provider,
 			inputTokens,
 			outputTokens,
-			tokensUsed: inputTokens + outputTokens,
+			cacheCreationTokens,
+			cacheReadTokens,
+			tokensUsed: inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens,
 			stopReason: response.stop_reason || 'end_turn'
 		};
 	} else {
 		// OpenAI-compatible path (OpenRouter, Mistral, IONOS, Mammouth, OpenAI, Ollama)
 		const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-		if (opts.system) messages.push({ role: 'system', content: opts.system });
+		if (opts.system) {
+			if (opts.cacheSystem && (_provider === 'openrouter' || _provider === 'mammouth')) {
+				// Pass-through cache_control for Anthropic-proxying providers.
+				// Cast escapes the OpenAI SDK type that doesn't model cache_control.
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				messages.push({
+					role: 'system',
+					content: [
+						{ type: 'text', text: opts.system, cache_control: { type: 'ephemeral' } }
+					]
+				} as any);
+			} else {
+				messages.push({ role: 'system', content: opts.system });
+			}
+		}
 		for (const m of opts.messages) messages.push({ role: m.role, content: m.content });
 
 		const tools: OpenAI.Chat.Completions.ChatCompletionTool[] | undefined = opts.tools?.map(t => ({
@@ -277,8 +312,24 @@ export async function chat(opts: {
 			}
 		}
 
-		const inputTokens = response.usage?.prompt_tokens || 0;
-		const outputTokens = response.usage?.completion_tokens || 0;
+		// OpenAI-compat usage. OpenRouter and Mammouth (when proxying Anthropic)
+		// expose cache reads via prompt_tokens_details.cached_tokens. Cache writes
+		// for Anthropic-proxying routes are reported as a separate field on the
+		// raw payload — read defensively and fall back to 0.
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const usage = response.usage as any | undefined;
+		const promptTotal = usage?.prompt_tokens ?? 0;
+		const cacheReadTokens =
+			usage?.prompt_tokens_details?.cached_tokens
+			?? usage?.cache_read_input_tokens
+			?? 0;
+		const cacheCreationTokens =
+			usage?.prompt_tokens_details?.cache_creation_tokens
+			?? usage?.cache_creation_input_tokens
+			?? 0;
+		// inputTokens = the slice of prompt_tokens that is neither cached nor newly cached
+		const inputTokens = Math.max(0, promptTotal - cacheReadTokens - cacheCreationTokens);
+		const outputTokens = usage?.completion_tokens ?? 0;
 
 		return {
 			text: choice.message.content || '',
@@ -287,7 +338,9 @@ export async function chat(opts: {
 			provider: _provider,
 			inputTokens,
 			outputTokens,
-			tokensUsed: inputTokens + outputTokens,
+			cacheCreationTokens,
+			cacheReadTokens,
+			tokensUsed: promptTotal + outputTokens,
 			stopReason: choice.finish_reason || 'end_turn'
 		};
 	}
