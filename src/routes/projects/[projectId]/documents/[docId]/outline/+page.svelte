@@ -38,7 +38,12 @@
 			while (counter.length < lvl) counter.push(0);
 			counter.length = lvl;
 			counter[lvl - 1] = (counter[lvl - 1] ?? 0) + 1;
-			return { ...h, effectiveNumbering: counter.join('.') };
+			const parserDepth = h.parserNumbering?.split('.').length ?? 0;
+			const effectiveNumbering =
+				h.parserNumbering && parserDepth === lvl
+					? h.parserNumbering
+					: counter.join('.');
+			return { ...h, effectiveNumbering };
 		});
 	}
 
@@ -112,6 +117,65 @@
 			errorMessage = e instanceof Error ? e.message : String(e);
 		} finally {
 			confirming = false;
+		}
+	}
+
+	async function reopen() {
+		errorMessage = null;
+		confirming = true;
+		try {
+			const r = await fetch(
+				`/api/projects/${projectId}/documents/${docId}/outline/reopen`,
+				{ method: 'POST' }
+			);
+			if (!r.ok) {
+				const err = await r.json().catch(() => ({}));
+				throw new Error(err.message || `${r.status}`);
+			}
+			await invalidateAll();
+		} catch (e) {
+			errorMessage = e instanceof Error ? e.message : String(e);
+		} finally {
+			confirming = false;
+		}
+	}
+
+	async function insertHeadingAfter(afterElementId: string | null) {
+		const text = window.prompt(
+			afterElementId === null
+				? 'Heading-Text (wird am Anfang eingefügt):'
+				: 'Heading-Text:'
+		);
+		if (text === null) return;
+		const trimmed = text.trim();
+		if (!trimmed) return;
+		const lvlStr = window.prompt('Level (1–9):', '2');
+		if (lvlStr === null) return;
+		const level = parseInt(lvlStr, 10);
+		if (!Number.isInteger(level) || level < 1 || level > 9) {
+			errorMessage = `Level muss eine ganze Zahl zwischen 1 und 9 sein (war "${lvlStr}")`;
+			return;
+		}
+		errorMessage = null;
+		savingId = afterElementId ?? '__top__';
+		try {
+			const r = await fetch(
+				`/api/projects/${projectId}/documents/${docId}/outline/insert`,
+				{
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ afterElementId, text: trimmed, level })
+				}
+			);
+			if (!r.ok) {
+				const err = await r.json().catch(() => ({}));
+				throw new Error(err.message || `${r.status}`);
+			}
+			await invalidateAll();
+		} catch (e) {
+			errorMessage = e instanceof Error ? e.message : String(e);
+		} finally {
+			savingId = null;
 		}
 	}
 
@@ -191,19 +255,42 @@
 				bestätigt am {new Date(outlineConfirmedAt).toLocaleString('de-DE')}
 			</p>
 		{/if}
-		<button
-			class="confirm-btn"
-			disabled={confirming || outlineStatus === 'confirmed'}
-			onclick={confirm}
-		>
-			{confirming ? 'speichere…' : outlineStatus === 'confirmed' ? 'bereits bestätigt' : 'Inhaltsverzeichnis bestätigen'}
-		</button>
+		{#if outlineStatus === 'confirmed'}
+			<button
+				class="reopen-btn"
+				disabled={confirming}
+				onclick={reopen}
+				title="Setzt outline_status auf 'pending', sodass Klassifikationen wieder bearbeitbar werden"
+			>
+				{confirming ? 'speichere…' : 'wieder zur Bearbeitung freigeben'}
+			</button>
+		{:else}
+			<button
+				class="confirm-btn"
+				disabled={confirming}
+				onclick={confirm}
+			>
+				{confirming ? 'speichere…' : 'Inhaltsverzeichnis bestätigen'}
+			</button>
+		{/if}
 		{#if errorMessage}
 			<p class="error">{errorMessage}</p>
 		{/if}
 	</div>
 
 	<ol class="headings">
+		{#if outlineStatus === 'pending'}
+			<li class="insert-row">
+				<button
+					class="insert-btn"
+					disabled={savingId !== null}
+					onclick={() => insertHeadingAfter(null)}
+					title="Heading vor dem ersten Eintrag einfügen — falls der Parser einen strukturellen Heading am Dokumentanfang verfehlt hat"
+				>
+					+ Heading am Anfang einfügen
+				</button>
+			</li>
+		{/if}
 		{#each headings as h (h.elementId)}
 			{@const flags = flagsFor(h)}
 			<li
@@ -253,6 +340,18 @@
 					</span>
 				{/if}
 			</li>
+			{#if outlineStatus === 'pending'}
+				<li class="insert-row">
+					<button
+						class="insert-btn"
+						disabled={savingId !== null}
+						onclick={() => insertHeadingAfter(h.elementId)}
+						title="Heading nach dieser Zeile einfügen — falls der Parser an dieser Stelle einen strukturellen Heading verfehlt hat"
+					>
+						+ Heading hier einfügen
+					</button>
+				</li>
+			{/if}
 		{/each}
 	</ol>
 </div>
@@ -326,7 +425,8 @@
 		color: #6b7280;
 		flex-basis: 100%;
 	}
-	.confirm-btn {
+	.confirm-btn,
+	.reopen-btn {
 		font: inherit;
 		padding: 0.5rem 1rem;
 		border: 1px solid rgba(165, 180, 252, 0.4);
@@ -336,12 +436,50 @@
 		cursor: pointer;
 		font-size: 0.85rem;
 	}
+	.reopen-btn {
+		border-color: rgba(251, 191, 36, 0.4);
+		background: rgba(251, 191, 36, 0.12);
+		color: #fcd34d;
+	}
 	.confirm-btn:hover:not(:disabled) {
 		background: rgba(165, 180, 252, 0.2);
 		border-color: rgba(165, 180, 252, 0.6);
 	}
-	.confirm-btn:disabled {
+	.reopen-btn:hover:not(:disabled) {
+		background: rgba(251, 191, 36, 0.2);
+		border-color: rgba(251, 191, 36, 0.6);
+	}
+	.confirm-btn:disabled,
+	.reopen-btn:disabled {
 		opacity: 0.4;
+		cursor: not-allowed;
+	}
+	.insert-row {
+		list-style: none;
+		display: flex;
+		justify-content: center;
+		padding: 0.15rem 0;
+	}
+	.insert-btn {
+		font: inherit;
+		font-size: 0.72rem;
+		color: #6b7280;
+		background: transparent;
+		border: 1px dashed rgba(107, 114, 128, 0.3);
+		border-radius: 3px;
+		padding: 0.15rem 0.6rem;
+		cursor: pointer;
+		opacity: 0.4;
+		transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+	}
+	.insert-row:hover .insert-btn,
+	.insert-btn:focus {
+		opacity: 1;
+		color: #c7d2fe;
+		border-color: rgba(165, 180, 252, 0.5);
+	}
+	.insert-btn:disabled {
+		opacity: 0.2;
 		cursor: not-allowed;
 	}
 	.error {

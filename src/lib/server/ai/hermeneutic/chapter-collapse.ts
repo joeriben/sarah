@@ -432,26 +432,22 @@ async function loadSubchapterMemosAtLevel(
 
 // ── Prompt assembly ───────────────────────────────────────────────
 //
-// Drei Pflichtbestandteile auf Hauptkapitel-Ebene:
+// Vier Pflichtbestandteile auf Hauptkapitel-Ebene:
 //   (a) Argumentative Bewegung
 //   (b) Kernbewegung-Identifikation
 //   (c) Werk-Architektur-Verortung
+//   (d) Tragweite und Tragfähigkeit
 //
-// Drei, nicht vier: die ursprüngliche (d) "Integrative Spannungsdiagnose"
-// aus dem Subkapitel-Pass wurde gestrichen (User-Diagnose 2026-04-30):
-// "übergeordnete Spannung" ist keine hermeneutisch oder analytisch
-// valide Kategorie, sondern Pseudo-Vokabular ohne methodologische
-// Pedigree. Die Frageform "wenn mehrere Schwächen vorliegen, frage dich,
-// ob sie ein gemeinsames Symptom haben" provoziert Selektions-Bias
-// (LLM sucht aktiv nach Schwächen) und Konstruktion eines fiktiven
-// gemeinsamen Symptoms, wo die Schwächen unverbunden sind. Ein
-// einmaliger valider Beobachtungsfall (S2-Globalität) wurde unzulässig
-// zur Datenbank-Kategorie verallgemeinert.
+// (d) ersetzt die ursprüngliche "Integrative Spannungsdiagnose" (als
+// Slop diagnostiziert: Pseudo-Vokabular ohne methodologische Pedigree,
+// Selektions-Bias durch Pflicht-Frageform nach Schwächen). Tragweite/
+// Tragfähigkeit ist eine echte evaluative Dimension (claim/warrant-
+// Proportionalität, Toulmin-nahe) mit opt-out-Klausel direkt im
+// Pflichtbestandteil ("wenn Anspruch und Stützung gleich proportioniert
+// sind, das ebenso klar diagnostizieren").
 //
-// Jeder verbleibende Pflichtbestandteil hat eine explizite opt-out-
-// Klausel ("wenn das Kapitel keine identifizierbare Kernbewegung hat,
-// das ebenso klar diagnostizieren statt eine Bewegung zu konstruieren"),
-// um Hallzinations-Druck strukturell abzufangen.
+// Jeder Pflichtbestandteil hat eine explizite opt-out-Klausel, um
+// Hallzinations-Druck strukturell abzufangen.
 //
 // Argumentationswiedergabe ist der einzige intentional NEUE Bestandteil
 // auf Hauptkapitel-Ebene (User-Anforderung 2026-04-30: Gutachten-Vorlage,
@@ -485,7 +481,7 @@ ${inputDescription}
 
 Aufgabe in drei Teilen:
 
-1. **Synthese** (5–9 Sätze, in argumentativer Diktion). Drei *Pflichtbestandteile* — fehlt einer, ist die Synthese unvollständig:
+1. **Synthese** (6–10 Sätze, in argumentativer Diktion). Vier *Pflichtbestandteile* — fehlt einer, ist die Synthese unvollständig:
 
    a. **Argumentative Bewegung** — welche Position wurde im Hauptkapitel insgesamt bezogen, welche argumentative Architektur entfaltet das Kapitel über seine Subkapitel hinweg? ${ctx.mode === 'paragraphs'
 		? 'Cross-Absatz-Edges (prior_paragraph) und wiederkehrende Stützfunktionen sind die Hinweise auf die Architektur.'
@@ -496,6 +492,8 @@ Aufgabe in drei Teilen:
 		: 'Hinweis: ein Subkapitel, dessen Synthese in den nachfolgenden Subkapitel-Memos häufig wiederaufgegriffen wird oder das eine deutliche Wende markiert, ist strukturell besonders tragend.'}
 
    c. **Werk-Architektur-Verortung** — welches Hauptkapitel steht *davor* (siehe Outline + bisherige Hauptkapitel-Memos oben), welches *danach*? Welche strukturelle Brückenfunktion erfüllt dieses Hauptkapitel zwischen den beiden — was nimmt es vom Vorgänger auf, was bereitet es für den Nachfolger vor? Beim ersten oder letzten Hauptkapitel entfällt die jeweilige Bezugsrichtung. Wenn keine Brückenfunktion erkennbar ist (das Kapitel steht thematisch isoliert), das ebenso diagnostizieren statt eine Brücke zu konstruieren.
+
+   d. **Tragweite und Tragfähigkeit** — beurteile (i) die argumentative Tragweite des Hauptkapitels: welcher Anspruch wird im Werk-Ganzen geltend gemacht — bescheiden, weitreichend, feldweit? — und (ii) die Tragfähigkeit der Stützung über die Subkapitel hinweg: tragen die Subkapitel zusammen den Kapitel-Anspruch, oder ist die Stützung unter- oder überdimensioniert? Wenn Anspruch und Stützung gleich proportioniert sind, das ebenso klar diagnostizieren.
 
    **Diktion:** evaluativ-argumentativ ("die Kernbewegung des Hauptkapitels ist X", "das Kapitel verfehlt eine eigenständige Prüfung von Y"). NICHT inhaltlich-darstellend ("im Kapitel wird Y gesagt") — Letzteres gehört in die Argumentationswiedergabe. Wenn ein Pflichtbestandteil substantiell nicht zutrifft (siehe opt-out-Klauseln), das diagnostizieren statt zu fabrizieren.
 
@@ -525,7 +523,7 @@ ${preceding}
 Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst (kein Vor-/Nachtext, kein Markdown-Codefence):
 
 {
-  "synthese": "<5–9 Sätze, argumentative Diktion, drei Pflichtbestandteile>",
+  "synthese": "<6–10 Sätze, argumentative Diktion, vier Pflichtbestandteile>",
   "argumentationswiedergabe": "<1–3 Absätze, expositorisch, neutral, gutachten-fertig>",
   "auffaelligkeiten": [
     { "scope": "<L2-Numerierung oder L3-Subkapitel-Numerierung oder §<Position> bei Mode 'paragraphs'>", "observation": "<Eine Beobachtung zur argumentativen Qualität dieser Einheit>" }

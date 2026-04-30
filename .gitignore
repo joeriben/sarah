@@ -50,3 +50,7 @@ ai-settings.json
 /pgdata/
 projekte/
 backup-*.sql
+
+# Claude Code local artifacts (Dev-Server-Launch, Browser-Test-Helper)
+/.claude/launch.json
+/scripts/mint-session.ts

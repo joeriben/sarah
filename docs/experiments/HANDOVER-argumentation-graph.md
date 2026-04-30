@@ -1,3 +1,83 @@
+# Handover — Stand 2026-05-01 (Folge-Session, Validierungslauf vorbereitet)
+
+**Lies zuerst diesen Block.** Der ältere Handover-Text darunter ist Kontext, aber der aktuelle Stand und die nächsten Schritte stehen hier oben.
+
+## Was seit dem letzten Handover-Stand erledigt wurde
+
+- **(d)-Ersetzung in beiden Prompts** ✓ (Subkapitel ersetzt, Hauptkapitel eingefügt). Werk-Ebene bleibt entschieden ohne (d) (Slop-Diagnose dokumentiert in Section C unten).
+- **Migration 036** angewendet (`aggregation_subchapter_level smallint nullable` mit CHECK 1–3).
+- **Helper-Bug behoben** in `src/lib/server/ai/hermeneutic/heading-hierarchy.ts`: `loadResolvedOutline` las `properties.numbering` (zerbricht bei Headings ohne Nummern-Prefix), nutzt jetzt `(properties->>'level')::int` als kanonische Quelle — analog zum UI-Helper `loadEffectiveOutline`.
+- **Driver-Skripte geschrieben:** `scripts/run-chapter-collapse.ts` und `scripts/run-document-collapse.ts`. Konstanten zeigen aktuell auf den **frischen Validierungs-Case** (siehe unten).
+- **Frisches Test-Dokument importiert:** `54073d08-f577-453b-9a72-73a7654e1598` ("Timm 2025 ... no_annot_test2.docx", strukturidentisch zum alten, 393336 chars, 49 Headings, 328 Absätze). Outline confirmed.
+- **Neuer Case angelegt:** `aa23d66e-9cd8-4583-9d14-6120dc343b10` "Habilitation Timm — no_annot_test2 (frische Validierung Direction-4)". Brief geklont (`f8fc8a30-…`, `argumentation_graph=true`).
+- **Outline-Patch:** Heading "Vergleichshorizonte – Dimensionen…" (`b72bf6ea-738c-4dad-bf68-f3ae61586d06`) hat `user_level=3` per direktem `INSERT INTO heading_classifications` — der Parser hatte die Heading als L2 statt L3 klassifiziert und damit die Auto-Numerierung in Kapitel 2 verschoben.
+- **Outline-UI-Recovery-Items implementiert** (Items a/b/c in Section "Outline-UI Recovery-Items" weiter unten): Add-Heading-Button, Re-Open-After-Confirm-Button, Parser-Numerierung-respektierender Display. Plattform ist jetzt recovery-fähig für Parser-Glitches ohne psql-Eingriff. Der `outline_status` des Test-Dokuments steht aktuell auf `pending` (nicht confirmed wie ursprünglich nach UI-Bestätigung) — der Reset passierte irgendwann während des Server-Restart-Cycles bei den UI-Edits; vor dem Pipeline-Lauf einmal über die UI re-confirmen.
+
+## Stand der Test-Daten (NEUES Dokument)
+
+```
+case_id          aa23d66e-9cd8-4583-9d14-6120dc343b10  (NEU, frische Validierung)
+brief_id         f8fc8a30-404f-4378-bd8d-c1fb92799246  (geklont, argumentation_graph=true)
+document_id      54073d08-f577-453b-9a72-73a7654e1598
+user_id (sarah)  dac6ac05-bdab-4d68-a4fa-3eab0b40cc2b
+```
+
+**L1-Headings im neuen Doc** (mit Absatz-Anzahl):
+
+| num | text | l1_heading_id | ¶ |
+|---|---|---|---|
+| 1 | Schule – Kultur – Globalität – Lehrkräftebildung | `9c3e2dac-a9bb-4cb5-8a6d-19a87c086341` | 74 |
+| 2 | Orientierungen von Lehramtsstudierenden… | `6f025aa0-e394-4f2c-9e59-bdfee8e6a09b` | 139 |
+| (3) | Reflexionen der kulturbezogenen Orientierungen… | `18dcfa8c-9daf-4393-bf43-f599414c5fb7` | 64 |
+| 4 | Ansätze einer Theorie kultureller Lehrkräftebildung | `62fed1d2-d3b0-4b74-abad-dde3fadaf86e` | 50 |
+
+`scripts/run-chapter-collapse.ts` zeigt aktuell auf num=1 (Theorie-Hauptkapitel, 74 ¶, ursprünglich geplante Validierungs-Target). Für günstigere Pipeline-Validierung wäre num=4 (50 ¶) eine Option — alle IDs sind im Skript als Kommentar.
+
+## Nächste konkrete Aktionen für die nächste Session
+
+Voraussetzung für Chapter-Collapse: alle Absätze des Test-Kapitels brauchen vorgelagerte Pässe. Die Pipeline-Reihenfolge:
+
+1. **Per-Paragraph synthetic Pass** (`scripts/run-paragraphs.ts` analog) für alle Absätze des Test-Kapitels — produziert pro Absatz ein synthetisch-hermeneutisches Memo.
+2. **Argumentation-Graph Pass** (`scripts/run-argumentation-graphs.ts`) für dieselben Absätze — produziert die Graph-Daten (Argumente, Premissen, Edges, Scaffolding), die Sub-/Chapter-Collapse als Input brauchen.
+3. **Section-Graph-Collapse** (`scripts/run-graph-collapse.ts`) pro L3-Subkapitel des Test-Kapitels (Helper wählt L1/L2/L3 adaptiv via Median-Algorithmus aus Migration 036).
+4. **Chapter-Collapse** (`scripts/run-chapter-collapse.ts`) für das L1-Test-Kapitel — neuer Code, eigentliches Validierungs-Target dieser Session.
+5. **Document-Collapse** (`scripts/run-document-collapse.ts`) — braucht alle L1-Memos. Optional, wenn das Werk-Memo getestet werden soll, müssen vorher alle 4 L1-Kapitel ein Chapter-Memo haben.
+
+Pro Schritt Driver-Skripte ggf. anpassen, weil die existierenden Driver auf einzelne Heading-IDs zeigen — für mehrere Headings entweder durchschleifen oder mehrere Läufe.
+
+Kostenschätzung Chapter 1 (74 ¶, vier nested L3-Subkapitel und drei L3 ohne Subkapitel-Eltern unter L2 1.1, 1.2, 1.3 → vermutlich L3 als Aggregations-Level):
+- Per-Paragraph + Argumentation-Graph: 74 × 2 × ~$0.05 ≈ $7.40
+- Section-Collapse: 7 L3-Subkapitel × ~$0.20 ≈ $1.40
+- Chapter-Collapse: 1 × ~$0.50 ≈ $0.50
+- **Gesamt für Chapter 1: ~$9.30**
+
+Chapter 4 (50 ¶) entsprechend ~$6.20.
+
+## Outline-UI Recovery-Items — implementiert 2026-05-01 abend
+
+Die in der Vorversion dieses Handovers als "#1 Priorität" markierten drei UI-Lücken sind in dieser Session **alle drei geschlossen worden**. Die Plattform ist jetzt recovery-fähig für Parser-Glitches, ohne dass Maintainer per psql eingreifen muss.
+
+**a. Parser-Numerierung-respektierender Display** (`src/lib/server/documents/outline.ts:158-178` und Client-Seite `+page.svelte:33-49`).
+`effectiveNumbering = parserNumbering ?? counter.join('.')`, mit Konsistenz-Check Tiefe-vs-Level. Counter zählt weiter durch (sonst springen Folge-Positionen), aber Display nutzt Parser-Wert wenn vorhanden und Tiefe matcht. Folge: ein fehlklassifizierter Heading verschiebt nicht mehr die ganze restliche Outline-Numerierung.
+
+**b. Re-Open-After-Confirm** (`reopenOutline()` in `outline.ts`, Endpoint `routes/api/.../outline/reopen/+server.ts`, Button im Outline-Page).
+Im `confirmed`-State zeigt der ursprüngliche "Bestätigen"-Button stattdessen "wieder zur Bearbeitung freigeben" (gelb). POST setzt `outline_status='pending'` zurück. Per-Row-Edits werden wieder möglich.
+
+**c. Add-Heading** (`insertSyntheticHeading()` in `outline.ts`, Endpoint `routes/api/.../outline/insert/+server.ts`, "+ Heading hier einfügen"-Buttons zwischen jeder Zeile + am Anfang).
+Klick → Browser-Prompt für Text und Level → Backend insertiert paired (`document_elements` + `heading_classifications`) in einer Transaktion. char_start = Midpoint zwischen Vorgänger und nächstem Heading. `properties.synthetic=true` und `heading_source='user_inserted'` zur Nachvollziehbarkeit. Reset von `outline_status` auf `pending` bei Insert (analog zur bestehenden upsertClassification-Logik). Insert-Buttons nur sichtbar im `pending`-State.
+
+**Stilistische Note:** Add-Heading nutzt `window.prompt()` für Text + Level — funktional aber visuell roh. Bessere UI (Inline-Form, Level-Dropdown) ist eine spätere Verfeinerung; das funktionale Recovery-Verhalten ist jetzt drin.
+
+**Workaround-Spuren in der DB:** Während der Diagnose habe ich `user_level=3` für "Vergleichshorizonte" (`b72bf6ea-738c-4dad-bf68-f3ae61586d06` im Doc 54073d08) per direktem psql-INSERT gesetzt und `outline_status='confirmed'` bewusst nicht zurückgesetzt. Das ist jetzt obsolet — der User kann denselben Effekt über die neue Re-Open + Edit-Level-UI erreichen. Die DB-Zeile muss nicht entfernt werden, sie repräsentiert den korrekten Zielzustand.
+
+## Spawned Task Chip aus dieser Session — bitte dismissen
+
+Während der Diagnose habe ich einen Task gespawnt mit dem Titel "Investigate parser+outline-confirmation bug for unnumbered L1 heading". Die Premise war falsch: weder Parser noch Confirmation hatten den Bug — `loadResolvedOutline` hat die falsche Spalte gelesen, das ist inline gefixt. Der Chip ist obsolet.
+
+---
+
+# (Älterer Handover-Text — Stand 2026-04-30 nachts)
+
 # Handover — Direction 4 implementiert, (d) wird durch Tragweite/Tragfähigkeit ersetzt
 
 **Last touched:** 2026-04-30 (späte Session, in Folge der Parser-Fix-Session und des Direction-4-Plans aus `696c553`)
@@ -67,17 +147,15 @@ d. **Tragweite und Tragfähigkeit** — beurteile (i) die argumentative Tragweit
 
 Dazu Synthese-Längen-Hint anpassen (aktuell "5–9 Sätze, drei Pflichtbestandteile" → "6–10 Sätze, vier Pflichtbestandteile") und dasselbe im JSON-Output-Schema-Snippet.
 
-### C) Werk-Prompt — User-Entscheidung offen
+### C) Werk-Prompt — entschieden 2026-04-30 abend: KEINE (d)-Ergänzung
 
-**Datei:** `src/lib/server/ai/hermeneutic/document-collapse.ts` — aktuell drei Pflichtbestandteile (Forschungsbeitrag-Diagnose, Gesamtkohärenz und Werk-Architektur, Niveau-Beurteilung mit Werktyp-Akzent).
+**Datei:** `src/lib/server/ai/hermeneutic/document-collapse.ts` — bleibt bei drei Pflichtbestandteilen (Forschungsbeitrag-Diagnose, Gesamtkohärenz und Werk-Architektur, Niveau-Beurteilung mit Werktyp-Akzent). Code-Kommentar `document-collapse.ts:180-187` dokumentiert die Begründung bereits selbst.
 
-Soll Tragweite/Tragfähigkeit auch hier als (d) ergänzt werden?
-- **Pro:** Werk-Tragweite (was beansprucht das Werk insgesamt zu leisten) und Werk-Tragfähigkeit (wird das im Werk-Korpus argumentativ getragen) sind genuine Werk-Fragen, in Forschungsbeitrag/Niveau nicht voll abgedeckt — man kann einen modesten Anspruch sauber tragen oder einen großen Anspruch unzureichend stützen, beides eigenständige Diagnosen.
-- **Contra:** Überlappung mit Forschungsbeitrag-Diagnose ("was leistet das Werk als Ganzes") möglich.
+**Begründung:** Tragweite/Tragfähigkeit ist eine Argument-Kategorie mit Toulmin-Pedigree (claim/warrant/backing-Proportionalität). Greift sauber auf Argument-Ebene und auf zusammenhängenden Argumentationsketten (Subkapitel/Hauptkapitel mit Kapitelthese). Auf Werk-Ebene zerbricht die Übertragung: ein Werk hat keine eine identifizierbare claim-warrant-backing-Triade, sondern Forschungsfrage, Methode, Beitrag, Architektur — die werk-adäquaten Kategorien sind durch Forschungsbeitrag und Niveau bereits abgedeckt.
 
-Mein Lean: ja, ergänzen. Aber: User-Bestätigung einholen, bevor das Werk-Prompt verändert wird.
+**Slop-Diagnose der Vorversion dieses Handovers:** der vorige Pro-Punkt fabrizierte "Werk-Tragweite" und "Werk-Tragfähigkeit" als Hyphen-Komposita — exakt die mechanische Skala-Hochrechnung, die `document-collapse.ts:180-187` und `feedback_no_slop_in_prompts.md` bereits ausgeschlossen hatten. Hyphen-Komposita haben keine eigene methodologische Pedigree; sie borgen sich Legitimität von der Argument-Kategorie. Failure-Mode der "übergeordneten Spannung" in neuer Verkleidung — und im selben Handover-Dokument auftretend, das die Slop-Lektion frisch dokumentiert. User-Korrektur 2026-04-30 abend: "niemand spricht hier von 'werk-tragweite und -fähigkeit'."
 
-Wenn ja: vier Pflichtbestandteile auf Werk-Ebene, Synthese-Länge zurück auf 10–15 Sätze.
+**Konsequenz für Folge-Sessions:** Pflichtbestandteile auf einer höheren Skala NICHT durch Hyphen-Compound oder Scope-Anhängung von einer unteren Ebene ableiten. Stattdessen prüfen, ob die neue Ebene eigene auf ihrer Skala validierte Kategorien hat. Slop-Detection auch auf eigene narrative Outputs in real-time anwenden, nicht nur auf Code.
 
 ## Stand der Direction-4-Implementation
 
@@ -85,8 +163,8 @@ Wenn ja: vier Pflichtbestandteile auf Werk-Ebene, Synthese-Länge zurück auf 10
 |---|---|---|
 | Migration 036 (`aggregation_subchapter_level smallint nullable` auf `heading_classifications`) | geschrieben, **NICHT angewendet** | `migrations/036_chapter_aggregation_level.sql` |
 | Helper für resolved Outline + Median-Algorithmus + Persistenz | ✓ | `src/lib/server/ai/hermeneutic/heading-hierarchy.ts` |
-| `runChapterCollapse` (mit Mode-conditional Input: paragraphs vs. subchapter-memos; bei L3 mit L2-Numerierungs-Gruppierung als Strukturhinweis) | ✓ — Prompt **wartet auf (d)-Ergänzung** | `src/lib/server/ai/hermeneutic/chapter-collapse.ts` |
-| `runDocumentCollapse` (alle L1-Memos → Werk-Memo) | ✓ — Prompt **wartet auf User-Entscheidung zu (d)** | `src/lib/server/ai/hermeneutic/document-collapse.ts` |
+| `runChapterCollapse` (mit Mode-conditional Input: paragraphs vs. subchapter-memos; bei L3 mit L2-Numerierungs-Gruppierung als Strukturhinweis) | ✓ — vier Pflichtbestandteile inkl. (d) Tragweite/Tragfähigkeit | `src/lib/server/ai/hermeneutic/chapter-collapse.ts` |
+| `runDocumentCollapse` (alle L1-Memos → Werk-Memo) | ✓ — drei Pflichtbestandteile final, keine (d)-Ergänzung (siehe Section C) | `src/lib/server/ai/hermeneutic/document-collapse.ts` |
 | Argumentationswiedergabe-Output (Gutachten-Vorlage) auf Hauptkapitel-Ebene | ✓ — getrennt von analytischer Synthese durch Diktions-Anweisung | `chapter-collapse.ts` Schema + Prompt |
 | Dev-Driver `run-chapter-collapse.ts` und `run-document-collapse.ts` | offen | analog zu `scripts/run-graph-collapse.ts` |
 | Validierungslauf am Theorie-Hauptkapitel | offen | s.u. Test-Daten-IDs |
@@ -193,7 +271,7 @@ ORDER BY de.char_start;
 
 ## Nächste konkrete Aktionen (Reihenfolge bewusst so)
 
-1. **(d)-Ersetzung in beiden Prompts** (Subkapitel + Hauptkapitel), siehe Aufgabe 0 oben. Werk-Ebene: User-Bestätigung einholen, ob (d) auch dort ergänzt wird, dann ggf. dort dieselbe Ersetzung.
+1. ~~(d)-Ersetzung in beiden Prompts~~ — erledigt 2026-04-30 abend (Subkapitel ersetzt, Hauptkapitel eingefügt; Werk-Ebene entschieden ohne (d), siehe Section C). Nächste offene Aktion: Migration 036.
 2. **Migration 036 anwenden:** `psql $DATABASE_URL < migrations/036_chapter_aggregation_level.sql`
 3. **Dev-Driver-Skripte schreiben:** `scripts/run-chapter-collapse.ts` (Argumente: caseId, l1HeadingId) und `scripts/run-document-collapse.ts` (Argumente: caseId). Vorlage: `scripts/run-graph-collapse.ts`. Output: Tokens, synthese, ggf. argumentationswiedergabe, auffaelligkeiten — dump nach `docs/experiments/`.
 4. **Validierungslauf am Theorie-Hauptkapitel** des Timm-Manuskripts (das L1-Kapitel, in dem Globalität, Schule und Globalität, Anforderungen an Professionalität liegen). Output gegen die hermeneutische Lektüre prüfen — analog zum S1→S3-Vorgehen auf Subkapitel-Ebene; bei Bedarf Prompt-Iteration auf Hauptkapitel-Ebene.
@@ -205,9 +283,9 @@ ORDER BY de.char_start;
 - **Memory** (essenziell vor Prompt-Touch): `~/.claude/projects/-Users-joerissen-ai-sarah/memory/feedback_no_slop_in_prompts.md` — drei Slop-Warnsignale, opt-out-Klausel-Regel, Anwendungs-Anleitung.
 - **Memory** (Architektur-Übersicht): `~/.claude/projects/-Users-joerissen-ai-sarah/memory/project_argumentations_graph_experiment.md` — voraussichtlich noch auf altem Stand, beim nächsten Mal aktualisieren.
 - Per-Absatz-Pass: `src/lib/server/ai/hermeneutic/argumentation-graph.ts`
-- Subkapitel-Synthese: `src/lib/server/ai/hermeneutic/section-collapse-from-graph.ts` (idempotent; **wartet auf (d)-Ersetzung**)
-- Hauptkapitel-Synthese: `src/lib/server/ai/hermeneutic/chapter-collapse.ts` (idempotent; **wartet auf (d)-Ergänzung**)
-- Werk-Synthese: `src/lib/server/ai/hermeneutic/document-collapse.ts` (idempotent; (d)-Frage offen)
+- Subkapitel-Synthese: `src/lib/server/ai/hermeneutic/section-collapse-from-graph.ts` (idempotent; (d) ersetzt durch Tragweite/Tragfähigkeit)
+- Hauptkapitel-Synthese: `src/lib/server/ai/hermeneutic/chapter-collapse.ts` (idempotent; (d) Tragweite/Tragfähigkeit eingefügt, vier Pflichtbestandteile)
+- Werk-Synthese: `src/lib/server/ai/hermeneutic/document-collapse.ts` (idempotent; bleibt bei drei Pflichtbestandteilen, keine (d))
 - Heading-Hierarchie-Helper: `src/lib/server/ai/hermeneutic/heading-hierarchy.ts`
 - Per-Paragraph-Synthetic-Pass: `src/lib/server/ai/hermeneutic/per-paragraph.ts`
 - Endpoint (zu erweitern): `src/routes/api/cases/[caseId]/hermeneutic/paragraph/[paragraphId]/+server.ts`

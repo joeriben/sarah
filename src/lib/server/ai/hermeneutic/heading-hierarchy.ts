@@ -75,6 +75,7 @@ export async function loadResolvedOutline(
 		id: string;
 		char_start: number;
 		char_end: number;
+		parser_level: number | null;
 		parser_numbering: string | null;
 		user_level: number | null;
 		excluded: boolean | null;
@@ -84,6 +85,7 @@ export async function loadResolvedOutline(
 		   de.id,
 		   de.char_start,
 		   de.char_end,
+		   (de.properties->>'level')::int AS parser_level,
 		   (de.properties->>'numbering') AS parser_numbering,
 		   hc.user_level,
 		   COALESCE(hc.excluded, false) AS excluded,
@@ -101,15 +103,17 @@ export async function loadResolvedOutline(
 	const resolved: ResolvedHeading[] = [];
 	for (const r of rows) {
 		if (r.excluded) continue;
-		const parserLevel = r.parser_numbering
-			? r.parser_numbering.split('.').length
-			: null;
-		const level = r.user_level ?? parserLevel;
+		// Canonical level source: parser-extracted from w:pStyle (stored in
+		// properties.level, populated for every heading regardless of whether
+		// the source DOCX had a numeric prefix). user_level is the UI
+		// override. Same precedence as loadEffectiveOutline (canonical UI
+		// helper).
+		const level = r.user_level ?? r.parser_level;
 		if (level === null) {
 			throw new Error(
 				`Heading "${r.heading_text.trim().slice(0, 60)}" (id=${r.id}) ` +
-				`has no resolved level: no parser numbering and no user_level override. ` +
-				`Outline confirmation should not have allowed this state.`
+				`has no resolved level: properties.level is missing AND no user_level override. ` +
+				`Both should be impossible after a clean DOCX import + outline confirmation.`
 			);
 		}
 		resolved.push({

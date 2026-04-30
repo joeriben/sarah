@@ -164,7 +164,17 @@ export async function loadEffectiveOutline(
 		while (counter.length < lvl) counter.push(0);
 		counter.length = lvl;
 		counter[lvl - 1] = (counter[lvl - 1] ?? 0) + 1;
-		return { ...h, effectiveNumbering: counter.join('.') };
+		// Prefer parser-extracted numbering when its depth matches the
+		// effective level — that's what the source DOCX actually says. If
+		// user changed the level, parserNumbering may be stale (e.g. "1.2"
+		// while effectiveLevel=3), so fall back to auto-counter in that
+		// case. Without this preference, a single misclassified heading
+		// shifts the entire downstream auto-numbering relative to source.
+		const parserNumberingDepth = h.parserNumbering?.split('.').length ?? 0;
+		const effectiveNumbering = h.parserNumbering && parserNumberingDepth === lvl
+			? h.parserNumbering
+			: counter.join('.');
+		return { ...h, effectiveNumbering };
 	});
 
 	return {
@@ -300,6 +310,139 @@ export async function confirmOutline(
 		 WHERE naming_id = $1
 		 RETURNING naming_id`,
 		[documentId, userId]
+	);
+	if (r.rowCount === 0) {
+		throw new Error(`Document ${documentId} not found`);
+	}
+	return { ok: true };
+}
+
+/**
+ * Insert a synthetic heading at a specific outline position. Used when the
+ * parser missed a structural heading entirely (e.g. a section break that
+ * wasn't styled as a heading in the source DOCX). Creates a paired
+ * (document_elements, heading_classifications) row inside one transaction so
+ * the new heading shows up in loadEffectiveOutline AND in the resolved
+ * outline used by the chapter/work collapse pipeline.
+ *
+ * Position: char_start is computed as the midpoint between the
+ * afterElementId's char_start and the next main-section heading's
+ * char_start. afterElementId=null inserts at the very beginning.
+ *
+ * Resets outline_status to 'pending' if it was 'confirmed' (every
+ * structural change demands re-confirmation, same rule as upsertClassification).
+ */
+export async function insertSyntheticHeading(
+	documentId: string,
+	afterElementId: string | null,
+	text: string,
+	level: number
+): Promise<{ classificationId: string; elementId: string; charStart: number }> {
+	const trimmed = text.trim();
+	if (!trimmed) throw new Error('text required');
+	if (!Number.isInteger(level) || level < 1 || level > 9) {
+		throw new Error('level must be an integer in [1, 9]');
+	}
+
+	const client = await pool.connect();
+	try {
+		await client.query('BEGIN');
+
+		let afterStart: number;
+		if (afterElementId === null) {
+			afterStart = -1;
+		} else {
+			const r = await client.query<{ char_start: number }>(
+				`SELECT char_start FROM document_elements WHERE id = $1 AND document_id = $2`,
+				[afterElementId, documentId]
+			);
+			if (r.rowCount === 0) {
+				throw new Error(`afterElementId ${afterElementId} not found in document ${documentId}`);
+			}
+			afterStart = r.rows[0].char_start;
+		}
+
+		const next = await client.query<{ char_start: number }>(
+			`SELECT char_start FROM document_elements
+			 WHERE document_id = $1
+			   AND element_type = 'heading'
+			   AND section_kind = 'main'
+			   AND char_start > $2
+			 ORDER BY char_start
+			 LIMIT 1`,
+			[documentId, afterStart]
+		);
+		const nextStart = next.rows.length > 0 ? next.rows[0].char_start : afterStart + 100;
+		const charStart = Math.floor((afterStart + nextStart) / 2);
+
+		const elemInsert = await client.query<{ id: string }>(
+			`INSERT INTO document_elements
+			   (document_id, element_type, seq, char_start, char_end, properties, section_kind)
+			 VALUES (
+			   $1, 'heading',
+			   (SELECT COALESCE(MAX(seq), -1) + 1 FROM document_elements WHERE document_id = $1),
+			   $2, $3, $4::jsonb, 'main'
+			 )
+			 RETURNING id`,
+			[
+				documentId,
+				charStart,
+				charStart + 1,
+				JSON.stringify({
+					level,
+					synthetic: true,
+					heading_source: 'user_inserted',
+					outline_path: [trimmed]
+				})
+			]
+		);
+		const elementId = elemInsert.rows[0].id;
+
+		const normalized = trimmed.replace(/\s+/g, ' ').toLowerCase();
+		const hcInsert = await client.query<{ id: string }>(
+			`INSERT INTO heading_classifications
+			   (document_id, element_id, heading_text_normalized, approx_char_start,
+			    user_level, user_text, excluded)
+			 VALUES ($1, $2, $3, $4, $5, $6, false)
+			 RETURNING id`,
+			[documentId, elementId, normalized, charStart, level, trimmed]
+		);
+
+		await client.query(
+			`UPDATE document_content SET outline_status = 'pending',
+			        outline_confirmed_at = NULL, outline_confirmed_by = NULL
+			 WHERE naming_id = $1 AND outline_status = 'confirmed'`,
+			[documentId]
+		);
+
+		await client.query('COMMIT');
+		return { classificationId: hcInsert.rows[0].id, elementId, charStart };
+	} catch (e) {
+		await client.query('ROLLBACK');
+		throw e;
+	} finally {
+		client.release();
+	}
+}
+
+/**
+ * Reopen a confirmed outline for further editing. Sets outline_status back
+ * to 'pending' so per-row classification edits become possible again. Used
+ * when a user notices a misclassification only after confirmation (e.g. the
+ * downstream pipeline rejected the outline because of a parser-induced
+ * level mistake that wasn't visible until then).
+ */
+export async function reopenOutline(
+	documentId: string
+): Promise<{ ok: true }> {
+	const r = await pool.query(
+		`UPDATE document_content
+		 SET outline_status = 'pending',
+		     outline_confirmed_at = NULL,
+		     outline_confirmed_by = NULL
+		 WHERE naming_id = $1
+		 RETURNING naming_id`,
+		[documentId]
 	);
 	if (r.rowCount === 0) {
 		throw new Error(`Document ${documentId} not found`);

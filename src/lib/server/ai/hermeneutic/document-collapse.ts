@@ -15,7 +15,7 @@
 // "Gesamteinschätzung" is a different textual genre that we'll add
 // only if the first work-collapse run shows it's needed):
 //   {
-//     synthese:           Werk-Synthese (vier Pflichtbestandteile),
+//     synthese:           Werk-Synthese (drei Pflichtbestandteile),
 //     auffaelligkeiten:   werkweite Beobachtungen (über die Hauptkapitel)
 //   }
 //
