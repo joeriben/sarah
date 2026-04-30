@@ -401,6 +401,31 @@ function resolveHeadingLevelByStyleId(
 	return null;
 }
 
+/**
+ * Read the Word auto-numbering depth (`<w:pPr><w:numPr><w:ilvl/>`) of a
+ * paragraph. Returns the 0-indexed list level, or null if the paragraph
+ * has no numPr at all.
+ *
+ * For PDF→DOCX-converted documents the visible chapter numbering ("1.1.1
+ * Title") rendered in the source PDF arrives in the DOCX as Word
+ * auto-numbering: the digits live in numPr/ilvl + the abstractNum
+ * definition (numbering.xml), not as <w:t> text runs. ilvl is therefore
+ * the canonical hierarchy depth even when the TOC pStyle has been
+ * uniformly flattened to TOC1 by the converter.
+ */
+function readNumPrIlvl(p: OoxmlNode): number | null {
+	const pPr = findFirst(p.children, 'w:pPr');
+	if (!pPr) return null;
+	const numPr = findFirst(pPr.children, 'w:numPr');
+	if (!numPr) return null;
+	const ilvl = findFirst(numPr.children, 'w:ilvl');
+	if (!ilvl) return null;
+	const v = ilvl.attrs['w:val'];
+	if (v == null) return null;
+	const n = parseInt(v, 10);
+	return Number.isFinite(n) ? n : null;
+}
+
 // ── Body element classification ──────────────────────────────────
 
 interface BodyParagraph {
@@ -545,25 +570,62 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 	}
 
 	// Pass 1 — TOC: paragraphs with pStyle ∈ TOC1..TOC9
+	//
+	// Two sources of hierarchy depth, in priority order:
+	//   1. <w:numPr><w:ilvl/></w:numPr>: Word auto-numbering depth (0-indexed).
+	//      Survives PDF→DOCX export — these converters typically flatten the
+	//      TOC pStyle to a uniform TOC1 but keep the numPr/ilvl with correct
+	//      0/1/2/... depth so Word can re-render the visible chapter numbers.
+	//   2. pStyle suffix (TOC1..TOC9, 1-indexed): for documents that pStyle
+	//      the TOC entries hierarchically and have no numPr.
+	//
+	// Synthetic Arabic numbering ("1", "1.1", "1.1.1") is computed from a
+	// counter array over TOC entries that have an ilvl. Stored on every
+	// heading element's properties.numbering — used by the cascading
+	// subchapter→chapter→work collapse passes to know each subchapter's
+	// position in the work architecture.
 	const bookmarkToLevel = new Map<string, number>();
-	const tocEntries: { text: string; level: number; anchor: string | null }[] = [];
+	const bookmarkToNumbering = new Map<string, string>();
+	const tocEntries: { text: string; level: number; anchor: string | null; numbering: string | null }[] = [];
+	const tocCounters: number[] = [];
 
 	for (const b of blocks) {
 		if (b.tag !== 'w:p') continue;
 		const p = readParagraph(b, superStyleIds);
 		if (!p.pStyle?.startsWith('TOC')) continue;
-		const tail = p.pStyle.slice(3);
-		let level = 1;
-		const fromStyle = parseInt(tail, 10);
-		if (Number.isFinite(fromStyle)) level = fromStyle;
+		const ilvl = readNumPrIlvl(b);
+		let level: number;
+		if (ilvl != null) {
+			level = ilvl + 1;  // 0-indexed → 1-indexed
+		} else {
+			const tail = p.pStyle.slice(3);
+			const fromStyle = parseInt(tail, 10);
+			level = Number.isFinite(fromStyle) ? fromStyle : 1;
+		}
 
 		// Strip trailing page number (TOC entries often `Methodik\t47`)
 		let title = p.text.trim();
 		title = title.replace(/[\s ]*\d+$/, '').trim();
 
+		// Synthetic numbering: counter at level-1 increments, deeper levels
+		// reset. Only assigned when ilvl was the source — TOC entries that
+		// fall back to pStyle (typically front-matter listings like
+		// "Tabellenverzeichnis", which carry no auto-numbering) stay
+		// un-numbered.
+		let numbering: string | null = null;
+		if (ilvl != null) {
+			while (tocCounters.length < level) tocCounters.push(0);
+			tocCounters[level - 1] += 1;
+			tocCounters.length = level;
+			numbering = tocCounters.slice(0, level).join('.');
+		}
+
 		const anchor = p.anchors[0] ?? null;
-		tocEntries.push({ text: title, level, anchor });
-		if (anchor) bookmarkToLevel.set(anchor, level);
+		tocEntries.push({ text: title, level, anchor, numbering });
+		if (anchor) {
+			bookmarkToLevel.set(anchor, level);
+			if (numbering) bookmarkToNumbering.set(anchor, numbering);
+		}
 	}
 
 	// Pass 2 — Body walk
@@ -650,20 +712,26 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 		// 1) TOC entry
 		if (p.pStyle && p.pStyle.startsWith('TOC')) {
 			const cleanTitle = p.text.trim().replace(/[\s ]*\d+$/, '').trim();
-			emitLeaf("toc_entry", cleanTitle, {
-				toc_anchor: p.anchors[0] ?? null,
+			const tocAnchor = p.anchors[0] ?? null;
+			const tocNumbering = tocAnchor ? bookmarkToNumbering.get(tocAnchor) ?? null : null;
+			const tocProps: Record<string, unknown> = {
+				toc_anchor: tocAnchor,
 				toc_level: parseInt(p.pStyle.slice(3), 10) || 1
-			});
+			};
+			if (tocNumbering) tocProps.numbering = tocNumbering;
+			emitLeaf("toc_entry", cleanTitle, tocProps);
 			continue;
 		}
 
 		// 2) Heading via TOC bookmark
 		let headingLevel: number | null = null;
 		let headingSource: 'toc_bookmark' | 'pstyle' | null = null;
+		let headingNumbering: string | null = null;
 		for (const bm of p.bookmarks) {
 			if (bookmarkToLevel.has(bm)) {
 				headingLevel = bookmarkToLevel.get(bm)!;
 				headingSource = 'toc_bookmark';
+				headingNumbering = bookmarkToNumbering.get(bm) ?? null;
 				break;
 			}
 		}
@@ -697,12 +765,28 @@ export async function extractDocxAcademic(buffer: Buffer): Promise<{
 				bibliographyHeadingLevel = null;
 			}
 
+			// Author-numbering detection: if the body heading text begins with
+			// a dotted-arabic prefix (e.g. "1.1.1 Globalität" — author wrote
+			// the number manually instead of using auto-numbering), record a
+			// mismatch warning when it disagrees with the synthetic numbering.
+			// We do NOT modify the visible heading text — synthetic numbering
+			// lives only on properties.numbering, downstream renderers
+			// compose the display label themselves.
+			let numberingMismatch: { author: string; synthetic: string } | null = null;
+			const authorMatch = text.match(/^(\d+(?:\.\d+)*)\s+/);
+			const authorNumbering = authorMatch?.[1] ?? null;
+			if (authorNumbering && headingNumbering && authorNumbering !== headingNumbering) {
+				numberingMismatch = { author: authorNumbering, synthetic: headingNumbering };
+			}
+
 			const headingProps: Record<string, unknown> = {
 				level: headingLevel,
 				heading_source: headingSource,
 				outline_path: [...outlinePath],
 				bookmarks: p.bookmarks
 			};
+			if (headingNumbering) headingProps.numbering = headingNumbering;
+			if (numberingMismatch) headingProps.numbering_mismatch = numberingMismatch;
 			if (isBibliographyHeading) {
 				headingProps.is_bibliography_section = true;
 				inBibliography = true;
