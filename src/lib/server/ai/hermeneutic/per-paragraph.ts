@@ -22,11 +22,17 @@ import { chat } from '../client.js';
 
 // ── Output schema ─────────────────────────────────────────────────
 
-// Kernthesen-Code: a verbatim in-vivo phrase (≤ 4 words) that hashes the
-// argumentative core of the paragraph. Label and anchor are the same
-// substring — no derivative gloss.
+// Kernthesen-Code: a self-contained, retrieval-grade handle for the
+// paragraph's argumentative core. The label must be unambiguous out of
+// context (a future retrieval layer uses codes plus chapter titles to
+// surface relevant paragraphs — fragments like "Wiederholung und
+// Veränderung" or "long durée" fail that test). The anchor_phrase is an
+// optional verbatim substring used for char-level binding; when no clean
+// in-vivo phrase exists, anchor_phrase stays empty and the code anchors
+// to the whole paragraph.
 const CodeSchema = z.object({
-	phrase: z.string().min(1).max(80),
+	label: z.string().min(1).max(100),
+	anchor_phrase: z.string().max(80).default(''),
 	rationale: z.string().min(1).max(500),
 });
 
@@ -311,11 +317,31 @@ ${caseCtx.brief.includeFormulierend ? `{
 
 Codes-Struktur (für beide Fälle gleich):
 {
-  "phrase": "<EXAKTE in-vivo-Wortgruppe aus dem aktuellen Absatz, höchstens 4 Wörter — ist zugleich Code-Bezeichner und Textanker (server-seitig per Substring-Match aufgelöst)>",
-  "rationale": "<warum diese Wortgruppe die Kernthese / den argumentativen Schlüssel des Absatzes trägt, 1 Satz>"
+  "label": "<3–5 Wörter, self-contained, retrieval-tauglich — auch isoliert vom Absatzkontext eindeutig verständlich>",
+  "anchor_phrase": "<EXAKTE in-vivo-Wortgruppe aus dem aktuellen Absatz, höchstens 4 Wörter, oder leerer String wenn keine geeignete wörtliche Verankerung existiert>",
+  "rationale": "<warum dieser Begriff die Kernthese / den argumentativen Schlüssel des Absatzes trägt, 1 Satz>"
 }
 
-**Kernthesen-Codes** — keine beliebigen markanten Begriffe, sondern die argumentativen Kerne des Absatzes, in-vivo formuliert. 0–2 pro Absatz, jeder höchstens 4 Wörter, wörtlich aus dem Absatztext. Wenn der Absatz keine kristallinen Kernthesen-Wortgruppen birgt, lieber keinen Code als einen schwachen.`;
+**Kernthesen-Codes** — keine beliebigen markanten Begriffe, sondern die argumentativen Kerne des Absatzes. 0–2 pro Absatz.
+
+Zwei harte Anforderungen pro Code:
+(a) **Self-contained**: Das \`label\` ist auch ohne Absatzkontext eindeutig verständlich. Ein späteres Retrieval-System wird Codes verwenden, um relevante Absätze zu finden — Codes wie "Wiederholung und Veränderung", "long durée", "bis in die Gegenwart" sind isoliert mehrdeutig und damit retrieval-untauglich.
+(b) **In-vivo verankert** wo möglich: \`anchor_phrase\` ist eine wörtliche Wortgruppe aus dem Absatz, dient der char-genauen Verankerung. Wenn keine geeignete wörtliche Wortgruppe existiert, bleibt \`anchor_phrase\` leer.
+
+Drei Muster in Präferenz-Reihenfolge:
+
+1. **In-vivo + self-contained** (Ideal): label und anchor_phrase identisch.
+   Beispiel: \`{ "label": "Cultural Turn", "anchor_phrase": "Cultural Turn" }\`,
+   \`{ "label": "Steigerung von Komplexität", "anchor_phrase": "Steigerung von Komplexität" }\`.
+
+2. **In-vivo mit Topic-Prefix**: wörtliche Wortgruppe + ergänzender Topic-Bezug.
+   Beispiel statt isoliertem "Wiederholung und Veränderung":
+   \`{ "label": "Kultur: Wiederholung und Veränderung", "anchor_phrase": "Wiederholung und Veränderung" }\`.
+
+3. **Paraphrase** (Notlösung): label ohne wörtlichen Anker.
+   Beispiel: \`{ "label": "Kultur als iterativer Prozess", "anchor_phrase": "" }\`.
+
+Wenn der Absatz keine kristalline Kernthese trägt, lieber keinen Code als einen schwachen oder mehrdeutigen.`;
 }
 
 function buildUserMessage(paraCtx: ParagraphContext): string {
@@ -432,21 +458,36 @@ async function storeResult(
 		const unanchoredCodes: string[] = [];
 
 		for (const code of result.codes) {
-			const idx = paraCtx.text.indexOf(code.phrase);
 			const codeNaming = await client.query(
 				`INSERT INTO namings (project_id, inscription, created_by)
 				 VALUES ($1, $2, $3) RETURNING id`,
-				[caseCtx.projectId, code.phrase, userId]
+				[caseCtx.projectId, code.label, userId]
 			);
 			const codeId = codeNaming.rows[0].id;
 			codeIds.push(codeId);
 
-			if (idx === -1) {
-				unanchoredCodes.push(code.phrase);
-				continue;
+			// Anchor strategy:
+			// - non-empty anchor_phrase that substring-matches → precise char anchor
+			// - empty anchor_phrase OR no match → anchor spans the whole paragraph
+			//   (the code is still bound to the paragraph element, just without a
+			//   highlighted span; retrieval can still find it via element_id)
+			let charStart: number;
+			let charEnd: number;
+			if (code.anchor_phrase) {
+				const idx = paraCtx.text.indexOf(code.anchor_phrase);
+				if (idx === -1) {
+					unanchoredCodes.push(code.label);
+					charStart = paraCtx.charStart;
+					charEnd = paraCtx.charEnd;
+				} else {
+					charStart = paraCtx.charStart + idx;
+					charEnd = charStart + code.anchor_phrase.length;
+				}
+			} else {
+				charStart = paraCtx.charStart;
+				charEnd = paraCtx.charEnd;
 			}
-			const charStart = paraCtx.charStart + idx;
-			const charEnd = charStart + code.phrase.length;
+
 			await client.query(
 				`INSERT INTO code_anchors (code_naming_id, element_id, char_start, char_end)
 				 VALUES ($1, $2, $3, $4)`,
