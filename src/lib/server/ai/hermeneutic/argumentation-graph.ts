@@ -899,11 +899,28 @@ export async function runArgumentationGraphPass(
 		system,
 		cacheSystem: true,
 		messages: [{ role: 'user', content: user }],
-		maxTokens: 4000,
+		// 8000 (was 4000): paragraphs with 4 args + 5 scaffolding entries hit
+		// the 4000-cap under truncation, producing unparseable cut-off JSON.
+		maxTokens: 8000,
 	});
 
 	const json = extractJSON(response.text);
-	const parsed = ArgumentationGraphResultSchema.parse(JSON.parse(json));
+	let parsed: ArgumentationGraphResult;
+	try {
+		parsed = ArgumentationGraphResultSchema.parse(JSON.parse(json));
+	} catch (err) {
+		// Surface the raw LLM output for post-mortem when JSON.parse fails or
+		// schema validation throws something the existing fallbacks didn't catch.
+		const dumpPath = `/tmp/argumentation-graph-failure-${paragraphId}.txt`;
+		const fs = await import('node:fs/promises');
+		await fs.writeFile(
+			dumpPath,
+			`paragraph_id: ${paragraphId}\noutput_tokens: ${response.outputTokens}\n\n--- RAW RESPONSE ---\n${response.text}\n\n--- EXTRACTED JSON ---\n${json}\n`,
+			'utf8'
+		);
+		console.error(`     dumped raw response to ${dumpPath}`);
+		throw err;
+	}
 	const stored = await storeResult(paraCtx, parsed);
 
 	return {

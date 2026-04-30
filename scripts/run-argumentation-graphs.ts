@@ -16,15 +16,18 @@ import { pool } from '../src/lib/server/db/index.ts';
 
 const CASE_ID = '0abe0588-badb-4e72-b3c4-1edd4a376cb6';
 
-// Methodologische Grundlegung §1..§5 — Heading 0a13d404-20d7-4422-9e67-72181cf98fa5.
-// Validation probe (cheapest first) for whether the S3 prompt sharpening
-// generalises beyond Globalität.
+// Schule und Globalität §1..§9 — Heading 7dee784c-4097-4f7e-80b0-85f3bf7e6f85.
+// Validation step 2: applied/Empirie-context that USES the Globalität concept.
 const PARAGRAPH_IDS = [
-	'aea14a0f-e04e-4ce6-8600-df26fcdccbe2', // §1
-	'185c05d7-d890-48c2-8656-b822e04e1830', // §2
-	'654738a0-c506-4ad7-825f-b0f5dfb08823', // §3
-	'0594cfca-18d2-4c6c-b6e7-ee07bdab7d59', // §4
-	'e82fa4f8-6ea0-4c4b-be82-de97e71ea4fc', // §5
+	'5b48ba63-af53-43cb-b074-899e3a4807c2', // §1
+	'111e055f-2ede-4158-8919-c03533aa4845', // §2
+	'a9e3f043-951e-445c-9eb7-905a7e7bb4f3', // §3
+	'47b24503-817f-424c-be15-78696ba990be', // §4
+	'3e7e5b66-acb5-4523-a291-6c8edefe9298', // §5
+	'931e3c66-4929-4066-86db-7f81751ee89c', // §6
+	'50496db2-7eaa-41ea-be8f-9fb9d71fc834', // §7
+	'053acc5f-28a3-43ab-b3ea-2f22a0ab7b9b', // §8
+	'854d6dd1-3219-448e-8562-a04e22c808c9', // §9
 ];
 
 let total = 0;

@@ -549,11 +549,27 @@ export async function runGraphCollapse(
 		system,
 		cacheSystem: true,
 		messages: [{ role: 'user', content: user }],
-		maxTokens: 2000,
+		// 4000 (was 2000): subchapters with > ~25 arguments + > ~30 scaffolding
+		// produce a synthesis that, with the four Pflichtbestandteile, reaches
+		// the 2000-cap. Methodologische Grundlegung came in at exactly 1999.
+		maxTokens: 4000,
 	});
 
 	const json = extractJSON(response.text);
-	const parsed = GraphCollapseResultSchema.parse(JSON.parse(json));
+	let parsed: GraphCollapseResult;
+	try {
+		parsed = GraphCollapseResultSchema.parse(JSON.parse(json));
+	} catch (err) {
+		const dumpPath = `/tmp/graph-collapse-failure-${subchapterHeadingId}.txt`;
+		const fs = await import('node:fs/promises');
+		await fs.writeFile(
+			dumpPath,
+			`subchapter_heading_id: ${subchapterHeadingId}\noutput_tokens: ${response.outputTokens}\n\n--- RAW RESPONSE ---\n${response.text}\n\n--- EXTRACTED JSON ---\n${json}\n`,
+			'utf8'
+		);
+		console.error(`     dumped raw response to ${dumpPath}`);
+		throw err;
+	}
 	const stored = await storeGraphCollapseMemo(ctx, parsed, userId);
 
 	return {
