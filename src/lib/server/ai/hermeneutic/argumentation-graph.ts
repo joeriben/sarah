@@ -77,7 +77,10 @@ const ArgumentSchema = z.object({
 	id: z.string().regex(/^A\d+$/, 'argument id must look like "A1", "A2", ...'),
 	claim: z.string().min(1),
 	premises: z.array(PremiseSchema).default([]),
-	anchor_phrase: z.string().max(80).default(''),
+	// Sanity cap, not a style constraint. The "≤ 8 Wörter" guidance lives in the
+	// prompt; schema only guards against pathological full-paragraph echoes.
+	// Style overflow (> 80 chars) is logged in storeResult but doesn't fail.
+	anchor_phrase: z.string().max(500).default(''),
 });
 
 const InterArgumentEdge = z.object({
@@ -120,7 +123,9 @@ const ScaffoldingElementSchema = z.object({
 	function_description: z.string().min(1),
 	assessment: z.string().min(1),
 	anchored_to: z.array(z.string().regex(/^(A\d+|§\d+:A\d+)$/)).min(1, 'scaffolding must anchor to ≥ 1 argument'),
-	anchor_phrase: z.string().max(80).default(''),
+	// See ArgumentSchema.anchor_phrase note: 500 = sanity cap; style limit (≤ 8
+	// Wörter) is prompt-side only.
+	anchor_phrase: z.string().max(500).default(''),
 });
 
 const ArgumentationGraphResultSchema = z.object({
@@ -608,6 +613,11 @@ async function storeResult(
 		// 1. Insert all arguments
 		for (let i = 0; i < result.arguments.length; i++) {
 			const arg = result.arguments[i];
+			if (arg.anchor_phrase.length > 80) {
+				console.warn(
+					`     style: ${arg.id} anchor_phrase length=${arg.anchor_phrase.length} (> 80 chars; prompt asks for ≤ 8 Wörter)`
+				);
+			}
 			let charStart: number;
 			let charEnd: number;
 			if (arg.anchor_phrase) {
@@ -774,6 +784,11 @@ async function storeResult(
 			}
 
 			// Char anchor for the scaffolding element itself
+			if (el.anchor_phrase.length > 80) {
+				console.warn(
+					`     style: ${el.id} anchor_phrase length=${el.anchor_phrase.length} (> 80 chars; prompt asks for ≤ 8 Wörter)`
+				);
+			}
 			let charStart: number;
 			let charEnd: number;
 			if (el.anchor_phrase) {

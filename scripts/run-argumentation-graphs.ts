@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Process Globalität §1..§5 through the EXPERIMENTAL Argumentations-Graph
-// pass. Runs in subchapter order (forward: §1 first, then §2, ...) so that
-// the prior_paragraph edge scope can reference earlier paragraphs.
+// Process a subchapter's paragraphs through the EXPERIMENTAL Argumentations-
+// Graph pass. Runs in FORWARD order so that the prior_paragraph edge scope
+// can reference earlier paragraphs.
 //
 // Run from repo root:   npx tsx scripts/run-argumentation-graphs.ts
 //
@@ -16,15 +16,15 @@ import { pool } from '../src/lib/server/db/index.ts';
 
 const CASE_ID = '0abe0588-badb-4e72-b3c4-1edd4a376cb6';
 
-// Globalität §1..§5 in FORWARD order — opposite of run-paragraphs.ts.
-// The analytical pass needs prior arguments persisted before later paragraphs
-// can reference them.
+// Methodologische Grundlegung §1..§5 — Heading 0a13d404-20d7-4422-9e67-72181cf98fa5.
+// Validation probe (cheapest first) for whether the S3 prompt sharpening
+// generalises beyond Globalität.
 const PARAGRAPH_IDS = [
-	'693f4a08-df4c-4f83-8add-e2a1d220d3a5', // §1
-	'3e6aa3f3-7e32-4b0a-a573-1ed578f3f32b', // §2
-	'30d9d218-9d4e-4839-97d2-e935ce83455e', // §3
-	'e126d3f9-f257-4628-8eda-be5a366fe372', // §4
-	'ef350dab-3ffb-48f7-9e42-d3455212eb6b', // §5
+	'aea14a0f-e04e-4ce6-8600-df26fcdccbe2', // §1
+	'185c05d7-d890-48c2-8656-b822e04e1830', // §2
+	'654738a0-c506-4ad7-825f-b0f5dfb08823', // §3
+	'0594cfca-18d2-4c6c-b6e7-ee07bdab7d59', // §4
+	'e82fa4f8-6ea0-4c4b-be82-de97e71ea4fc', // §5
 ];
 
 let total = 0;

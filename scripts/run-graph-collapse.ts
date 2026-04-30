@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Run the EXPERIMENTAL graph-fed kontextualisierende Subkapitel-Collapse on
-// "Globalität" (Habilitation-Timm). Requires that runArgumentationGraphPass
-// has already been executed for §1..§5 of this subchapter.
+// Run the EXPERIMENTAL graph-fed kontextualisierende Subkapitel-Collapse.
+// Requires that runArgumentationGraphPass has already been executed for all
+// paragraphs of this subchapter.
 //
 // Run from repo root:   npx tsx scripts/run-graph-collapse.ts
 
@@ -12,7 +12,7 @@ import { pool } from '../src/lib/server/db/index.ts';
 
 const CASE_ID = '0abe0588-badb-4e72-b3c4-1edd4a376cb6';
 const USER_ID = 'dac6ac05-bdab-4d68-a4fa-3eab0b40cc2b';
-const SUBCHAPTER_HEADING_ID = 'ac0a6c7a-d38c-48ea-9414-55cda02df246'; // Globalität
+const SUBCHAPTER_HEADING_ID = '0a13d404-20d7-4422-9e67-72181cf98fa5'; // Methodologische Grundlegung
 
 const t0 = Date.now();
 const run = await runGraphCollapse(CASE_ID, SUBCHAPTER_HEADING_ID, USER_ID);
@@ -21,7 +21,7 @@ const dt = ((Date.now() - t0) / 1000).toFixed(1);
 const t = run.tokens;
 const cost = (t.input * 3 + t.cacheCreation * 3.75 + t.cacheRead * 0.30 + t.output * 15) / 1_000_000;
 
-console.log(`\n=== Graph-fed Collapse: "Globalität" ===`);
+console.log(`\n=== Graph-fed Collapse: "Methodologische Grundlegung" ===`);
 console.log(`${dt}s   in=${t.input} cache_r=${t.cacheRead} out=${t.output}  ~$${cost.toFixed(4)}`);
 console.log(`paragraphs=${run.paragraphsSynthesized} arguments=${run.totalArguments} scaffolding=${run.totalScaffolding}`);
 console.log(`memo: ${run.stored.memoId}`);
