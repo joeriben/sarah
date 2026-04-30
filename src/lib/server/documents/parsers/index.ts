@@ -163,14 +163,26 @@ export async function parseAndStore(
 	return { canonicalFullText };
 }
 
-/** Re-parse a single document. Deletes existing elements first. */
+/** Re-parse a single document. Deletes existing elements first.
+ *  Re-anchors heading_classifications to the freshly inserted heading
+ *  elements (per soft anchor heading_text_normalized + approx_char_start)
+ *  and resets outline_status to 'pending' — User muss nach Re-Import die
+ *  Outline neu bestätigen.
+ */
 export async function reparseDocument(
 	client: pg.PoolClient,
 	documentId: string,
 	fullText: string,
 	mimeType: string,
 	bytes?: Buffer
-): Promise<{ canonicalFullText: string }> {
+): Promise<{ canonicalFullText: string; reanchor: { matched: number; orphaned: number } }> {
 	await client.query('DELETE FROM document_elements WHERE document_id = $1', [documentId]);
-	return parseAndStore(client, documentId, fullText, mimeType, bytes);
+	const { canonicalFullText } = await parseAndStore(client, documentId, fullText, mimeType, bytes);
+
+	// Re-anchor outline classifications. Lazy-imported to keep the parsers
+	// module free of outline-domain dependencies at module load time.
+	const { reanchorClassifications } = await import('../outline.js');
+	const reanchor = await reanchorClassifications(client, documentId, canonicalFullText);
+
+	return { canonicalFullText, reanchor };
 }

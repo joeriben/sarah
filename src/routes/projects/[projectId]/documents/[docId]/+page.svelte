@@ -119,6 +119,7 @@
 			{/if}
 			<button class:active={mode === 'structure'} onclick={() => (mode = 'structure')}>Struktur</button>
 			<button class:active={mode === 'raw'} onclick={() => (mode = 'raw')}>Volltext</button>
+			<a class="outline-link" href="./{doc.id}/outline">Inhaltsverzeichnis prüfen →</a>
 		</div>
 	</header>
 
@@ -230,6 +231,15 @@
 		border-color: rgba(165, 180, 252, 0.5);
 		color: #c7d2fe;
 	}
+	.mode-switch .outline-link {
+		margin-left: auto;
+		align-self: center;
+		color: #a5b4fc;
+		text-decoration: none;
+		font-size: 0.78rem;
+		padding: 0.35rem 0.6rem;
+	}
+	.mode-switch .outline-link:hover { text-decoration: underline; }
 
 	.raw {
 		white-space: pre-wrap;
