@@ -1,51 +1,102 @@
-# Handover — Argumentations-Graph-Experiment, Stand nach S3
+# Handover — Argumentations-Graph-Experiment, Stand nach Validierungsstrecke
 
 **Last touched:** 2026-04-30
-**Last commits:** `0c5ed43` (full pipeline), `8d492d9` (Synthese-Pflichtbestandteile)
+**Last commits:**
+- `a958f82` (Validierungslauf S1: Methodologische Grundlegung + Schema-Robustheit)
+- `6b49687` (Validierungslauf S2: Schule und Globalität + Truncation-Robustheit)
+- (pending) Validierungslauf S3: Anforderungen an Professionalität
 
 ## Stand in einem Satz
 
-Die analytische Linie (Migrations 032+033) liefert nach Pflichtbestandteils-Schärfung des Synthese-Prompts an Globalität §1–§5 ein Ergebnis, das die hermeneutisch-synthetische Lektüre stellenweise schlägt. Validierung an weiteren Subkapiteln steht aus.
+Die analytische Linie (Migrations 032+033) ist nach S3-Pflichtbestandteils-
+Schärfung an drei strukturell unterschiedlichen Subkapiteln (Methodologische
+Grundlegung, Schule und Globalität, Anforderungen an Professionalität)
+empirisch validiert; die Stoppregel des vorigen Handovers ist erfüllt.
 
-## Was zuletzt passierte
+## Was zuletzt passierte (Validierungsstrecke)
 
-Drei Synthese-Läufe an Globalität (S1, S2, S3) zeigten zwei reproduzierbare Lücken der ersten Versionen gegenüber der hermeneutisch-synthetischen Variante:
-- Kernbewegung wurde nicht "gekrönt", sondern als Auffälligkeit notiert.
-- Werk-Architektur-Verortung verlor die Rückbindung an das vorherige Subkapitel.
-- Mehrere Schwächen wurden als Liste statt als integrative Spannungsdiagnose ausgegeben.
+| Subkapitel | Klasse | ¶ | args | scaff | Synthese-Befund |
+|---|---|---|---|---|---|
+| Methodologische Grundlegung | A / standardisiert | 5 | 12 | 19 | ✓ alle vier Pflichtbestandteile greifen, Werk-Architektur dünner ohne Failure-Modus |
+| Schule und Globalität | B / Anwendung | 9 | 30 | 41 | ✓✓ stärker als Globalität; integrative Spannungsdiagnose erfasst Konzept-Anwendungs-Lücke |
+| Anforderungen an Professionalität | B / normativ-konzeptuell | 13 | 51 | 67 | ✓✓✓ höchstes Niveau, Cross-Subkapitel-Konsistenz |
 
-Lösung: vier Pflichtbestandteile (argumentative Bewegung / Kernbewegung-Identifikation / Werk-Architektur-Verortung / integrative Spannungsdiagnose) explizit in die Prompt-Anweisung. Resultat in S3: die Synthese ist *schärfer* als die hermeneutische Variante, ohne deren Tiefe zu verlieren — siehe `docs/experiments/argumentation-graph-globalitaet.md` Sektion "Kontextualisierende Synthese (graph-fed)".
+**Bemerkenswerte emergente Eigenschaft:** die Pipeline erkennt
+werkübergreifende Stilmerkmale ohne Cross-Subkapitel-Prompt
+("rezeptiv-applizierend statt kritisch-erprobend"; "kumulative
+Nicht-Prüfung des Scheunpflug-Modells durch alle drei Anwendungs-Subkapitel"
+mit konkreter Argument-Identifikation aus früherem Subkapitel).
+Ermöglicht durch scaffolding-Cross-Anker und prior-edges, die
+Subkapitel-Grenzen überschreiten.
+
+**Pipeline-Robustheits-Patches** (durch reale Failures der Validierungsläufe
+getrieben, nicht over-engineering):
+- `anchor_phrase` 80 → 500 chars (sanity cap; Style-Warning ≥ 80)
+- `scaffolding.excerpt` 500 → 1000 chars (sanity cap; Style-Warning ≥ 500)
+- `maxTokens` 4000 → 8000 (per-paragraph), 2000 → 4000 (synthesis)
+- JSON.parse/Schema-Failure: raw response wird nach `/tmp/...failure-*.txt`
+  gedumpt vor Exception-Propagation
 
 ## Aufgabe der nächsten Session
 
-**Validieren, ob S3-Schärfe stabil ist über strukturell unterschiedliche Subkapitel-Typen** — oder eine Eigenheit von Globalität war.
+**Promotion-Entscheidung treffen** und ggf. die zwei resultierenden Arbeiten
+durchziehen:
 
-Empfohlene Reihenfolge:
-1. **Methodologische Grundlegung** (5 ¶, Heading-ID `0a13d404-20d7-4422-9e67-72181cf98fa5`, char_start 106782) — methodisch-prozedurales Material, anders strukturiert als die theoretische Begriffsarbeit von Globalität. Cheapest first probe (~$0.20 + $0.05 für die Synthese).
-2. Falls (1) erfolgreich: **Schule und Globalität** (9 ¶, `7dee784c-4097-4f7e-80b0-85f3bf7e6f85`, char_start 64261) — angewandter Kontext, verwendet das Globalitäts-Konzept; gibt Hinweise ob die analytische Linie Anwendungstexte gleich gut erfasst.
-3. Falls (2) erfolgreich: **Anforderungen an die Professionalität von Lehrkräften** (13 ¶, `6e0a1737-8996-49ad-830e-7e2290c3d838`) — größerer Lauf, normativ-konzeptuell.
+### Frage 1: Promotion der analytischen Linie
 
-Pro Subkapitel:
-- Per-Absatz-Pass via angepasster `scripts/run-argumentation-graphs.ts` (PARAGRAPH_IDS-Array austauschen — IDs aus `document_elements WHERE element_type='paragraph' AND char_start BETWEEN heading.char_start AND next_heading.char_start ORDER BY char_start`)
-- Graph-fed Collapse via angepasster `scripts/run-graph-collapse.ts` (SUBCHAPTER_HEADING_ID austauschen)
-- Side-by-side Vergleich mit der existierenden hermeneutischen Lektüre, falls vorhanden
+Vorige Handover-Frage wörtlich: "ab welchem Validierungsstand kann die
+hermeneutische Linie ernsthaft als optional gestellt werden? Mindestens 3
+strukturell unterschiedliche Subkapitel mit konsistenter S3-Qualität."
 
-## Was zu prüfen ist
+Stand: Hürde erfüllt (Klasse-A-Methodologie + zwei Klasse-B-Subkapitel mit
+unterschiedlichem Profil).
 
-- Bleibt die **Kernbewegung-Identifikation** verlässlich, wenn der Text keine offensichtliche deskriptiv→normativ-Struktur hat (z.B. methodische Begründungen, Anwendungsbeispiele)?
-- Bleibt die **Werk-Architektur-Verortung** sinnvoll bei Subkapiteln, die nicht Theorie-Brücken sind?
-- Schlägt die **integrative Spannungsdiagnose** in einen Modus um, der Spannungen *konstruiert* wo keine sind? (Failure-Modus: das LLM zwingt sich zu einer Diagnose, weil sie als Pflichtbestandteil markiert ist.)
-- Wenn ein Subkapitel argumentationsstrukturell *schwach* ist (kaum cross-Edges, viele scaffolding-Inseln): erkennt die Synthese das, oder simuliert sie eine Bewegungsfigur?
+Implikationen einer "ja"-Entscheidung sind nachzudenken (was ändert sich am
+Brief-Default? Endpunkt-Verhalten? UI?). Empfehlung in der Session-Diskussion
+entwickeln.
+
+### Frage 2: Direction-3 Klasse A implementieren
+
+Bei Klasse-B-Subkapiteln (Anwendung, normativ-konzeptuell, Theorie-Brücke)
+greift das aktuelle Globalität-Set ohne Anpassung — der LLM erkennt das
+Profil aus dem Material. Bei Klasse-A-Subkapiteln (funktional standardisiert)
+wird ein Bestandteil dünner (Werk-Architektur bei Methodologie-Kapiteln).
+
+Empfehlung: Heading-Heuristik einführen, die Klasse-A-Subkapitel klassifiziert
+("Methodik|Methoden|Methodologie", "Einleitung|Forschungsfrage", "Fazit|
+Konklusion|Schlussbetrachtung", "Durchführung|Datenerhebung"), und das
+Synthese-Prompt typ-spezifisch akzentuiert. Datengestützte Profile pro
+Standardkapiteltyp siehe Memory `project_argumentations_graph_experiment.md`
+Direction 3.
+
+Voraussetzung vor Implementierung: Klärung mit User, ob hartes Set-Switch
+oder weiche Akzent-Anweisung im Prompt.
+
+### Frage 3: API-Endpoint erweitern
+
+Aktuell triggert der Endpoint `src/routes/api/cases/[caseId]/hermeneutic/
+paragraph/[paragraphId]/+server.ts` nur den synthetischen Pass. Wenn die
+analytische Linie produktiv geht: Endpoint erweitern, sodass bei
+`brief.argumentation_graph=true` zusätzlich der analytische Pass läuft (und
+am Subkapitel-Ende der graph-fed collapse). Auch der Subkapitel-Synthese-
+Endpoint muss bei dem Brief-Flag den `runGraphCollapse` zusätzlich anstoßen.
+
+Trigger-Logik:
+- per-paragraph: nach `runHermeneuticPass` (synthetic) ggf. auch
+  `runArgumentationGraphPass` (analytical) — heute manuell, künftig
+  automatisch wenn Flag.
+- per-subchapter: nach dem letzten Paragraphen-Pass ggf. auch
+  `runGraphCollapse` zusätzlich zum synthetischen `runSectionCollapse`.
 
 ## Files / Pfade
 
-- Memory: `~/.claude/projects/-Users-joerissen-ai-sarah/memory/project_argumentations_graph_experiment.md` — vollständige Architektur-Notiz
+- Memory: `~/.claude/projects/-Users-joerissen-ai-sarah/memory/project_argumentations_graph_experiment.md` — vollständige Architektur-Notiz, mit Validation-Tabelle, Cross-Subkapitel-Erkenntnis und Robustheits-Updates.
 - Per-Absatz-Pass: `src/lib/server/ai/hermeneutic/argumentation-graph.ts`
 - Subkapitel-Synthese: `src/lib/server/ai/hermeneutic/section-collapse-from-graph.ts`
 - Dev driver Per-Absatz: `scripts/run-argumentation-graphs.ts`
 - Dev driver Synthese: `scripts/run-graph-collapse.ts`
 - Vergleichsbericht-Renderer: `scripts/render-graph-comparison.ts`
-- Bisheriger Bericht: `docs/experiments/argumentation-graph-globalitaet.md`
+- Bisheriger Bericht (nur Globalität): `docs/experiments/argumentation-graph-globalitaet.md` — die drei Validierungs-Subkapitel sind bisher nicht in einen Side-by-side-Bericht geflossen; die Synthese-Outputs sind in der DB persistiert (siehe Memo-IDs unten).
 - Migrations: `migrations/032_argumentation_graph_experiment.sql` + `033_scaffolding_elements.sql`
 
 ## Test-Daten-IDs (Habilitation-Timm)
@@ -56,6 +107,17 @@ brief_id         f8fc8a30-404f-4378-bd8d-c1fb92799246  (argumentation_graph=true
 document_id      f7afee4b-729b-4a0d-963e-b3b31c6b3dcc
 user_id (sarah)  dac6ac05-bdab-4d68-a4fa-3eab0b40cc2b
 ```
+
+Validierte Subkapitel (Heading-IDs):
+- Globalität: `ac0a6c7a-d38c-48ea-9414-55cda02df246`
+- Methodologische Grundlegung: `0a13d404-20d7-4422-9e67-72181cf98fa5`
+- Schule und Globalität: `7dee784c-4097-4f7e-80b0-85f3bf7e6f85`
+- Anforderungen an Professionalität: `6e0a1737-8996-49ad-830e-7e2290c3d838`
+
+Synthese-Memos (in `appearances` mit inscription `[kontextualisierend/subchapter/graph]`):
+- Methodologische Grundlegung: `b69e13c5-5fec-4384-9df6-c2df0698e038`
+- Schule und Globalität: `c9e455fd-e4b3-4116-b6a0-9bda68a0d3ad`
+- Anforderungen an Professionalität: `43e4e0ff-87b3-4273-948a-f7f8fb445fd2`
 
 LLM: `mammouth claude-sonnet-4-6`. Key in `mammouth.key` (gitignored).
 
@@ -80,12 +142,11 @@ WHERE document_id = 'f7afee4b-729b-4a0d-963e-b3b31c6b3dcc'
 ORDER BY char_start;
 ```
 
-## Offene Designfragen
+## Stoppregel (für künftige Validierungsläufe an weiteren Subkapiteln)
 
-- **Direction 1** (FFN/Backprop-retrograder Pass) im Memory skizziert — würde forward-references und strukturelle Argument-Zentralitätsmetriken liefern. Aktuell macht S3 die Kernbewegung-Identifikation per LLM-Inferenz; ein graph-strukturelles Ranking wäre verlässlicher. Erwägen, sobald 2–3 Subkapitel validiert sind.
-- **Promotion-Frage**: ab welchem Validierungsstand kann die hermeneutische Linie ernsthaft als optional gestellt werden? Mindestens 3 strukturell unterschiedliche Subkapitel mit konsistenter S3-Qualität.
-- **API-Endpoint** triggert aktuell nur den synthetischen Pass (`src/routes/api/cases/[caseId]/hermeneutic/paragraph/[paragraphId]/+server.ts`). Wenn analytische Linie produktiv geht: Endpoint erweitern, sodass bei `brief.argumentation_graph=true` zusätzlich der analytische Pass läuft.
-
-## Stoppregel
-
-Wenn die Validierungsläufe an (1) und (2) zeigen, dass S3-Schärfe nur an Globalität funktioniert: zurück an die Prompt-Werkbank, erst danach Direction 1 erwägen. Prompt-Iteration ist billiger als Architektur-Erweiterung.
+Aktuelle Stoppregel ist erfüllt — die analytische Linie ist promotionsreif.
+Für *neue* Subkapitel-Typen (z.B. Diskussion, Forschungsstand-Kapitel,
+empirische Befunddarstellung) gilt: einzelne Validierungsläufe können
+weiterhin Erkenntnisgewinn bringen, sind aber nicht mehr stoppend.
+Direction-3-Klasse-B-Subtypisierung wartet auf konkreten Bedarf, nicht auf
+Validierung um ihrer selbst willen.

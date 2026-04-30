@@ -16,18 +16,23 @@ import { pool } from '../src/lib/server/db/index.ts';
 
 const CASE_ID = '0abe0588-badb-4e72-b3c4-1edd4a376cb6';
 
-// Schule und Globalität §1..§9 — Heading 7dee784c-4097-4f7e-80b0-85f3bf7e6f85.
-// Validation step 2: applied/Empirie-context that USES the Globalität concept.
+// Anforderungen an die Professionalität von Lehrkräften §1..§13 —
+// Heading 6e0a1737-8996-49ad-830e-7e2290c3d838.
+// Validation step 3: normativ-konzeptuelles Subkapitel, größter Lauf der Validierung.
 const PARAGRAPH_IDS = [
-	'5b48ba63-af53-43cb-b074-899e3a4807c2', // §1
-	'111e055f-2ede-4158-8919-c03533aa4845', // §2
-	'a9e3f043-951e-445c-9eb7-905a7e7bb4f3', // §3
-	'47b24503-817f-424c-be15-78696ba990be', // §4
-	'3e7e5b66-acb5-4523-a291-6c8edefe9298', // §5
-	'931e3c66-4929-4066-86db-7f81751ee89c', // §6
-	'50496db2-7eaa-41ea-be8f-9fb9d71fc834', // §7
-	'053acc5f-28a3-43ab-b3ea-2f22a0ab7b9b', // §8
-	'854d6dd1-3219-448e-8562-a04e22c808c9', // §9
+	'332e0b28-80a4-4eaf-9197-fc30f4fba668', // §1
+	'1a8b5a9b-8aeb-4e60-b474-bd7cbe10d4eb', // §2
+	'afff0fc2-8b43-49cd-8d1c-9fd41049e373', // §3
+	'3957674b-dfcc-4954-ba06-57db3bed9b15', // §4
+	'd219b6bc-4e18-46f7-a537-428bac0c8bcb', // §5
+	'1f7b16e7-0fd5-4d69-a9b9-a26d62c48bf4', // §6
+	'b3077fac-4c1d-4fd0-a3d8-bafecce4698b', // §7
+	'53ff6e03-9d7e-4b6a-aed3-7413e6059052', // §8
+	'3851a9c4-b373-4c20-93b0-8d704f4b207b', // §9
+	'6e56c72d-894b-4802-9fc1-3c0df3009161', // §10
+	'ac0abb97-02ae-4961-87d4-c5244be60a3a', // §11
+	'e766dff3-fa06-4908-b088-43d40916a2b5', // §12
+	'8635d240-049f-48c2-9346-af4530dd3a53', // §13
 ];
 
 let total = 0;

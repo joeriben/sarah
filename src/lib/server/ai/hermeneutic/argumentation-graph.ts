@@ -118,7 +118,11 @@ const ScaffoldingFunctionType = z.enum([
 
 const ScaffoldingElementSchema = z.object({
 	id: z.string().regex(/^S\d+$/, 'scaffolding id must look like "S1", "S2", ...'),
-	excerpt: z.string().min(1).max(500),
+	// 1000 (was 500): habilitation prose can contain genuinely long parallel-
+	// constructed sentences (e.g. dimensional parallelism with four members
+	// in one sentence). 500 was a stylistic preference, not a content limit;
+	// stylistic overflow (> 500) is logged in storeResult.
+	excerpt: z.string().min(1).max(1000),
 	function_type: ScaffoldingFunctionType,
 	function_description: z.string().min(1),
 	assessment: z.string().min(1),
@@ -787,6 +791,11 @@ async function storeResult(
 			if (el.anchor_phrase.length > 80) {
 				console.warn(
 					`     style: ${el.id} anchor_phrase length=${el.anchor_phrase.length} (> 80 chars; prompt asks for ≤ 8 Wörter)`
+				);
+			}
+			if (el.excerpt.length > 500) {
+				console.warn(
+					`     style: ${el.id} excerpt length=${el.excerpt.length} (> 500 chars; potential block echo)`
 				);
 			}
 			let charStart: number;
