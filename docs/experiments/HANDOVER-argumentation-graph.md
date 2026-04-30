@@ -1,215 +1,144 @@
-# Handover — Parser-Fix Heading-Hierarchie + Numerierung
+# Handover — Direction 4 implementiert, (d) wird durch Tragweite/Tragfähigkeit ersetzt
 
-**Last touched:** 2026-04-30 (zweite Session des Tages)
-**Vorheriger Handover-Stand:** commit `696c553` (Direction 4 als Hauptaufgabe der nächsten Session)
-**Diese Session liefert nur:** Parser-Fix für Heading-Hierarchie. Direction 4 wird verschoben — siehe Reihenfolge unten.
+**Last touched:** 2026-04-30 (späte Session, in Folge der Parser-Fix-Session und des Direction-4-Plans aus `696c553`)
+
+**Letzte committed Commits:**
+- `7ea1d49` Outline-Page: Dark-Theme-Angleichung
+- `04a6c9f` User-Validierung der Heading-Hierarchie (Migration 035: `heading_classifications` + `outline_status`-Gate)
+- `a515023` Re-Import-Skript Habilitation-Timm + Verifikation Parser-Fix
+- `639214c` Benchmark-Export-Skript für Pre-Parser-Fix Re-Import
+- `4efd03e` DOCX-Parser: Heading-Hierarchie aus numPr/ilvl + synthetische Numerierung
+- `696c553` (voriges Direction-4-Plan-Handover, jetzt überschrieben)
+
+**Uncommitted in dieser Session:**
+- `migrations/036_chapter_aggregation_level.sql` (neu, **noch nicht angewendet**)
+- `src/lib/server/ai/hermeneutic/heading-hierarchy.ts` (neu)
+- `src/lib/server/ai/hermeneutic/chapter-collapse.ts` (neu)
+- `src/lib/server/ai/hermeneutic/document-collapse.ts` (neu)
 
 ## Stand in einem Satz
 
-Bei der Inspektion vor Direction-4-Implementation fiel auf, dass im
-Test-DOCX (Habilitation-Timm) **alle Headings auf level=1** in der DB
-landen, obwohl das PDF eine 3-Ebenen-Hierarchie zeigt. Diagnose: bei
-PDF→DOCX-Export wird der TOC-pStyle uniform auf TOC1 geflacht; die
-Hierarchie steckt in `<w:numPr><w:ilvl/></w:numPr>` der TOC-Paragraphen,
-die der bisherige Parser ignorierte. Fix in `docx-academic.ts` ist
-implementiert + in-memory verifiziert; **Re-Import + DB-Verifikation
-sind der erste Schritt der nächsten Session**.
+Direction-4-Code ist geschrieben und compile-clean; **bevor irgendein Lauf gestartet wird**, muss der vierte Pflichtbestandteil ("Integrative Spannungsdiagnose") aus beiden Prompts (existierender Subkapitel-Pass + neuer Hauptkapitel-Pass) durch eine **neutrale Tragweite-und-Tragfähigkeit-Aufforderung** ersetzt werden — danach Migration 036 anwenden, Dev-Driver schreiben, Validierungslauf am Theorie-Hauptkapitel des Timm-Manuskripts.
 
-## Was diese Session geliefert hat
+## Methodologische Lektion (essentiell — vor jedem Prompt-Touch lesen)
 
-### Parser-Fix in `src/lib/server/documents/parsers/docx-academic.ts`
+In dieser Session wurde "Integrative Spannungsdiagnose" als Slop diagnostiziert. Drei Probleme:
 
-- Neuer Helper `readNumPrIlvl(p)` extrahiert die Word-Auto-Numbering-Tiefe
-  (0-indexed) aus `<w:pPr><w:numPr><w:ilvl/>`.
-- **TOC-Pre-Pass** nutzt jetzt zwei Quellen in dieser Reihenfolge:
-  1. `numPr/ilvl + 1` — primär (überlebt PDF→DOCX)
-  2. `pStyle.slice(3)` (TOC1..TOC9) — Fallback
-- **Counter-Array** über alle TOC-Einträge mit ilvl berechnet die
-  synthetische arabische Numerierung ("1", "1.1", "1.2.2") nach Position.
-- Neue Bookmark-Map `bookmarkToNumbering` reicht die Numerierung an die
-  Body-Headings durch.
-- `properties.numbering` an `heading`- und `toc_entry`-Elementen
-  speichert die Position; Heading-Text bleibt unverändert (Konsumenten
-  rendern `${numbering} ${text}` selbst).
-- `properties.numbering_mismatch` warnt, falls der Body-Heading-Text
-  bereits eine Author-Numerierung trägt, die von der synthetic abweicht
-  (kein Stripping, nur Diagnose).
+1. **Pseudo-Vokabular** ohne hermeneutische/argumentationsanalytische Pedigree ("übergeordnete Spannung" ist kein Toulmin-, Bohnsack- oder Soeffner-Terminus).
+2. **Selektions-Bias** durch Pflicht-Frageform ("wenn mehrere Schwächen vorliegen, frage dich, ob sie ein gemeinsames Symptom haben") — der LLM sucht aktiv nach Schwächen, weil die Antwortstruktur sie erwartet, und konstruiert ein gemeinsames Symptom auch dort, wo die Schwächen unverbunden sind.
+3. **Einzelfall → Datenbank-Kategorie**: ein einmaliger valider Beobachtungsfall (S2-Globalität: Scheunpflug + Forster&Scherrer + Kolonialität als gemeinsames Symptom) wurde unzulässig zur Allgemeinregel verallgemeinert.
 
-### In-Memory-Verifikation
+Die "S1–S3-Validierung" war AI-self-observation: Claude schreibt einen Pflichtbestandteil in den Prompt, Claude beobachtet seinen eigenen Output, Claude schreibt die Commit-Message "greift auf höchstem Niveau". Der User sieht weder Prompt-Diff noch AI-Commit-Messages. **Author-Tag in git ist KEIN Beleg für inhaltliche User-Adoption.**
 
-`scripts/inspect-docx-hierarchy.ts` läuft den Parser auf einem DOCX-File
-und druckt TOC-Einträge + Headings mit Level + Numerierung. Output für
-Habilitation-Timm:
+Volle Lektion mit Anwendungsregeln: `~/.claude/projects/-Users-joerissen-ai-sarah/memory/feedback_no_slop_in_prompts.md`
 
-| Vorher (DB) | Nachher (Parser) | |
+Strukturelles Gegenmittel für jeden verbleibenden Pflichtbestandteil: **explizite opt-out-Klausel** ("wenn nicht zutrifft, dann diagnostizieren statt fabrizieren").
+
+**Wichtig — Überkorrektur vermeiden:** Die Slop-Diagnose des einen Pflichtbestandteils heißt NICHT, dass die Pipeline nur "deskriptiv-rekonstruktiv" ist. Die S1–S3-Läufe haben qualifizierte immanent-kritische Befunde produziert ("rezeptiv-applizierend ohne theorie-interne Prüfung", "kumulative Nicht-Prüfung des Scheunpflug-Modells durch alle drei Anwendungs-Subkapitel", "fehlende konzeptuelle Eigenleistung in der Verbindung machtanalytischer und systemtheoretischer Globalitätsperspektiven"). Diese Kapazität bleibt erhalten — kein Honesty-Disclaimer im Werk-Prompt, der das aktiv unterdrücken würde.
+
+## Aufgabe 0 (vor allem anderen): (d)-Ersetzung in beiden Prompts
+
+User-Entscheidung: die (d) wird **nicht ersatzlos gestrichen**, sondern durch eine **neutrale Tragweite-und-Tragfähigkeit-Aufforderung** ersetzt. Begründung: Tragweite (welcher Anspruch wird geltend gemacht) und Tragfähigkeit (trägt die argumentative Stützung diesen Anspruch) sind echte evaluative Dimensionen mit methodologischer Pedigree (entspricht der Toulmin-Frage nach claim/warrant/backing-Proportionalität), die immanent-kritische Beurteilung erlauben ohne Selektions-Bias und ohne Pseudo-Vokabular. Die Diagnose "Anspruch und Stützung sind gleich proportioniert" ist ebenso valid wie "Anspruch übersteigt die Stützung" oder umgekehrt — das ist die opt-out-Klausel direkt im Pflichtbestandteil.
+
+User-Vorgabe-Stil: "Beurteile die Tragweite und Tragfähigkeit des Arguments in seinem Kontext." Diese Formulierung wird auf Subkapitel-, Hauptkapitel- (und ggf. Werk-) Ebene scope-spezifisch ausformuliert.
+
+### A) Subkapitel-Prompt
+
+**Datei:** `src/lib/server/ai/hermeneutic/section-collapse-from-graph.ts:350`
+
+**Alt** (zu ersetzen, vollständig):
+```
+d. **Integrative Spannungsdiagnose** — wenn mehrere Schwächen vorliegen, frage dich, ob sie ein gemeinsames Symptom haben. Statt Schwächen aufzulisten (das machen die auffaelligkeiten), formuliere die *übergeordnete* Spannung, die das Subkapitel offen lässt (z.B. "Theorie X wird unkritisch übernommen UND Theorie Y bleibt unvermittelt — beides Symptom einer fehlenden konzeptuellen Eigenarbeit"). Eine integrative Diagnose, nicht eine Aufzählung.
+```
+
+**Neu** (Vorschlag in der vom User angegebenen Diktion — vor dem Schreiben kurz mit User durchgehen):
+```
+d. **Tragweite und Tragfähigkeit** — beurteile (i) die argumentative Tragweite des Subkapitels: welcher Anspruch wird im Werk-Kontext geltend gemacht — bescheiden, weitreichend, feldweit? — und (ii) die Tragfähigkeit der argumentativen Stützung für diesen Anspruch: trägt sie ihn, ist sie unter- oder überdimensioniert? Beurteilung an dem, was tatsächlich vorliegt; wenn Anspruch und Stützung gleich proportioniert sind, das ebenso klar diagnostizieren.
+```
+
+### B) Hauptkapitel-Prompt
+
+**Datei:** `src/lib/server/ai/hermeneutic/chapter-collapse.ts` — aktuell drei Pflichtbestandteile (Argumentative Bewegung, Kernbewegung-Identifikation, Werk-Architektur-Verortung); (d) ist gestrichen, muss wieder eingefügt werden mit der neuen Formulierung.
+
+**Einfügen nach (c) Werk-Architektur-Verortung:**
+```
+d. **Tragweite und Tragfähigkeit** — beurteile (i) die argumentative Tragweite des Hauptkapitels: welcher Anspruch wird im Werk-Ganzen geltend gemacht — bescheiden, weitreichend, feldweit? — und (ii) die Tragfähigkeit der Stützung über die Subkapitel hinweg: tragen die Subkapitel zusammen den Kapitel-Anspruch, oder ist die Stützung unter- oder überdimensioniert? Wenn Anspruch und Stützung gleich proportioniert sind, das ebenso klar diagnostizieren.
+```
+
+Dazu Synthese-Längen-Hint anpassen (aktuell "5–9 Sätze, drei Pflichtbestandteile" → "6–10 Sätze, vier Pflichtbestandteile") und dasselbe im JSON-Output-Schema-Snippet.
+
+### C) Werk-Prompt — User-Entscheidung offen
+
+**Datei:** `src/lib/server/ai/hermeneutic/document-collapse.ts` — aktuell drei Pflichtbestandteile (Forschungsbeitrag-Diagnose, Gesamtkohärenz und Werk-Architektur, Niveau-Beurteilung mit Werktyp-Akzent).
+
+Soll Tragweite/Tragfähigkeit auch hier als (d) ergänzt werden?
+- **Pro:** Werk-Tragweite (was beansprucht das Werk insgesamt zu leisten) und Werk-Tragfähigkeit (wird das im Werk-Korpus argumentativ getragen) sind genuine Werk-Fragen, in Forschungsbeitrag/Niveau nicht voll abgedeckt — man kann einen modesten Anspruch sauber tragen oder einen großen Anspruch unzureichend stützen, beides eigenständige Diagnosen.
+- **Contra:** Überlappung mit Forschungsbeitrag-Diagnose ("was leistet das Werk als Ganzes") möglich.
+
+Mein Lean: ja, ergänzen. Aber: User-Bestätigung einholen, bevor das Werk-Prompt verändert wird.
+
+Wenn ja: vier Pflichtbestandteile auf Werk-Ebene, Synthese-Länge zurück auf 10–15 Sätze.
+
+## Stand der Direction-4-Implementation
+
+| Item | Status | Pfad |
 |---|---|---|
-| 48× L1 + 1× L2 (alle ohne numbering) | 4× L1 + 14× L2 + ~33× L3 (mit numbering) | Hauptkapitel 1+2+4 vollständig |
+| Migration 036 (`aggregation_subchapter_level smallint nullable` auf `heading_classifications`) | geschrieben, **NICHT angewendet** | `migrations/036_chapter_aggregation_level.sql` |
+| Helper für resolved Outline + Median-Algorithmus + Persistenz | ✓ | `src/lib/server/ai/hermeneutic/heading-hierarchy.ts` |
+| `runChapterCollapse` (mit Mode-conditional Input: paragraphs vs. subchapter-memos; bei L3 mit L2-Numerierungs-Gruppierung als Strukturhinweis) | ✓ — Prompt **wartet auf (d)-Ergänzung** | `src/lib/server/ai/hermeneutic/chapter-collapse.ts` |
+| `runDocumentCollapse` (alle L1-Memos → Werk-Memo) | ✓ — Prompt **wartet auf User-Entscheidung zu (d)** | `src/lib/server/ai/hermeneutic/document-collapse.ts` |
+| Argumentationswiedergabe-Output (Gutachten-Vorlage) auf Hauptkapitel-Ebene | ✓ — getrennt von analytischer Synthese durch Diktions-Anweisung | `chapter-collapse.ts` Schema + Prompt |
+| Dev-Driver `run-chapter-collapse.ts` und `run-document-collapse.ts` | offen | analog zu `scripts/run-graph-collapse.ts` |
+| Validierungslauf am Theorie-Hauptkapitel | offen | s.u. Test-Daten-IDs |
+| Endpoint-Erweiterung Auto-Trigger + SSE (Schritte 5+6 des vorigen Handovers) | offen | unverändert vom vorigen Handover |
 
-Validierte Subkapitel der vorherigen Session:
-- Globalität: L3, **num=1.2.2** (vorher fälschlich L1)
-- Methodologische Grundlegung: L3, **num=2.1.2**
-- Schule und Globalität: L3, **num=1.3.2**
-- Anforderungen an Professionalität: L3, **num=1.3.3**
+## Architektur-Stand: per-chapter adaptive Aggregations-Ebene
 
-## Bekannte Edge-Cases (für User-Validierungs-Feature)
+User-Entscheidung 2026-04-30 nachmittags: die Subkapitel-Synthese-Ebene wird **pro L1-Hauptkapitel adaptiv** gewählt, basierend auf der Median-Absatzanzahl je Heading-Einheit. Validierte Zielzone: 5–15 ¶ (S1–S3-Werte: 5/5/9/13).
 
-Im Test-DOCX gibt es 2 main-Headings, die im TOC zwar korrektes `ilvl`
-tragen, aber **keinen `<w:hyperlink anchor>`** — der Body-Heading wird
-via pStyle erkannt (L1 bzw. L2), aber das Numbering kann nicht über die
-Bookmark-Map weitergereicht werden:
+**Algorithmus** (in `heading-hierarchy.ts` als `chooseSubchapterLevel`):
+1. Probiere L3, L2 (deepest first); nimm das tiefste Level mit Median in [5, 15].
+2. Fallback: tiefstes Level mit Median ≥ 5.
+3. Letztfallback: L1 (Kapitel-als-Ganzes als Synthese-Einheit, kein nested Collapse).
 
-- "Vergleichshorizonte" — TOC-ilvl=2, kein anchor → sollte num=2.2.2 sein
-- "Reflexionen der kulturbezogenen Orientierungen" — TOC-ilvl=0, kein
-  anchor → **Hauptkapitel #3**, sollte num=3 sein
+**Konsequenz pro Kapiteltyp:** flach gegliederte Methodenkapitel/Einleitungen fallen automatisch auf L1 (ein Memo, keine Sub-Collapses, billig). Tief gegliederte Theoriekapitel landen bei L2 oder L3 (entsprechend mehr Sub-Collapses).
 
-Title-Match als Fallback wurde **verworfen** (User-Position 2026-04-30):
-nicht generell robust gegen Konverter-Quirks (mehrfach gespaltene
-Heading-Texte, fehlerhafte Word-Auto-Numbering etc.). Stattdessen:
-**User-Validierungs-Feature** — Outline-Ansicht im UI, User bestätigt /
-korrigiert jede Hierarchie-Zuweisung, Pipeline läuft erst nach
-Bestätigung.
+**Vollrekursiv aufwärts** wurde **nicht** als Drei-Funktionen-Architektur (Sub → Intermediate-L2 → L1) gebaut, sondern als Zwei-Funktionen mit L2-Numerierungs-Gruppierung als Strukturhinweis im Chapter-Prompt — Begründung: Opus mit 200K Kontext kann 15 L3-Subkapitel-Memos direkt zu einem Hauptkapitel-Memo aggregieren, ohne dass ein Intermediate-Pass nötig ist; jeder zusätzliche Synthese-Pass verliert Information; die L2-Architektur bleibt im Prompt explizit präsent. Wenn Validierung zeigt, dass L2-Architektur verloren geht, kann nachträglich ein Intermediate-Pass ergänzt werden — additive Arbeit, kein Refactoring.
 
-## Architektur-Entscheidungen dieser Session
+**Persistenz:** auf `heading_classifications.aggregation_subchapter_level` (Migration 036, neue Spalte). Algorithmus berechnet beim ersten Lauf pro L1-Kapitel und persistiert. User-Override über dieselbe Spalte (zukünftige UI-Aufgabe — zur Kostenkontrolle: forciertes L2 statt L3 halbiert die Subkapitel-Memo-Anzahl in tief gegliederten Kapiteln).
 
-1. **Hierarchie-Quelle** ist das **TOC** (numPr/ilvl), nicht der Body-pStyle.
-2. **Numerierung wird synthetisch berechnet** (Counter-Array), nicht aus
-   Author-Text geparst. Robust gegen Author-Lücken; bei Diskrepanz
-   Warning auf `properties.numbering_mismatch`.
-3. `properties.numbering` ist **zusätzliches Feld**, der Heading-Text
-   bleibt unverändert — bestehende Konsumenten (Memo-Loader,
-   substring-basiertes heading-label) sind nicht betroffen.
-4. **PDF-Pfad** und Onboard-PDF→DOCX-Konvertierung wurden verworfen
-   (Memory: DOCX is the document standard).
-5. **Konverter-Edge-Cases** (fehlende anchors, gequetschte ilvl) gehören
-   nicht in heuristische Parser-Fixes, sondern in eine User-Validierungs-
-   Schicht. Architektur-Konsequenz: TOC-Validierung wird Teil des
-   Onboarding-Flows.
+**Pipeline-Gate:** Helper `loadResolvedOutline` wirft, wenn `document_content.outline_status ≠ 'confirmed'` (Migration 035). Heißt: User muss vor jedem Chapter-/Werk-Collapse die Outline bestätigt haben.
 
-## Nächste Session — Reihenfolge
+## Argumentationswiedergabe (neuer Bestandteil auf Hauptkapitel-Ebene)
 
-### Schritt 1: Benchmark-Export der bestehenden Test-Daten
+User-Anforderung dieser Session: das Hauptkapitel-Memo soll *zusätzlich* zur analytischen Synthese eine **gutachten-fertige Argumentationswiedergabe** liefern — sachlich-darstellend, third-person über das Werk, geeignet zur direkten oder leicht editierten Übernahme in einen Gutachten-Text ans Prüfungsamt. Begründung (User): erspart das doppelte Lesen + Aufschreiben fürs Prüfungsamt; das Gutachten braucht ohnehin eine Argumentationswiedergabe pro Kapitel.
 
-`reparseDocument` löscht via CASCADE alle abhängigen Daten
-(`argument_nodes`, `scaffolding_elements`, `argument_edges`,
-`scaffolding_anchors`, `memo_content`). Vor dem Re-Import exportieren:
-
-- 4 graph-fed Subkapitel-Memos `[kontextualisierend/subchapter/graph]`
-  (`mc.content` = synthese, `appearances.properties.auffaelligkeiten`)
-- Pro validiertem Subkapitel: alle `argument_nodes`, `argument_edges`,
-  `scaffolding_elements`, `scaffolding_anchors`
-- Paragraph-Texte mit `char_start`/`char_end` (zur Wieder-Anschließbarkeit
-  über Position, weil UUIDs nach Re-Import neu vergeben werden)
-- Optional: synthetic-hermeneutic Memos (`[kontextualisierend/subchapter]`,
-  `[interpretierend]`, `[formulierend]`) als Quervergleich
-
-Output-Pfad-Vorschlag: `docs/experiments/benchmark-pre-parser-fix-2026-04-30/`
-mit `subchapter-{globalitaet,methodologische-grundlegung,schule-und-globalitaet,
-anforderungen-an-professionalitaet}.json` + Markdown-Renderings.
-
-### Schritt 2: Re-Import-Test
-
-```typescript
-import { reparseDocument } from '$lib/server/documents/parsers';
-// Über admin-route oder script:
-//   POST /api/admin/reparse-documents  (existiert)
-//   oder: src/routes/api/projects/[projectId]/documents/[docId]/parse/+server.ts
+Output-Schema von `runChapterCollapse`:
+```json
+{
+  "synthese": "<analytisch, drei-bis-vier Pflichtbestandteile>",
+  "argumentationswiedergabe": "<expositorisch, neutral, gutachten-fertig, 1–3 Absätze>",
+  "auffaelligkeiten": [...]
+}
 ```
 
-DB-Verifikation:
+**Diktions-Trennung im Prompt explizit:** synthese ist evaluativ-argumentativ ("die Kernbewegung des Hauptkapitels ist X"); argumentationswiedergabe ist sachlich-darstellend ("Das Kapitel entfaltet die These, dass…"). Speicherung: synthese in `memo_content.content`, argumentationswiedergabe + auffaelligkeiten reiten auf `appearances.properties` (kein Schema-Eingriff in `memo_content`).
 
-```sql
--- Heading-Level-Distribution sollte 1/2/3 zeigen
-SELECT properties->>'level' AS level, COUNT(*) FROM document_elements
- WHERE document_id = 'f7afee4b-729b-4a0d-963e-b3b31c6b3dcc'
-   AND element_type = 'heading' AND section_kind = 'main'
- GROUP BY 1 ORDER BY 1;
+Werk-Ebene bekommt **keine** Argumentationswiedergabe (User-Entscheidung): die Argumentationswiedergabe der Hauptkapitel deckt das ab; eine Werk-Gesamteinschätzung wäre eine andere Textgattung und wird hier nicht vorgreifend gebaut.
 
--- Numerierung am main-heading sichtbar
-SELECT properties->>'level' AS lvl, properties->>'numbering' AS num,
-       substring((SELECT full_text FROM document_content
-                  WHERE naming_id = 'f7afee4b-729b-4a0d-963e-b3b31c6b3dcc')
-                 FROM char_start+1 FOR LEAST(char_end-char_start, 60)) AS heading
-  FROM document_elements
- WHERE document_id = 'f7afee4b-729b-4a0d-963e-b3b31c6b3dcc'
-   AND element_type = 'heading' AND section_kind = 'main'
- ORDER BY char_start;
-```
+## Critical-Horizon-Framing (geparkt, nicht aktiv)
 
-Erwartung (basiert auf Inspect-Lauf):
-- L1 ≈ 4–6 (Hauptkapitel + ggf. ein paar nicht-numerierte vor Schule)
-- L2 ≈ 14
-- L3 ≈ 30+
-- 2 main-Headings ohne numbering: Vergleichshorizonte, Reflexionen
-  (für Schritt 3)
+User-Beobachtung dieser Session: ohne externe Referenz oder formallogische Argument-Analyse bleibt jede LLM-basierte Synthese strukturell *immanent-kritisch* — was kein Defekt ist (die Pipeline produziert qualifizierte immanent-kritische Befunde, siehe S1–S3-Beispiele oben), aber mit klaren Grenzen.
 
-### Schritt 3: User-Validierungs-Feature
+Zwei Folge-Direktionen für später:
 
-Konzept:
-- Nach DOCX-Import eine **Outline-Ansicht** im UI: alle Headings mit
-  detected level + numbering, hierarchisch dargestellt
-- Pro Heading: bestätigen / level ändern / numbering überschreiben / als
-  Nicht-Hauptkapitel markieren
-- "Pipeline starten"-Button blockiert bis User-Status `confirmed`
-- Re-Import bewahrt User-Korrekturen, sofern Wieder-Anschließbarkeit
-  (über Heading-Text-Match oder char_start) möglich ist
+**(A) Externer Referenzhorizont** (MoJo, Zotero, Datenbanken) — pro extrahiertem Argument Lookup gegen Literatur-Korpus, ob die zitierte Quelle den Claim wirklich stützt, ob einschlägige Gegenpositionen ignoriert werden. Hoher Aufwand, eigenes Forschungsprojekt.
 
-Offene Architektur-Fragen für die nächste Session:
-- DB-Schema: Spalte an `document_elements.properties` (`user_confirmed_level`,
-  `user_confirmed_numbering`) oder eigene Tabelle `heading_classifications`?
-  (Variante II analog zur in `project_argumentations_graph_experiment.md`
-  skizzierten `chapter_classifications`-Tabelle für Direction 3 ist eine
-  Option — beide Features würden dann zusammenfallen.)
-- UI-Pattern: drag/drop-Tree oder formularbasiert?
-- Bestätigungs-Granularität: per Heading oder per Werk?
-- Beziehung zu Direction 3 (`chapter_type`, vgl. Memory): potentiell
-  vereinte UI für Heading-Klassifikation **und** Kapiteltyp-Klassifikation.
+**(B) Formallogischer Pass auf Argument-Ebene** — pro Argument-Struktur (Claim + Premissen + Edges aus dem Argumentations-Graph) prüfen: ist die Inferenz gültig? Welche unausgesprochene Voraussetzung trägt den Schluss? Sind die Premissen kohärent? Niedriger Aufwand, passt zur existierenden Argumentations-Graph-Datenstruktur, methodologisch fundiert (Toulmin, Pollock). Wäre ein eigener neuer Pass auf Absatz-Ebene (parallel zu `runArgumentationGraphPass`), kein Pflichtbestandteil-Anbau. Output gespeichert auf eigener Spalte oder Tabelle, optional in die Collapse-Synthesen einfließend.
 
-### Schritt 4: Pipeline für die 4 validierten Subkapitel neu laufen lassen
+Beides nicht jetzt; festhalten als Folge-Direktionen für 2.0/3.0.
 
-Nach Re-Import + User-Validierung:
-- `runArgumentationGraphPass` pro Paragraph (idempotent, skipt wenn da)
-- `runGraphCollapse` pro Subkapitel
-- Vergleich gegen Benchmark aus Schritt 1: sind die Argument-Strukturen
-  reproduzierbar? Sind die Synthesen vergleichbar?
-
-Kosten: ~$0.30–0.50 (4 Subkapitel × ~$0.10–0.13 graph-pass + collapse).
-
-### Schritt 5: Direction 4 (chapter + work collapse)
-
-Implementations-Skizze ist ausführlich in
-`~/.claude/projects/-Users-joerissen-ai-sarah/memory/project_argumentations_graph_experiment.md`
-Sektion "Direction 4". Mit korrekter Heading-Hierarchie + numbering aus
-diesem Parser-Fix wird die Subkapitel→Hauptkapitel→Werk-Identifikation
-trivial: `level > chapter.level && numbering startsWith chapter.numbering + '.'`.
-
-Kurzfassung:
-- `runChapterCollapse(caseId, chapterHeadingId, userId)`
-- `runWorkCollapse(caseId, userId)`
-- Beide idempotent, Vorlage `runGraphCollapse`
-- `scope_level` CHECK-Constraint erlaubt bereits `'chapter'` und `'work'`
-  (Migration 030) — keine Migration 035 nötig
-- Memo-Inscription `[kontextualisierend/chapter/graph]` und
-  `[kontextualisierend/work/graph]`
-- Werk-Memo: scope_element_id = first main heading (Buch-Titel)
-
-### Schritt 6: Endpoint-Erweiterung mit SSE + Auto-Trigger
-
-Siehe altes Handover (commit 696c553) — unverändert relevant:
-- per-paragraph-Endpoint mit Auto-Collapse-Trigger
-- subchapter- und document-Endpoint mit SSE-Streaming
-- Pre-flight cost-cap + Running-cost-check
-- Resume durch Idempotency
-
-## Files / Pfade
-
-- Parser-Fix: `src/lib/server/documents/parsers/docx-academic.ts`
-- Inspect-Skript (kein DB-Effekt): `scripts/inspect-docx-hierarchy.ts`
-- Re-Import-Funktion: `src/lib/server/documents/parsers/index.ts` (`reparseDocument`)
-- Re-Import-Endpoints: `src/routes/api/admin/reparse-documents/+server.ts`,
-  `src/routes/api/projects/[projectId]/documents/[docId]/parse/+server.ts`
-- Subkapitel-Synthese (graph-fed): `src/lib/server/ai/hermeneutic/section-collapse-from-graph.ts`
-- Per-Paragraph-Pass: `src/lib/server/ai/hermeneutic/argumentation-graph.ts`
-- Argumentations-Graph Memory: `~/.claude/projects/-Users-joerissen-ai-sarah/memory/project_argumentations_graph_experiment.md`
+**Sprachliche Qualität als eigene Spalte** (User-Hinweis): emergente Stilmuster-Beobachtungen (z.B. "rezeptiv-applizierend") gehören perspektivisch in eine *eigene* Dimension, nicht als Pflichtbestandteil in die Synthese. Auch hier: nicht jetzt, parken.
 
 ## Test-Daten-IDs (Habilitation-Timm)
 
@@ -218,41 +147,75 @@ case_id          0abe0588-badb-4e72-b3c4-1edd4a376cb6
 brief_id         f8fc8a30-404f-4378-bd8d-c1fb92799246  (argumentation_graph=true)
 document_id      f7afee4b-729b-4a0d-963e-b3b31c6b3dcc
 user_id (sarah)  dac6ac05-bdab-4d68-a4fa-3eab0b40cc2b
-docx_path        projekte/habilitation-timm/files/f0a8bf77-6926-45b4-b474-0a1709ae21fb.docx
 ```
 
-Validierte Subkapitel (graph-fed Memos noch in der DB, Numerierung kommt
-nach Re-Import):
+Validierte Subkapitel mit existierenden graph-fed Subkapitel-Memos:
+- Globalität (L3 num=1.2.2): `ac0a6c7a-d38c-48ea-9414-55cda02df246`
+- Methodologische Grundlegung (L3 num=2.1.2): `0a13d404-20d7-4422-9e67-72181cf98fa5`
+- Schule und Globalität (L3 num=1.3.2): `7dee784c-4097-4f7e-80b0-85f3bf7e6f85`
+- Anforderungen an Professionalität (L3 num=1.3.3): `6e0a1737-8996-49ad-830e-7e2290c3d838`
 
-| Subkapitel | Heading-ID (gilt nur bis Re-Import) | Numerierung nach Fix |
-|---|---|---|
-| Globalität | `ac0a6c7a-d38c-48ea-9414-55cda02df246` | 1.2.2 |
-| Methodologische Grundlegung | `0a13d404-20d7-4422-9e67-72181cf98fa5` | 2.1.2 |
-| Schule und Globalität | `7dee784c-4097-4f7e-80b0-85f3bf7e6f85` | 1.3.2 |
-| Anforderungen an Professionalität | `6e0a1737-8996-49ad-830e-7e2290c3d838` | 1.3.3 |
+Für Direction-4-Validierung gebraucht: die L1-Heading-IDs der Hauptkapitel "1" (das die ersten drei L3 enthält) und "2" (das die Methodologische Grundlegung enthält). Über folgende Query auflösbar (nach Migration 035 mit confirmed outline):
 
-**Wichtig**: Nach `reparseDocument` werden alle `document_elements`-UUIDs
-neu vergeben. Wieder-Anschließen über `char_start`/`char_end` oder
-Heading-Text. Benchmark-Export (Schritt 1) muss diese Position-Information
-mit-exportieren.
+```sql
+SELECT de.id, de.properties->>'numbering' AS num,
+       SUBSTRING(dc.full_text FROM de.char_start+1 FOR de.char_end-de.char_start) AS text
+FROM document_elements de
+JOIN document_content dc ON dc.naming_id = de.document_id
+LEFT JOIN heading_classifications hc ON hc.element_id = de.id
+WHERE de.document_id = 'f7afee4b-729b-4a0d-963e-b3b31c6b3dcc'
+  AND de.element_type = 'heading'
+  AND de.section_kind = 'main'
+  AND COALESCE(hc.user_level,
+               array_length(string_to_array(de.properties->>'numbering', '.'), 1)) = 1
+  AND COALESCE(hc.excluded, false) = false
+ORDER BY de.char_start;
+```
 
-## Robustheits-Stand (unverändert seit voriger Session)
+**Wichtig:** `outline_status` von `document_content` für dieses Dokument **muss `'confirmed'`** sein, sonst werfen die Helper-Funktionen. Vor erstem Lauf prüfen und ggf. über die Outline-Validierungs-UI bestätigen.
 
-- `anchor_phrase` cap 80 → 500 chars (Style-Warning ≥ 80)
-- `scaffolding.excerpt` cap 500 → 1000 chars (Style-Warning ≥ 500)
+## Robustheits-Stand der Pipeline
+
+- `anchor_phrase` cap 80 → 500 chars (sanity); Style-Warning ≥ 80
+- `scaffolding.excerpt` cap 500 → 1000 chars; Style-Warning ≥ 500
 - `maxTokens` 4000 → 8000 (per-paragraph), 2000 → 4000 (subchapter synthesis)
-- JSON.parse-Failure dumpt raw response nach `/tmp/...failure-*.txt`
+- Chapter-collapse: `maxTokens=6000` (dual output: synthese + argumentationswiedergabe + auffaelligkeiten)
+- Document-collapse: `maxTokens=5000`
+- JSON.parse / Schema-Validation Failure dumpt raw response nach `/tmp/...failure-*.txt`
 - typographic-quote repair für DOCX/OCR-Artefakte
-- premise-Schema permissiv (unknown types → `background` mit inline marker)
-- `runGraphCollapse` + `runArgumentationGraphPass` idempotent
+- premise-Schema permissiv: unknown types → `background` mit inline marker
+- `runGraphCollapse`, `runChapterCollapse`, `runDocumentCollapse` alle idempotent
+- `runArgumentationGraphPass` idempotent
 
 ## LLM
 
-`mammouth claude-sonnet-4-6`. Key in `mammouth.key` (gitignored).
+`mammouth claude-sonnet-4-6`. Key in `mammouth.key` (gitignored). Architektur-Hinweis User: für unterschiedliche Pässe könnten zukünftig verschiedene Modelle genutzt werden (z.B. DeepSeek4 für mechanischere Pässe, Opus für Kapitel/Werk). `chat()`-Client nimmt schon einen Model-Parameter — Umstellung ist eine einzeilige Änderung pro Funktion, kein Architektur-Eingriff.
 
-## Nächste konkrete Aktion
+## Nächste konkrete Aktionen (Reihenfolge bewusst so)
 
-**Schritt 1 starten: Benchmark-Export-Skript schreiben.** Eingabe: die
-4 validierten Subkapitel-IDs. Ausgabe: JSON + Markdown unter
-`docs/experiments/benchmark-pre-parser-fix-2026-04-30/`. Dann mit User
-abstimmen, ob der Re-Import losgeht.
+1. **(d)-Ersetzung in beiden Prompts** (Subkapitel + Hauptkapitel), siehe Aufgabe 0 oben. Werk-Ebene: User-Bestätigung einholen, ob (d) auch dort ergänzt wird, dann ggf. dort dieselbe Ersetzung.
+2. **Migration 036 anwenden:** `psql $DATABASE_URL < migrations/036_chapter_aggregation_level.sql`
+3. **Dev-Driver-Skripte schreiben:** `scripts/run-chapter-collapse.ts` (Argumente: caseId, l1HeadingId) und `scripts/run-document-collapse.ts` (Argumente: caseId). Vorlage: `scripts/run-graph-collapse.ts`. Output: Tokens, synthese, ggf. argumentationswiedergabe, auffaelligkeiten — dump nach `docs/experiments/`.
+4. **Validierungslauf am Theorie-Hauptkapitel** des Timm-Manuskripts (das L1-Kapitel, in dem Globalität, Schule und Globalität, Anforderungen an Professionalität liegen). Output gegen die hermeneutische Lektüre prüfen — analog zum S1→S3-Vorgehen auf Subkapitel-Ebene; bei Bedarf Prompt-Iteration auf Hauptkapitel-Ebene.
+5. **Werk-Lauf** über das gesamte Timm-Manuskript, sobald alle L1-Hauptkapitel ein Memo haben.
+6. **Endpoint-Erweiterung mit Auto-Trigger und SSE** (Schritte 5+6 aus dem vorigen Handover, unverändert in der Aufgabenstellung).
+
+## Files / Pfade
+
+- **Memory** (essenziell vor Prompt-Touch): `~/.claude/projects/-Users-joerissen-ai-sarah/memory/feedback_no_slop_in_prompts.md` — drei Slop-Warnsignale, opt-out-Klausel-Regel, Anwendungs-Anleitung.
+- **Memory** (Architektur-Übersicht): `~/.claude/projects/-Users-joerissen-ai-sarah/memory/project_argumentations_graph_experiment.md` — voraussichtlich noch auf altem Stand, beim nächsten Mal aktualisieren.
+- Per-Absatz-Pass: `src/lib/server/ai/hermeneutic/argumentation-graph.ts`
+- Subkapitel-Synthese: `src/lib/server/ai/hermeneutic/section-collapse-from-graph.ts` (idempotent; **wartet auf (d)-Ersetzung**)
+- Hauptkapitel-Synthese: `src/lib/server/ai/hermeneutic/chapter-collapse.ts` (idempotent; **wartet auf (d)-Ergänzung**)
+- Werk-Synthese: `src/lib/server/ai/hermeneutic/document-collapse.ts` (idempotent; (d)-Frage offen)
+- Heading-Hierarchie-Helper: `src/lib/server/ai/hermeneutic/heading-hierarchy.ts`
+- Per-Paragraph-Synthetic-Pass: `src/lib/server/ai/hermeneutic/per-paragraph.ts`
+- Endpoint (zu erweitern): `src/routes/api/cases/[caseId]/hermeneutic/paragraph/[paragraphId]/+server.ts`
+- Dev-Driver bisher: `scripts/run-argumentation-graphs.ts`, `scripts/run-graph-collapse.ts`
+- Migrations: `032_argumentation_graph_experiment.sql`, `033_scaffolding_elements.sql`, `034_argumentation_graph_default_true.sql`, `035_heading_classifications.sql` (User-Outline-Validierung), `036_chapter_aggregation_level.sql` (per-chapter Subkapitel-Ebene, **noch nicht angewendet**)
+
+## Meta-Hinweis für die Folge-Session
+
+Diese Session ist gegen Ende kontext-schwer geworden. Beobachtbare Symptome: Drift in Pattern-Matching-Modus statt eigenständiges Urteil, Überkorrekturen (z.B. von "ein Pflichtbestandteil ist Slop" zu "die ganze Pipeline ist nur deskriptiv"), affirmatives Echo statt kritisches Engagement. User hat das in der Session direkt benannt und korrigiert.
+
+Für die Folge-Session: bei jedem Vorschlag, der eine Allgemeinregel aus einem Einzelbefund konstruiert ("X war Slop → ALLE X sind Slop"), zwei Sekunden anhalten und prüfen, ob der Schluss tatsächlich kommutiert. Bei jedem User-Hinweis nicht reflexartig adoptieren, sondern zuerst überlegen, ob der Befund vorab schon im Code steht (Beispiel dieser Session: einmal behauptet, eine Migration sei nötig, die schon existierte). Erst belegen, dann argumentieren.
