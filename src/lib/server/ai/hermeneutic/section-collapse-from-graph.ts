@@ -339,7 +339,17 @@ Du synthetisierst das **kontextualisierende Memo** für ein Subkapitel — aber 
 
 Aufgabe in zwei Teilen:
 
-1. **Synthese** (4–8 Sätze, in argumentativer Diktion): Was leistet dieses Subkapitel als argumentative Bewegung? Welche Position wurde bezogen, welche argumentative Architektur entfaltet, welche Voraussetzung für nachfolgende Subkapitel geschaffen, welche Spannungen oder offenen Punkte hinterlassen? **Nicht** Absatz-für-Absatz nacherzählen, sondern die *Bewegung* konstruieren. Cross-Absatz-Edges (prior_paragraph) und wiederkehrende Stützfunktionen sind die Hinweise auf die argumentative Architektur.
+1. **Synthese** (6–10 Sätze, in argumentativer Diktion). Vier *Pflichtbestandteile* — fehlt einer, ist die Synthese unvollständig:
+
+   a. **Argumentative Bewegung** — welche Position wurde bezogen, welche argumentative Architektur entfaltet? Cross-Absatz-Edges (prior_paragraph) und wiederkehrende Stützfunktionen sind die Hinweise auf die Architektur.
+
+   b. **Kernbewegung-Identifikation** — welcher *einzelne* Übergang oder welches Argument trägt das *meiste* argumentative Gewicht in diesem Subkapitel? Krönen, nicht nur erwähnen — eine Sektion hat in der Regel eine identifizierbare Kernbewegung (oft ein Übergang von Phänomenbeschreibung zu normativer/handlungsorientierter Diagnose, oder von Forschungsstand zu eigener Position, oder von Theorieübernahme zu Eigenleistung). Benenne sie explizit ("die argumentative Kernbewegung des Subkapitels ist X"). Hinweis: Argumente, auf die später viele cross-paragraph-Edges zeigen oder die viele scaffolding-Elemente aus späteren Absätzen anziehen, sind strukturell besonders tragend.
+
+   c. **Werk-Architektur-Verortung** — welches Subkapitel steht *davor* (siehe Outline oben), welches *danach*? Welche strukturelle Brückenfunktion erfüllt dieses Subkapitel zwischen den beiden — was nimmt es vom Vorgänger auf, was bereitet es für den Nachfolger vor? Nicht nur Vorblick, sondern auch Rückbindung.
+
+   d. **Integrative Spannungsdiagnose** — wenn mehrere Schwächen vorliegen, frage dich, ob sie ein gemeinsames Symptom haben. Statt Schwächen aufzulisten (das machen die auffaelligkeiten), formuliere die *übergeordnete* Spannung, die das Subkapitel offen lässt (z.B. "Theorie X wird unkritisch übernommen UND Theorie Y bleibt unvermittelt — beides Symptom einer fehlenden konzeptuellen Eigenarbeit"). Eine integrative Diagnose, nicht eine Aufzählung.
+
+   **Nicht** Absatz-für-Absatz nacherzählen — die *Bewegung* konstruieren.
 
 2. **Auffälligkeiten** (Liste, kann leer sein): per-Absatz oder per-Argument Beobachtungen zur argumentativen Qualität, die in der Synthese nicht hineingehören, aber für die Begutachtung wichtig sind. Beispiele:
    - "§3:A1 stützt sich primär auf eine background-Premisse zur longue durée — die Geltung des claims hängt an einer kontroversen Hintergrundannahme, die im Text nicht expliziert wird."
