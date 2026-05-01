@@ -4,6 +4,7 @@
 import type { PageServerLoad } from './$types.js';
 import { query, queryOne } from '$lib/server/db/index.js';
 import { error } from '@sveltejs/kit';
+import { loadEffectiveOutline } from '$lib/server/documents/outline.js';
 
 export interface DocumentElement {
 	id: string;
@@ -36,12 +37,28 @@ export interface SubchapterSynthesis {
 	content: string;
 }
 
+export interface OutlineEntry {
+	elementId: string;
+	level: number;
+	numbering: string | null;
+	text: string;
+	excluded: boolean;
+}
+
 export interface CaseInfo {
 	id: string;
 	name: string;
+	briefId: string | null;
 	briefName: string | null;
 	briefWorkType: string | null;
 	includeFormulierend: boolean;
+}
+
+export interface BriefOption {
+	id: string;
+	name: string;
+	workType: string | null;
+	isSystemTemplate: boolean;
 }
 
 export const load: PageServerLoad = async ({ params }) => {
@@ -90,11 +107,12 @@ export const load: PageServerLoad = async ({ params }) => {
 	const caseRow = await queryOne<{
 		id: string;
 		name: string;
+		brief_id: string | null;
 		brief_name: string | null;
 		work_type: string | null;
 		include_formulierend: boolean | null;
 	}>(
-		`SELECT c.id, c.name,
+		`SELECT c.id, c.name, c.assessment_brief_id AS brief_id,
 		        b.name AS brief_name, b.work_type, b.include_formulierend
 		 FROM cases c
 		 LEFT JOIN assessment_briefs b ON b.id = c.assessment_brief_id
@@ -106,11 +124,27 @@ export const load: PageServerLoad = async ({ params }) => {
 		? {
 			id: caseRow.id,
 			name: caseRow.name,
+			briefId: caseRow.brief_id,
 			briefName: caseRow.brief_name,
 			briefWorkType: caseRow.work_type,
 			includeFormulierend: caseRow.include_formulierend ?? false,
 		}
 		: null;
+
+	// Brief-Library für den Picker am Doc-Header.
+	const briefOptions: BriefOption[] = caseInfo
+		? (await query<{ id: string; name: string; work_type: string | null; created_by: string | null }>(
+			`SELECT id, name, work_type, created_by
+			 FROM assessment_briefs
+			 ORDER BY (created_by IS NULL) DESC, name ASC`,
+			[]
+		)).rows.map((b) => ({
+			id: b.id,
+			name: b.name,
+			workType: b.work_type,
+			isSystemTemplate: b.created_by === null,
+		}))
+		: [];
 
 	// Hermeneutic layer — only loaded if there is a case
 	let memosByElement: Record<string, ParagraphMemo[]> = {};
@@ -185,6 +219,15 @@ export const load: PageServerLoad = async ({ params }) => {
 		}
 	}
 
+	const effectiveOutline = await loadEffectiveOutline(params.docId);
+	const outlineEntries: OutlineEntry[] = (effectiveOutline?.headings ?? []).map((h) => ({
+		elementId: h.elementId,
+		level: h.effectiveLevel,
+		numbering: h.effectiveNumbering,
+		text: h.effectiveText,
+		excluded: h.excluded,
+	}));
+
 	return {
 		document: doc,
 		elements,
@@ -193,5 +236,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		memosByElement,
 		codesByElement,
 		synthesesByHeading,
+		outlineEntries,
+		briefOptions,
 	};
 };

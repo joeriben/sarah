@@ -1,3 +1,158 @@
+# Handover — Stand 2026-05-03 (Stufe 2 abgeschlossen: Doc-Page mit 3 Tabs, Pipeline-Status-API, Outline mit §-Anker-Linkifizierung, Brief-Picker)
+
+**Lies zuerst diesen Block.** Die älteren Handover-Texte darunter sind Kontext, der aktuelle Stand und die nächsten Schritte stehen hier oben.
+
+## TL;DR — Wo wir stehen (2026-05-03, Session-Schluss)
+
+Diese Session hat **Stufe 2 des Forscher-UI-Roadmap durchgezogen**: Doc-Page-Refactor mit 3-Tab-Layout (Pipeline · Outline · Begleitdocs), Pipeline-Status-API, Outline-Tab mit hierarchischer Indention und §X:AY-Anker-Linkifizierung, Reader-Modal als Overlay mit scroll-and-flash, Brief-Picker am Doc-Header.
+
+Stand am Goldstand-Doc verifiziert (case `aa23d66e`): Pipeline-Tab zeigt korrekt 124/328 Per-¶, 106/328 AG, 15 Subkapitel-Synthesen (abgeschlossen), 1/4 Hauptkapitel-Synthesen, 0/1 Werk-Synthese. Outline-Tab rendert 48 Headings hierarchisch mit 247 §-Anker-Links als Buttons; Klick auf §1 öffnet Reader und scrollt+flashed den Paragraph.
+
+### Konkrete nächste Aktionen, in Reihenfolge
+
+1. **Stufe 1 + 2 zusammen committen**: alle Files aus 2026-05-02 (Migration 037, /settings?tab=briefs, /api/briefs, BriefEditor) sind zusammen mit den heute angelegten Stufe-2-Files noch uncommited. Single commit oder zwei commits (Stufe 1 / Stufe 2) — User-Entscheidung.
+2. **Auto-Trigger Pipeline** (war Stufe 2b im Plan, in dieser Session als "Trigger-Hint" auf scripts verwiesen): API-Endpoints pro Pass mit POST, plus Polling/SSE im Pipeline-Tab für Live-Status während Lauf. Nicht-blockierender Job-Layer (Postgres-LISTEN/NOTIFY oder Setup-Queue).
+3. **Argument-Highlight im Reader-Modal**: heute scrollt §X:AY zum Paragraph und flashed ihn. Der argumentId-Wert wird im scrollTarget durchgereicht aber nicht visuell genutzt. Erweiterung: argument_nodes in den Reader laden und beim Klick das spezifische Argument im Memo hervorheben.
+4. **Stufe 3 starten** (Falltyp-System): `case_types`-Tabelle, `case_documents`-Slot-Tabelle, Migration der existing harten 3-Spalten-Triade in `cases`. Roadmap und Setzung sind dokumentiert in `project_falltyp_architecture.md`.
+5. **Phase B (Reviewer-Notes + Gutachtenentwurf)**: gehört in Stufe 3 oder kommt als eigenes Architektur-Stück. Begleitdocs-Tab ist heute mit Phase-B-Hinweis platzhalter-besetzt.
+
+### Architektur-Setzungen aus dieser Session
+
+1. **Pipeline-Status wird abgeleitet, nicht gespeichert.** Es gibt keine zentrale `runs`-Tabelle. Status pro Pass ist `COUNT(memo_content WHERE scope_level=...)` plus `COUNT(argument_nodes)`. Dadurch ist die API immer konsistent mit den persistierten Daten und benötigt keine Migration.
+2. **`ai_interactions` ist verkabelt aber nicht aktiv.** `logAiInteraction()` existiert in `src/lib/server/db/queries/ai.ts:52` aber wird in keinem Pipeline-Pass aufgerufen. Tabelle ist leer. Cost-Anzeige im Pipeline-Tab ist daher heute weggelassen — folgt erst, wenn der Pipeline-Code die Interactions tatsächlich loggt.
+3. **§X:AY-Resolver ist heading-relativ.** §X bezeichnet den X-ten paragraph zwischen einem heading und dem nächsten heading derselben oder höheren Ebene. Der Resolver `resolveParagraph(headingId, paraNum)` läuft client-side; bei dead-Anker (paraNum > paragraph-count im Heading) wird der Link visuell durchgestrichen, bleibt aber sichtbar.
+4. **Reader-Modal als Overlay-Pattern.** Drei Modi (Hermeneutik / Struktur / Volltext) leben dort, ESC schließt. Der scrollTarget-Prop nimmt `{ elementId, argumentId? }` und scrollt-and-flashed beim Öffnen.
+5. **Brief-Picker triggert Pipeline-Reload.** PATCH `/api/cases/[caseId]/brief` ändert `cases.assessment_brief_id`; danach `invalidateAll()` reload + `loadPipelineStatus()` für frische Pass-Daten. Die existing 5 System-Vorlagen + User-Briefs werden im Picker als Liste mit Vorlage-Tag und work_type angezeigt.
+
+### Files diese Session
+
+**Code:**
+- `src/routes/projects/[projectId]/documents/[docId]/+page.svelte` — komplett refactored auf 3-Tab-Layout + Brief-Picker + Pipeline-Status + Outline-Linkifizierung
+- `src/routes/projects/[projectId]/documents/[docId]/+page.server.ts` — erweitert um `outlineEntries` (via `loadEffectiveOutline`) + `briefOptions` + `caseInfo.briefId`
+- `src/routes/projects/[projectId]/documents/[docId]/ReaderModal.svelte` (neu) — Volltext-Reader als Modal-Overlay mit scrollTarget-flash
+- `src/routes/api/cases/[caseId]/pipeline-status/+server.ts` (neu) — GET-Endpoint mit Pass-Status pro central document
+- `src/routes/api/cases/[caseId]/brief/+server.ts` (neu) — PATCH-Endpoint für Brief-Wechsel am Case
+- `src/routes/api/projects/[projectId]/documents/[docId]/status/+server.ts` — bug fix: `de.content IS NOT NULL` → `*` (Migration 027 hatte content gedroppt)
+
+### Test-Daten unverändert
+
+```
+Goldstand-Habil:    case=aa23d66e-9cd8-4583-9d14-6120dc343b10  brief=f8fc8a30-404f-4378-bd8d-c1fb92799246  doc=54073d08-f577-453b-9a72-73a7654e1598
+Mistral-Probe:      case=660cd26d-3759-4ab8-8a38-9f2df27a48b5  brief=1edf4497-5472-4f4b-9366-c0fecab7353f  doc=161d41b4-c00d-4df8-82bc-c14f163e1a63
+```
+
+5 System-Templates aus Stufe 1 unverändert.
+
+### Bekannte Issues (offen)
+
+- **Vite-SSR-Cache aus voriger Session zeigt alte Logs** für Settings-Page-Style-Duplikat und für tool-markup-leak in der Doc-Page. Beide Stände sind heute saniert; Logs sind historisch. Klärt sich beim nächsten Vite-Restart.
+- **`heading_classifications` ist nur sporadisch befüllt**. L1-Total wird via `COALESCE(hc.user_level, properties.level)` aus `document_elements` gezogen — funktioniert für die Pipeline-Status-API, aber wenn der Parser kein `properties.level` schreibt, wäre der Total null. Heute kein realer Fall.
+- **Cost-Anzeige fehlt im Pipeline-Tab.** Bewusst weggelassen, weil `ai_interactions` nicht aktiv geloggt wird. Wenn der Pipeline-Code mit `logAiInteraction()` versehen wird, kann die Anzeige nachgezogen werden.
+
+### Methodologische Lektion
+
+User-sichtbare Texte (Tab-Labels, Pass-Bezeichnungen, Empty-States, Buttons) wurden vor dem Code-Schreiben transparent angekündigt — die Lehre aus 2026-05-02 wurde eingehalten. Tab-Labels waren aus dem Roadmap-Memo gesetzt; Pass-Labels (Per-Absatz-Hermeneutik etc.) und Empty-State-Texte wurden offengelegt; keine versteckten Hint-Maps oder Pseudo-Defaults.
+
+Tool-Markup-Leak im Write: zwei Files (ReaderModal.svelte, +page.svelte) wurden initial mit `</content></invoke>` am Ende geschrieben (das Tool-Schema-Template hat sich in den Datei-Inhalt geschmuggelt). Behoben in beiden Files; Vite-Errors aus der ersten Compile-Stufe sind in den Logs zu sehen aber nicht mehr aktiv.
+
+---
+
+# Handover — Stand 2026-05-02 (Stufe 1 abgeschlossen: Briefs systemweit, Settings-Tab + 5 Templates, Architektur-Plan für Forscher-UI gesetzt)
+
+**Lies zuerst diesen Block.** Die älteren Handover-Texte darunter sind Kontext, der aktuelle Stand und die nächsten Schritte stehen hier oben.
+
+## TL;DR — Wo wir stehen (2026-05-02, Session-Schluss)
+
+Diese Session hat **(a)** die Frage nach der Forscher-Tauglichkeit der Pipeline systematisch angegangen ("kann ich heute realistisch eine BA-Arbeit hochladen, durchschicken, beobachten, lesen?" → nein, an vier Stellen unterbrochen), **(b)** eine Architektur-Korrektur durchgeführt: Briefs sind systemweit, nicht projekt-gebunden ([Migration 037](../../migrations/037_briefs_systemwide.sql)), **(c)** die Brief-Library als Settings-Tab (`/settings?tab=briefs`) gebaut mit 5 Standardvorlagen (Habil/Promotion/MA/BA/Peer-Review), **(d)** einen 4-stufigen Roadmap-Plan für den Forscher-UI-Aufbau verabschiedet, **(e)** eine grundlegende Architektur-Setzung getroffen: Falltyp lebt am Case (nicht am Project), Project bleibt schlanker Container mit optional Default-Falltyp.
+
+Goldstand-Pipeline (Habil-Tenorth) ist durch Migration 037 nicht angerührt — Smoke-Test bestätigt dass `loadCaseContext` weiterhin alle Brief-Felder sauber lädt.
+
+### Genehmigter 4-Stufen-Roadmap
+
+- **Stufe 1 ✓ (diese Session)**: Briefs systemweit, Settings-Tab, 5 Templates, Editor-UI.
+- **Stufe 2 (nächste Session — der erste echte BA-Review-Test)**: Doc-Page mit drei Tabs (Pipeline · Outline · Begleitdocs). Pipeline-Tab mit Live-Status pro Pass + laufender Cost-Anzeige. Outline-Tab mit hierarchischer Synthesen-Navigation L1↔L2↔L3↔Document. Reader-Modal mit §X:AY-Hyperlinks zu Source-Stellen. Brief-Wechsel direkt am Doc.
+- **Stufe 3 (Architektur-Erweiterung)**: Falltyp-System. `case_types` (qualification_review, peer_review, cumulative_dissertation_review …), `case_documents` mit rollen-basierten Slots statt der harten 3-Spalten-Triade in cases. `projects.default_case_type_id` als Convenience.
+- **Stufe 4 (Demo-Gutachten-Rekonstruktion, vom User explizit gesetzt)**: Upload echter Gutachten als Referenz, LLM extrahiert de facto angewandte Kriterien, schlägt editierbares Brief-Profil vor, User editiert + speichert.
+
+### Architektur-Setzungen aus dieser Session (wichtig für Folge-Sessions)
+
+1. **Briefs = systemweite Konfiguration**, nicht projekt-gebunden. Migration 037 hat `assessment_briefs.project_id` gedroppt. UI: `/settings?tab=briefs`. API: `/api/briefs[/[id]]`. Existing 2 Briefs (Goldstand + Mistral-Klon) sind unverändert.
+2. **Falltyp-Architektur am Case-Level (Stufe 3, geplant)**: Project bleibt Container mit optional `default_case_type_id`. Cases tragen `case_type_id` und haben N rollen-getypte Dokument-Slots via `case_documents (case_id, document_id, role, position)`. Falltypen sind Datenzeilen (seedbar), kein Code-Pfad. Drei initiale Falltypen: `qualification_review` (1 central + 0..1 annotation + 0..1 review_draft), `peer_review` (1 manuscript + 0..N reviews + 0..1 response), `cumulative_dissertation_review` (1 mantle_text + 1..N individual_text + 0..N annotations + 0..1 review).
+3. **Settings als Tab-Layout** (transact-qda/MoJo-Pattern). 4. Tab "Briefs" zur 3-Tab-Existenz hinzugefügt; URL-Sync via ?tab=...
+4. **Doc-Page (Stufe 2, geplant)**: drei Tabs (Pipeline / Outline / Begleitdocs). Hauptdokument ist `central_document` (bzw. `manuscript`/`mantle_text` je nach Falltyp). Reader als Modal-Overlay (nicht 4. Tab) — beim Klick auf §X:AY-Anker scrollt zur exakten Source-Position.
+5. **Templates haben created_by = NULL** als System-Marker; das unterscheidet sie von User-Briefs für spätere UI-Logik (z.B. "Templates duplizieren statt direkt editieren" wäre eine sinnvolle Erweiterung).
+6. **Hint-Maps im BriefEditor entfernt** — die Templates ersetzen sie. User-Forderung: keine versteckten inhaltlich relevanten Änderungen, auch wenn als „nur Placeholder" gedacht.
+
+### Konkrete nächste Aktionen, in Reihenfolge
+
+1. **Vorab-Bug fix beim Vorbeigehen**: `column de.content does not exist` in [/api/projects/[projectId]/documents/[docId]/status/+server.ts](../../src/routes/api/projects/[projectId]/documents/[docId]/status/+server.ts) (von [Migration 027](../../migrations/027_drop_element_content.sql) übersehen). Wird beim Doc-Page-Bau in Stufe 2 sowieso angefasst.
+2. **Stufe 2a — Doc-Page Skelett**: Routing `/projects/[projectId]/documents/[docId]` (existiert bereits als linearer Reader, [+page.svelte](../../src/routes/projects/[projectId]/documents/[docId]/+page.svelte)) auf 3-Tab-Layout umstellen. Tab-State via URL-Query (`?view=pipeline|outline|companions`).
+3. **Stufe 2b — Pipeline-Tab**: SSE-Endpoint `/api/cases/[caseId]/pipeline-status` (oder Polling auf existing Job-Datenstruktur), Live-Anzeige pro Pass mit Tokens-/Cost-Aggregation aus `ai_interactions`. Auto-Trigger: nach Per-¶ → automatisches Anstoßen von section-collapse → chapter-collapse → document-collapse. Cost-Berechnung zentral (heute hardcoded in scripts/run-document-collapse.ts:32 und Settings/Usage).
+4. **Stufe 2c — Outline-Tab**: Heading-Hierarchie-Tree mit Synthesen-Memos pro Knoten. Klick auf Knoten zeigt Fokus-Synthese der Ebene. §X:AY-Anker innerhalb eines Memos werden als Links gerendert (Resolver: §-Nummer → paragraph_index am aktuellen heading_id, A-Index → argument_id).
+5. **Stufe 2d — Reader-Modal**: Dokument-Volltext mit Paragraph-Anchors. Beim Aufruf via §X:AY-Klick: scroll-into-view auf paragraph, highlight, optional argument-Markierung.
+6. **Stufe 2e — Brief-Auswahl direkt am Doc-Header**: Dropdown-Picker aus globalem Pool, "Kopfzeile" oben in der Doc-Page.
+
+Stufe 3 (Falltyp-System) und Stufe 4 (Demo-Gutachten-Rekonstruktion) folgen erst, wenn Stufe 2 produktiv ist und ein erster BA-Review tatsächlich durchgelaufen ist.
+
+### Test-Daten unverändert vom voriegen Handover
+
+```
+Goldstand-Habil:    case=aa23d66e-9cd8-4583-9d14-6120dc343b10  brief=f8fc8a30-404f-4378-bd8d-c1fb92799246
+Mistral-Probe:      case=660cd26d-3759-4ab8-8a38-9f2df27a48b5  brief=1edf4497-5472-4f4b-9366-c0fecab7353f
+```
+
+Plus 5 neue Templates (alle ungebunden, `created_by = NULL`):
+```
+Habilitation – Standardvorlage     06bd3bef-accb-44ea-93c7-49911922e8d7
+Promotion – Standardvorlage        208be040-1ac2-42f7-862a-61767e13da02
+Master-Arbeit – Standardvorlage    0935ced4-75ae-4e3a-a7d1-02bce7c1635c
+Bachelor-Arbeit – Standardvorlage  fd34caf1-7b39-4366-94c3-89b551ca01dc
+Peer-Review – Standardvorlage      d7c93dea-88d1-44c6-a606-822b04c24550
+```
+
+### Files diese Session
+
+**Migrations:**
+- `migrations/037_briefs_systemwide.sql` — drops `assessment_briefs.project_id` + index
+
+**Code:**
+- `src/lib/server/db/queries/briefs.ts` (refactored — systemweit)
+- `src/routes/api/briefs/+server.ts` (neu — list + create)
+- `src/routes/api/briefs/[briefId]/+server.ts` (neu — get/patch/delete)
+- `src/lib/components/BriefEditor.svelte` (neu — gemeinsam genutzt von /new + /edit)
+- `src/routes/settings/+page.svelte` — Briefs-Tab + URL-sync via `?tab=...`
+- `src/routes/settings/briefs/new/+page.svelte` (neu)
+- `src/routes/settings/briefs/[briefId]/+page.server.ts` (neu)
+- `src/routes/settings/briefs/[briefId]/+page.svelte` (neu)
+- Removed: `src/routes/api/projects/[projectId]/briefs/**`, `src/routes/projects/[projectId]/briefs/**` (alte projekt-gebundene Routes)
+
+**Scripts:**
+- `scripts/seed-brief-templates.ts` (idempotent, re-runnable)
+- `scripts/smoke-loadcasectx.ts` (Pipeline-Regression-Smoke)
+
+### Memory-Updates diese Session
+
+- Neu: `project_briefs_systemwide.md` — Briefs-Korrektur dokumentiert
+- Neu: `project_sarah_ui_roadmap_stage_plan.md` — der 4-Stufen-Plan
+- Neu: `project_falltyp_architecture.md` — Stufe-3-Architektur (Falltyp am Case, nicht Project)
+- Neu: `feedback_no_hidden_setq.md` — keine versteckten inhaltlich relevanten Änderungen ohne explizites Go (lehrt aus Hint-Maps-Vorfall)
+
+### Bekannte Issues (nicht durch diese Session)
+
+- **Document-Status-Endpoint kaputt**: `column de.content does not exist` in [/api/projects/[projectId]/documents/[docId]/status/+server.ts:10](../../src/routes/api/projects/[projectId]/documents/[docId]/status/+server.ts) — Code referenziert die in Migration 027 gedroppte Spalte. Beim Doc-Page-Refactor in Stufe 2 mit fixen.
+- **Vite virtual-css-Warnung** für `/projects/[projectId]/+page.svelte?svelte&type=style&lang.css` — vermutlich Cache-Artefakt nach Routes-Removal (alte `/projects/[projectId]/briefs/`). Klärt sich beim nächsten Vite-Restart.
+- **Existing Brief-Namen** `Habilitations-Begutachtung (Erstanlage)` und `(no_annot_test3 für Mistral+Sonnet-Probe)` enthalten Projekt-Container-Referenzen, die seit Migration 037 obsolete sind. Reines Display-Issue, kein Funktional-Problem. User kann später umbenennen.
+
+### Methodologische Lektion (für Folge-Sessions wichtig)
+
+**Pseudo-Setzungen im UI sind genauso „inhaltlich relevant" wie DB-Defaults.** Diese Session hatte zwei Reinfälle in derselben Antwort: erst eine BriefEditor-Komponente mit drei Hint-Maps (`WORK_TYPE_HINTS`, `PERSONA_HINTS`, `CRITERIA_HINTS`) gebaut, die werktyp-spezifische Texte als Placeholder anzeigten — gemeint als "harmlose Hilfestellung", aber sachlich eine Setzung über *was in diesen Brief gehört*. Der User hat das als versteckte Vorprägung erkannt und korrigiert. Die richtige Reihenfolge wäre: erst die Inhalte (Templates) explizit zur Diskussion stellen, dann ggf. weitergehen — nicht: in der UI-Implementierung Inhalte unauffällig mitliefern und hoffen, dass das durchgeht.
+
+Korrigierte Default-Heuristik: bei jedem **Vorschlag mit textuellem Default** (Persona, Kriterien, Hilfetexte, Beispiele) zuerst den Volltext zur User-Sichtkontrolle anzeigen — auch wenn die "logische" Einbindung als Placeholder/Hilfetext deklariert ist. „Es steht nur als grauer Hint da" ist keine ausreichende Begründung gegen den Vorwurf einer Setzung.
+
+Zweiter Reinfall in derselben Session: ich hatte im ersten Anlauf 5 Strategien (A–E) für die BA-Anpassung hingestellt, obwohl der User die rekonstruktive Strategie schon explizit gesetzt hatte. Strategien als „Optionen-Liste" anbieten, wenn die Wahl längst getroffen ist, ist Pseudo-Diskurs. Wenn der User klar sagt „so machen wir es", dann nicht durch Multiple-Choice unter den Tisch fallen lassen.
+
+---
+
 # Handover — Stand 2026-05-01 spät (Budget-Route validiert, Caching-Refactor, nächste Phase: Reviewer-Notes + Gutachtenentwurf)
 
 **Lies zuerst diesen Block.** Die älteren Handover-Texte darunter sind Kontext, der aktuelle Stand und die nächsten Schritte stehen hier oben.
