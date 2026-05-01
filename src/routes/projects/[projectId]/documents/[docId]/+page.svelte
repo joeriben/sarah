@@ -121,6 +121,24 @@
 	let runError = $state<string | null>(null);
 	let runEventSource: AbortController | null = null;
 	let cancellingRun = $state(false);
+	let atomErrorsThisRun = $state(0);
+
+	// error_message ist seit fail-tolerant entweder plain string (catastrophic
+	// Run-Failure, e.g. Stuck-Guard) oder JSON mit { atom_errors:[…] } (einzelne
+	// tolerable Atom-Fehler). Helfer für UI: parsen, oder null.
+	type AtomError = { phase: string; label: string; message: string };
+	function parseAtomErrors(raw: string | null): AtomError[] | null {
+		if (!raw) return null;
+		try {
+			const j = JSON.parse(raw);
+			if (j && Array.isArray(j.atom_errors)) return j.atom_errors as AtomError[];
+		} catch { /* not JSON → catastrophic message */ }
+		return null;
+	}
+	function isCatastrophicRunError(raw: string | null): string | null {
+		if (!raw) return null;
+		try { JSON.parse(raw); return null; } catch { return raw; }
+	}
 
 	async function loadPipelineStatus() {
 		if (!caseInfo) return;
@@ -141,6 +159,7 @@
 		if (!caseInfo || runActive) return;
 		runError = null;
 		runEvents = [];
+		atomErrorsThisRun = 0;
 		runActive = true;
 		const ac = new AbortController();
 		runEventSource = ac;
@@ -233,7 +252,8 @@
 			}
 			case 'step-error': {
 				const atom = evt.atom as { label: string };
-				runEvents = [...runEvents, `  ✗ ${atom.label}: ${evt.message}`];
+				runEvents = [...runEvents, `  ✗ ${atom.label}: ${String(evt.message).slice(0, 200)}`];
+				atomErrorsThisRun = atomErrorsThisRun + 1;
 				break;
 			}
 			case 'paused':
@@ -639,8 +659,27 @@
 									{/if}
 								</div>
 							{/if}
-							{#if run?.error_message && run.status === 'failed'}
-								<div class="error-box compact">Fehler: {run.error_message}</div>
+							{#if run}
+								{@const persistedAtomErrors = parseAtomErrors(run.error_message)}
+								{@const catastrophic = isCatastrophicRunError(run.error_message)}
+								{#if catastrophic && run.status === 'failed'}
+									<div class="error-box compact">Fehler: {catastrophic}</div>
+								{:else if persistedAtomErrors && persistedAtomErrors.length > 0}
+									<details class="atom-errors" open={run.status === 'failed'}>
+										<summary>
+											{persistedAtomErrors.length}{persistedAtomErrors.length === 20 ? '+' : ''} Atom-Fehler{run.status === 'completed' ? ' (Run mit Fehlern abgeschlossen)' : ''}
+										</summary>
+										<ul class="atom-errors-list">
+											{#each persistedAtomErrors as err}
+												<li>
+													<span class="ae-phase">{err.phase}</span>
+													<span class="ae-label">{err.label}</span>
+													<div class="ae-message">{err.message}</div>
+												</li>
+											{/each}
+										</ul>
+									</details>
+								{/if}
 							{/if}
 							{#if runError}
 								<div class="error-box compact">{runError}</div>
@@ -1348,6 +1387,45 @@
 		font-size: 0.8rem;
 		margin: 0.6rem 0 0;
 	}
+	.atom-errors {
+		margin-top: 0.6rem;
+		padding: 0.5rem 0.7rem;
+		background: rgba(239, 68, 68, 0.06);
+		border: 1px solid rgba(239, 68, 68, 0.25);
+		border-left-width: 3px;
+		border-radius: 0 4px 4px 0;
+	}
+	.atom-errors summary {
+		cursor: pointer;
+		font-size: 0.82rem;
+		color: #fca5a5;
+		font-weight: 600;
+	}
+	.atom-errors-list {
+		margin: 0.6rem 0 0;
+		padding: 0;
+		list-style: none;
+		display: flex; flex-direction: column; gap: 0.5rem;
+	}
+	.atom-errors-list li {
+		padding: 0.45rem 0.6rem;
+		background: rgba(239, 68, 68, 0.04);
+		border-radius: 3px;
+		font-size: 0.78rem;
+	}
+	.ae-phase {
+		display: inline-block;
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.7rem;
+		color: #fbbf24;
+		background: rgba(251, 191, 36, 0.10);
+		border: 1px solid rgba(251, 191, 36, 0.25);
+		padding: 0.05rem 0.35rem;
+		border-radius: 3px;
+		margin-right: 0.4rem;
+	}
+	.ae-label { color: #c9cdd5; font-weight: 500; }
+	.ae-message { color: #8b8fa3; margin-top: 0.25rem; line-height: 1.4; }
 
 	/* — Pass-Sections (Hauptlinie + Addendum) — */
 	.passes-section {

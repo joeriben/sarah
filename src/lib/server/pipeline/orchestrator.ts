@@ -213,15 +213,24 @@ export async function requestCancel(runId: string): Promise<void> {
 }
 
 async function markPaused(runId: string, reason?: string): Promise<void> {
-	await query(
-		`UPDATE pipeline_runs
-		 SET status = 'paused',
-		     paused_at = now(),
-		     last_event_at = now(),
-		     error_message = $2
-		 WHERE id = $1`,
-		[runId, reason ?? null]
-	);
+	// reason wird nur überschrieben, wenn explizit übergeben — sonst bleibt
+	// das error_message-Feld erhalten (z.B. die persistierten atom_errors aus
+	// dem fail-tolerant Mode, die der User nach Reload sehen will).
+	if (reason !== undefined) {
+		await query(
+			`UPDATE pipeline_runs
+			 SET status = 'paused', paused_at = now(), last_event_at = now(), error_message = $2
+			 WHERE id = $1`,
+			[runId, reason]
+		);
+	} else {
+		await query(
+			`UPDATE pipeline_runs
+			 SET status = 'paused', paused_at = now(), last_event_at = now()
+			 WHERE id = $1`,
+			[runId]
+		);
+	}
 }
 
 async function markCompleted(runId: string): Promise<void> {
@@ -538,21 +547,39 @@ export async function runPipelineLoop(
 ): Promise<void> {
 	const phases = phasesForRun(options);
 	let lastPhaseAnnounced: Phase | null = null;
-	// Stuck-Guard: schützt gegen Endlosschleifen, in denen derselbe Atom
-	// nach Step-Ausführung weiterhin als pending erkannt wird. Zwei
-	// Failure-Modes:
-	//   (a) skipped=true wiederholt — Inkongruenz zwischen
-	//       listAtomsForPhase-done-Bedingung und Pass-Skip-Bedingung.
-	//   (b) skipped=false wiederholt — Pass läuft mit echten LLM-Calls,
-	//       persistiert aber nichts (z.B. AG-Pass erzeugt scaffolding,
-	//       dessen Anchors auf nicht-existente lokale args zeigen → alle
-	//       Inserts werden skipped, DB-State bleibt unverändert).
-	// Failure-Mode (b) ist gefährlicher, weil er Tokens verbrennt — der
-	// AG-Pass selbst wirft mittlerweile in diesem Fall (Storage-empty-
-	// guard, siehe argumentation-graph.ts), aber der Guard hier ist die
-	// generische Verteidigung für jeden Pass.
+	// Stuck-Guard: derselbe Atom darf nicht 3× hintereinander als pending
+	// erscheinen — Endlos-Symptom für Inkongruenz zwischen list-done und
+	// Pass-Skip-Bedingung. Wenn das auftritt, hat fail-tolerant nichts mit
+	// einem einzelnen Atom zu tun, sondern mit einem strukturellen Loop-Bug
+	// → markFailed (kein graceful continue).
 	let lastProcessedAtomId: string | null = null;
 	let sameAtomRepeatCount = 0;
+
+	// Fail-tolerant Mode: einzelne Atom-Fehler stoppen den Run nicht. Stattdessen
+	// werden die fehlgeschlagenen Atome in-memory getrackt und beim nächsten
+	// listAtomsForPhase aus dem pending herausgefiltert; der Loop springt zum
+	// nächsten Atom. Bei Resume eines Runs wird dieses Set neu aufgebaut — die
+	// errored Atome werden also einmal pro Resume neu versucht (das ist
+	// gewollt, weil ein Resume oft auf einen Code-Fix folgt). Persistierung
+	// erfolgt via `error_message` als JSON-Liste der letzten 20 Atome, damit
+	// der User nach Page-Reload die Fehler immer noch sieht.
+	const erroredAtomIds = new Set<string>();
+	const erroredHistory: { phase: Phase; label: string; message: string }[] = [];
+
+	const isErrored = (atomId: string) => erroredAtomIds.has(atomId);
+
+	const recordAtomError = async (phase: Phase, atom: AtomRef, message: string) => {
+		erroredAtomIds.add(atom.id);
+		erroredHistory.push({ phase, label: atom.label, message: message.slice(0, 300) });
+		// Persistiere die letzten 20 Errors für den UI-Status nach Reload.
+		const tail = erroredHistory.slice(-20);
+		await query(
+			`UPDATE pipeline_runs
+			 SET error_message = $2, last_event_at = now()
+			 WHERE id = $1`,
+			[runId, JSON.stringify({ atom_errors: tail })]
+		);
+	};
 
 	while (true) {
 		const run = await getRun(runId);
@@ -566,15 +593,16 @@ export async function runPipelineLoop(
 			return;
 		}
 
-		// Nächsten Atom suchen.
+		// Nächsten Atom suchen — errored Atome herausfiltern.
 		let next: StepDescriptor | null = null;
 		for (const phase of phases) {
 			const list = await listAtomsForPhase(phase, run.document_id);
-			if (list.pending.length === 0) continue;
+			const realPending = list.pending.filter((a) => !isErrored(a.id));
+			if (realPending.length === 0) continue;
 			const totalDone = list.all.length - list.pending.length;
 			next = {
 				phase,
-				atom: list.pending[0],
+				atom: realPending[0],
 				index: totalDone,
 				total: list.all.length,
 			};
@@ -586,6 +614,16 @@ export async function runPipelineLoop(
 		}
 
 		if (next === null) {
+			// Letzte Statusnotiz: completed mit ggf. errored-Count.
+			if (erroredHistory.length > 0) {
+				const tail = erroredHistory.slice(-20);
+				await query(
+					`UPDATE pipeline_runs
+					 SET error_message = $2
+					 WHERE id = $1`,
+					[runId, JSON.stringify({ atom_errors: tail, completed_with_errors: true })]
+				);
+			}
 			await markCompleted(runId);
 			safeSend(sendEvent, { type: 'completed' });
 			return;
@@ -655,9 +693,12 @@ export async function runPipelineLoop(
 				atom: next.atom,
 				message,
 			});
-			await markFailed(runId, `${next.phase}/${next.atom.label}: ${message}`);
-			safeSend(sendEvent, { type: 'failed', message });
-			return;
+			// Fail-tolerant: Atom merken, weiter mit nächstem. Stuck-Guard greift
+			// weiterhin, falls dieser Atom wider Erwarten in einer späteren
+			// Iteration nochmal in pending auftauchen würde (Filter-Bug).
+			await recordAtomError(next.phase, next.atom, message);
+			lastProcessedAtomId = null;
+			sameAtomRepeatCount = 0;
 		}
 	}
 }
