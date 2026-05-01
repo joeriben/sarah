@@ -32,7 +32,11 @@ import { chat, type Provider } from '../client.js';
 // to the whole paragraph.
 const CodeSchema = z.object({
 	label: z.string().min(1).max(100),
-	anchor_phrase: z.string().max(80).default(''),
+	// Cap 500 (sanity, was 80) — substring-binding via indexOf() works for any
+	// length; prompt asks for ≤ 4 Wörter, but enforcing as a hard schema gate
+	// rejected ~12% of Mistral synth outputs. Length > 80 emits a style warning
+	// (analogous to AG) instead of throwing.
+	anchor_phrase: z.string().max(500).default(''),
 	rationale: z.string().min(1).max(500),
 });
 
@@ -264,7 +268,37 @@ export async function loadParagraphContext(
 
 // ── Prompt assembly ───────────────────────────────────────────────
 
-export function buildSystemPrompt(caseCtx: CaseContext, paraCtx: ParagraphContext): string {
+/**
+ * Build a stable, cache-friendly prefix containing only case-level invariants
+ * (PERSONA, KRITERIEN, WERK metadata, OUTPUT-FORMAT). The prefix never depends
+ * on the current paragraph or subchapter.
+ *
+ * Use together with `buildSystemSuffix(paraCtx)` and pass both to chat() as
+ * `cacheableSystemPrefix` and `system` respectively.
+ */
+export function buildSystemPrefix(caseCtx: CaseContext): string {
+	return `[PERSONA]
+${caseCtx.brief.persona}
+
+Hypothesen über die Werkrichtung dürfen formuliert werden, aber als Hypothesen markiert ("ist zu vermuten", "wird sich zeigen müssen", "deutet darauf hin" o.ä.) — nicht als bereits getroffene Beobachtungen.
+
+[KRITERIEN ALS LESEFOLIE]
+${caseCtx.brief.criteria}
+
+[WERK]
+Titel: ${caseCtx.documentTitle}
+Werktyp: ${caseCtx.brief.work_type}
+Umfang Hauptteil: ${caseCtx.mainHeadingCount} Hauptkapitel-Überschriften, ${caseCtx.mainParagraphCount} Hauptabsätze.
+
+[OUTPUT-FORMAT]${buildOutputFormatSection(caseCtx)}`;
+}
+
+/**
+ * Build the variable suffix containing per-call context: outline with current-
+ * scope marker, completed kontextualisierungen, interpretive chain. Pass to
+ * chat() as `system`.
+ */
+export function buildSystemSuffix(paraCtx: ParagraphContext, caseCtx: CaseContext): string {
 	const outlineLines = caseCtx.mainHeadings
 		.map(h => h === paraCtx.subchapterLabel ? `- ${h}           ← AKTUELL HIER` : `- ${h}`)
 		.join('\n');
@@ -281,19 +315,7 @@ export function buildSystemPrompt(caseCtx: CaseContext, paraCtx: ParagraphContex
 			.map(c => `### Absatz ${c.positionInSubchapter}\n${c.content}`)
 			.join('\n\n');
 
-	return `[PERSONA]
-${caseCtx.brief.persona}
-
-Hypothesen über die Werkrichtung dürfen formuliert werden, aber als Hypothesen markiert ("ist zu vermuten", "wird sich zeigen müssen", "deutet darauf hin" o.ä.) — nicht als bereits getroffene Beobachtungen.
-
-[KRITERIEN ALS LESEFOLIE]
-${caseCtx.brief.criteria}
-
-[WERK]
-Titel: ${caseCtx.documentTitle}
-Werktyp: ${caseCtx.brief.work_type}
-Umfang Hauptteil: ${caseCtx.mainHeadingCount} Hauptkapitel-Überschriften, ${caseCtx.mainParagraphCount} Hauptabsätze.
-
+	return `[OUTLINE & POSITION]
 Outline (Hauptüberschriften, sequentiell):
 ${outlineLines}
 
@@ -301,9 +323,16 @@ ${outlineLines}
 ${completed}
 
 [INTERPRETIERENDE KETTE IM AKTUELLEN UNTERKAPITEL "${paraCtx.subchapterLabel}"]
-${chain}
+${chain}`;
+}
 
-[OUTPUT-FORMAT]
+// Backward-compat: legacy single-string builder. Concatenates prefix + suffix.
+export function buildSystemPrompt(caseCtx: CaseContext, paraCtx: ParagraphContext): string {
+	return buildSystemPrefix(caseCtx) + '\n\n' + buildSystemSuffix(paraCtx, caseCtx);
+}
+
+function buildOutputFormatSection(caseCtx: CaseContext): string {
+	return `
 Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst (kein Vor-/Nachtext, kein Markdown-Codefence):
 
 ${caseCtx.brief.includeFormulierend ? `{
@@ -524,12 +553,13 @@ export async function runParagraphPass(
 	const caseCtx = await loadCaseContext(caseId);
 	const paraCtx = await loadParagraphContext(caseCtx, paragraphId);
 
-	const system = buildSystemPrompt(caseCtx, paraCtx);
+	const cacheableSystemPrefix = buildSystemPrefix(caseCtx);
+	const system = buildSystemSuffix(paraCtx, caseCtx);
 	const user = buildUserMessage(paraCtx);
 
 	const response = await chat({
+		cacheableSystemPrefix,
 		system,
-		cacheSystem: true,
 		messages: [{ role: 'user', content: user }],
 		maxTokens: 2000,
 		modelOverride: opts.modelOverride,

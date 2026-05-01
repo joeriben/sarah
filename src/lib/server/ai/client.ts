@@ -218,6 +218,25 @@ export async function chat(opts: {
 	 */
 	cacheSystem?: boolean;
 	/**
+	 * Stable, cache-friendly prefix of the system prompt. When set, this is
+	 * sent as a separate system block with `cache_control: ephemeral`, while
+	 * `system` (the variable suffix) is sent as a second uncached block.
+	 *
+	 * Use this when the system prompt has a stable head (PERSONA, KRITERIEN,
+	 * static OUTLINE, OUTPUT-FORMAT) and a variable tail (current scope,
+	 * completed sections, interpretive chain). Anthropic prompt caching is
+	 * prefix-based: with everything stable in the prefix block and everything
+	 * variable in the suffix, cache hits become reliable across calls.
+	 *
+	 * Honoured natively on Anthropic provider, passed through on Mammouth /
+	 * OpenRouter for Anthropic-proxied models. Silently ignored elsewhere.
+	 *
+	 * If `cacheableSystemPrefix` is set, `cacheSystem` is implicit (the prefix
+	 * is always cacheable). If only `system` is set with `cacheSystem: true`,
+	 * the original single-block behaviour applies (backward compat).
+	 */
+	cacheableSystemPrefix?: string;
+	/**
 	 * Per-call provider/model override. Bypasses the module-level settings for
 	 * this single call only — used by experimental drivers (model comparison
 	 * runs). The override builds a one-shot client; it does NOT mutate the
@@ -262,9 +281,22 @@ export async function chat(opts: {
 		: null;
 
 	if (provider === 'anthropic') {
-		const systemParam = opts.cacheSystem && opts.system
-			? [{ type: 'text' as const, text: opts.system, cache_control: { type: 'ephemeral' as const } }]
-			: opts.system;
+		// Build system param — three modes:
+		//   1. cacheableSystemPrefix set → two-block: cached prefix + uncached suffix
+		//   2. cacheSystem true (legacy) → single cached block
+		//   3. plain → string passthrough
+		let systemParam: string | { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }[] | undefined;
+		if (opts.cacheableSystemPrefix) {
+			const blocks: { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }[] = [
+				{ type: 'text', text: opts.cacheableSystemPrefix, cache_control: { type: 'ephemeral' } }
+			];
+			if (opts.system) blocks.push({ type: 'text', text: opts.system });
+			systemParam = blocks;
+		} else if (opts.cacheSystem && opts.system) {
+			systemParam = [{ type: 'text', text: opts.system, cache_control: { type: 'ephemeral' } }];
+		} else {
+			systemParam = opts.system;
+		}
 
 		const response = await useAnthropic!.messages.create({
 			model,
@@ -303,9 +335,31 @@ export async function chat(opts: {
 	} else {
 		// OpenAI-compatible path (OpenRouter, Mistral, IONOS, Mammouth, OpenAI, Ollama)
 		const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-		if (opts.system) {
-			if (opts.cacheSystem && (provider === 'openrouter' || provider === 'mammouth')) {
-				// Pass-through cache_control for Anthropic-proxying providers.
+		// Only providers that pass cache_control through to Anthropic-style caching.
+		// Mistral native does its own implicit caching (no cache_control needed; the
+		// stable string prefix is detected server-side); sending cache_control returns
+		// 422.
+		const supportsCachePassThrough = provider === 'openrouter' || provider === 'mammouth';
+		if (opts.cacheableSystemPrefix) {
+			if (supportsCachePassThrough) {
+				// Two-block system: cached prefix + uncached suffix
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const content: any[] = [
+					{ type: 'text', text: opts.cacheableSystemPrefix, cache_control: { type: 'ephemeral' } }
+				];
+				if (opts.system) content.push({ type: 'text', text: opts.system });
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				messages.push({ role: 'system', content } as any);
+			} else {
+				// Provider doesn't support cache pass-through — collapse to plain string.
+				const collapsed = opts.system
+					? opts.cacheableSystemPrefix + '\n\n' + opts.system
+					: opts.cacheableSystemPrefix;
+				messages.push({ role: 'system', content: collapsed });
+			}
+		} else if (opts.system) {
+			if (opts.cacheSystem && supportsCachePassThrough) {
+				// Pass-through cache_control for Anthropic-proxying providers and Mistral native.
 				// Cast escapes the OpenAI SDK type that doesn't model cache_control.
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				messages.push({

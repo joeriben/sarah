@@ -1,18 +1,10 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Smoketest for the prose-AG pipeline (post-pivot from strict JSON).
-//
-// Validates the new architecture on Subchapter 1.1.1 §1-§4 (incl. §4
-// "Tenorth-Hammer" with typographic „..."-Zitat) for {DS4, Sonnet}. Per
-// model: cleanup AG data → run §1-§4 in forward order → record per-paragraph
-// stats (wall, tokens, args/edges/scaff counts, parser warnings, success).
-//
-// Final cleanup leaves the DB without AG data for these paragraphs (consistent
-// with compare-models-paragraph pattern). To restore the basal goldstandard,
-// re-run scripts/run-chapter1-pipeline.ts.
-//
-// Run from repo root:   npx tsx scripts/smoketest-prose-ag.ts
+// Mistral-Large-3 variant of smoketest-prose-ag.ts. Same paragraphs, same
+// cleanup pattern, distinct output filename. Runs in parallel to the DS4
+// smoketest; DB race is tolerated because JSON dumps are authoritative
+// (full result is captured in memory before each writeFileSync).
 
 import { runArgumentationGraphPass } from '../src/lib/server/ai/hermeneutic/argumentation-graph.ts';
 import { pool, query } from '../src/lib/server/db/index.ts';
@@ -20,11 +12,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import type { Provider } from '../src/lib/server/ai/client.ts';
 
 const CASE_ID = 'aa23d66e-9cd8-4583-9d14-6120dc343b10';
-const USER_ID = 'dac6ac05-bdab-4d68-a4fa-3eab0b40cc2b'; // unused — runAG doesn't take user
 
-// Subchapter 1.1.1 §1-§4 in forward order. §4 is the Tenorth-Hammer
-// (typographic „..."-Zitat that broke ALL three models on the strict-JSON
-// pipeline — see HANDOVER-argumentation-graph.md).
 const PARAGRAPH_IDS = [
 	'60f9dfb1-5d9d-4c56-8288-1ef51f5eec63', // §1
 	'7118aa10-b5d7-495a-9405-5b66116edb06', // §2
@@ -35,7 +23,7 @@ const PARAGRAPH_IDS = [
 interface ModelCfg { key: string; provider: Provider; model: string; }
 
 const MODELS: ModelCfg[] = [
-	{ key: 'deepseek-v4-pro-via-mammouth', provider: 'mammouth', model: 'deepseek-v4-pro' },
+	{ key: 'mistral-large-3-via-mammouth', provider: 'mammouth', model: 'mistral-large-3' },
 ];
 
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504, 524, 408]);
@@ -58,7 +46,6 @@ async function withRetry<T>(label: string, fn: () => Promise<T>, attempts = 3): 
 }
 
 async function cleanupAG(ids: string[]) {
-	// argument_nodes cascade to argument_edges and scaffolding_anchors.
 	await query(`DELETE FROM scaffolding_elements WHERE paragraph_element_id = ANY($1::uuid[])`, [ids]);
 	await query(`DELETE FROM argument_nodes WHERE paragraph_element_id = ANY($1::uuid[])`, [ids]);
 }
@@ -73,7 +60,6 @@ interface PerParagraphRecord {
 	edges_count: number;
 	scaffolding_count: number;
 	error: string | null;
-	/** Full parser output for substance inspection. Non-null on success. */
 	result: unknown;
 }
 
@@ -114,7 +100,7 @@ for (const m of MODELS) {
 			);
 			const dt = (Date.now() - t0) / 1000;
 			if (run.skipped) {
-				console.log(`  ${pos}: SKIPPED (existing data — should not happen after cleanup)`);
+				console.log(`  ${pos}: SKIPPED (existing data — race with parallel run)`);
 				continue;
 			}
 			const t = run.tokens!;
@@ -156,13 +142,11 @@ for (const m of MODELS) {
 	console.log(`  total: ${record.total_wall_seconds.toFixed(1)}s, ${record.total_tokens} tokens, ${record.success_count}/${PARAGRAPH_IDS.length} success`);
 }
 
-await cleanupAG(PARAGRAPH_IDS);
+// No final cleanup here; the DS4 sibling script handles it (or pipeline restore).
 
-console.log('\n=== Summary (prose-AG pivot, §1-§4 incl. Tenorth-Hammer) ===');
-console.log(`Model               wall    tokens    success`);
+console.log('\n=== Mistral-Large-3 Summary ===');
 for (const r of summary) {
-	console.log(`${r.model.key.padEnd(20)}  ${r.total_wall_seconds.toFixed(1).padStart(5)}s  ${String(r.total_tokens).padStart(7)}  ${r.success_count}/${PARAGRAPH_IDS.length}`);
+	console.log(`${r.model.key.padEnd(35)}  ${r.total_wall_seconds.toFixed(1).padStart(5)}s  ${String(r.total_tokens).padStart(7)}  ${r.success_count}/${PARAGRAPH_IDS.length}`);
 }
-console.log('\nFinal cleanup done. AG data for §1-§4 of subchapter 1.1.1 removed.');
 
 await pool.end();

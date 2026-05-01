@@ -295,30 +295,55 @@ function parseArgumentBody(id: string, body: string[], warnings: string[]): RawA
 
 function parseEdgesBody(body: string[], warnings: string[]): RawEdge[] {
 	const out: RawEdge[] = [];
-	for (const line of body) {
-		const trimmed = line.trim();
+	for (const rawLine of body) {
+		let trimmed = rawLine.trim();
+		if (trimmed.length === 0) continue;
+		// Tolerate trailing parenthesized comment, e.g.
+		// "A2 -supports-> A1  (A2 begründet die Prozesshaftigkeit als …)"
+		trimmed = trimmed.replace(/\s*\([^)]*\)\s*$/, '').trim();
 		if (trimmed.length === 0) continue;
 		// Tolerate alt-arrow forms: --> or →
 		const normalized = trimmed
 			.replace(/-{1,3}>/, '->')
 			.replace(/[→]/g, '->');
-		const m = normalized.match(EDGE_LINE);
-		if (!m) {
-			warnings.push(`unparseable edge line: "${trimmed.slice(0, 80)}"`);
+		// Tolerate multi-target form, e.g. "A3 -presupposes-> A1, A2".
+		// Split into individual edges and process each.
+		const headTail = normalized.match(
+			/^(\s*A\d+\s*-\s*(?:supports|refines|contradicts|presupposes)\s*->\s*)(.+)$/i
+		);
+		if (headTail && /,/.test(headTail[2])) {
+			const head = headTail[1];
+			const targets = headTail[2].split(/\s*,\s*/).filter(t => t.length > 0);
+			for (const t of targets) processSingleEdge(`${head}${t}`, out, warnings);
 			continue;
 		}
-		const from = m[1].toUpperCase();
-		const kind = m[2].toLowerCase();
-		const to = m[3].toUpperCase().startsWith('§') ? m[3] : m[3].toUpperCase();
-		const scope: 'inter_argument' | 'prior_paragraph' = to.startsWith('§') ? 'prior_paragraph' : 'inter_argument';
-		if (scope === 'inter_argument' && kind === 'presupposes') {
-			warnings.push(`presupposes is prior_paragraph-only; demoted to "supports" on inter_argument edge ${from}->${to}`);
-			out.push({ from, to, kind: 'supports', scope });
-			continue;
-		}
-		out.push({ from, to, kind, scope });
+		processSingleEdge(normalized, out, warnings);
 	}
 	return out;
+}
+
+function processSingleEdge(normalized: string, out: RawEdge[], warnings: string[]) {
+	const trimmedForReport = normalized.trim();
+	const m = normalized.match(EDGE_LINE);
+	if (!m) {
+		warnings.push(`unparseable edge line: "${trimmedForReport.slice(0, 80)}"`);
+		return;
+	}
+	const from = m[1].toUpperCase();
+	const kind = m[2].toLowerCase();
+	const to = m[3].toUpperCase().startsWith('§') ? m[3] : m[3].toUpperCase();
+	// §0 is a model hallucination — there is no "paragraph zero". Drop.
+	if (/^§0:/i.test(to)) {
+		warnings.push(`dropped edge with non-existent §0 reference: ${from} -> ${to}`);
+		return;
+	}
+	const scope: 'inter_argument' | 'prior_paragraph' = to.startsWith('§') ? 'prior_paragraph' : 'inter_argument';
+	if (scope === 'inter_argument' && kind === 'presupposes') {
+		warnings.push(`presupposes is prior_paragraph-only; demoted to "supports" on inter_argument edge ${from}->${to}`);
+		out.push({ from, to, kind: 'supports', scope });
+		return;
+	}
+	out.push({ from, to, kind, scope });
 }
 
 const VALID_FUNCTION_TYPES = new Set([

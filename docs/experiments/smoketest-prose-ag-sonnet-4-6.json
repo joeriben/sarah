@@ -8,74 +8,628 @@
     {
       "pid": "60f9dfb1-5d9d-4c56-8288-1ef51f5eec63",
       "position": "§1",
-      "wall_seconds": 38.235,
+      "wall_seconds": 39.684,
       "tokens": {
         "input": 5491,
-        "output": 2277,
+        "output": 2411,
         "cacheCreation": 0,
         "cacheRead": 0,
-        "total": 7768
+        "total": 7902
       },
       "success": true,
-      "args_count": 4,
-      "edges_count": 4,
+      "args_count": 5,
+      "edges_count": 5,
       "scaffolding_count": 5,
-      "error": null
+      "error": null,
+      "result": {
+        "arguments": [
+          {
+            "id": "A1",
+            "claim": "Der vorliegende Argumentationsgang gründet auf einer kulturwissenschaftlichen Perspektivierung, die sich insbesondere auf die Theorievorschläge von Reckwitz stützt und durch praxeologische Forschungsansätze in Schule und Unterricht einen analytischen Mehrwert verspricht.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "Kulturwissenschaftlich geformte Ansätze praxeologischer Forschung in Schule und Unterricht verweisen auf den Mehrwert, der mit einer Perspektivierung entlang kultureller Dimensionen verbunden ist."
+              },
+              {
+                "type": "background",
+                "text": "Praxeologische Theoriebildung (Reckwitz) gilt in der Kulturwissenschaft als etablierter Rahmen für die Analyse impliziter sozialer Praktiken."
+              }
+            ],
+            "anchor_phrase": "kulturwissenschaftliche Perspektivierung mit besonderer Referenz"
+          },
+          {
+            "id": "A2",
+            "claim": "Kultur fungiert im schulischen Kontext als implizites Reservoir von Werthorizonten, das Gemeinsamkeiten und Gemeinschaften konstituiert — sichtbar etwa im Zeitregime der Schule, in unterrichtlichen Routinen und schulkulturellen Arrangements.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "Kultur kommt dabei als Reservoir von Werthorizonten in den Blick, die Gemeinsamkeiten und Gemeinschaften konstituieren, und zwar zumeist implizit."
+              },
+              {
+                "type": "stated",
+                "text": "Dies gilt beispielsweise für das Zeitregime von Schule, Routinen unterrichtlicher Interaktion oder organisationale und schulkulturelle Arrangements."
+              }
+            ],
+            "anchor_phrase": "Reservoir von Werthorizonten"
+          },
+          {
+            "id": "A3",
+            "claim": "Kulturelle Routinierung hat einen doppelten Effekt: Sie ermöglicht Handlungsgewissheit für Einzelne und begrenzt zugleich deren Handlungsrepertoire.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "Einerseits ermöglicht diese routinierte Gemeinschaft Handlungsgewissheit, andererseits wird durch sie das Handlungsrepertoire für den Einzelnen begrenzt."
+              },
+              {
+                "type": "background",
+                "text": "[demoted from invalid carried/from_paragraph=0] Kultur konstituiert Gemeinschaften zumeist implizit (A2)."
+              }
+            ],
+            "anchor_phrase": "doppelten Effekt"
+          },
+          {
+            "id": "A4",
+            "claim": "Kultur perpetuiert durch die Wiederholung tradierter Routinen Abgrenzungen und Ausschlüsse, ist aber zugleich ein Prozess der Wandlung, der Möglichkeitsräume für Neuformulierungen eröffnet.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "Auf diese Weise perpetuiert Kultur als gemeinschaftsstiftendes Element schließlich auch Abgrenzungen und Ausschlüsse."
+              },
+              {
+                "type": "stated",
+                "text": "Kultur ist aber in der Wiederholung tradierter Routinen auch ein Prozess der Wandlung, sie bietet einen Möglichkeitsraum für Neuformulierungen (Bhabha, 2010)."
+              }
+            ],
+            "anchor_phrase": "Möglichkeitsraum für Neuformulierungen"
+          },
+          {
+            "id": "A5",
+            "claim": "Kultur ist in ihrer Prozesshaftigkeit eine Arena der Aushandlung von Bedeutungen, die implizite Machtmechanismen einschließt und damit auf einen gesellschaftlichen Problemzusammenhang verweist.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "In der Prozesshaftigkeit ist sie die Arena der Aushandlung von Bedeutungen (Reckwitz 2003), die als solche implizite Machtmechanismen einschließt."
+              },
+              {
+                "type": "background",
+                "text": "[demoted from invalid carried/from_paragraph=0] Kultur perpetuiert Abgrenzungen und Ausschlüsse (A4)."
+              }
+            ],
+            "anchor_phrase": "Arena der Aushandlung von Bedeutungen"
+          }
+        ],
+        "edges": [
+          {
+            "from": "A2",
+            "to": "A1",
+            "kind": "supports",
+            "scope": "inter_argument"
+          },
+          {
+            "from": "A3",
+            "to": "A2",
+            "kind": "supports",
+            "scope": "inter_argument"
+          },
+          {
+            "from": "A4",
+            "to": "A3",
+            "kind": "refines",
+            "scope": "inter_argument"
+          },
+          {
+            "from": "A5",
+            "to": "A4",
+            "kind": "supports",
+            "scope": "inter_argument"
+          },
+          {
+            "from": "A5",
+            "to": "A1",
+            "kind": "refines",
+            "scope": "inter_argument"
+          }
+        ],
+        "scaffolding": [
+          {
+            "id": "S1",
+            "excerpt": "Dem vorliegenden Argumentationsgang liegt eine kulturwissenschaftliche Perspektivierung mit einer besonderen Referenz auf die Theorievorschläge von Reckwitz (Reckwitz, 2004; Reckwitz, 2017; vgl. auch 1.2.1) zugrunde.",
+            "function_type": "kontextualisierend",
+            "function_description": "Explizite Selbstverortung des Argumentationsgangs in einer theoretischen Tradition; der Verweis auf 1.2.1 verknüpft den Absatz mit einer offenbar bereits geleisteten Grundlegung (Reckwitz) und kündigt Kohärenz mit dem Theorieteil an. Dient A1 als Legitimationsbasis, nicht als Argument selbst.",
+            "assessment": "Funktional wirksam als Rahmensetzung für A1; ohne diesen Verweis bliebe der Bezug auf Reckwitz im Folgenden unterbegründet. Der Querverweis (1.2.1) setzt allerdings voraus, dass die Grundlegung dort tatsächlich hinreichend ausgeführt ist — hier nicht prüfbar, aber als Behauptung von Konsistenz registriert.",
+            "anchored_to": [
+              "A1"
+            ],
+            "anchor_phrase": "vgl. auch 1.2.1"
+          },
+          {
+            "id": "S2",
+            "excerpt": "sie bietet einen Möglichkeitsraum für Neuformulierungen (Bhabha, 2010)",
+            "function_type": "kontextualisierend",
+            "function_description": "Einbindung von Bhabhas Konzept des \"Third Space\" bzw. kultureller Hybridität als theoretische Stützung für die These, dass Kultur trotz Routinisierung Wandel ermöglicht. Verankert A4 in einem kanonischen postkolonialen Theorierahmen.",
+            "assessment": "Bedingt plausibel — Bhabha (2010) wird lediglich en passant zitiert, ohne Explikation des Konzepts. Der Mehrwert für A4 bleibt unterbestimmt: Es ist nicht ausgeführt, in welchem Verhältnis Bhabhas Hybriditätstheorie zur Reckwitzschen Praxeologie steht, was die Kombination theoretisch anspruchsvoll, aber argumentativ ungesichert macht.",
+            "anchored_to": [
+              "A4"
+            ],
+            "anchor_phrase": "Möglichkeitsraum für Neuformulierungen (Bhabha, 2010)"
+          },
+          {
+            "id": "S3",
+            "excerpt": "gerade in der Prozesshaftigkeit ist sie dennoch die Arena der Aushandlung von Bedeutungen (Reckwitz 2003), die als solche implizite Machtmechanismen einschließt.",
+            "function_type": "kontextualisierend",
+            "function_description": "Reckwitz 2003 wird als Beleg für die Charakterisierung von Kultur als Bedeutungsaushandlungs-Arena herangezogen, ergänzt durch den Machtmechanismus-Aspekt. Verbindet A5 mit dem in A1 programmatisch eingeführten Reckwitz-Bezug.",
+            "assessment": "Argumentationslogisch wirksam, weil der claim in A5 dadurch nicht nur behauptet, sondern an eine ausgearbeitete theoretische Position rückgebunden wird. Allerdings bleibt unklar, ob \"implizite Machtmechanismen\" tatsächlich aus Reckwitz folgen oder einer anderen — etwa Foucault'schen oder Bourdieuschen — Tradition entstammen; die Zuschreibung ist leicht überdehnt.",
+            "anchored_to": [
+              "A5"
+            ],
+            "anchor_phrase": "Arena der Aushandlung von Bedeutungen (Reckwitz 2003)"
+          },
+          {
+            "id": "S4",
+            "excerpt": "Dies gilt beispielsweise für das Zeitregime von Schule, Routinen unterrichtlicher Interaktion oder organisationale und schulkulturelle Arrangements.",
+            "function_type": "didaktisch",
+            "function_description": "Illustrationsreihe, die den abstrakten Begriff des \"Reservoirs von Werthorizonten\" (A2) durch drei konkrete schulische Phänomenbereiche verständlich macht. Keine eigenständige Begründung, sondern Verständnishilfe.",
+            "assessment": "Klar wirksam — die Beispiele erden den abstrakten Kulturbegriff im schulischen Handlungsfeld und stärken die Anschaulichkeit von A2, ohne dessen Begründungsstruktur zu tragen. Für eine Habilitationsschrift ist die Kürze der Illustration angemessen; eine vertiefte Einzelanalyse wäre hier nicht zu erwarten.",
+            "anchored_to": [
+              "A2"
+            ],
+            "anchor_phrase": "Zeitregime von Schule, Routinen"
+          },
+          {
+            "id": "S5",
+            "excerpt": "Damit verweist sie auf einen gesellschaftlichen Problemzusammenhang.",
+            "function_type": "rhetorisch",
+            "function_description": "Abschlussformel, die den Argumentationsgang des Absatzes mit einem übergeordneten Relevanzrahmen verknüpft und auf den Folgeabsatz (gesellschaftliche Pluralität, schulische Konsequenzen) vorausweist. Kein neues Argument, sondern Überleitung mit Emphase-Funktion.",
+            "assessment": "Rhetorisch wirksam als Absatzschluss, sachlich schwach — \"gesellschaftlicher Problemzusammenhang\" bleibt unspezifisch und wird hier nicht entfaltet. Die Funktion liegt im Übergangsaufbau, nicht in der argumentativen Präzisierung. Als Brücke zum Folgeabsatz legitim, als eigenständige Aussage leer.",
+            "anchored_to": [
+              "A5"
+            ],
+            "anchor_phrase": "gesellschaftlichen Problemzusammenhang"
+          }
+        ]
+      }
     },
     {
       "pid": "7118aa10-b5d7-495a-9405-5b66116edb06",
       "position": "§2",
-      "wall_seconds": 39.046,
+      "wall_seconds": 32.504,
       "tokens": {
-        "input": 6620,
-        "output": 2651,
+        "input": 6652,
+        "output": 2007,
         "cacheCreation": 0,
         "cacheRead": 0,
-        "total": 9271
+        "total": 8659
       },
       "success": true,
-      "args_count": 5,
-      "edges_count": 7,
+      "args_count": 4,
+      "edges_count": 6,
       "scaffolding_count": 4,
-      "error": null
+      "error": null,
+      "result": {
+        "arguments": [
+          {
+            "id": "A1",
+            "claim": "Schulisches Lernen ist nicht bloßer Wissenserwerb, sondern wesentlich mit kulturellen Bildungsprozessen verbunden — ein Befund, der als Konsens der Bildungstheorie gelten kann.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "Es ist Konsens, dass die nachwachsende Generation in der Schule nicht nur Fakten lernt, sondern in Kultur eingeführt wird (Fend, 2006)."
+              },
+              {
+                "type": "background",
+                "text": "Bildungstheoretische Tradition unterscheidet zwischen Instruktion/Wissensvermittlung und kultureller Enkulturation als verschiedenen Funktionen von Schule."
+              }
+            ],
+            "anchor_phrase": "nicht nur Wissenserwerb, sondern mit kulturellen Bildungsprozessen"
+          },
+          {
+            "id": "A2",
+            "claim": "Das traditionelle Verständnis von Enkulturation als Einführung in ein geschlossenes, konsensual geteiltes Wert- und Normreservoir ist unter Bedingungen kultureller Pluralität nicht länger aufrechtzuerhalten.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "Lange Zeit wurde das Hineinführen in Kultur als das Hineinführen in ein geschlossenes Reservoir vorherrschender Werte und Normen verstanden; auf einen solchen Konsens kann nicht mehr zurückgegriffen werden."
+              },
+              {
+                "type": "stated",
+                "text": "Von einer breit gefächerten Pluralität kultureller Ordnungszusammenhänge ist auszugehen; tradierte und kollektiv geteilte Wertvorstellungen sind aufgebrochen."
+              },
+              {
+                "type": "carried",
+                "text": "Kultur perpetuiert durch Routinewiederholung zwar Gemeinschaft, ist aber zugleich ein Prozess der Wandlung und Neuformulierung.",
+                "from_paragraph": 1
+              }
+            ],
+            "anchor_phrase": "auf einen solchen Konsens nicht mehr zurückgegriffen werden"
+          },
+          {
+            "id": "A3",
+            "claim": "Kulturelle Bildungsprozesse in der Schule sind gegenwärtig als Ausbildung von Selbst- und Weltverhältnissen zu fassen, die durch kulturelle Pluralität brüchiger und komplexer geworden sind, ohne dass die individuelle Notwendigkeit einer tragfähigen Selbstpositionierung entfiele.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "Weder kulturelle Wertvorstellungen können als selbstverständlich vorausgesetzt werden, noch können tradierte Werte unhinterfragt als legitimiert gelten."
+              },
+              {
+                "type": "stated",
+                "text": "Gleichwohl bleibt für das Individuum die Notwendigkeit bestehen, eine spezifische und tragfähige Selbstpositionierung im Facettenreichtum kultureller Sinndimensionen zu erreichen."
+              },
+              {
+                "type": "stated",
+                "text": "Selbstverständnisse einer kulturellen Erinnerungsgemeinschaft differenzieren sich aus."
+              }
+            ],
+            "anchor_phrase": "Selbst- und Weltverhältnissen, die brüchiger und dadurch komplexer"
+          },
+          {
+            "id": "A4",
+            "claim": "Für Lehrkräfte als schulische Akteure bedeutet die kulturelle Pluralisierung, dass das Anstoßen kultureller Bildungsprozesse nicht mehr durch routinierte Praxis bewältigt werden kann, sondern analytisch-reflexives Handeln erfordert.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "Lehrkräfte navigieren in einem unübersichtlichen Feld, denn das Anstoßen kultureller Bildungsprozesse ist von einer sich selbst genügenden Routine zu einem nur analytisch-reflexiv zu bewältigenden Handlungsfeld geworden."
+              },
+              {
+                "type": "carried",
+                "text": "Kulturelle Routinierung begrenzt das Handlungsrepertoire für Einzelne; Kultur als Arena der Bedeutungsaushandlung schließt implizite Machtmechanismen ein.",
+                "from_paragraph": 1
+              }
+            ],
+            "anchor_phrase": "von einer sich selbst genügenden Routine zu einem nur analytisch-reflexiv"
+          }
+        ],
+        "edges": [
+          {
+            "from": "A2",
+            "to": "A1",
+            "kind": "supports",
+            "scope": "inter_argument"
+          },
+          {
+            "from": "A3",
+            "to": "A2",
+            "kind": "refines",
+            "scope": "inter_argument"
+          },
+          {
+            "from": "A4",
+            "to": "A3",
+            "kind": "supports",
+            "scope": "inter_argument"
+          },
+          {
+            "from": "A2",
+            "to": "§1:A4",
+            "kind": "presupposes",
+            "scope": "prior_paragraph"
+          },
+          {
+            "from": "A3",
+            "to": "§1:A3",
+            "kind": "presupposes",
+            "scope": "prior_paragraph"
+          },
+          {
+            "from": "A4",
+            "to": "§1:A3",
+            "kind": "presupposes",
+            "scope": "prior_paragraph"
+          }
+        ],
+        "scaffolding": [
+          {
+            "id": "S1",
+            "excerpt": "Es ist Konsens, dass die nachwachsende Generation in der Schule nicht nur Fakten lernt, sondern in Kultur eingeführt wird (Fend, 2006).",
+            "function_type": "kontextualisierend",
+            "function_description": "Beleg von A1 durch Verweis auf Fend 2006 als bildungstheoretische Autoritätsreferenz; die Konsens-Formulierung verleiht dem Ausgangspunkt von A1 einen überindividuellen, schultheoretisch gesicherten Status, bevor A2 diesen Konsens historisiert.",
+            "assessment": "Bedingt plausibel — Fend wird als Einzelquelle für einen breiten \"Konsens\" angeführt, ohne dass die Konsens-Behauptung selbst belegt oder qualifiziert wird. Die Stützfunktion ist vorhanden, aber die referentielle Basis ist für ein Habilitationsniveau knapp.",
+            "anchored_to": [
+              "A1"
+            ],
+            "anchor_phrase": "Konsens, dass die nachwachsende Generation"
+          },
+          {
+            "id": "S2",
+            "excerpt": "Lange Zeit wurde dies – explizit oder implizit – als das Hineinführen in ein geschlossenes Reservoir vorherrschender Werte und Normen verstanden.",
+            "function_type": "didaktisch",
+            "function_description": "Kontrastsetzung zwischen historisch-traditionellem Verständnis von Enkulturation und dem im Anschluss entfalteten Gegenwartsdiagnose; dient der Lesbarkeit von A2, indem ein klar abgegrenztes Vorher/Nachher-Schema aufgebaut wird.",
+            "assessment": "Klar wirksam als Lesehilfe — die Kontrastsetzung macht den argumentativen Schritt von A2 (Auflösung des Konsenses) gut sichtbar. Allerdings bleibt das \"geschlossene Reservoir\" ohne historische Differenzierung, was die Gegenposition leicht schematisiert.",
+            "anchored_to": [
+              "A2"
+            ],
+            "anchor_phrase": "geschlossenes Reservoir vorherrschender Werte und Normen"
+          },
+          {
+            "id": "S3",
+            "excerpt": "Auch wenn das Hineinwachsen in Kultur geblieben ist, kann auf einen solchen Konsens nicht mehr zurückgegriffen werden.",
+            "function_type": "rhetorisch",
+            "function_description": "Konzessive Wendung, die den Übergang zwischen A2 und A3 argumentativ absichert: Die Grundfunktion von Schule (Enkulturation) bleibt bestehen, aber die Bedingungen haben sich verändert. Verhindert eine zu starke Bruchrhetorik und stützt die Kontinuitätskomponente in A3.",
+            "assessment": "Rhetorisch wirksam und sachlich funktional — die Konzession ist argumentationslogisch notwendig, weil ohne sie A3 (individuelle Selbstpositionierungspflicht bleibt) wie ein Widerspruch zu A2 wirken würde.",
+            "anchored_to": [
+              "A2",
+              "A3"
+            ],
+            "anchor_phrase": "Hineinwachsen in Kultur geblieben ist"
+          },
+          {
+            "id": "S4",
+            "excerpt": "Für kulturelle Dimensionen schulischer Vermittlung bedeutet dies, dass Lehrkräfte als schulische Akteure in einem unübersichtlichen Feld navigieren [...].",
+            "function_type": "textorganisatorisch",
+            "function_description": "Explizite Schlussfolgerungsmarkierung (\"bedeutet dies\"), die den Übergang von der Gesellschaftsdiagnose (A2, A3) zur professionsbezogenen Konsequenz (A4) strukturiert. Leitet zur antizipierten Hauptfragestellung der Arbeit (professionelle Anforderungen an Lehrkräfte) über.",
+            "assessment": "Klar wirksam als textorganisatorischer Gelenk — die Formel \"bedeutet dies\" ist standardisiert, erfüllt aber die Funktion der logischen Verklammerung von Diagnose und Konsequenz zuverlässig.",
+            "anchored_to": [
+              "A4"
+            ],
+            "anchor_phrase": "bedeutet dies, dass Lehrkräfte als schulische Akteure"
+          }
+        ]
+      }
     },
     {
       "pid": "897ca890-e56a-4768-a078-fd5e59fda3d6",
       "position": "§3",
-      "wall_seconds": 33.689,
+      "wall_seconds": 29.229,
       "tokens": {
-        "input": 7400,
-        "output": 2256,
+        "input": 7216,
+        "output": 1798,
         "cacheCreation": 0,
         "cacheRead": 0,
-        "total": 9656
+        "total": 9014
       },
       "success": true,
-      "args_count": 5,
-      "edges_count": 7,
+      "args_count": 3,
+      "edges_count": 5,
       "scaffolding_count": 3,
-      "error": null
+      "error": null,
+      "result": {
+        "arguments": [
+          {
+            "id": "A1",
+            "claim": "Es ist eine anthropologische Grundbedingung menschlicher Existenz, sich zu sich selbst und zur Welt in ein Verhältnis zu setzen; dieser Prozess des Sich-Verhaltens realisiert sich als wechselseitiges Kontinuum zwischen eigener Weltsicht und veränderten Bedingungen, neuen Erkenntnissen und Begegnungen.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "In den verschiedenen Ausdeutungen des Bildungsbegriffs wird seit Jahrhunderten reflektiert, dass es eine Bedingung menschlicher Existenz ist, sich zu sich selber und zur Welt in ein Verhältnis zu setzen."
+              },
+              {
+                "type": "background",
+                "text": "Bildungstheorie (von Humboldt bis zur Transformationsbildung) setzt die Selbst-Welt-Relationierung als basale anthropologische Struktur voraus, die sich in Auseinandersetzung mit dem Anderen vollzieht."
+              }
+            ],
+            "anchor_phrase": "Bedingung menschlicher Existenz, sich zu sich selber"
+          },
+          {
+            "id": "A2",
+            "claim": "Unter Bedingungen von Globalität — verstanden als soziale, sachliche und zeiträumliche Komplexitätssteigerung — hat sich die Dynamik des Selbst-Welt-Verhältnisses radikalisiert, sodass fortwährende Aushandlungsleistungen notwendig werden, die Momente der Sicherheit innerhalb kontingenter Bezüge erschließen müssen.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "Die Dynamik hat sich angesichts sozialer, sachlicher, zeiträumlicher Komplexitätssteigerung, kurz, angesichts von Globalität, radikalisiert und erfordert fortwährende Aushandlungsleistungen."
+              },
+              {
+                "type": "carried",
+                "text": "Tradierte und kollektiv geteilte Wertvorstellungen sind aufgebrochen; kulturelle Bildungsprozesse sind als Ausbildung brüchiger und komplexer werdender Selbst- und Weltverhältnisse zu fassen.",
+                "from_paragraph": 2
+              }
+            ],
+            "anchor_phrase": "Dynamik radikalisiert, fortwährende Aushandlungsleistungen"
+          },
+          {
+            "id": "A3",
+            "claim": "Bildungsprozesse haben nicht nur eine auf das Individuum bezogene Funktion der Selbstverortung, sondern sind in ihrer gesellschaftlichen Dimension konstitutiv auf Teilhabe an Gesellschaft ausgerichtet; Bildung als Selbstverortung ist ohne Teilhabeperspektive nicht denkbar.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "Bildungsprozesse sind nicht nur für das Individuum in seinem Selbstbezug, sondern in ihrem Bezug auf ein Außen auch gesellschaftlich relevant."
+              },
+              {
+                "type": "stated",
+                "text": "Bildung als Prozess der Selbstverortung ist ohne eine Perspektive auf Teilhabe an Gesellschaft nicht zu denken."
+              },
+              {
+                "type": "carried",
+                "text": "Für das Individuum bleibt die Notwendigkeit bestehen, eine tragfähige Selbstpositionierung im Facettenreichtum kultureller Sinndimensionen zu erreichen und einen Anschluss an geteilte Wertdimensionen aufzubauen.",
+                "from_paragraph": 2
+              }
+            ],
+            "anchor_phrase": "Bildung als Prozess der Selbstverortung"
+          }
+        ],
+        "edges": [
+          {
+            "from": "A2",
+            "to": "A1",
+            "kind": "supports",
+            "scope": "inter_argument"
+          },
+          {
+            "from": "A2",
+            "to": "§2:A3",
+            "kind": "refines",
+            "scope": "prior_paragraph"
+          },
+          {
+            "from": "A3",
+            "to": "A1",
+            "kind": "refines",
+            "scope": "inter_argument"
+          },
+          {
+            "from": "A3",
+            "to": "§2:A3",
+            "kind": "supports",
+            "scope": "prior_paragraph"
+          },
+          {
+            "from": "A1",
+            "to": "§1:A2",
+            "kind": "presupposes",
+            "scope": "prior_paragraph"
+          }
+        ],
+        "scaffolding": [
+          {
+            "id": "S1",
+            "excerpt": "Dieser Prozess realisiert sich in einem Kontinuum des Wechselspiels zwischen der eigenen Weltsicht und veränderten Bedingungen, neuen Erkenntnissen wie Begegnungen (Hollunder, 2023; Kokemohr, 2007; Koller, 2012).",
+            "function_type": "kontextualisierend",
+            "function_description": "Dreifachbeleg (Hollunder, Kokemohr, Koller) zur Absicherung von A1 in bildungstheoretischen Traditionslinien; die Bündelung unterschiedlicher Autoren aus dem Feld der Transformationsbildung verleiht dem Kontinuum-Begriff wissenschaftliche Verankerung.",
+            "assessment": "Bedingt tragend — die Quellen belegen die bildungstheoretische Tradition, ohne dass die spezifische Kontinuum-Konzeptualisierung durch einen der Belege explizit eingeführt oder diskutiert würde; der Verweis bleibt damit eine Autoritätsstützung, keine inhaltliche Begründung. Für A1 ausreichend als Kontext, analytisch aber nicht hinreichend distinkt.",
+            "anchored_to": [
+              "A1"
+            ],
+            "anchor_phrase": "Hollunder, 2023; Kokemohr, 2007; Koller, 2012"
+          },
+          {
+            "id": "S2",
+            "excerpt": "Es gilt, Momente der Sicherheit innerhalb der kontingenten Fassung sachlicher und sozialer Bezüge im Weltzusammenhang aufzufinden, und dadurch seiner selbst gewiss mit anhaltenden Veränderungen in den Dialog zu treten.",
+            "function_type": "didaktisch",
+            "function_description": "Konkretisierende Ausformulierung der abstrakten Formel \"fortwährende Aushandlungsleistungen\" aus A2; das Bild des Auffindens von Sicherheitsmomenten in kontingenten Bezügen macht die Anforderungsstruktur des radikalisierten Selbst-Welt-Verhältnisses anschaulich, ohne ein eigenständiges Argument hinzuzufügen.",
+            "assessment": "Wirksam als Verständnishilfe — die Konkretisierung füllt einen sonst abstrakt bleibenden Anforderungsbegriff aus. Inhaltlich bleibt sie jedoch paraphrasierend, sodass kein analytischer Mehrwert entsteht; die Passage könnte verdichtet werden, ohne argumentativen Verlust.",
+            "anchored_to": [
+              "A2"
+            ],
+            "anchor_phrase": "Momente der Sicherheit innerhalb der kontingenten Fassung"
+          },
+          {
+            "id": "S3",
+            "excerpt": "Letztlich heißt dies, dass Bildung als Prozess der Selbstverortung ohne eine Perspektive auf Teilhabe an Gesellschaft nicht zu denken ist.",
+            "function_type": "rhetorisch",
+            "function_description": "Schlussfolgerungsmarkierung (\"Letztlich heißt dies\") mit kondensierender Funktion für A3; die apodiktische Formulierung (\"nicht zu denken ist\") verleiht dem gesellschaftlichen Teilhabebezug den Charakter einer definitorischen Notwendigkeit, was über das logisch Begründete hinausgeht.",
+            "assessment": "Rhetorisch wirksam als Abschluss des Absatzes und als Überleitung zum Folgeabsatz (Tenorth-Zitat, Bildung als soziale Tatsache), sachlich jedoch knapp — die Behauptung, Bildung sei ohne Teilhabeperspektive nicht denkbar, wird im Absatz nicht argumentativ hergeleitet, sondern nur deklariert. Der gesellschaftliche Bezug von A3 bleibt deshalb unterbelegt.",
+            "anchored_to": [
+              "A3"
+            ],
+            "anchor_phrase": "Bildung als Prozess der Selbstverortung"
+          }
+        ]
+      }
     },
     {
       "pid": "96556e05-9b69-482b-ace7-174252284536",
       "position": "§4",
-      "wall_seconds": 28.384,
+      "wall_seconds": 33.962,
       "tokens": {
-        "input": 8222,
-        "output": 1721,
+        "input": 7860,
+        "output": 1884,
         "cacheCreation": 0,
         "cacheRead": 0,
-        "total": 9943
+        "total": 9744
       },
       "success": true,
       "args_count": 2,
-      "edges_count": 5,
+      "edges_count": 4,
       "scaffolding_count": 3,
-      "error": null
+      "error": null,
+      "result": {
+        "arguments": [
+          {
+            "id": "A1",
+            "claim": "Allgemeine Bildung ist nach Tenorth nicht allein subjektbezogen, sondern konstituiert sich als mehrdimensionales Konstrukt, das kommunikative Praxis, soziale Tatsache, Wissens- und Könnensaspekte, Urteilskraft sowie habitusgenerierende Distinktionsmechanismen umfasst.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "Tenorth (1994, 2003) bestimmt Bildung als \"Generalisierung universeller Prämissen für Kommunikation\" und entfaltet sie über Dimensionen von Prozess und Produkt, Wissen und Können, Allgemeinwissen und Urteilskraft, zivilisatorischer Mindestbasis sowie Habitus und Distinktion."
+              },
+              {
+                "type": "background",
+                "text": "Bildungstheoretische Mehrdimensionalität ist ein in der deutschsprachigen Erziehungswissenschaft etabliertes Denkfigur; die Einbeziehung sozialer Schichtungseffekte in den Bildungsbegriff (Bourdieu-Tradition) gilt als diskursiv eingeführt."
+              }
+            ],
+            "anchor_phrase": "mehrdimensionales Konstrukt, kommunikative Praxis"
+          },
+          {
+            "id": "A2",
+            "claim": "Bildung kann als Prozess der Selbstrelationierung zu sozialen Ordnungssystemen verstanden werden, dessen implizite Werte und normative Gestalt ihre kulturelle Formierung ausmachen — womit der Bildungsbegriff in seiner Substanz als kulturell durchdrungen ausgewiesen wird.",
+            "premises": [
+              {
+                "type": "stated",
+                "text": "Bildung ist ein \"Prozess der Selbstrelationierung zu sozialen Ordnungssystemen\", der implizite Werte und normative Gestalt hat."
+              },
+              {
+                "type": "carried",
+                "text": "Das traditionelle Verständnis von Enkulturation ist unter Bedingungen kultureller Pluralität nicht aufrechtzuerhalten; Bildungsprozesse müssen als Ausbildung von Selbst- und Weltverhältnissen neu gefasst werden.",
+                "from_paragraph": 2
+              },
+              {
+                "type": "carried",
+                "text": "Bildung als Selbstverortung ist konstitutiv auf gesellschaftliche Teilhabe bezogen.",
+                "from_paragraph": 3
+              },
+              {
+                "type": "background",
+                "text": "Der Begriff \"kulturelle Formierung\" impliziert, dass Bildung nicht kulturinvariant ist, sondern historisch und kontextuell geformt — eine Annahme, die in kulturtheoretisch informierter Bildungstheorie als Grundannahme gilt."
+              }
+            ],
+            "anchor_phrase": "kulturelle Formierung"
+          }
+        ],
+        "edges": [
+          {
+            "from": "A2",
+            "to": "§2:A3",
+            "kind": "supports",
+            "scope": "prior_paragraph"
+          },
+          {
+            "from": "A2",
+            "to": "§3:A3",
+            "kind": "refines",
+            "scope": "prior_paragraph"
+          },
+          {
+            "from": "A1",
+            "to": "A2",
+            "kind": "supports",
+            "scope": "inter_argument"
+          },
+          {
+            "from": "A2",
+            "to": "§1:A2",
+            "kind": "presupposes",
+            "scope": "prior_paragraph"
+          }
+        ],
+        "scaffolding": [
+          {
+            "id": "S1",
+            "excerpt": "Der Erziehungswissenschaftler Heinz-Elmar Tenorth definiert allgemeine Bildung auch ohne expliziten Kulturbezug als „nicht allein in Bezug auf das lernende Subjekt – (..) als „die Generalisierung universeller Prämissen für Kommunikation\" (.) (Tenorth 1994, S. 101)",
+            "function_type": "kontextualisierend",
+            "function_description": "Einführung von Tenorth (1994) als Autoritätsreferenz für A1; die explizite Qualifikation \"auch ohne expliziten Kulturbezug\" ist argumentationsstrategisch bedeutsam — sie bereitet die rhetorische Pointe vor, dass der Kulturbezug gleichwohl implizit enthalten sei (A2), und verankert A1 in einem bildungstheoretisch kanonischen Bezugsrahmen.",
+            "assessment": "Bedingt wirksam. Der Tenorth-Beleg stützt A1 als Fachreferenz solide; die Qualifikation \"ohne expliziten Kulturbezug\" ist ein wichtiger argumentativer Scharnier-Schritt für A2, bleibt aber unausgearbeitet — die Ableitung, wie aus einem explizit kulturbezugslosen Begriff eine kulturelle Formierung folgt (A2), ist nicht argumentativ entfaltet, sondern wird apodiktisch gesetzt.",
+            "anchored_to": [
+              "A1"
+            ],
+            "anchor_phrase": "auch ohne expliziten Kulturbezug"
+          },
+          {
+            "id": "S2",
+            "excerpt": "„Man erfährt Bildung als ein mehrdimensionales Konstrukt, als kommunikative Praxis und als Merkmal von Individuen, aber auch als soziale Tatsache, in den Dimensionen von Prozess und Produkt, von Wissen und Können, als Allgemeinwissen und als Urteilskraft, als Antwort auf die Frage, was man wissen muss, als Aussage über das, was die ‚Mindestbasis zivilisatorischen Wissens und Könnens' (Kob 1976) darstellt, und als Hinweis auf die Genese und Form des Habitus und die Modi der Distinktion, die eine Zurechnung zu Schichten und Klassen erzeugen.\" (Tenorth, 2003:423)",
+            "function_type": "kontextualisierend",
+            "function_description": "Ausführliches Direktzitat aus Tenorth (2003), das die Mehrdimensionalitätsthese aus A1 durch akkumulierende Auflistung von Bildungsdimensionen belegt und inhaltlich füllt. Zusätzlich enthält das Zitat durch den Verweis auf Habitus und Distinktion (implizit: Bourdieu) das Scharnier, das A2 ermöglicht.",
+            "assessment": "Wirksam für A1 als inhaltliche Konkretisierung; die Länge des Zitats ist jedoch deutlich über das für den Argumentationsgang Notwendige hinausgehend — die Auflistung der Dimensionen hätte paraphrasierend gestrafft werden können, ohne Verlust der argumentativen Funktion. Der Habitus/Distinktions-Einschub am Ende des Zitats ist für A2 entscheidend, geht aber im Aufzählungsfluss unter.",
+            "anchored_to": [
+              "A1"
+            ],
+            "anchor_phrase": "Habitus und die Modi der Distinktion"
+          },
+          {
+            "id": "S3",
+            "excerpt": "Bildung kann als ein Prozess der Selbstrelationierung zu sozialen Ordnungssystemen verstanden werden, dessen impliziten Werte und normative Gestalt ihre kulturelle Formierung ausmacht.",
+            "function_type": "rhetorisch",
+            "function_description": "Abschlusssatz des Absatzes mit kondensierender Schlussfolgerungsfunktion: Er zieht aus dem Tenorth-Zitat (S1, S2) eine eigene Syntheseformulierung der Autorin, die den Kulturbezug erst setzt, der im Zitat selbst noch fehlt (\"auch ohne expliziten Kulturbezug\"). Die Formulierung \"kann verstanden werden\" signalisiert eine interpretative Setzung, nicht eine zwingende Ableitung.",
+            "assessment": "Argumentationslogisch schwach: Die Schlussfolgerung, dass kulturelle Formierung das implizite Wesen des Bildungsprozesses ausmacht, ist nicht aus den Tenorth-Prämissen hergeleitet, sondern wird interpretativ hinzugefügt. Der Formulierungsmodus (\"kann verstanden werden\") mildert den Geltungsanspruch, blendet aber die fehlende argumentative Verbindung eher aus als aus. Für die Gesamtargumentation ist A2 damit nicht hinreichend begründet, sondern gesetzt.",
+            "anchored_to": [
+              "A2"
+            ],
+            "anchor_phrase": "kulturelle Formierung ausmacht"
+          }
+        ]
+      }
     }
   ],
-  "total_wall_seconds": 139.35399999999998,
-  "total_tokens": 36638,
+  "total_wall_seconds": 135.379,
+  "total_tokens": 35319,
   "success_count": 4,
   "failed_count": 0
 }

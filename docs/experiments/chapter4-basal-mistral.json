@@ -1,0 +1,1222 @@
+{
+  "model": {
+    "provider": "mistral",
+    "model": "mistral-large-2512"
+  },
+  "chapter_heading_id": "62fed1d2-d3b0-4b74-abad-dde3fadaf86e",
+  "wall_minutes": 1,
+  "stats": {
+    "synthOk": 50,
+    "agOk": 0,
+    "agSkip": 50,
+    "agFail": 0,
+    "total": 50
+  },
+  "tokens": {
+    "in": 42293,
+    "out": 2277,
+    "cacheRead": 2368
+  },
+  "paragraphs": [
+    {
+      "pid": "922a08d3-d17e-4bc5-81f0-b48421936559",
+      "idx": 1,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.017,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "f6556eec-5eb8-4484-850a-e89a5419107e",
+      "idx": 2,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.015,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "78df9c88-54ed-4e0d-8f7b-2a429389b961",
+      "idx": 3,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.017,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "f82f1d4e-49c7-44e4-ab59-217c85fd2687",
+      "idx": 4,
+      "synth": {
+        "wall": 7.256,
+        "in": 6879,
+        "out": 302,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.02,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "d83fdbef-6ed6-4959-ada1-7225d4c55faf",
+      "idx": 5,
+      "synth": {
+        "wall": 14.661,
+        "in": 7812,
+        "out": 397,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.025,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "50a5716b-b594-4e17-9dde-d1c1bad10bff",
+      "idx": 6,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.019,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "f15d576d-0a75-46a7-96fe-644b89d93202",
+      "idx": 7,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.021,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "31ca1587-efe5-43f9-a36f-8a2e9c4f95e3",
+      "idx": 8,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.017,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "4c06638f-d3a3-43d6-8dd7-565b5235a505",
+      "idx": 9,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.017,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "70dabb19-8dbe-4844-b9a2-383944827f9b",
+      "idx": 10,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.017,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "4c778279-7dc0-4572-90bf-7e22c87d498d",
+      "idx": 11,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.018,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "1d65b8cd-1257-4077-91ca-cf1663532965",
+      "idx": 12,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.019,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "ebf16aa3-c7c4-42e7-acb8-2927409da99a",
+      "idx": 13,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.015,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "e6869c44-f6f8-475e-ab7a-66596412529d",
+      "idx": 14,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.014,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "655f1ba3-9fbd-4908-954d-4ac911b6c6fc",
+      "idx": 15,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.017,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "a503ceb4-7bf3-4c40-8777-4ec5902ac52c",
+      "idx": 16,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.017,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "5dbff27a-1f7e-4804-b534-e11eb67cb0b2",
+      "idx": 17,
+      "synth": {
+        "wall": 8.7,
+        "in": 5966,
+        "out": 384,
+        "cacheRead": 1168,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.02,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "d2c02449-23e3-463b-979d-396becfd3a6a",
+      "idx": 18,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.022,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "74486230-a995-4472-955f-5acc06ca044c",
+      "idx": 19,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.018,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "3f10f7a3-0470-4ae0-917c-5341d4feec0f",
+      "idx": 20,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.017,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "0bb73a0c-44bb-4cf8-966d-95666bacfc70",
+      "idx": 21,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.016,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "1417ae73-7f3a-4d9e-9e0d-3251211d9a9e",
+      "idx": 22,
+      "synth": {
+        "wall": 8.045,
+        "in": 7801,
+        "out": 379,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.025,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "8e16ecf6-14c8-4fb8-ad77-32c8f9d0c068",
+      "idx": 23,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.019,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "b49accab-463c-4d2f-8a5d-fb02b5886d2e",
+      "idx": 24,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.019,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "043c7029-872d-4cdf-8af7-bcfdf0b0f0fa",
+      "idx": 25,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.024,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "faf867e0-e8a1-4ee7-8d6b-79873978391d",
+      "idx": 26,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.016,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "08f7b801-625e-412c-9092-1daa0f7713f8",
+      "idx": 27,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.017,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "c83cb232-8371-42ae-8d85-9a164a702548",
+      "idx": 28,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.016,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "83c974ee-69f5-4a5c-970c-1cb7c17ad1fa",
+      "idx": 29,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.016,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "25513225-daaf-447c-b66b-5cb240ec540c",
+      "idx": 30,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.016,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "6dfa6097-2903-4d50-af7f-7cd8b422e67e",
+      "idx": 31,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.016,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "7b268b81-a561-4dda-91df-44382e73e8b9",
+      "idx": 32,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.019,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "90e50e66-9ef7-4efe-8048-6f4e76edf459",
+      "idx": 33,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.015,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "93689b99-a9e9-433f-b178-4c3803708e49",
+      "idx": 34,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.017,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "b7dfe88d-8e1a-4c01-8a34-6eb97336ab7a",
+      "idx": 35,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.015,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "58b4d93b-d24a-4165-8baa-99330c32a850",
+      "idx": 36,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.015,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "a5f06755-1c6f-4ad8-b292-1bb977a4053a",
+      "idx": 37,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.015,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "7e682945-c9a0-4a63-8032-32751e233a5f",
+      "idx": 38,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.016,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "b931293b-78ef-4682-b554-bd5358c6df20",
+      "idx": 39,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.016,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "11ae5836-b343-422e-b679-fe2a0ccbd7ca",
+      "idx": 40,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.017,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "bcd61990-b461-40b6-822a-d14808477fcf",
+      "idx": 41,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.016,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "ed20245b-bd37-467e-9455-688d7419a746",
+      "idx": 42,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.016,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "69ef5a16-0073-4dfa-9ddc-fe500d259801",
+      "idx": 43,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.016,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "a0a3da9c-7440-4de3-a34c-233767a7c6c6",
+      "idx": 44,
+      "synth": {
+        "wall": 9.257,
+        "in": 6027,
+        "out": 413,
+        "cacheRead": 1200,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.015,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "cdd3dcd6-f613-485c-94a9-a9933e801b6a",
+      "idx": 45,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.018,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "98369598-2679-4b90-8517-c05a7251fb2e",
+      "idx": 46,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.015,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "00937ee9-d2dc-4c08-9def-13b60391d2e8",
+      "idx": 47,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.015,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "21c902e9-b158-434f-a11e-0096f26bcd99",
+      "idx": 48,
+      "synth": {
+        "wall": 8.38,
+        "in": 7808,
+        "out": 402,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.023,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "e683b7a7-a915-4c95-925a-e2e6e18b495e",
+      "idx": 49,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.021,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    },
+    {
+      "pid": "49c83dab-51a7-4266-8053-8dc2524581ae",
+      "idx": 50,
+      "synth": {
+        "wall": 0,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "ok": true,
+        "error": null
+      },
+      "ag": {
+        "wall": 0.014,
+        "in": 0,
+        "out": 0,
+        "cacheRead": 0,
+        "args": 0,
+        "edges": 0,
+        "scaff": 0,
+        "ok": true,
+        "skipped": true,
+        "error": null
+      }
+    }
+  ]
+}

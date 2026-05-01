@@ -408,29 +408,7 @@ async function loadParagraphContext(
 
 // ── Prompt assembly ───────────────────────────────────────────────
 
-function buildSystemPrompt(caseCtx: CaseContext, paraCtx: ParagraphContext): string {
-	const outlineLines = caseCtx.mainHeadings
-		.map(h => h === paraCtx.subchapterLabel ? `- ${h}           ← AKTUELL HIER` : `- ${h}`)
-		.join('\n');
-
-	const completed = paraCtx.completedKontextualisierungen.length === 0
-		? '(Noch keine Sektionen abgeschlossen.)'
-		: paraCtx.completedKontextualisierungen
-			.map(k => `## "${k.sectionLabel}"\n${k.content}`)
-			.join('\n\n');
-
-	const priorArgsBlock = paraCtx.priorArguments.length === 0
-		? '(Noch keine Argumente in vorherigen Absätzen dieses Unterkapitels — dies ist der erste analysierte Absatz im Unterkapitel.)'
-		: paraCtx.priorArguments
-			.map(a => `§${a.positionInSubchapter}:${a.argLocalId} — ${a.claim}`)
-			.join('\n');
-
-	const priorScaffoldingBlock = paraCtx.priorScaffolding.length === 0
-		? '(Noch keine registrierten Stützstrukturen.)'
-		: paraCtx.priorScaffolding
-			.map(s => `§${s.positionInSubchapter}:${s.elementLocalId} [${s.functionType}] — ${s.functionDescription}`)
-			.join('\n');
-
+function buildSystemPrefix(caseCtx: CaseContext): string {
 	return `[PERSONA]
 ${caseCtx.brief.persona}
 
@@ -451,18 +429,6 @@ ${caseCtx.brief.criteria}
 Titel: ${caseCtx.documentTitle}
 Werktyp: ${caseCtx.brief.work_type}
 Umfang Hauptteil: ${caseCtx.mainHeadingCount} Hauptkapitel-Überschriften, ${caseCtx.mainParagraphCount} Hauptabsätze.
-
-Outline (Hauptüberschriften, sequentiell):
-${outlineLines}
-
-[BISHERIGE GUTACHTERLICHE LEKTÜRE — kontextualisierende Memos abgeschlossener Sektionen]
-${completed}
-
-[PRIOR-ARGUMENTE-INDEX — Argumente aus vorherigen Absätzen des aktuellen Unterkapitels "${paraCtx.subchapterLabel}"]
-${priorArgsBlock}
-
-[PRIOR-STÜTZSTRUKTUREN-INDEX — bereits registrierte Stützstrukturen aus vorherigen Absätzen]
-${priorScaffoldingBlock}
 
 [OUTPUT-FORMAT — line-based prose, KEIN JSON]
 Antworte ausschließlich in dem unten gezeigten Sektions-Format. Sektion-Header sind GROSSGESCHRIEBEN; Felder kommen als \`key: value\` auf eigener Zeile; mehrzeilige Werte schreibst du fortlaufend in den Folgezeilen ohne Zeilenumbruch-Escape; keine Markdown-Codefences; kein einleitender Erklärtext; keine abschließende Zusammenfassung.
@@ -505,6 +471,48 @@ Zu **SCAFFOLDING-Sektionen** (Layer 2):
 Wichtig: ein Absatz, der ausschließlich aus textorganisatorisch-didaktisch-kontextualisierend-rhetorischen Elementen besteht (z.B. ein reiner Übergangsabsatz, eine Belegkette, ein Methodenkommentar), hat dann KEINE ARGUMENT-Sektion und nur SCAFFOLDING-Sektionen, deren anchored_to auf Argumente früherer Absätze zeigt.
 
 NICHT als scaffolding zu erfassen: Premissen sind Teil von Argumenten, nicht Stützstrukturen. Ein Belegzitat, das im Argument selbst aufgeht, gehört in dessen premises (stated), nicht ins scaffolding. scaffolding registriert nur Material, das *als textorganisatorische/didaktische Geste* erkennbar ist — also Material, das eine Argumentation rahmt, einleitet, illustriert, motiviert oder verbindet, ohne selbst behauptend zu sein.`;
+}
+
+function buildSystemSuffix(caseCtx: CaseContext, paraCtx: ParagraphContext): string {
+	const outlineLines = caseCtx.mainHeadings
+		.map(h => h === paraCtx.subchapterLabel ? `- ${h}           ← AKTUELL HIER` : `- ${h}`)
+		.join('\n');
+
+	const completed = paraCtx.completedKontextualisierungen.length === 0
+		? '(Noch keine Sektionen abgeschlossen.)'
+		: paraCtx.completedKontextualisierungen
+			.map(k => `## "${k.sectionLabel}"\n${k.content}`)
+			.join('\n\n');
+
+	const priorArgsBlock = paraCtx.priorArguments.length === 0
+		? '(Noch keine Argumente in vorherigen Absätzen dieses Unterkapitels — dies ist der erste analysierte Absatz im Unterkapitel.)'
+		: paraCtx.priorArguments
+			.map(a => `§${a.positionInSubchapter}:${a.argLocalId} — ${a.claim}`)
+			.join('\n');
+
+	const priorScaffoldingBlock = paraCtx.priorScaffolding.length === 0
+		? '(Noch keine registrierten Stützstrukturen.)'
+		: paraCtx.priorScaffolding
+			.map(s => `§${s.positionInSubchapter}:${s.elementLocalId} [${s.functionType}] — ${s.functionDescription}`)
+			.join('\n');
+
+	return `[OUTLINE & POSITION]
+Outline (Hauptüberschriften, sequentiell):
+${outlineLines}
+
+[BISHERIGE GUTACHTERLICHE LEKTÜRE — kontextualisierende Memos abgeschlossener Sektionen]
+${completed}
+
+[PRIOR-ARGUMENTE-INDEX — Argumente aus vorherigen Absätzen des aktuellen Unterkapitels "${paraCtx.subchapterLabel}"]
+${priorArgsBlock}
+
+[PRIOR-STÜTZSTRUKTUREN-INDEX — bereits registrierte Stützstrukturen aus vorherigen Absätzen]
+${priorScaffoldingBlock}`;
+}
+
+// Backward-compat: legacy single-string builder.
+function buildSystemPrompt(caseCtx: CaseContext, paraCtx: ParagraphContext): string {
+	return buildSystemPrefix(caseCtx) + '\n\n' + buildSystemSuffix(caseCtx, paraCtx);
 }
 
 function buildUserMessage(paraCtx: ParagraphContext): string {
@@ -848,12 +856,13 @@ export async function runArgumentationGraphPass(
 		};
 	}
 
-	const system = buildSystemPrompt(caseCtx, paraCtx);
+	const cacheableSystemPrefix = buildSystemPrefix(caseCtx);
+	const system = buildSystemSuffix(caseCtx, paraCtx);
 	const user = buildUserMessage(paraCtx);
 
 	const response = await chat({
+		cacheableSystemPrefix,
 		system,
-		cacheSystem: true,
 		messages: [{ role: 'user', content: user }],
 		// 8000: prose-output is generally less verbose than the JSON it
 		// replaces (no quote/bracket boilerplate); 8000 still safe upper.

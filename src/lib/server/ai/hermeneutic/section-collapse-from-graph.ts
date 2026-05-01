@@ -321,17 +321,7 @@ async function loadCollapseContext(
 
 // ── Prompt assembly ───────────────────────────────────────────────
 
-function buildSystemPrompt(ctx: CollapseContext): string {
-	const outlineLines = ctx.mainHeadings
-		.map(h => h === ctx.subchapterLabel ? `- ${h}           ← AKTUELL HIER (Synthese-Pass aus Graph)` : `- ${h}`)
-		.join('\n');
-
-	const completed = ctx.completedKontextualisierungen.length === 0
-		? '(Noch keine Sektionen abgeschlossen.)'
-		: ctx.completedKontextualisierungen
-			.map(k => `## "${k.sectionLabel}"\n${k.content}`)
-			.join('\n\n');
-
+function buildSystemPrefix(ctx: CollapseContext): string {
 	return `[PERSONA]
 ${ctx.brief.persona}
 
@@ -346,7 +336,7 @@ Aufgabe in zwei Teilen:
 
    b. **Kernbewegung-Identifikation** — welcher *einzelne* Übergang oder welches Argument trägt das *meiste* argumentative Gewicht in diesem Subkapitel? Krönen, nicht nur erwähnen — eine Sektion hat in der Regel eine identifizierbare Kernbewegung (oft ein Übergang von Phänomenbeschreibung zu normativer/handlungsorientierter Diagnose, oder von Forschungsstand zu eigener Position, oder von Theorieübernahme zu Eigenleistung). Benenne sie explizit ("die argumentative Kernbewegung des Subkapitels ist X"). Hinweis: Argumente, auf die später viele cross-paragraph-Edges zeigen oder die viele scaffolding-Elemente aus späteren Absätzen anziehen, sind strukturell besonders tragend.
 
-   c. **Werk-Architektur-Verortung** — welches Subkapitel steht *davor* (siehe Outline oben), welches *danach*? Welche strukturelle Brückenfunktion erfüllt dieses Subkapitel zwischen den beiden — was nimmt es vom Vorgänger auf, was bereitet es für den Nachfolger vor? Nicht nur Vorblick, sondern auch Rückbindung.
+   c. **Werk-Architektur-Verortung** — welches Subkapitel steht *davor* (siehe Outline unten), welches *danach*? Welche strukturelle Brückenfunktion erfüllt dieses Subkapitel zwischen den beiden — was nimmt es vom Vorgänger auf, was bereitet es für den Nachfolger vor? Nicht nur Vorblick, sondern auch Rückbindung.
 
    d. **Tragweite und Tragfähigkeit** — beurteile (i) die argumentative Tragweite des Subkapitels: welcher Anspruch wird im Werk-Kontext geltend gemacht — bescheiden, weitreichend, feldweit? — und (ii) die Tragfähigkeit der argumentativen Stützung für diesen Anspruch: trägt sie ihn, ist sie unter- oder überdimensioniert? Beurteilung an dem, was tatsächlich vorliegt; wenn Anspruch und Stützung gleich proportioniert sind, das ebenso klar diagnostizieren.
 
@@ -367,12 +357,6 @@ Titel: ${ctx.documentTitle}
 Werktyp: ${ctx.brief.work_type}
 Umfang Hauptteil: ${ctx.mainHeadingCount} Hauptkapitel-Überschriften, ${ctx.mainParagraphCount} Hauptabsätze.
 
-Outline (Hauptüberschriften, sequentiell):
-${outlineLines}
-
-[BISHERIGE KONTEXTUALISIERENDE MEMOS abgeschlossener Subkapitel]
-${completed}
-
 [OUTPUT-FORMAT]
 Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst (kein Vor-/Nachtext, kein Markdown-Codefence):
 
@@ -384,6 +368,25 @@ Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst
 }
 
 auffaelligkeiten kann leeres Array sein, wenn nichts qualitätsmäßig hervorzuheben ist. Schreibe keine Allerwelts-Beobachtungen — nur, was bei Begutachtung wirklich relevant wäre.`;
+}
+
+function buildSystemSuffix(ctx: CollapseContext): string {
+	const outlineLines = ctx.mainHeadings
+		.map(h => h === ctx.subchapterLabel ? `- ${h}           ← AKTUELL HIER (Synthese-Pass aus Graph)` : `- ${h}`)
+		.join('\n');
+
+	const completed = ctx.completedKontextualisierungen.length === 0
+		? '(Noch keine Sektionen abgeschlossen.)'
+		: ctx.completedKontextualisierungen
+			.map(k => `## "${k.sectionLabel}"\n${k.content}`)
+			.join('\n\n');
+
+	return `[OUTLINE & POSITION]
+Outline (Hauptüberschriften, sequentiell):
+${outlineLines}
+
+[BISHERIGE KONTEXTUALISIERENDE MEMOS abgeschlossener Subkapitel]
+${completed}`;
 }
 
 function buildUserMessage(ctx: CollapseContext): string {
@@ -582,12 +585,13 @@ export async function runGraphCollapse(
 		);
 	}
 
-	const system = buildSystemPrompt(ctx);
+	const cacheableSystemPrefix = buildSystemPrefix(ctx);
+	const system = buildSystemSuffix(ctx);
 	const user = buildUserMessage(ctx);
 
 	const response = await chat({
+		cacheableSystemPrefix,
 		system,
-		cacheSystem: true,
 		messages: [{ role: 'user', content: user }],
 		// 4000 (was 2000): subchapters with > ~25 arguments + > ~30 scaffolding
 		// produce a synthesis that, with the four Pflichtbestandteile, reaches

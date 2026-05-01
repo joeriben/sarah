@@ -208,7 +208,7 @@ async function loadChapterContext(
 			   AND mc.scope_level = 'chapter'
 			   AND n.inscription LIKE '[kontextualisierend/chapter/graph]%'
 			   AND n.deleted_at IS NULL
-			 ORDER BY mc.created_at`,
+			 ORDER BY n.created_at`,
 			[precedingHeadingIds]
 		)).rows.map(r => ({
 			label: r.label.replace(/^\[kontextualisierend\/chapter\/graph\]\s*/, '').trim(),

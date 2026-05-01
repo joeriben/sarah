@@ -1,6 +1,124 @@
-# Handover — Stand 2026-05-01 nachts (Prose-Pivot des AG-Passes + Cost-Reset)
+# Handover — Stand 2026-05-01 spät (Budget-Route validiert, Caching-Refactor, nächste Phase: Reviewer-Notes + Gutachtenentwurf)
 
 **Lies zuerst diesen Block.** Die älteren Handover-Texte darunter sind Kontext, der aktuelle Stand und die nächsten Schritte stehen hier oben.
+
+## TL;DR — Wo wir stehen (2026-05-01 spät, Session-Schluss)
+
+Diese Session hat (a) DS4 als basal-Producer ausgesondert, (b) **Mistral-Large-2512 + Sonnet 4.6 als Budget-Stack end-to-end validiert** auf Chapter 4 (50 ¶, ~$2.73), (c) den **Caching-Refactor** für 3 der 5 Pässe vorbereitet, (d) **zwei harmlose Bugs** im Goldstand-Code gefixt, die für Mistral-basal relevant wurden, und (e) eine **strategische Setzung** dokumentiert: Two-Track-Architektur (Premium Sonnet/Opus + Budget Mistral) mit DSGVO-EU-Bonus für Mistral.
+
+### Zentraler Output zum Anschauen
+
+`docs/experiments/chapter4-mistral-sonnet-MEMO.md` — gerenderte Synthese + Argumentationswiedergabe + 7 paragraph-präzise Auffälligkeiten für Chapter 4. Das ist der substantielle Beleg: Budget-Stack erreicht Goldstand-Niveau (paragraph-präzise §:A-Anker, materielle Tragweite-Diagnose, gutachten-fertige Argumentationswiedergabe). Cost-Hochrechnung Habil-gesamt (327 ¶, 4 L1, ~31 L3): **~$15** ohne Caching, **~$5–7** mit Caching wenn der Refactor in der nächsten Session unter Realbedingungen verifiziert ist.
+
+### Was JETZT liegt vs. was offen blieb
+
+**Liegt fest:**
+- DS4-v4-pro (alle Provider) **dead end** für basal+AG: Reasoning-Burn auf OpenRouter, Routing-Hänger auf Mammouth, Substanz-Komprimierung im Tenorth-Hammer.
+- **Mistral-Large-2512 nativ** als Budget-basal-Producer: 4/4 stabil im Smoketest, 50/50 stabil auf Chapter 4 (mit anchor_phrase-Cap-Fix von 80→500).
+- **Sonnet 4.6 via Mammouth** als Budget-collapse: 8/8 section-collapse + 1/1 chapter-collapse stabil, paragraph-präzise §:A-Anker bleiben erhalten (das war die Hauptsorge nach dem voriegen DS4-Hybrid-Test).
+- Cost-Floor: Budget-Habil ~$15, Premium-Habil ~$28-53.
+
+**Caching-Refactor angefangen, aber nicht voll-verifiziert:**
+- `chat()` API erweitert um `cacheableSystemPrefix?: string` (multi-block system mit cache_control nur auf prefix). [client.ts](../../src/lib/server/ai/client.ts)
+- 3 von 5 callers refaktoriert: per-paragraph + AG + section-collapse. Stable prefix (PERSONA + KRITERIEN + WERK + OUTPUT-FORMAT) cached, variable suffix (outline mit marker, completed memos, prior args/scaffolding, interpretive chain) uncached.
+- 2 callers nicht refaktoriert: chapter-collapse + document-collapse — kein Cache-Win bei 1-call-pro-Aufgabe.
+- Mini-Test mit Sonnet via Mammouth/OpenRouter: **kein Cache-Hit detected** (1581 tokens, möglicherweise unter Anthropic-Cache-Threshold von 1024 tokens — knapp drüber, aber im noise). Mistral nativ hatte im Chapter 4-Run (vor Refactor) 84k cache_reads von 712k input = 12% hit rate, automatic ohne cache_control.
+- **Refactor unter Realbedingungen verifizieren ist Aufgabe der nächsten Session** — über einen echten 5-¶-Pipeline-Run mit Mammouth-Sonnet auf dem neuen Case.
+
+**Bugs gefixt (im Goldstand-Code übersehen, durch Mistral-Run aufgefallen):**
+- `per-paragraph.ts:35` — anchor_phrase Cap 80→500 chars (Mistral schreibt längere phrases; Cap rejected ~12% der synth outputs)
+- `chapter-collapse.ts:211` — `mc.created_at` → `n.created_at` (created_at lebt auf namings, nicht memo_content; im Goldstand nie aufgetreten weil Chapter 1 keine vorangehenden chapter-memos hat)
+- `argumentation-graph-prose-parser.ts` — Edges-Parser toleriert jetzt trailing `(comment)`, multi-target `A3 -presupposes-> A1, A2`, und droppt `§0:A2` mit warning
+
+### Nächste Phase: Reviewer-Notes + Gutachtenentwurf
+
+User-Architektur-Setzung: **zwei-Run-Schnitt**:
+- **Phase A**: zentrales Dokument wird **unabhängig** analysiert (Pipeline wie heute, ohne Reference auf Reviewer-Notes oder Gutachtenentwurf). Das ist sauber, weil es eine "objektive" Analyse vor jeder Vorprägung erlaubt.
+- **Phase B**: in einem zweiten Run werden Reviewer-Notes + Gutachtenentwurf bearbeitet, den Stellen im zentralen Dokument zugeordnet, und gegen die bereits **vorhandenen Verdikts** (Phase-A-Memos + Auffälligkeiten) gecheckt.
+
+Das ist die nächste Session-Architektur. Code-Stand: Annotation-Document-Parsing existiert in `src/lib/server/documents/parsers/annotations-export.ts` und `docx-academic.ts`; das Memory `feedback_pages_are_citation_helpers_only.md` dokumentiert das semantic-LLM-Resolver-Pattern. Aber Phase B (cross-check gegen Verdikts) ist noch ungebaut.
+
+### Test-Daten für nächste Session
+
+**Alter Goldstand-Case (intakt — nicht anfassen):**
+```
+case_id          aa23d66e-9cd8-4583-9d14-6120dc343b10
+brief_id         f8fc8a30-404f-4378-bd8d-c1fb92799246
+document_id      54073d08-f577-453b-9a72-73a7654e1598  (no_annot_test2.docx)
+```
+DB-Stand:
+- Chapter 1: 74 paragraph-synth, ~61 paragraph-AG (13 Failures aus altem Stand, Code seit prose-Pivot fixbar), 7 L3 section-collapse-Memos (Opus), 0 chapter-collapse (in voriegem Test gelöscht)
+- Chapter 2-3: nichts
+- Chapter 4: **50 paragraph-synth + 50 paragraph-AG (Mistral) + 8 L3 section-collapse (Sonnet) + 1 chapter-collapse (Sonnet)** — der validierte Budget-Stack-Stand
+
+**Neuer Case (heute angelegt für die nächste Pipeline-Probe — bisher leer, outline confirmed):**
+```
+case_id          660cd26d-3759-4ab8-8a38-9f2df27a48b5
+brief_id         1edf4497-5472-4f4b-9366-c0fecab7353f  (geklont, argumentation_graph=true)
+document_id      161d41b4-c00d-4df8-82bc-c14f163e1a63  (no_annot_test3.docx, identisches Werkmaterial)
+```
+- L1-Headings (alle confirmed):
+  - num=1 `0f2468dd-b338-4f31-8572-5e7a18ae2ee4` "Schule – Kultur – Globalität – Lehrkräftebildung" (74 ¶)
+  - num=2 `8aceae42-0703-4d0a-b199-feffd550b0a5` "Orientierungen…" (139 ¶)
+  - "Reflexionen…" `f813f9bd-b6bb-4e2f-b727-1c791ebf6342` (parser-num leer, 64 ¶)
+  - num=4 `23246ee0-6fed-4b56-b314-5947dab71c0a` "Ansätze einer Theorie…" (50 ¶)
+
+Dieser case ist für direkte **Mistral+Sonnet vs. Opus-Goldstand-Vergleich auf Chapter 1** vorgesehen, wenn die nächste Session das nochmal direkt belegen will. Aber substanziell ist die Validierung schon auf Chapter 4 erfolgt; der Re-Run ist optional.
+
+## Konkrete Aktionen für die nächste Session, in Reihenfolge
+
+1. **Caching-Refactor unter Realbedingungen verifizieren** — 5-¶-Pipeline-Run mit Mammouth-Sonnet auf dem neuen case (660cd26d) Subkapitel 1.1.1 §1-§5. Erwartet: bei realen prompts (~3000-5000 tokens prefix) sollten cache_creation > 0 in Call 1 und cache_read > 0 in Call 2-5 sichtbar werden. Wenn nicht, debug per token-profil. Cost ~$0.30, Wall ~3 min.
+
+2. **Phase A des neuen Case komplett durchziehen** (optional, wenn Cache verifiziert): Chapter 1+2+3+4 Mistral basal + Sonnet collapse + 1 document-collapse. ~$5-15 je nach Caching-Hit-Rate, Wall ~3-5h. Liefert die ganze Habil-Synthese in der Budget-Route.
+
+3. **Reviewer-Notes + Gutachtenentwurf-Architektur (Hauptsache der nächsten Session)**:
+   a. Parser für Reviewer-Notes-Document (DOCX mit comments / tracked changes — bestehend `annotations-export.ts` evaluieren)
+   b. Resolver: Annotationen → Source-Stellen im Habil-Dokument (semantic LLM, page-scoped candidates — Memory-Pattern)
+   c. Parser für Gutachtenentwurf (DOCX, sequenzielle Lesung ähnlich Habil)
+   d. **Cross-Check-Pass**: für jede Auffälligkeit aus Phase-A-Memos prüfen: nimmt Reviewer/Gutachten dieselbe Stelle auf? Gleiches Verdikt oder gegenläufig? Welche Auffälligkeiten aus Phase A werden im Gutachtenentwurf NICHT aufgegriffen? Welche Reviewer-Notes haben kein Gegenstück in Phase-A?
+
+4. **Endpoint-Erweiterung Auto-Trigger + SSE** (alter Posten aus voriegen Handovers, immer noch offen).
+
+## Files diese Session (alle commited oder im aktuellen working tree)
+
+**Code (refactor + bugfixes):**
+- `src/lib/server/ai/client.ts` — `cacheableSystemPrefix` field, multi-block system pass-through
+- `src/lib/server/ai/hermeneutic/per-paragraph.ts` — buildSystemPrefix + buildSystemSuffix split, Cap 80→500
+- `src/lib/server/ai/hermeneutic/argumentation-graph.ts` — buildSystemPrefix + buildSystemSuffix split
+- `src/lib/server/ai/hermeneutic/section-collapse-from-graph.ts` — buildSystemPrefix + buildSystemSuffix split
+- `src/lib/server/ai/hermeneutic/argumentation-graph-prose-parser.ts` — edges-Parser tolerant für trailing `(...)`, comma-multi-target, `§0`-handling
+- `src/lib/server/ai/hermeneutic/chapter-collapse.ts` — `mc.created_at` → `n.created_at` bugfix
+
+**Scripts:**
+- `scripts/smoketest-prose-ag.ts` — modifiziert auf Mammouth-DS4 (im voriegen Subtask, jetzt obsolete)
+- `scripts/smoketest-prose-ag-mistral.ts` (neu) — Mistral-spezifische Variante
+- `scripts/run-chapter4-basal-mistral.ts` (neu) — Phase-1-Driver für neue cases
+- `scripts/run-chapter4-collapse-sonnet.ts` (neu) — Phase 2+3 Sonnet-Driver
+- `scripts/test-cache-prefix.ts` (neu) — chat()-cache pass-through Mini-Test
+- `scripts/test-edge-parser-fix.ts` (neu) — parser-fix-regression test
+
+**Outputs in `docs/experiments/`:**
+- `chapter4-basal-mistral.json` — Phase 1 Mistral-Daten für 50 ¶
+- `chapter4-collapse-sonnet.json` — Phase 2+3 Sonnet-Daten
+- `chapter4-mistral-sonnet-MEMO.md` ← **das gerenderte Memo zum Lesen**
+- `smoketest-prose-ag-deepseek-v4-pro-via-mammouth.json` — leer (DS4-Mammouth gehängt)
+- `smoketest-prose-ag-mistral-large-3-via-mammouth.json` — Mistral-via-Mammouth Smoketest 4/4
+
+## Memory-Updates diese Session
+
+- Neu: `project_two_track_model_strategy.md` — Two-Track non-negotiable, mit DSGVO-Frame
+- Neu: `feedback_deepseek_v4_unfit_for_basal_ag.md` — DS4 dead end für basal+AG, provider-unabhängig
+- Neu: `project_budget_route_validated_mistral_sonnet.md` — Budget-Route end-to-end validiert auf Chapter 4
+
+## Methodologische Lektion (für Folge-Sessions)
+
+User-Korrektur 2026-05-01 spät: ich hatte zu viel Cycles auf Architektur und Cost-Diagnose verbracht, ohne dem User SUBSTANTIELLEN OUTPUT zu zeigen, an dem er beurteilen kann ob das Tool für seine Forschung Sinn macht. Beim ersten User-Hinweis "wann erkenne ich überhaupt ob das Projekt Sinn ergibt" muss SOFORT der konkrete End-to-End-Output gerendert und gezeigt werden, nicht weitere Optimierung. Die Memo-Datei `chapter4-mistral-sonnet-MEMO.md` ist das, was hätte EARLIER gerendert werden müssen.
+
+Korrigierte Default-Heuristik: bei jedem voll-validierten Pipeline-Lauf SOFORT lesbare Markdown-Wiedergabe der Synthese + Argumentationswiedergabe + Auffälligkeiten produzieren, nicht nur JSON-Dump. Das ist der einzige Output, an dem ein Forscher beurteilen kann ob die Pipeline für seine Arbeit taugt.
+
+---
+
+
 
 ## TL;DR — Wo wir stehen (2026-05-01 nachts)
 
