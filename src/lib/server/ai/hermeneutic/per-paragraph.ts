@@ -18,7 +18,7 @@
 
 import { z } from 'zod';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { chat } from '../client.js';
+import { chat, type Provider } from '../client.js';
 
 // ── Output schema ─────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ export type ParagraphPassResult = z.infer<typeof ParagraphPassResultSchema>;
 
 // ── Internal context types ────────────────────────────────────────
 
-interface CaseContext {
+export interface CaseContext {
 	caseId: string;
 	projectId: string;
 	centralDocumentId: string;
@@ -64,7 +64,7 @@ interface CaseContext {
 	mainHeadingCount: number;
 }
 
-interface ParagraphContext {
+export interface ParagraphContext {
 	paragraphId: string;
 	charStart: number;
 	charEnd: number;
@@ -83,7 +83,7 @@ interface ParagraphContext {
 
 // ── Context loaders ───────────────────────────────────────────────
 
-async function loadCaseContext(caseId: string): Promise<CaseContext> {
+export async function loadCaseContext(caseId: string): Promise<CaseContext> {
 	const caseRow = await queryOne<{
 		project_id: string;
 		central_document_id: string;
@@ -150,7 +150,7 @@ async function loadCaseContext(caseId: string): Promise<CaseContext> {
 	};
 }
 
-async function loadParagraphContext(
+export async function loadParagraphContext(
 	caseCtx: CaseContext,
 	paragraphId: string
 ): Promise<ParagraphContext> {
@@ -264,7 +264,7 @@ async function loadParagraphContext(
 
 // ── Prompt assembly ───────────────────────────────────────────────
 
-function buildSystemPrompt(caseCtx: CaseContext, paraCtx: ParagraphContext): string {
+export function buildSystemPrompt(caseCtx: CaseContext, paraCtx: ParagraphContext): string {
 	const outlineLines = caseCtx.mainHeadings
 		.map(h => h === paraCtx.subchapterLabel ? `- ${h}           ← AKTUELL HIER` : `- ${h}`)
 		.join('\n');
@@ -344,7 +344,7 @@ Drei Muster in Präferenz-Reihenfolge:
 Wenn der Absatz keine kristalline Kernthese trägt, lieber keinen Code als einen schwachen oder mehrdeutigen.`;
 }
 
-function buildUserMessage(paraCtx: ParagraphContext): string {
+export function buildUserMessage(paraCtx: ParagraphContext): string {
 	const predecessor = paraCtx.predecessorText
 		? `[Vorgänger-Absatz — Kontext, NICHT zu analysieren]\n"${paraCtx.predecessorText}"`
 		: '[Vorgänger-Absatz: keiner — dies ist der erste Absatz im Unterkapitel.]';
@@ -518,7 +518,8 @@ export interface ParagraphPassRun {
 export async function runParagraphPass(
 	caseId: string,
 	paragraphId: string,
-	userId: string
+	userId: string,
+	opts: { modelOverride?: { provider: Provider; model: string } } = {}
 ): Promise<ParagraphPassRun> {
 	const caseCtx = await loadCaseContext(caseId);
 	const paraCtx = await loadParagraphContext(caseCtx, paragraphId);
@@ -531,10 +532,24 @@ export async function runParagraphPass(
 		cacheSystem: true,
 		messages: [{ role: 'user', content: user }],
 		maxTokens: 2000,
+		modelOverride: opts.modelOverride,
 	});
 
-	const json = extractJSON(response.text);
-	const parsed = ParagraphPassResultSchema.parse(JSON.parse(json));
+	let parsed: ParagraphPassResult;
+	try {
+		const json = extractJSON(response.text);
+		parsed = ParagraphPassResultSchema.parse(JSON.parse(json));
+	} catch (err) {
+		const dumpPath = `/tmp/per-paragraph-failure-${paragraphId}.txt`;
+		const fs = await import('node:fs/promises');
+		await fs.writeFile(
+			dumpPath,
+			`paragraph_id: ${paragraphId}\nmodel: ${response.model}\nprovider: ${response.provider}\noutput_tokens: ${response.outputTokens}\nstop_reason: ${response.stopReason}\n\n--- RAW RESPONSE ---\n${response.text}\n`,
+			'utf8'
+		);
+		console.error(`     dumped raw response to ${dumpPath}`);
+		throw err;
+	}
 	const stored = await storeResult(caseCtx, paraCtx, parsed, userId);
 
 	return {

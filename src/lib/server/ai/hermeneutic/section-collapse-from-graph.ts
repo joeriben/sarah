@@ -28,6 +28,7 @@
 // distinguishes them). The user can compare both side-by-side.
 
 import { z } from 'zod';
+import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
 import { chat } from '../client.js';
 
@@ -533,7 +534,8 @@ export interface GraphCollapseRun {
 export async function runGraphCollapse(
 	caseId: string,
 	subchapterHeadingId: string,
-	userId: string
+	userId: string,
+	opts: { modelOverride?: { provider: Provider; model: string } } = {}
 ): Promise<GraphCollapseRun> {
 	// Idempotency guard: skip if a graph-fed kontextualisierend memo for this
 	// subchapter already exists. The Auto-Trigger from the per-paragraph
@@ -591,6 +593,7 @@ export async function runGraphCollapse(
 		// produce a synthesis that, with the four Pflichtbestandteile, reaches
 		// the 2000-cap. Methodologische Grundlegung came in at exactly 1999.
 		maxTokens: 4000,
+		modelOverride: opts.modelOverride,
 	});
 
 	const json = extractJSON(response.text);

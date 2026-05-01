@@ -217,16 +217,48 @@ export async function chat(opts: {
 	 * variable parts come last for maximum hit ratio.
 	 */
 	cacheSystem?: boolean;
+	/**
+	 * Per-call provider/model override. Bypasses the module-level settings for
+	 * this single call only — used by experimental drivers (model comparison
+	 * runs). The override builds a one-shot client; it does NOT mutate the
+	 * shared `_provider` / `_model` state, so concurrent default-config calls
+	 * are unaffected.
+	 */
+	modelOverride?: { provider: Provider; model: string };
 }): Promise<ChatResponse> {
 	init();
 
-	if (_provider === 'anthropic') {
+	const provider = opts.modelOverride?.provider ?? _provider;
+	const model = opts.modelOverride?.model ?? _model;
+
+	let oneShotAnthropic: Anthropic | null = null;
+	let oneShotOpenAI: OpenAI | null = null;
+	if (opts.modelOverride && provider !== _provider) {
+		const def = PROVIDERS[provider];
+		const apiKey = readApiKey(provider);
+		if (def.keyFile && !apiKey) {
+			throw new Error(`No API key found for ${def.label}. Add ${def.keyFile} to use override.`);
+		}
+		if (provider === 'anthropic') {
+			oneShotAnthropic = new Anthropic({ apiKey: apiKey! });
+		} else {
+			oneShotOpenAI = new OpenAI({ apiKey: apiKey || 'ollama', baseURL: def.baseURL });
+		}
+	}
+	const useAnthropic = provider === 'anthropic'
+		? (oneShotAnthropic ?? anthropicClient!)
+		: null;
+	const useOpenAI = provider !== 'anthropic'
+		? (oneShotOpenAI ?? openaiClient!)
+		: null;
+
+	if (provider === 'anthropic') {
 		const systemParam = opts.cacheSystem && opts.system
 			? [{ type: 'text' as const, text: opts.system, cache_control: { type: 'ephemeral' as const } }]
 			: opts.system;
 
-		const response = await anthropicClient!.messages.create({
-			model: _model,
+		const response = await useAnthropic!.messages.create({
+			model,
 			max_tokens: opts.maxTokens,
 			system: systemParam,
 			messages: opts.messages,
@@ -251,7 +283,7 @@ export async function chat(opts: {
 					id: b.id
 				})),
 			model: response.model,
-			provider: _provider,
+			provider,
 			inputTokens,
 			outputTokens,
 			cacheCreationTokens,
@@ -263,7 +295,7 @@ export async function chat(opts: {
 		// OpenAI-compatible path (OpenRouter, Mistral, IONOS, Mammouth, OpenAI, Ollama)
 		const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 		if (opts.system) {
-			if (opts.cacheSystem && (_provider === 'openrouter' || _provider === 'mammouth')) {
+			if (opts.cacheSystem && (provider === 'openrouter' || provider === 'mammouth')) {
 				// Pass-through cache_control for Anthropic-proxying providers.
 				// Cast escapes the OpenAI SDK type that doesn't model cache_control.
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -289,12 +321,12 @@ export async function chat(opts: {
 		}));
 
 		// OpenAI newer models (o-series, gpt-4.1+) require max_completion_tokens
-		const tokenParam = _provider === 'openai'
+		const tokenParam = provider === 'openai'
 			? { max_completion_tokens: opts.maxTokens }
 			: { max_tokens: opts.maxTokens };
 
-		const response = await openaiClient!.chat.completions.create({
-			model: _model,
+		const response = await useOpenAI!.chat.completions.create({
+			model,
 			...tokenParam,
 			messages,
 			tools
@@ -334,8 +366,8 @@ export async function chat(opts: {
 		return {
 			text: choice.message.content || '',
 			toolCalls,
-			model: response.model || _model,
-			provider: _provider,
+			model: response.model || model,
+			provider,
 			inputTokens,
 			outputTokens,
 			cacheCreationTokens,

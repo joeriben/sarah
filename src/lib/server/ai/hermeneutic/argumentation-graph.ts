@@ -41,7 +41,7 @@
 
 import { z } from 'zod';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { chat } from '../client.js';
+import { chat, type Provider } from '../client.js';
 
 // ── Output schema ─────────────────────────────────────────────────
 
@@ -876,7 +876,8 @@ export interface ArgumentationGraphRun {
 
 export async function runArgumentationGraphPass(
 	caseId: string,
-	paragraphId: string
+	paragraphId: string,
+	opts: { modelOverride?: { provider: Provider; model: string } } = {}
 ): Promise<ArgumentationGraphRun> {
 	const caseCtx = await loadCaseContext(caseId);
 	const paraCtx = await loadParagraphContext(caseCtx, paragraphId);
@@ -911,6 +912,7 @@ export async function runArgumentationGraphPass(
 		// 8000 (was 4000): paragraphs with 4 args + 5 scaffolding entries hit
 		// the 4000-cap under truncation, producing unparseable cut-off JSON.
 		maxTokens: 8000,
+		modelOverride: opts.modelOverride,
 	});
 
 	const json = extractJSON(response.text);
