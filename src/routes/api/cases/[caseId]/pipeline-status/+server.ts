@@ -1,14 +1,17 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Pipeline-Status-Endpoint für die Doc-Page (Stufe 2b).
+// Pipeline-Status-Endpoint für die Doc-Page.
 // Liefert pro hermeneutischem Pass den Erfüllungs-Stand des zentralen Dokuments
-// eines Case. Status wird aus memo_content / argument_nodes abgeleitet — es
-// gibt keine zentrale runs-Tabelle.
+// eines Case PLUS den aktiven Run-State (oder den jüngsten terminalen Run).
+// Status wird aus memo_content / argument_nodes abgeleitet — es gibt keine
+// zentrale runs-Tabelle für die Atom-Stände, nur pipeline_runs für den
+// Orchestrator-State (laufend/pausiert/abgeschlossen).
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
 import { query, queryOne } from '$lib/server/db/index.js';
+import { getActiveRun, getLatestRun } from '$lib/server/pipeline/orchestrator.js';
 
 interface PassStatus {
 	completed: number;
@@ -22,12 +25,29 @@ interface PipelineStatus {
 	brief: { id: string; name: string; argumentation_graph: boolean } | null;
 	total_paragraphs: number;
 	passes: {
-		paragraph: PassStatus;
 		argumentation_graph: PassStatus & { enabled: boolean };
 		subchapter: PassStatus;
 		chapter: PassStatus;
 		work: PassStatus;
+		paragraph_synthetic: PassStatus;
 	};
+	run: {
+		id: string;
+		status: string;
+		current_phase: string | null;
+		current_index: number;
+		total_in_phase: number | null;
+		last_step_label: string | null;
+		options: { include_synthetic?: boolean; cost_cap_usd?: number | null };
+		cancel_requested: boolean;
+		error_message: string | null;
+		accumulated_input_tokens: number;
+		accumulated_output_tokens: number;
+		accumulated_cache_read_tokens: number;
+		started_at: string;
+		paused_at: string | null;
+		completed_at: string | null;
+	} | null;
 }
 
 export const GET: RequestHandler = async ({ params, locals }) => {
@@ -55,8 +75,31 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	const docId = caseRow.central_document_id;
 	const useAg = caseRow.argumentation_graph === true;
 
+	const empty: PassStatus = { completed: 0, total: null, last_run: null };
+
+	const activeRun = await getActiveRun(caseId);
+	const latestRun = activeRun ?? (await getLatestRun(caseId));
+	const runDto = latestRun
+		? {
+				id: latestRun.id,
+				status: latestRun.status,
+				current_phase: latestRun.current_phase,
+				current_index: latestRun.current_index,
+				total_in_phase: latestRun.total_in_phase,
+				last_step_label: latestRun.last_step_label,
+				options: latestRun.options ?? {},
+				cancel_requested: latestRun.cancel_requested,
+				error_message: latestRun.error_message,
+				accumulated_input_tokens: Number(latestRun.accumulated_input_tokens) || 0,
+				accumulated_output_tokens: Number(latestRun.accumulated_output_tokens) || 0,
+				accumulated_cache_read_tokens: Number(latestRun.accumulated_cache_read_tokens) || 0,
+				started_at: latestRun.started_at,
+				paused_at: latestRun.paused_at,
+				completed_at: latestRun.completed_at,
+			}
+		: null;
+
 	if (!docId) {
-		const empty: PassStatus = { completed: 0, total: null, last_run: null };
 		const result: PipelineStatus = {
 			case_id: caseId,
 			document_id: null,
@@ -65,12 +108,13 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 				: null,
 			total_paragraphs: 0,
 			passes: {
-				paragraph: empty,
 				argumentation_graph: { ...empty, enabled: useAg },
 				subchapter: empty,
 				chapter: empty,
 				work: empty,
+				paragraph_synthetic: empty,
 			},
+			run: runDto,
 		};
 		return json(result);
 	}
@@ -121,8 +165,8 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		};
 	};
 
-	const paragraphPass = find('paragraph', 'interpretierend');
-	paragraphPass.total = totalParagraphs;
+	const synthPass = find('paragraph', 'interpretierend');
+	synthPass.total = totalParagraphs;
 
 	const subchapterPass = find('subchapter', 'kontextualisierend');
 
@@ -134,12 +178,28 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
 	let agPass: PassStatus = { completed: 0, total: totalParagraphs, last_run: null };
 	if (useAg) {
+		// "Done" für AG-Pass: arg_nodes ODER scaffolding_elements (kongruent
+		// zu listAtomsForPhase im Orchestrator, der dieselbe Skip-Bedingung
+		// wie runArgumentationGraphPass übernehmen muss). Ein Absatz mit nur
+		// scaffolding (z.B. rein stützender ¶ ohne eigenes Argument) ist
+		// abgearbeitet, würde aber bei einer args-only-Zählung als pending
+		// erscheinen — das verwirrt den User.
 		const agRow = await queryOne<{ completed: number; last_run: string | null }>(
-			`SELECT COUNT(DISTINCT an.paragraph_element_id)::int AS completed,
-			        MAX(an.created_at) AS last_run
-			 FROM argument_nodes an
-			 JOIN document_elements de ON de.id = an.paragraph_element_id
-			 WHERE de.document_id = $1`,
+			`SELECT COUNT(DISTINCT de.id)::int AS completed,
+			        MAX(GREATEST(an_max.created_at, scaff_max.created_at)) AS last_run
+			 FROM document_elements de
+			 LEFT JOIN LATERAL (
+			   SELECT MAX(created_at) AS created_at
+			   FROM argument_nodes WHERE paragraph_element_id = de.id
+			 ) an_max ON true
+			 LEFT JOIN LATERAL (
+			   SELECT MAX(created_at) AS created_at
+			   FROM scaffolding_elements WHERE paragraph_element_id = de.id
+			 ) scaff_max ON true
+			 WHERE de.document_id = $1
+			   AND de.element_type = 'paragraph'
+			   AND de.section_kind = 'main'
+			   AND (an_max.created_at IS NOT NULL OR scaff_max.created_at IS NOT NULL)`,
 			[docId]
 		);
 		agPass = {
@@ -157,12 +217,13 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			: null,
 		total_paragraphs: totalParagraphs,
 		passes: {
-			paragraph: paragraphPass,
 			argumentation_graph: { ...agPass, enabled: useAg },
 			subchapter: subchapterPass,
 			chapter: chapterPass,
 			work: workPass,
+			paragraph_synthetic: synthPass,
 		},
+		run: runDto,
 	};
 	return json(result);
 };

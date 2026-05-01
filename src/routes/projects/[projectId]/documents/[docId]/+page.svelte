@@ -38,35 +38,89 @@
 	let readerScrollTarget = $state<{ elementId: string; argumentId?: string } | null>(null);
 
 	// Pipeline-Status — aus /api/cases/[caseId]/pipeline-status.
-	type PassKey = 'paragraph' | 'argumentation_graph' | 'subchapter' | 'chapter' | 'work';
+	// Reihenfolge der ANALYTISCHEN Hauptlinie:
+	//   argumentation_graph → subchapter → chapter → work
+	// Synthetisch-hermeneutischer Per-¶-Pass ist ADDENDUM (separat dargestellt).
+	type AnalyticalPassKey = 'argumentation_graph' | 'subchapter' | 'chapter' | 'work';
 	type PassStatus = { completed: number; total: number | null; last_run: string | null; enabled?: boolean };
+	type RunPhase =
+		| 'argumentation_graph'
+		| 'section_collapse'
+		| 'chapter_collapse'
+		| 'document_collapse'
+		| 'paragraph_synthetic';
+	type RunStatusDto = {
+		id: string;
+		status: 'running' | 'paused' | 'completed' | 'failed';
+		current_phase: RunPhase | null;
+		current_index: number;
+		total_in_phase: number | null;
+		last_step_label: string | null;
+		options: { include_synthetic?: boolean; cost_cap_usd?: number | null };
+		cancel_requested: boolean;
+		error_message: string | null;
+		accumulated_input_tokens: number;
+		accumulated_output_tokens: number;
+		accumulated_cache_read_tokens: number;
+		started_at: string;
+		paused_at: string | null;
+		completed_at: string | null;
+	};
 	type PipelineStatus = {
 		case_id: string;
 		document_id: string | null;
 		brief: { id: string; name: string; argumentation_graph: boolean } | null;
 		total_paragraphs: number;
-		passes: Record<PassKey, PassStatus>;
+		passes: Record<AnalyticalPassKey, PassStatus> & { paragraph_synthetic: PassStatus };
+		run: RunStatusDto | null;
 	};
 
-	const PASS_ORDER: PassKey[] = ['paragraph', 'argumentation_graph', 'subchapter', 'chapter', 'work'];
-	const PASS_LABEL: Record<PassKey, string> = {
-		paragraph: 'Per-Absatz-Hermeneutik',
+	const ANALYTICAL_ORDER: AnalyticalPassKey[] = [
+		'argumentation_graph',
+		'subchapter',
+		'chapter',
+		'work',
+	];
+	const PASS_LABEL: Record<AnalyticalPassKey | 'paragraph_synthetic', string> = {
 		argumentation_graph: 'Argumentation pro Absatz',
-		subchapter: 'Subkapitel-Synthesen (L3)',
-		chapter: 'Hauptkapitel-Synthesen (L1)',
-		work: 'Werk-Synthese (L0)',
+		subchapter: 'Subkapitel-Synthesen',
+		chapter: 'Hauptkapitel-Synthesen',
+		work: 'Werk-Synthese',
+		paragraph_synthetic: 'Synthetisch-hermeneutische Per-Absatz-Memos',
 	};
-	const PASS_DESC: Record<PassKey, string> = {
-		paragraph: 'Formulierender und interpretierender Memo pro Absatz',
-		argumentation_graph: 'Argumente und Edges pro Absatz; Scaffolding-Elemente',
-		subchapter: 'Kontextualisierende Synthese pro Subkapitel',
-		chapter: 'Kontextualisierende Synthese pro Hauptkapitel',
-		work: 'Werk-Synthese aus den Hauptkapitel-Synthesen',
+	const PASS_DESC: Record<AnalyticalPassKey | 'paragraph_synthetic', string> = {
+		argumentation_graph:
+			'Argumente, Edges und Scaffolding pro Absatz — Grundlage der Aggregation.',
+		subchapter:
+			'Kontextualisierende Synthese pro Subkapitel (L2/L3 adaptiv) aus dem Argumentations-Graph.',
+		chapter:
+			'Kontextualisierende Synthese pro Hauptkapitel inkl. gutachten-fertiger Argumentationswiedergabe.',
+		work: 'Werk-Synthese aus den Hauptkapitel-Synthesen.',
+		paragraph_synthetic:
+			'Formulierende und interpretierende Memos pro Absatz, sequentiell unter Bezug auf alle vorhergehenden ¶ desselben Subkapitels. Lese-Hilfe für den Reader; fließt nicht in die Aggregation ein.',
+	};
+
+	// Mapping zwischen UI-PassKey (orientiert an memo_content.scope_level) und
+	// Run-Phase-Bezeichner aus dem Orchestrator.
+	const PHASE_TO_PASS: Record<RunPhase, AnalyticalPassKey | 'paragraph_synthetic'> = {
+		argumentation_graph: 'argumentation_graph',
+		section_collapse: 'subchapter',
+		chapter_collapse: 'chapter',
+		document_collapse: 'work',
+		paragraph_synthetic: 'paragraph_synthetic',
 	};
 
 	let pipelineStatus = $state<PipelineStatus | null>(null);
 	let pipelineLoading = $state(false);
 	let pipelineError = $state<string | null>(null);
+
+	// Run-Steuerung
+	let runActive = $state(false);
+	let runOptions = $state<{ include_synthetic: boolean }>({ include_synthetic: false });
+	let runEvents = $state<string[]>([]);
+	let runError = $state<string | null>(null);
+	let runEventSource: AbortController | null = null;
+	let cancellingRun = $state(false);
 
 	async function loadPipelineStatus() {
 		if (!caseInfo) return;
@@ -80,6 +134,133 @@
 			pipelineError = (e as Error).message;
 		} finally {
 			pipelineLoading = false;
+		}
+	}
+
+	async function startOrResumeRun() {
+		if (!caseInfo || runActive) return;
+		runError = null;
+		runEvents = [];
+		runActive = true;
+		const ac = new AbortController();
+		runEventSource = ac;
+		try {
+			const r = await fetch(`/api/cases/${caseInfo.id}/pipeline/run`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+				body: JSON.stringify({ include_synthetic: runOptions.include_synthetic }),
+				signal: ac.signal,
+			});
+			if (!r.ok || !r.body) {
+				const txt = await r.text().catch(() => '');
+				throw new Error(`HTTP ${r.status}${txt ? ': ' + txt.slice(0, 200) : ''}`);
+			}
+			const reader = r.body.getReader();
+			const decoder = new TextDecoder();
+			let buffer = '';
+			while (true) {
+				const { value, done } = await reader.read();
+				if (done) break;
+				buffer += decoder.decode(value, { stream: true });
+				let nlIdx;
+				while ((nlIdx = buffer.indexOf('\n\n')) !== -1) {
+					const chunk = buffer.slice(0, nlIdx);
+					buffer = buffer.slice(nlIdx + 2);
+					for (const line of chunk.split('\n')) {
+						if (!line.startsWith('data:')) continue;
+						const payload = line.slice(5).trim();
+						if (!payload) continue;
+						try {
+							const evt = JSON.parse(payload);
+							handleRunEvent(evt);
+						} catch {
+							// keep silent — event corruption shouldn't kill the loop
+						}
+					}
+				}
+			}
+		} catch (e) {
+			if ((e as Error).name !== 'AbortError') {
+				runError = (e as Error).message;
+			}
+		} finally {
+			runActive = false;
+			runEventSource = null;
+			await loadPipelineStatus();
+		}
+	}
+
+	function handleRunEvent(evt: Record<string, unknown>) {
+		const type = String(evt.type ?? '');
+		switch (type) {
+			case 'run-init':
+				runEvents = [...runEvents, evt.resumed ? '↻ Run fortgesetzt' : '▸ Run gestartet'];
+				break;
+			case 'phase-start':
+				runEvents = [
+					...runEvents,
+					`── Phase: ${PASS_LABEL[PHASE_TO_PASS[evt.phase as RunPhase]]} (${evt.total} Atom${evt.total === 1 ? '' : 'e'})`,
+				];
+				break;
+			case 'step-start':
+				// step-start spammt sonst — hier nicht persistieren, step-done ist genug.
+				break;
+			case 'step-done': {
+				const atom = evt.atom as { label: string };
+				const tok = evt.tokens as { input: number; output: number };
+				// SKIP-Events nicht ins Log spammen — sie wären bei einem grossen
+				// Doc nach einem Fehl-Stop hunderte. Stattdessen den letzten Log-
+				// Eintrag mit Skip-Counter verdichten.
+				if (evt.skipped) {
+					const last = runEvents[runEvents.length - 1] ?? '';
+					const m = last.match(/^  \(SKIP ×(\d+) übersprungen\)$/);
+					const count = m ? parseInt(m[1], 10) + 1 : 1;
+					if (m) {
+						runEvents = [...runEvents.slice(0, -1), `  (SKIP ×${count} übersprungen)`];
+					} else {
+						runEvents = [...runEvents, `  (SKIP ×1 übersprungen)`];
+					}
+				} else {
+					runEvents = [
+						...runEvents,
+						`  [${evt.index}/${evt.total}] OK ${atom.label} (in=${tok.input} out=${tok.output})`,
+					];
+				}
+				// Hard cap to prevent DOM blowup if something pathological happens.
+				if (runEvents.length > 500) runEvents = runEvents.slice(-500);
+				loadPipelineStatus();
+				break;
+			}
+			case 'step-error': {
+				const atom = evt.atom as { label: string };
+				runEvents = [...runEvents, `  ✗ ${atom.label}: ${evt.message}`];
+				break;
+			}
+			case 'paused':
+				runEvents = [...runEvents, '⏸ Pausiert'];
+				break;
+			case 'completed':
+				runEvents = [...runEvents, '✓ Run abgeschlossen'];
+				break;
+			case 'failed':
+				runEvents = [...runEvents, `✗ Run gescheitert: ${evt.message}`];
+				runError = String(evt.message ?? 'Unbekannter Fehler');
+				break;
+		}
+	}
+
+	async function pauseRun() {
+		if (!caseInfo || cancellingRun) return;
+		cancellingRun = true;
+		try {
+			await fetch(`/api/cases/${caseInfo.id}/pipeline/run`, { method: 'DELETE' });
+			// Laufender Loop stoppt nach nächstem Atom-Step graceful;
+			// Stream-Reader auch abbrechen, damit UI sofort entkoppelt ist.
+			runEventSource?.abort();
+		} catch (e) {
+			runError = (e as Error).message;
+		} finally {
+			cancellingRun = false;
 		}
 	}
 
@@ -349,12 +530,19 @@
 						</p>
 					</div>
 				{:else}
+					{@const run = pipelineStatus?.run ?? null}
+					{@const agEnabled = pipelineStatus?.passes.argumentation_graph.enabled !== false}
+					{@const runIsLive = run && (run.status === 'running' || runActive)}
+					{@const canResume = run && run.status === 'paused'}
+
 					<div class="pipeline-head">
 						<div>
-							<h2>Pipeline-Status</h2>
+							<h2>Analyselauf</h2>
 							<p class="pipeline-sub">
-								Stand pro hermeneutischem Pass des zentralen Dokuments.
-								Der Wert wird aus den persistierten Memos und Argumenten abgeleitet.
+								Die hermeneutische Pipeline läuft sequenziell über das zentrale Dokument.
+								Du startest den Lauf einmal — die Pässe werden in der korrekten Reihenfolge
+								automatisch durchgezogen. Du kannst jederzeit pausieren und später
+								fortsetzen, ohne Zwischenstand zu verlieren.
 							</p>
 						</div>
 						<button
@@ -362,7 +550,7 @@
 							onclick={loadPipelineStatus}
 							disabled={pipelineLoading}
 						>
-							{pipelineLoading ? 'Aktualisiere…' : 'Neu laden'}
+							{pipelineLoading ? 'Aktualisiere…' : 'Status neu laden'}
 						</button>
 					</div>
 
@@ -371,43 +559,187 @@
 					{/if}
 
 					{#if pipelineStatus}
-						<div class="pass-grid">
-							{#each PASS_ORDER as key (key)}
-								{@const p = pipelineStatus.passes[key]}
-								{@const enabled = key !== 'argumentation_graph' || p.enabled !== false}
-								{@const state = passState(p)}
-								<article class="pass-card pass-{state}" class:disabled={!enabled}>
-									<header class="pass-head">
-										<h3>{PASS_LABEL[key]}</h3>
-										<span class="pass-state-tag tag-{state}">
-											{state === 'done' ? 'Abgeschlossen' : state === 'partial' ? 'Teilweise' : 'Noch nicht gestartet'}
+						{#if !agEnabled}
+							<div class="brief-warn">
+								Im aktuell gewählten Brief ist <code>argumentation_graph</code> auf <code>false</code> gesetzt.
+								Die analytische Hauptlinie produziert keine Argumente. Wechsle den Brief am
+								Doc-Header, um die Pipeline zu aktivieren.
+							</div>
+						{/if}
+
+						<!-- Master-Steuerung -->
+						<div class="run-control">
+							<div class="run-control-head">
+								<div class="run-status-block">
+									{#if run}
+										<span class="run-status-tag run-status-{run.status}">
+											{run.status === 'running'
+												? (runIsLive ? 'Läuft' : 'Hängt — neu starten zum Fortsetzen')
+												: run.status === 'paused'
+												? 'Pausiert'
+												: run.status === 'completed'
+												? 'Abgeschlossen'
+												: 'Fehlgeschlagen'}
 										</span>
-									</header>
-									<p class="pass-desc">{PASS_DESC[key]}</p>
-									{#if !enabled}
-										<p class="pass-note">Im Brief deaktiviert (argumentation_graph=false).</p>
-									{:else}
-										<div class="pass-progress">
-											<div class="bar"><div class="bar-fill" style:width="{passPercent(p)}%"></div></div>
-											<span class="pass-counts">
-												{p.completed}{p.total != null ? ` / ${p.total}` : ''}
+										{#if run.current_phase}
+											<span class="run-phase-info">
+												{PASS_LABEL[PHASE_TO_PASS[run.current_phase]]}
+												{#if run.total_in_phase != null}
+													· {run.current_index}/{run.total_in_phase}
+												{/if}
+												{#if run.last_step_label}
+													· {run.last_step_label}
+												{/if}
 											</span>
-										</div>
-										<div class="pass-meta">
-											<span class="last-run">Letzter Lauf: {formatLastRun(p.last_run)}</span>
-										</div>
+										{/if}
+									{:else}
+										<span class="run-status-tag run-status-idle">Noch kein Lauf</span>
 									{/if}
-								</article>
-							{/each}
+								</div>
+								<div class="run-buttons">
+									{#if runIsLive}
+										<button
+											class="run-btn pause"
+											onclick={pauseRun}
+											disabled={cancellingRun}
+										>
+											{cancellingRun ? 'Pausiere…' : '⏸ Pausieren'}
+										</button>
+									{:else}
+										<label class="opt-toggle">
+											<input
+												type="checkbox"
+												bind:checked={runOptions.include_synthetic}
+												disabled={!agEnabled}
+											/>
+											<span>Synthetisches Per-¶-Memo zusätzlich erzeugen</span>
+										</label>
+										<button
+											class="run-btn start"
+											onclick={startOrResumeRun}
+											disabled={!agEnabled}
+										>
+											{canResume ? '▶ Fortsetzen' : run?.status === 'completed' ? '↻ Neu durchlaufen' : '▶ Analyselauf starten'}
+										</button>
+									{/if}
+								</div>
+							</div>
+							{#if run && (run.accumulated_input_tokens > 0 || run.accumulated_output_tokens > 0)}
+								<div class="run-meta-row">
+									<span>Tokens: in={run.accumulated_input_tokens.toLocaleString('de-DE')} · out={run.accumulated_output_tokens.toLocaleString('de-DE')} · cache_r={run.accumulated_cache_read_tokens.toLocaleString('de-DE')}</span>
+									{#if run.completed_at}
+										<span>Abgeschlossen: {formatLastRun(run.completed_at)}</span>
+									{:else if run.paused_at}
+										<span>Pausiert: {formatLastRun(run.paused_at)}</span>
+									{:else}
+										<span>Gestartet: {formatLastRun(run.started_at)}</span>
+									{/if}
+								</div>
+							{/if}
+							{#if run?.error_message && run.status === 'failed'}
+								<div class="error-box compact">Fehler: {run.error_message}</div>
+							{/if}
+							{#if runError}
+								<div class="error-box compact">{runError}</div>
+							{/if}
+							{#if runEvents.length > 0}
+								<details class="run-log" open={runIsLive}>
+									<summary>Live-Log ({runEvents.length} Einträge)</summary>
+									<pre class="run-log-body">{runEvents.join('\n')}</pre>
+								</details>
+							{/if}
 						</div>
 
-						<aside class="trigger-hint">
-							<strong>Trigger</strong> — Pässe werden derzeit über die scripts in
-							<code>scripts/run-*.ts</code> oder per Einzelaufruf an
-							<code>/api/cases/{caseInfo.id}/hermeneutic/paragraph/&lt;id&gt;</code>
-							angestoßen. Auto-Trigger und SSE-Live-Status folgen in einem
-							separaten Schritt.
-						</aside>
+						<!-- Hauptlinie -->
+						<section class="passes-section">
+							<header class="passes-section-head">
+								<h3>Analytische Hauptlinie</h3>
+								<p>
+									Sequenzielle Pässe in der Reihenfolge, in der sie aufeinander aufbauen:
+									Argumentations-Graph pro Absatz · Subkapitel-Synthesen · Hauptkapitel-Synthesen
+									· Werk-Synthese.
+								</p>
+							</header>
+							<div class="pass-grid">
+								{#each ANALYTICAL_ORDER as key, i (key)}
+									{@const p = pipelineStatus.passes[key]}
+									{@const isAgPass = key === 'argumentation_graph'}
+									{@const enabled = !isAgPass || p.enabled !== false}
+									{@const state = passState(p)}
+									{@const phaseLabel = run?.current_phase && PHASE_TO_PASS[run.current_phase] === key}
+									<article
+										class="pass-card pass-{state}"
+										class:disabled={!enabled}
+										class:current={runIsLive && phaseLabel}
+									>
+										<header class="pass-head">
+											<span class="pass-num">{i + 1}</span>
+											<h4>{PASS_LABEL[key]}</h4>
+											<span class="pass-state-tag tag-{state}">
+												{state === 'done' ? 'Abgeschlossen' : state === 'partial' ? 'Teilweise' : 'Offen'}
+											</span>
+										</header>
+										<p class="pass-desc">{PASS_DESC[key]}</p>
+										{#if !enabled}
+											<p class="pass-note">Im Brief deaktiviert (argumentation_graph=false).</p>
+										{:else}
+											<div class="pass-progress">
+												<div class="bar"><div class="bar-fill" style:width="{passPercent(p)}%"></div></div>
+												<span class="pass-counts">
+													{p.completed}{p.total != null ? ` / ${p.total}` : ''}
+												</span>
+											</div>
+											<div class="pass-meta">
+												<span class="last-run">Letzter Lauf: {formatLastRun(p.last_run)}</span>
+											</div>
+										{/if}
+									</article>
+								{/each}
+							</div>
+						</section>
+
+						<!-- Addendum -->
+						<section class="passes-section addendum">
+							<header class="passes-section-head">
+								<h3>
+									Addendum
+									<span class="addendum-tag">optional · zusätzliche Kosten</span>
+								</h3>
+								<p>
+									Der synthetisch-hermeneutische Per-Absatz-Memo ist <strong>nicht
+									Teil der analytischen Aggregation</strong>. Er erzeugt pro Absatz eine
+									sequenzielle, narrative Lesart unter Bezug auf die vorhergehenden Absätze
+									desselben Subkapitels. Diese Memos erscheinen im Reader-Modal als
+									zusätzliche Lese-Hilfe; in die Subkapitel-/Hauptkapitel-/Werk-Synthese
+									fließen sie nicht ein. Aktiviere die Checkbox oben, wenn der Addendum-Pass
+									im Lauf mitlaufen soll — er verdoppelt grob die Zahl der LLM-Calls auf
+									Absatz-Ebene.
+								</p>
+							</header>
+							{#if pipelineStatus.passes.paragraph_synthetic}
+								{@const synth = pipelineStatus.passes.paragraph_synthetic}
+								{@const synthState = passState(synth)}
+								<article class="pass-card pass-{synthState} pass-addendum">
+									<header class="pass-head">
+										<span class="pass-num add">+</span>
+										<h4>{PASS_LABEL.paragraph_synthetic}</h4>
+										<span class="pass-state-tag tag-{synthState}">
+											{synthState === 'done' ? 'Abgeschlossen' : synthState === 'partial' ? 'Teilweise' : 'Offen'}
+										</span>
+									</header>
+									<p class="pass-desc">{PASS_DESC.paragraph_synthetic}</p>
+									<div class="pass-progress">
+										<div class="bar"><div class="bar-fill" style:width="{passPercent(synth)}%"></div></div>
+										<span class="pass-counts">
+											{synth.completed}{synth.total != null ? ` / ${synth.total}` : ''}
+										</span>
+									</div>
+									<div class="pass-meta">
+										<span class="last-run">Letzter Lauf: {formatLastRun(synth.last_run)}</span>
+									</div>
+								</article>
+							{/if}
+						</section>
 					{:else if !pipelineLoading}
 						<p class="empty">Noch keine Statusdaten geladen.</p>
 					{/if}
@@ -821,7 +1153,7 @@
 		display: flex; align-items: baseline; gap: 0.6rem;
 		margin-bottom: 0.4rem;
 	}
-	.pass-head h3 {
+	.pass-head h3, .pass-head h4 {
 		flex: 1; margin: 0;
 		font-size: 0.92rem; font-weight: 600; color: #e1e4e8;
 	}
@@ -870,22 +1202,205 @@
 		font-size: 0.72rem; color: #6b7280;
 	}
 
-	.trigger-hint {
+	/* — Run-Steuerung — */
+	.brief-warn {
 		padding: 0.7rem 0.9rem;
-		font-size: 0.8rem;
-		color: #8b8fa3;
-		background: rgba(165, 180, 252, 0.04);
-		border-left: 3px solid rgba(165, 180, 252, 0.3);
+		font-size: 0.85rem;
+		color: #fbbf24;
+		background: rgba(251, 191, 36, 0.06);
+		border: 1px solid rgba(251, 191, 36, 0.3);
+		border-left-width: 3px;
 		border-radius: 0 4px 4px 0;
+		margin-bottom: 1rem;
 		line-height: 1.5;
 	}
-	.trigger-hint code {
+	.brief-warn code {
 		font-family: 'JetBrains Mono', monospace;
-		font-size: 0.78rem;
-		color: #a5b4fc;
-		background: rgba(165, 180, 252, 0.08);
+		background: rgba(251, 191, 36, 0.10);
 		padding: 0.05rem 0.3rem;
 		border-radius: 3px;
+		font-size: 0.78rem;
+	}
+
+	.run-control {
+		padding: 1rem 1.1rem;
+		background: rgba(165, 180, 252, 0.04);
+		border: 1px solid rgba(165, 180, 252, 0.25);
+		border-radius: 6px;
+		margin-bottom: 1.4rem;
+	}
+	.run-control-head {
+		display: flex; flex-wrap: wrap;
+		gap: 1rem; align-items: center;
+		justify-content: space-between;
+	}
+	.run-status-block {
+		display: flex; flex-wrap: wrap; gap: 0.6rem;
+		align-items: center;
+		min-width: 0; flex: 1;
+	}
+	.run-status-tag {
+		font-size: 0.78rem;
+		padding: 0.18rem 0.55rem;
+		border-radius: 3px;
+		white-space: nowrap;
+		font-weight: 600;
+	}
+	.run-status-running {
+		background: rgba(165, 180, 252, 0.15); color: #c7d2fe;
+		border: 1px solid rgba(165, 180, 252, 0.5);
+	}
+	.run-status-paused {
+		background: rgba(251, 191, 36, 0.10); color: #fbbf24;
+		border: 1px solid rgba(251, 191, 36, 0.4);
+	}
+	.run-status-completed {
+		background: rgba(110, 231, 183, 0.10); color: #6ee7b7;
+		border: 1px solid rgba(110, 231, 183, 0.4);
+	}
+	.run-status-failed {
+		background: rgba(239, 68, 68, 0.10); color: #fca5a5;
+		border: 1px solid rgba(239, 68, 68, 0.4);
+	}
+	.run-status-idle {
+		background: rgba(107, 114, 128, 0.10); color: #9ca3af;
+		border: 1px solid rgba(107, 114, 128, 0.3);
+	}
+	.run-phase-info {
+		font-size: 0.82rem; color: #c9cdd5;
+		font-family: 'JetBrains Mono', monospace;
+		min-width: 0; overflow: hidden;
+		text-overflow: ellipsis; white-space: nowrap;
+	}
+	.run-buttons {
+		display: flex; align-items: center; gap: 0.7rem;
+		flex-wrap: wrap;
+	}
+	.opt-toggle {
+		display: inline-flex; align-items: center; gap: 0.4rem;
+		font-size: 0.82rem; color: #c9cdd5;
+		cursor: pointer;
+	}
+	.opt-toggle input { cursor: pointer; }
+	.opt-toggle input:disabled { cursor: not-allowed; }
+	.run-btn {
+		padding: 0.5rem 1.1rem;
+		font-size: 0.85rem;
+		border-radius: 4px;
+		font-family: inherit;
+		cursor: pointer;
+		font-weight: 600;
+	}
+	.run-btn.start {
+		background: rgba(110, 231, 183, 0.10);
+		border: 1px solid rgba(110, 231, 183, 0.5);
+		color: #6ee7b7;
+	}
+	.run-btn.start:hover:not(:disabled) {
+		background: rgba(110, 231, 183, 0.18);
+		border-color: rgba(110, 231, 183, 0.7);
+	}
+	.run-btn.start:disabled {
+		opacity: 0.4; cursor: not-allowed;
+	}
+	.run-btn.pause {
+		background: rgba(251, 191, 36, 0.08);
+		border: 1px solid rgba(251, 191, 36, 0.4);
+		color: #fbbf24;
+	}
+	.run-btn.pause:hover:not(:disabled) {
+		background: rgba(251, 191, 36, 0.15);
+		border-color: rgba(251, 191, 36, 0.6);
+	}
+	.run-meta-row {
+		display: flex; flex-wrap: wrap; gap: 1.2rem;
+		font-size: 0.75rem; color: #8b8fa3;
+		margin-top: 0.7rem;
+		font-family: 'JetBrains Mono', monospace;
+	}
+	.run-log {
+		margin-top: 0.7rem;
+		font-size: 0.78rem;
+		color: #9ca3af;
+	}
+	.run-log summary {
+		cursor: pointer; padding: 0.3rem 0;
+	}
+	.run-log-body {
+		margin: 0.4rem 0 0;
+		padding: 0.6rem 0.8rem;
+		background: #0a0c12;
+		border: 1px solid #2a2d3a;
+		border-radius: 4px;
+		max-height: 280px;
+		overflow: auto;
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.74rem;
+		color: #c9cdd5;
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+	.error-box.compact {
+		padding: 0.4rem 0.7rem;
+		font-size: 0.8rem;
+		margin: 0.6rem 0 0;
+	}
+
+	/* — Pass-Sections (Hauptlinie + Addendum) — */
+	.passes-section {
+		margin-bottom: 1.6rem;
+	}
+	.passes-section-head { margin-bottom: 0.7rem; }
+	.passes-section-head h3 {
+		margin: 0 0 0.3rem; font-size: 0.95rem;
+		color: #e1e4e8; font-weight: 600;
+		display: flex; align-items: center; gap: 0.5rem;
+	}
+	.passes-section-head p {
+		margin: 0; font-size: 0.82rem;
+		color: #8b8fa3; line-height: 1.5;
+		max-width: 78ch;
+	}
+	.passes-section.addendum {
+		margin-top: 1.4rem;
+		padding-top: 1.2rem;
+		border-top: 1px dashed #2a2d3a;
+	}
+	.addendum-tag {
+		font-size: 0.7rem;
+		font-weight: 500;
+		padding: 0.1rem 0.45rem;
+		background: rgba(251, 191, 36, 0.10);
+		color: #fbbf24;
+		border: 1px solid rgba(251, 191, 36, 0.3);
+		border-radius: 3px;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.pass-num {
+		display: inline-flex; align-items: center; justify-content: center;
+		width: 1.5em; height: 1.5em;
+		background: rgba(165, 180, 252, 0.10);
+		border: 1px solid rgba(165, 180, 252, 0.3);
+		color: #c7d2fe;
+		border-radius: 50%;
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.74rem;
+		font-weight: 600;
+	}
+	.pass-num.add {
+		background: rgba(251, 191, 36, 0.10);
+		border-color: rgba(251, 191, 36, 0.4);
+		color: #fbbf24;
+	}
+	.pass-card.current {
+		border-color: rgba(165, 180, 252, 0.55);
+		box-shadow: 0 0 0 1px rgba(165, 180, 252, 0.15);
+	}
+	.pass-card.pass-addendum {
+		border-style: dashed;
+		max-width: 760px;
 	}
 
 	.empty { color: #6b7280; font-size: 0.85rem; font-style: italic; }
