@@ -3,7 +3,88 @@
   SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <script lang="ts">
-	let activeTab: 'provider' | 'usage' | 'library' = $state('provider');
+	import { page } from '$app/stores';
+
+	type SettingsTab = 'provider' | 'usage' | 'library' | 'briefs';
+	let activeTab: SettingsTab = $state('provider');
+
+	// Sync activeTab from URL ?tab=briefs etc. (also fires on direct deep-link load).
+	$effect(() => {
+		const t = $page.url.searchParams.get('tab') as SettingsTab | null;
+		if (t && ['provider', 'usage', 'library', 'briefs'].includes(t) && activeTab !== t) {
+			activeTab = t;
+			if (t === 'usage') fetchUsage();
+			if (t === 'library') loadLibrary();
+			if (t === 'briefs') loadBriefs();
+		}
+	});
+
+	function switchTab(t: SettingsTab) {
+		activeTab = t;
+		const url = new URL(window.location.href);
+		url.searchParams.set('tab', t);
+		history.replaceState({}, '', url.toString());
+		if (t === 'usage') fetchUsage();
+		if (t === 'library') loadLibrary();
+		if (t === 'briefs') loadBriefs();
+	}
+
+	// ── Briefs (system-wide assessment briefs library) ────────
+	interface BriefRow {
+		id: string;
+		name: string;
+		work_type: string;
+		criteria: string;
+		case_count: number;
+		include_formulierend: boolean;
+		argumentation_graph: boolean;
+		created_at: string;
+	}
+	const WORK_TYPE_LABELS: Record<string, string> = {
+		habilitation: 'Habilitation',
+		dissertation: 'Dissertation',
+		master_thesis: 'Master-Arbeit',
+		bachelor_thesis: 'Bachelor-Arbeit',
+		article: 'Wiss. Artikel',
+		peer_review: 'Peer-Review',
+		corpus_analysis: 'Korpusanalyse'
+	};
+	let briefs = $state<BriefRow[]>([]);
+	let briefsLoading = $state(false);
+	let briefsError = $state<string | null>(null);
+	let briefDeleting = $state<string | null>(null);
+
+	async function loadBriefs() {
+		briefsLoading = true;
+		briefsError = null;
+		try {
+			const res = await fetch('/api/briefs');
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const data = await res.json();
+			briefs = data.briefs;
+		} catch (e: any) {
+			briefsError = e.message;
+		} finally {
+			briefsLoading = false;
+		}
+	}
+
+	async function deleteBrief(id: string, name: string, caseCount: number) {
+		if (caseCount > 0) {
+			alert(`Brief "${name}" ist mit ${caseCount} Fall/Fällen verbunden und kann nicht gelöscht werden.`);
+			return;
+		}
+		if (!confirm(`Brief "${name}" wirklich löschen?`)) return;
+		briefDeleting = id;
+		const res = await fetch(`/api/briefs/${id}`, { method: 'DELETE' });
+		if (!res.ok) {
+			const body = await res.json().catch(() => ({}));
+			alert(body.message || body.error || `Löschen fehlgeschlagen (${res.status})`);
+		} else {
+			await loadBriefs();
+		}
+		briefDeleting = null;
+	}
 
 	// ── Provider state ────────────────────────────────────────
 	interface ProviderInfo {
@@ -321,14 +402,17 @@
 	</div>
 
 	<div class="tabs">
-		<button class="tab" class:active={activeTab === 'provider'} onclick={() => activeTab = 'provider'}>
+		<button class="tab" class:active={activeTab === 'provider'} onclick={() => switchTab('provider')}>
 			AI Provider
 		</button>
-		<button class="tab" class:active={activeTab === 'usage'} onclick={() => { activeTab = 'usage'; fetchUsage(); }}>
+		<button class="tab" class:active={activeTab === 'usage'} onclick={() => switchTab('usage')}>
 			Usage
 		</button>
-		<button class="tab" class:active={activeTab === 'library'} onclick={() => { activeTab = 'library'; loadLibrary(); }}>
+		<button class="tab" class:active={activeTab === 'library'} onclick={() => switchTab('library')}>
 			Coach Library
+		</button>
+		<button class="tab" class:active={activeTab === 'briefs'} onclick={() => switchTab('briefs')}>
+			Briefs
 		</button>
 	</div>
 
@@ -679,9 +763,95 @@
 			</div>
 		</div>
 	{/if}
+
+	{#if activeTab === 'briefs'}
+		<!-- ═══════ Briefs (systemweite Bewertungs-Library) ═══════ -->
+		<div class="section">
+			<div class="briefs-head">
+				<div>
+					<h2>Bewertungs-Briefs</h2>
+					<p class="briefs-hint">
+						Werktyp, Persona und Bewertungs-Kriterien für die hermeneutische Pipeline.
+						Briefs werden systemweit gehalten und pro Case zugeordnet.
+					</p>
+				</div>
+				<a class="btn btn-primary" href="/settings/briefs/new">+ Neuer Brief</a>
+			</div>
+
+			{#if briefsError}
+				<div class="message message-error">{briefsError}</div>
+			{/if}
+
+			{#if briefsLoading}
+				<div class="loading">Lade Briefs…</div>
+			{:else if briefs.length === 0}
+				<div class="brief-empty">
+					<p>Noch keine Briefs angelegt.</p>
+					<p class="briefs-hint">Lege einen Brief an, um die Pipeline auf einen Werktyp und Bewertungsmaßstab auszurichten.</p>
+				</div>
+			{:else}
+				<div class="brief-list">
+					{#each briefs as b (b.id)}
+						<div class="brief-row">
+							<a class="brief-row-main" href="/settings/briefs/{b.id}">
+								<div class="brief-row-head">
+									<span class="brief-name">{b.name}</span>
+									<span class="work-type-tag">{WORK_TYPE_LABELS[b.work_type] || b.work_type}</span>
+								</div>
+								<div class="brief-row-meta">
+									{#if b.case_count > 0}
+										<span class="usage-tag">in {b.case_count} Fall/Fällen verwendet</span>
+									{:else}
+										<span class="unused-tag">noch nicht verwendet</span>
+									{/if}
+									{#if b.include_formulierend}
+										<span class="flag-tag">+ formulierend</span>
+									{/if}
+									{#if !b.argumentation_graph}
+										<span class="flag-tag">ohne AG</span>
+									{/if}
+								</div>
+								{#if b.criteria}
+									<p class="brief-snippet">{b.criteria.slice(0, 200)}{b.criteria.length > 200 ? '…' : ''}</p>
+								{:else}
+									<p class="brief-snippet missing">⚠ Keine Kriterien — Pipeline würde abbrechen</p>
+								{/if}
+							</a>
+							<button
+								class="coach-btn-sm"
+								onclick={() => deleteBrief(b.id, b.name, b.case_count)}
+								disabled={briefDeleting === b.id}
+								title="Löschen"
+							>
+								{briefDeleting === b.id ? '…' : 'delete'}
+							</button>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{/if}
 </div>
 
 <style>
+	.briefs-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1rem; }
+	.briefs-hint { font-size: 0.82rem; color: #8b8fa3; margin: 0.25rem 0 0; max-width: 540px; line-height: 1.5; }
+	.brief-empty { background: #161822; border: 1px dashed #2a2d3a; border-radius: 8px; padding: 2rem 1.5rem; text-align: center; color: #c9cdd5; }
+	.brief-empty p:first-child { margin: 0 0 0.4rem; color: #e1e4e8; font-weight: 500; }
+	.brief-list { display: flex; flex-direction: column; gap: 0.6rem; }
+	.brief-row { background: #161822; border: 1px solid #2a2d3a; border-radius: 8px; padding: 0.85rem 1rem; display: flex; align-items: flex-start; gap: 0.75rem; transition: border-color 0.15s; }
+	.brief-row:hover { border-color: #8b9cf7; }
+	.brief-row-main { flex: 1; text-decoration: none; color: inherit; }
+	.brief-row-head { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; }
+	.brief-name { font-weight: 500; color: #e1e4e8; font-size: 0.95rem; }
+	.work-type-tag { font-size: 0.7rem; background: rgba(165, 180, 252, 0.1); color: #a5b4fc; padding: 0.15rem 0.45rem; border-radius: 4px; white-space: nowrap; }
+	.brief-row-meta { font-size: 0.72rem; color: #6b7280; margin-bottom: 0.4rem; display: flex; gap: 0.7rem; }
+	.usage-tag { color: #93c5fd; }
+	.unused-tag { color: #6b7280; font-style: italic; }
+	.flag-tag { color: #c4b5fd; }
+	.brief-snippet { font-size: 0.8rem; color: #c9cdd5; margin: 0; line-height: 1.45; }
+	.brief-snippet.missing { color: #f59e0b; font-style: italic; }
+
 	.settings-page {
 		max-width: 900px;
 		margin: 0 auto;
