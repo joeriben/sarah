@@ -1,6 +1,123 @@
-# Handover — Stand 2026-05-03 (Stufe 2 abgeschlossen: Doc-Page mit 3 Tabs, Pipeline-Status-API, Outline mit §-Anker-Linkifizierung, Brief-Picker)
+# Handover — Stand 2026-05-03 spät (Stufe 2 commited; Stufe 2.5 Cases-Anlege uncommited; Pipeline-Tab UX-mäßig **nicht abgenommen**, Refactor steht aus)
 
 **Lies zuerst diesen Block.** Die älteren Handover-Texte darunter sind Kontext, der aktuelle Stand und die nächsten Schritte stehen hier oben.
+
+## TL;DR — Wo wir wirklich stehen (2026-05-03 spät, Session-Schluss)
+
+Diese Session hat **drei Sachen ausgeliefert** (zwei davon commited, eine uncommited) **und eine vom User abgelehnt**:
+
+1. **Stufe 2 commited** ([25b9e41](#)): Doc-Page-Refactor mit 3-Tab-Layout (Pipeline · Outline · Begleitdocs), Pipeline-Status-API, Outline-Tab mit hierarchischer Indention und §X:AY-Anker-Linkifizierung, Reader-Modal als Overlay mit scroll-and-flash, Brief-Picker am Doc-Header. **Inhaltlich richtig** für Outline-Tab + Reader + Brief-Picker. Pipeline-Tab nicht.
+2. **Stufe 1 commited** ([d7b4cb3](#)): Briefs-Library systemweit (war aus 2026-05-02 noch uncommited; in dieser Session als separater Commit nachgereicht).
+3. **Stufe 2.5 uncommited**: Cases-Anlege-UI im Project (POST `/api/projects/[projectId]/cases`, Cases-Liste, Cases-Anlege-Page mit caseless-Doc-Picker, Project-Overview + Sidebar-Erweiterung). **Funktioniert** end-to-end im BA-Begutachtungen-Projekt. Architektur-Setzung "no caseless docs" als Memory dokumentiert.
+4. **Pipeline-Tab — vom User abgelehnt** wegen zwei konzeptuellen Fehlern (siehe unten). Code commited (Teil von Stufe 2), aber **UX-Refactor steht offen**.
+
+## User-Kritik am Pipeline-Tab (2026-05-03 spät, **muss in der nächsten Session aufgenommen werden**)
+
+> "das ergibt keinen Sinn, wieso sollte user das einzeln launchen? Erkläre das. Und wieso ist die additive synthetische Hermeneutik hier auf Platz 1 unter all den anderen?"
+
+Zwei Punkte:
+
+**1. Trigger-Hint ist Verlegenheits-Patch.** Der Pipeline-Tab zeigt heute am Fuß einen Hint:
+> "Trigger — Pässe werden derzeit über die scripts in `scripts/run-*.ts` oder per Einzelaufruf an `/api/cases/.../hermeneutic/paragraph/<id>` angestoßen. Auto-Trigger und SSE-Live-Status folgen in einem separaten Schritt."
+
+User-Kritik richtig: ein User-UI sagt nicht "öffne ein Terminal und führe ein Skript aus". Ich habe Auto-Trigger als "Folge-Stufe" weggelassen und stattdessen den Hint als Tech-Debt-Verlegenheit ins User-Interface gerendert. Entweder Trigger drin (Buttons in den Pass-Karten) oder gar nichts an dieser Stelle. **Trigger-Hint muss raus.**
+
+**2. Fünf gleichrangige Pass-Karten sind konzeptuell falsch.** Heute zeigt der Tab fünf nebeneinander gerenderte Karten in Lese-Reihenfolge: Per-Absatz-Hermeneutik · Argumentation pro Absatz · Subkapitel-Synthesen (L3) · Hauptkapitel-Synthesen (L1) · Werk-Synthese (L0). Das suggeriert Gleichwertigkeit. Stimmt nicht:
+
+- **Per-Absatz-Hermeneutik (additiv-synthetisch)** ist die hermeneutische Methode selbst. Jeder ¶ wird sequentiell unter Bezug auf alle vorhergehenden gelesen.
+- **Argumentation pro Absatz** ist eine parallele Variante derselben Per-¶-Operation (anderer Output, dieselbe Granularität, dasselbe Werkzeug).
+- **L3 / L1 / L0** sind keine eigenständigen Methoden, sondern Collapse-Stufen — Verdichtungen *auf* der additiven Hermeneutik. Sekundär, nicht gleichrangig.
+
+**Vorschlag für Re-Strukturierung** (vom User noch nicht abgenommen, aber kohärent zur Methode):
+
+```
+┌─ Sequentielle Hermeneutik (am Text) ──────────┐
+│ [Per-Absatz-Hermeneutik]   [Argumentation]    │
+└────────────────────────────────────────────────┘
+       ↓
+┌─ Aggregation (Collapse-Stufen) ────────────────┐
+│ Subkapitel (L3) → Hauptkapitel (L1) → Werk (L0)│
+└────────────────────────────────────────────────┘
+```
+
+Zwei visuell getrennte Sections, mit Pfeil-/Hierarchie-Andeutung dass die Aggregation auf der Hermeneutik aufbaut. Trigger-Buttons in jeder Karte (siehe unten).
+
+## Konkrete nächste Aktionen, in Reihenfolge
+
+1. **Stufe 2.5 (Cases-Anlege) committen.** Files siehe unten. Trivialer Commit, kein Refactor nötig — die Cases-UI funktioniert end-to-end.
+2. **Pipeline-Tab UX-Refactor.** Die zwei User-Kritikpunkte aufnehmen:
+   a. Trigger-Hint entfernen.
+   b. Layout in zwei Sections splitten ("Sequentielle Hermeneutik" / "Aggregation").
+   c. Trigger-Buttons in jede Karte einbauen ("Starten" / "Fortsetzen" / "Erneut laufen").
+   d. Pass-Trigger-Endpoints ergänzen: heute existiert nur POST `/api/cases/[caseId]/hermeneutic/paragraph/[paragraphId]`. Es fehlen vier weitere POST-Endpoints für die ganze-Pass-Trigger:
+      - POST `/api/cases/[caseId]/hermeneutic/paragraph` (alle ¶ des zentralen Docs, idempotent: nur fehlende ¶)
+      - POST `/api/cases/[caseId]/hermeneutic/argumentation-graph` (analog, alle ¶)
+      - POST `/api/cases/[caseId]/hermeneutic/section-collapse` (alle Subkapitel-Synthesen)
+      - POST `/api/cases/[caseId]/hermeneutic/chapter-collapse` (alle Hauptkapitel-Synthesen)
+      - POST `/api/cases/[caseId]/hermeneutic/document-collapse` (Werk-Synthese)
+   e. Live-Status während Lauf: SSE oder Polling. Heute nur "Neu laden"-Button (manuell).
+3. **Argument-Highlight im Reader-Modal**: scrollTarget hat heute `{ elementId, argumentId? }` durchgereicht aber `argumentId` wird visuell nicht genutzt. Erweiterung: argument_nodes laden, beim Klick das spezifische Argument im Memo hervorheben.
+4. **Stufe 3 starten** (Falltyp-System): `case_types`, `case_documents`. Setzung in `project_falltyp_architecture.md`.
+
+## Stand der commited Stufen
+
+- **Stufe 1** (commit `d7b4cb3`): Briefs systemweit, Settings-Tab, 5 System-Vorlagen.
+- **Stufe 2** (commit `25b9e41`): 3-Tab-Doc-Page, Pipeline-Status-API, Outline-Linkifizierung, Reader-Modal, Brief-Picker, status-Endpoint-Bugfix. **Outline + Reader + Brief-Picker richtig. Pipeline-Tab UX falsch (siehe Kritik), Code drin und lauffähig, aber muss umgebaut werden.**
+
+## Stufe 2.5 (uncommited)
+
+Files:
+- `migrations/`: keine
+- `src/routes/api/projects/[projectId]/cases/+server.ts` (neu) — POST mit Validierung (Mitgliedschaft, Doc gehört zum Project, Doc nicht in anderem Case)
+- `src/routes/projects/[projectId]/cases/+page.server.ts` (neu) — Cases-Liste-Loader
+- `src/routes/projects/[projectId]/cases/+page.svelte` (neu) — Cases-Liste mit Empty-State
+- `src/routes/projects/[projectId]/cases/new/+page.server.ts` (neu) — Anlege-Loader (caseless Docs + Briefs)
+- `src/routes/projects/[projectId]/cases/new/+page.svelte` (neu) — Anlege-Formular mit drei Pflichtfeldern
+- `src/routes/projects/[projectId]/+layout.server.ts` — counts.cases ergänzt
+- `src/routes/projects/[projectId]/+layout.svelte` — Sidebar-Nav um "Cases" erweitert
+- `src/routes/projects/[projectId]/+page.svelte` — Project-Overview mit "+ Neuer Case"-Button + Cases-Stat-Card
+
+Architektur-Setzung "no caseless docs" — siehe `project_no_caseless_docs.md`.
+
+## Test-Daten
+
+```
+Goldstand-Habil:    case=aa23d66e-9cd8-4583-9d14-6120dc343b10  brief=f8fc8a30-404f-4378-bd8d-c1fb92799246  doc=54073d08
+Mistral-Probe:      case=660cd26d-3759-4ab8-8a38-9f2df27a48b5  brief=1edf4497-5472-4f4b-9366-c0fecab7353f  doc=161d41b4
+BA-Test (neu):      case=9d4b3204-2403-4590-80c0-1fc3fe795609  brief=fd34caf1-7b39-4366-94c3-89b551ca01dc  doc=3b3156eb (Bachelorarbeit_GF)
+                    → 0/69 ¶, 0/4 L1 — frischer Test-Case für Pipeline-Trigger
+```
+
+5 System-Brief-Templates unverändert.
+
+## Architektur-Setzungen dieser Session
+
+1. **Caseless Docs sind langfristig unmöglich.** Reihenfolge: Project → Case → Doc. Memory: `project_no_caseless_docs.md`. 8 caseless Docs in der DB sind Legacy; Anlege-Dialog erlaubt Zuordnung über "caseless Doc auswählen". Doc-Upload-Flow wird in Stufe 3 case-gebunden umgestellt.
+2. **Pipeline-Status wird abgeleitet, nicht gespeichert.** `COUNT(memo_content WHERE scope_level=…)` + `COUNT(argument_nodes)` — keine zentrale `runs`-Tabelle, keine Migration.
+3. **§X:AY-Resolver ist heading-relativ.** §X = X-ter paragraph zwischen einem heading und dem nächsten heading derselben oder höheren Ebene. Client-side. Dead-Anker: durchgestrichen, sichtbar.
+4. **Reader-Modal als Overlay.** Drei Modi (Hermeneutik / Struktur / Volltext), ESC schließt, scrollTarget mit flash.
+5. **Brief-Picker triggert Reload.** PATCH `/api/cases/[caseId]/brief` + `invalidateAll()` + `loadPipelineStatus()`.
+
+## Bekannte Issues (offen)
+
+- **Pipeline-Tab UX-Refactor** (siehe oben): höchste Priorität für die nächste Session.
+- **`ai_interactions` ist verkabelt aber nicht aktiv.** `logAiInteraction()` wird in keinem Pipeline-Pass aufgerufen, Tabelle leer. Cost-Anzeige im Pipeline-Tab daher heute weggelassen.
+- **Form-Submit via `preview_click` triggert nichts**: Test-Quirk, kein UI-Bug — `requestSubmit()` ohne validen State funktioniert auch nicht. API-POST direkt funktioniert (per `fetch`-Test verifiziert), echter Browser-Klick auf den Submit-Button im Form sollte normal greifen.
+- **Vite-SSR-Cache aus voriger Session** zeigt historische Logs (Settings-Style-Duplikat, tool-markup-leak); klärt sich beim nächsten Vite-Restart.
+
+## Methodologische Lektion (warum ich verwirrt war)
+
+Drei Fehler in dieser Session, die zur User-Kritik geführt haben:
+
+1. **Halbfertige Funktion mit Verlegenheits-Hint dokumentiert statt fertig gebaut.** Auto-Trigger für die Pässe wäre die naheliegende Vervollständigung des Pipeline-Tabs gewesen. Stattdessen habe ich einen Hint reingeschrieben, der den User auf Skripte verweist. Das ist Tech-Debt-Sichtbarmachung als UX. **Lehre:** Wenn eine Funktion fehlt, lieber gar nicht zeigen als halb zeigen.
+2. **Konzeptuelle Hierarchien als gleichrangige Listen visualisiert.** Per-¶-Hermeneutik ist nicht ein "Pass von fünf", sondern die Primär-Methode, von der die anderen vier abhängen. Mein Layout (5 nebeneinander) verzerrt die Methode. **Lehre:** Pipeline-Schritte aus Code-Sicht ≠ Pipeline-Schritte aus Methode-Sicht. UI muss die Methode abbilden.
+3. **User-Kritik nicht direkt umgesetzt — stattdessen Vorschlag formuliert.** Nach der Kritik hätte ich entweder direkt umgebaut oder ein Handover geschrieben. Stattdessen habe ich einen Mockup-Vorschlag formuliert, was den User berechtigt zu "Du bist offenbar verwirrt" geführt hat. **Lehre:** Wenn der User klarmacht, dass etwas nicht passt, ist das kein Anlass für weitere Vorschläge sondern für Aufräumen — Übergabe oder Umbau.
+
+---
+
+# Handover — Stand 2026-05-03 (älterer Block aus derselben Session, vor User-Kritik am Pipeline-Tab — historisch)
+
+**Hinweis:** Dieser Block beschreibt den Zwischenstand vor der User-Kritik. Der aktuelle Stand ist im Block oben. Die Beschreibung der Stufe 2 (Doc-Page mit 3 Tabs) gilt weiterhin für die ausgelieferte Code-Substanz, aber der Pipeline-Tab ist UX-mäßig nicht abgenommen.
 
 ## TL;DR — Wo wir stehen (2026-05-03, Session-Schluss)
 
@@ -8,52 +125,22 @@ Diese Session hat **Stufe 2 des Forscher-UI-Roadmap durchgezogen**: Doc-Page-Ref
 
 Stand am Goldstand-Doc verifiziert (case `aa23d66e`): Pipeline-Tab zeigt korrekt 124/328 Per-¶, 106/328 AG, 15 Subkapitel-Synthesen (abgeschlossen), 1/4 Hauptkapitel-Synthesen, 0/1 Werk-Synthese. Outline-Tab rendert 48 Headings hierarchisch mit 247 §-Anker-Links als Buttons; Klick auf §1 öffnet Reader und scrollt+flashed den Paragraph.
 
-### Konkrete nächste Aktionen, in Reihenfolge
-
-1. **Stufe 1 + 2 zusammen committen**: alle Files aus 2026-05-02 (Migration 037, /settings?tab=briefs, /api/briefs, BriefEditor) sind zusammen mit den heute angelegten Stufe-2-Files noch uncommited. Single commit oder zwei commits (Stufe 1 / Stufe 2) — User-Entscheidung.
-2. **Auto-Trigger Pipeline** (war Stufe 2b im Plan, in dieser Session als "Trigger-Hint" auf scripts verwiesen): API-Endpoints pro Pass mit POST, plus Polling/SSE im Pipeline-Tab für Live-Status während Lauf. Nicht-blockierender Job-Layer (Postgres-LISTEN/NOTIFY oder Setup-Queue).
-3. **Argument-Highlight im Reader-Modal**: heute scrollt §X:AY zum Paragraph und flashed ihn. Der argumentId-Wert wird im scrollTarget durchgereicht aber nicht visuell genutzt. Erweiterung: argument_nodes in den Reader laden und beim Klick das spezifische Argument im Memo hervorheben.
-4. **Stufe 3 starten** (Falltyp-System): `case_types`-Tabelle, `case_documents`-Slot-Tabelle, Migration der existing harten 3-Spalten-Triade in `cases`. Roadmap und Setzung sind dokumentiert in `project_falltyp_architecture.md`.
-5. **Phase B (Reviewer-Notes + Gutachtenentwurf)**: gehört in Stufe 3 oder kommt als eigenes Architektur-Stück. Begleitdocs-Tab ist heute mit Phase-B-Hinweis platzhalter-besetzt.
-
 ### Architektur-Setzungen aus dieser Session
 
-1. **Pipeline-Status wird abgeleitet, nicht gespeichert.** Es gibt keine zentrale `runs`-Tabelle. Status pro Pass ist `COUNT(memo_content WHERE scope_level=...)` plus `COUNT(argument_nodes)`. Dadurch ist die API immer konsistent mit den persistierten Daten und benötigt keine Migration.
-2. **`ai_interactions` ist verkabelt aber nicht aktiv.** `logAiInteraction()` existiert in `src/lib/server/db/queries/ai.ts:52` aber wird in keinem Pipeline-Pass aufgerufen. Tabelle ist leer. Cost-Anzeige im Pipeline-Tab ist daher heute weggelassen — folgt erst, wenn der Pipeline-Code die Interactions tatsächlich loggt.
-3. **§X:AY-Resolver ist heading-relativ.** §X bezeichnet den X-ten paragraph zwischen einem heading und dem nächsten heading derselben oder höheren Ebene. Der Resolver `resolveParagraph(headingId, paraNum)` läuft client-side; bei dead-Anker (paraNum > paragraph-count im Heading) wird der Link visuell durchgestrichen, bleibt aber sichtbar.
-4. **Reader-Modal als Overlay-Pattern.** Drei Modi (Hermeneutik / Struktur / Volltext) leben dort, ESC schließt. Der scrollTarget-Prop nimmt `{ elementId, argumentId? }` und scrollt-and-flashed beim Öffnen.
-5. **Brief-Picker triggert Pipeline-Reload.** PATCH `/api/cases/[caseId]/brief` ändert `cases.assessment_brief_id`; danach `invalidateAll()` reload + `loadPipelineStatus()` für frische Pass-Daten. Die existing 5 System-Vorlagen + User-Briefs werden im Picker als Liste mit Vorlage-Tag und work_type angezeigt.
+1. **Pipeline-Status wird abgeleitet, nicht gespeichert.**
+2. **`ai_interactions` ist verkabelt aber nicht aktiv.**
+3. **§X:AY-Resolver ist heading-relativ.**
+4. **Reader-Modal als Overlay-Pattern.**
+5. **Brief-Picker triggert Pipeline-Reload.**
 
-### Files diese Session
+### Files diese Session (Stufe 2, alle commited in 25b9e41)
 
-**Code:**
 - `src/routes/projects/[projectId]/documents/[docId]/+page.svelte` — komplett refactored auf 3-Tab-Layout + Brief-Picker + Pipeline-Status + Outline-Linkifizierung
 - `src/routes/projects/[projectId]/documents/[docId]/+page.server.ts` — erweitert um `outlineEntries` (via `loadEffectiveOutline`) + `briefOptions` + `caseInfo.briefId`
 - `src/routes/projects/[projectId]/documents/[docId]/ReaderModal.svelte` (neu) — Volltext-Reader als Modal-Overlay mit scrollTarget-flash
 - `src/routes/api/cases/[caseId]/pipeline-status/+server.ts` (neu) — GET-Endpoint mit Pass-Status pro central document
 - `src/routes/api/cases/[caseId]/brief/+server.ts` (neu) — PATCH-Endpoint für Brief-Wechsel am Case
-- `src/routes/api/projects/[projectId]/documents/[docId]/status/+server.ts` — bug fix: `de.content IS NOT NULL` → `*` (Migration 027 hatte content gedroppt)
-
-### Test-Daten unverändert
-
-```
-Goldstand-Habil:    case=aa23d66e-9cd8-4583-9d14-6120dc343b10  brief=f8fc8a30-404f-4378-bd8d-c1fb92799246  doc=54073d08-f577-453b-9a72-73a7654e1598
-Mistral-Probe:      case=660cd26d-3759-4ab8-8a38-9f2df27a48b5  brief=1edf4497-5472-4f4b-9366-c0fecab7353f  doc=161d41b4-c00d-4df8-82bc-c14f163e1a63
-```
-
-5 System-Templates aus Stufe 1 unverändert.
-
-### Bekannte Issues (offen)
-
-- **Vite-SSR-Cache aus voriger Session zeigt alte Logs** für Settings-Page-Style-Duplikat und für tool-markup-leak in der Doc-Page. Beide Stände sind heute saniert; Logs sind historisch. Klärt sich beim nächsten Vite-Restart.
-- **`heading_classifications` ist nur sporadisch befüllt**. L1-Total wird via `COALESCE(hc.user_level, properties.level)` aus `document_elements` gezogen — funktioniert für die Pipeline-Status-API, aber wenn der Parser kein `properties.level` schreibt, wäre der Total null. Heute kein realer Fall.
-- **Cost-Anzeige fehlt im Pipeline-Tab.** Bewusst weggelassen, weil `ai_interactions` nicht aktiv geloggt wird. Wenn der Pipeline-Code mit `logAiInteraction()` versehen wird, kann die Anzeige nachgezogen werden.
-
-### Methodologische Lektion
-
-User-sichtbare Texte (Tab-Labels, Pass-Bezeichnungen, Empty-States, Buttons) wurden vor dem Code-Schreiben transparent angekündigt — die Lehre aus 2026-05-02 wurde eingehalten. Tab-Labels waren aus dem Roadmap-Memo gesetzt; Pass-Labels (Per-Absatz-Hermeneutik etc.) und Empty-State-Texte wurden offengelegt; keine versteckten Hint-Maps oder Pseudo-Defaults.
-
-Tool-Markup-Leak im Write: zwei Files (ReaderModal.svelte, +page.svelte) wurden initial mit `</content></invoke>` am Ende geschrieben (das Tool-Schema-Template hat sich in den Datei-Inhalt geschmuggelt). Behoben in beiden Files; Vite-Errors aus der ersten Compile-Stufe sind in den Logs zu sehen aber nicht mehr aktiv.
+- `src/routes/api/projects/[projectId]/documents/[docId]/status/+server.ts` — bug fix
 
 ---
 

@@ -41,6 +41,9 @@
 
 		<nav class="nav">
 			<a href={base} class:active={pathname === base}>Overview</a>
+			<a href="{base}/cases" class:active={pathname.startsWith(`${base}/cases`)}>
+				Cases <span class="count">{c.cases}</span>
+			</a>
 			<a href="{base}/documents" class:active={pathname.startsWith(`${base}/documents`)}>
 				Documents <span class="count">{c.documents}</span>
 			</a>

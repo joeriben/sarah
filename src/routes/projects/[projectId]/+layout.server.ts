@@ -24,14 +24,15 @@ export const load: LayoutServerLoad = async ({ params, locals }) => {
 		error(404, 'Project not found');
 	}
 
-	const counts = await queryOne<{ documents: string; memos: string }>(
+	const counts = await queryOne<{ documents: string; memos: string; cases: string }>(
 		`SELECT
 			(SELECT COUNT(*) FROM document_content dc
 			 JOIN namings n ON n.id = dc.naming_id
 			 WHERE n.project_id = $1 AND n.deleted_at IS NULL) as documents,
 			(SELECT COUNT(*) FROM memo_content mc
 			 JOIN namings n ON n.id = mc.naming_id
-			 WHERE n.project_id = $1 AND n.deleted_at IS NULL) as memos`,
+			 WHERE n.project_id = $1 AND n.deleted_at IS NULL) as memos,
+			(SELECT COUNT(*) FROM cases WHERE project_id = $1) as cases`,
 		[params.projectId]
 	);
 
@@ -49,7 +50,8 @@ export const load: LayoutServerLoad = async ({ params, locals }) => {
 		documents: docsResult.rows,
 		counts: {
 			documents: parseInt(counts?.documents || '0'),
-			memos: parseInt(counts?.memos || '0')
+			memos: parseInt(counts?.memos || '0'),
+			cases: parseInt(counts?.cases || '0')
 		}
 	};
 };

@@ -9,10 +9,19 @@
 </script>
 
 <div class="overview">
-	<h1>{p.name}</h1>
-	{#if p.description}<p class="desc">{p.description}</p>{/if}
+	<header class="head">
+		<div>
+			<h1>{p.name}</h1>
+			{#if p.description}<p class="desc">{p.description}</p>{/if}
+		</div>
+		<a class="primary-btn" href="/projects/{p.id}/cases/new">+ Neuer Case</a>
+	</header>
 
 	<div class="stats">
+		<a href="/projects/{p.id}/cases" class="stat-card">
+			<div class="num">{c.cases}</div>
+			<div class="lbl">Cases</div>
+		</a>
 		<a href="/projects/{p.id}/documents" class="stat-card">
 			<div class="num">{c.documents}</div>
 			<div class="lbl">Documents</div>
@@ -26,8 +35,22 @@
 
 <style>
 	.overview { max-width: 800px; padding: 2rem; }
+	.head { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 2rem; }
+	.head > div { flex: 1; }
 	h1 { font-size: 1.6rem; margin: 0 0 0.5rem; color: #e1e4e8; }
-	.desc { color: #8b8fa3; font-size: 0.95rem; margin: 0 0 2rem; }
+	.desc { color: #8b8fa3; font-size: 0.95rem; margin: 0; }
+	.primary-btn {
+		background: rgba(165, 180, 252, 0.10);
+		border: 1px solid rgba(165, 180, 252, 0.4);
+		color: #c7d2fe;
+		padding: 0.5rem 1rem; font-size: 0.85rem;
+		border-radius: 4px; text-decoration: none;
+		font-family: inherit; white-space: nowrap;
+	}
+	.primary-btn:hover {
+		background: rgba(165, 180, 252, 0.18);
+		border-color: rgba(165, 180, 252, 0.65);
+	}
 	.stats {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
