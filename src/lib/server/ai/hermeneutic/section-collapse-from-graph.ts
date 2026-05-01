@@ -413,11 +413,14 @@ function buildUserMessage(ctx: CollapseContext): string {
 
 		const scLines = p.scaffolding.length === 0
 			? ''
-			: '\n  Stützstrukturen (Layer 2):\n' + p.scaffolding.map(s =>
-				`    ${s.elementLocalId} [${s.functionType}] → ${s.anchored_to.join(', ')}\n` +
-				`      Funktion: ${s.functionDescription}\n` +
-				`      Assessment: ${s.assessment}`
-			).join('\n');
+			: '\n  Stützstrukturen (Layer 2):\n' + p.scaffolding.map(s => {
+				const anchorPart = s.anchored_to.length === 0
+					? '(absatz-verankert, ohne Argument-Bezug)'
+					: '→ ' + s.anchored_to.join(', ');
+				return `    ${s.elementLocalId} [${s.functionType}] ${anchorPart}\n` +
+					`      Funktion: ${s.functionDescription}\n` +
+					`      Assessment: ${s.assessment}`;
+			}).join('\n');
 
 		return `## §${p.positionInSubchapter}\n${argLines}${interLines}${priorLines}${scLines}`;
 	}).join('\n\n');

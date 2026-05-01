@@ -14,8 +14,10 @@
 //   - Within a section, missing optional fields default to empty.
 //   - A malformed argument/scaffolding is skipped (warning), not fatal —
 //     other sections of the paragraph still produce data.
-//   - An argument without a claim is dropped. A scaffolding without an
-//     anchor is dropped (matches existing storeResult behaviour).
+//   - An argument without a claim is dropped. A scaffolding without
+//     excerpt/description/assessment is dropped. A scaffolding with empty
+//     anchored_to is KEPT — storeResult falls back to paragraph-anchoring
+//     for purely expositorische Absätze (definitions, paraphrases).
 //   - Edges that don't pattern-match the strict arrow form are skipped
 //     with a warning, not fatal.
 //
@@ -47,7 +49,7 @@ A1 -presupposes-> §1:A2
 
 SCAFFOLDING S1
 function: <textorganisatorisch | didaktisch | kontextualisierend | rhetorisch>
-anchored_to: A1, §2:A3
+anchored_to: A1, §2:A3   (oder leer, wenn weder lokale noch prior Args verfügbar)
 excerpt: <Textfragment, ≤ 500 Zeichen>
 description: <spezifische Funktion in Bezug auf Argumente>
 assessment: <Bewertung aus argumentationslogischer Sicht>
@@ -375,9 +377,12 @@ function parseScaffoldingBody(id: string, body: string[], warnings: string[]): R
 		warnings.push(`SCAFFOLDING ${id} has no assessment — dropped`);
 		return null;
 	}
+	// Leeres anchored_to ist erlaubt: rein expositorische Absätze (Definitionen,
+	// Paraphrasen, deskriptive Subkapitel-Eröffnungen) liefern legitim Stützstrukturen
+	// ohne Argument-Anker. storeResult fällt in dem Fall auf paragraph-Verankerung
+	// zurück. Wir loggen es trotzdem als Hinweis, falls es ein LLM-Output-Bug war.
 	if (anchored_to.length === 0) {
-		warnings.push(`SCAFFOLDING ${id} has no resolvable anchored_to — dropped`);
-		return null;
+		warnings.push(`SCAFFOLDING ${id} has empty anchored_to — kept paragraph-anchored`);
 	}
 	if (!VALID_FUNCTION_TYPES.has(function_type)) {
 		warnings.push(`SCAFFOLDING ${id} has unknown function_type="${function_type}" — defaulting to "kontextualisierend"`);

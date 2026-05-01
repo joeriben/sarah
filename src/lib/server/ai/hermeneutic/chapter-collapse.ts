@@ -610,11 +610,14 @@ function formatParagraphGraphBlock(p: ParagraphGraph): string {
 		: '\n  Cross-Edges (rückwärts):\n' + p.priorEdges.map(e => `    ${e.from} --${e.kind}--> ${e.to}`).join('\n');
 	const scLines = p.scaffolding.length === 0
 		? ''
-		: '\n  Stützstrukturen:\n' + p.scaffolding.map(s =>
-			`    ${s.elementLocalId} [${s.functionType}] → ${s.anchored_to.join(', ')}\n` +
-			`      Funktion: ${s.functionDescription}\n` +
-			`      Assessment: ${s.assessment}`
-		).join('\n');
+		: '\n  Stützstrukturen:\n' + p.scaffolding.map(s => {
+			const anchorPart = s.anchored_to.length === 0
+				? '(absatz-verankert, ohne Argument-Bezug)'
+				: '→ ' + s.anchored_to.join(', ');
+			return `    ${s.elementLocalId} [${s.functionType}] ${anchorPart}\n` +
+				`      Funktion: ${s.functionDescription}\n` +
+				`      Assessment: ${s.assessment}`;
+		}).join('\n');
 	return `## §${p.positionInChapter}${enclosing}\n${argLines}${interLines}${priorLines}${scLines}`;
 }
 

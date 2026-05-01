@@ -9,12 +9,18 @@
 //
 // Output covers two layers per paragraph:
 //   Layer 1 — arguments + edges (Migration 032).
-//   Layer 2 — scaffolding_elements (Migration 033). Every scaffolding
-//             element MUST anchor to ≥ 1 argument (in this paragraph or in
-//             an earlier paragraph of the same subchapter). Orphans are
-//             dropped with logging. This enforces the user's principle that
-//             text-organisational/didactic quality is only assessable in
-//             service of argumentative substance.
+//   Layer 2 — scaffolding_elements (Migration 033). Each scaffolding
+//             element SHOULD anchor to ≥ 1 argument (in this paragraph or in
+//             an earlier paragraph of the same subchapter) — that is the
+//             principle: text-organisational/didactic quality is best
+//             assessable in service of argumentative substance. But for
+//             rein expositorische Absätze (definitions, paraphrases of
+//             cited material, descriptive openings of a subchapter) where
+//             no anchor target exists, the element is kept paragraph-
+//             anchored (no scaffolding_anchors rows) rather than dropped.
+//             Otherwise the pass would lose every annotation for purely
+//             descriptive passages, which is wrong: such material is still
+//             present in the text and the analyst should still see it.
 //
 // Architecture mirrors per-paragraph.ts on purpose so the comparison with
 // the synthetic pass is fair: same persona/criteria/work-header/completed-
@@ -127,7 +133,11 @@ const ScaffoldingElementSchema = z.object({
 	function_type: ScaffoldingFunctionType,
 	function_description: z.string().min(1),
 	assessment: z.string().min(1),
-	anchored_to: z.array(z.string().regex(/^(A\d+|§\d+:A\d+)$/)).min(1, 'scaffolding must anchor to ≥ 1 argument'),
+	// Bevorzugt ≥ 1 Anker. Leer erlaubt für rein expositorische Absätze, in denen
+	// weder lokale Args noch prior_paragraph-Args verfügbar sind (z.B. erster Absatz
+	// eines deskriptiven Subkapitels). storeResult fällt dann auf paragraph-Verankerung
+	// zurück; siehe Doc-Header oben.
+	anchored_to: z.array(z.string().regex(/^(A\d+|§\d+:A\d+)$/)).default([]),
 	// See ArgumentSchema.anchor_phrase note: 500 = sanity cap; style limit (≤ 8
 	// Wörter) is prompt-side only.
 	anchor_phrase: z.string().max(500).default(''),
@@ -420,7 +430,7 @@ Du arbeitest in einem analytischen Modus parallel zur synthetisch-hermeneutische
 
 KEINE hermeneutische Synthese. KEINE Vorblicke. KEINE Bewegungsfiguren auf Werk-Ebene. Nur: was wird behauptet (Layer 1) und was tut der Text textorganisatorisch in Bezug auf diese Behauptungen (Layer 2).
 
-Beide Layer zusammen sollen den Absatz vollständig abdecken — leere Felder sind nur dann korrekt, wenn der Absatz tatsächlich nichts der jeweiligen Sorte enthält. Ein Absatz, der ausschließlich Übergang/Beleg/Beispielssetzung/Rhetorik ist (kein Argument trägt), kann \`arguments: []\` haben, aber dann muss \`scaffolding\` nicht-leer sein.
+Beide Layer zusammen sollen den Absatz vollständig abdecken — leere Felder sind nur dann korrekt, wenn der Absatz tatsächlich nichts der jeweiligen Sorte enthält. Ein Absatz, der ausschließlich Übergang/Beleg/Beispielssetzung/Rhetorik ist (kein Argument trägt), kann \`arguments: []\` haben, aber dann muss \`scaffolding\` nicht-leer sein. Bei \`anchored_to\` gilt: bevorzugt auf konkrete Args (lokal oder \`§N:AM\`); falls in einem rein deskriptiven Absatz weder lokal noch in den prior_arguments_index Args verfügbar sind, darf \`anchored_to\` leer bleiben — die Stützstruktur wird dann auf Absatz-Ebene verankert. Bitte keine A1/A2 erfinden.
 
 [KRITERIEN ALS LESEFOLIE]
 ${caseCtx.brief.criteria}
@@ -464,11 +474,11 @@ Zu **SCAFFOLDING-Sektionen** (Layer 2):
   · rhetorisch          — Relevanzmarkierungen, Meta-Reflexionen des Autors über das eigene Argument, Emphase, rhetorische Fragen.
 - description: spezifische Funktion in Bezug auf konkrete Argumente. **Format**: nenne die Bezugsargumente explizit (z.B. "Beleg von §3:A2 durch Hornberg-Studie").
 - assessment: Bewertung aus argumentationslogischer Sicht — was tut die Stützstruktur für die Tragfähigkeit/Verständlichkeit der bezogenen Argumente? **Nicht** Bewertung des stilistischen Werts isoliert, sondern: dient die Stützfunktion der Argumentation? Mögliche Befunde: "klar wirksam", "redundant", "bedingt plausibel — Beleg trägt nur indirekt", "rhetorisch wirksam, sachlich schwach", "trägt §X:AY entscheidend, ohne ihn wäre der claim unbelegt", etc.
-- anchored_to: Komma-getrennte Liste von Argument-IDs (lokal "A1" oder Cross "§N:AM"), an die diese Stützstruktur gebunden ist. **Pflicht**: ≥ 1 Anker. Stützstrukturen ohne Anker werden verworfen.
+- anchored_to: Komma-getrennte Liste von Argument-IDs (lokal "A1" oder Cross "§N:AM"), an die diese Stützstruktur gebunden ist. **Bevorzugt** ≥ 1 Anker auf tatsächlich extrahierte Args. Wenn keine geeigneten Args verfügbar sind (weder lokal in diesem Absatz noch in den prior_arguments_index früherer Absätze), darf die Liste leer bleiben (\`anchored_to: \` oder Feld weglassen) — die Stützstruktur wird dann auf Absatz-Ebene verankert. **Bitte keine A1/A2 erfinden**, wenn der Absatz tatsächlich keine Argumente enthält.
 - excerpt: Textfragment des Absatzes, das die Stützfunktion trägt; bis 500 Zeichen.
 - anchor: kürzere wörtliche Wortgruppe (≤ 8 Wörter) für char-genaue Verankerung.
 
-Wichtig: ein Absatz, der ausschließlich aus textorganisatorisch-didaktisch-kontextualisierend-rhetorischen Elementen besteht (z.B. ein reiner Übergangsabsatz, eine Belegkette, ein Methodenkommentar), hat dann KEINE ARGUMENT-Sektion und nur SCAFFOLDING-Sektionen, deren anchored_to auf Argumente früherer Absätze zeigt.
+Wichtig: ein Absatz, der ausschließlich aus textorganisatorisch-didaktisch-kontextualisierend-rhetorischen Elementen besteht (z.B. ein reiner Übergangsabsatz, eine Belegkette, ein Methodenkommentar, ein deskriptiver Erklärungsabsatz), hat dann KEINE ARGUMENT-Sektion und nur SCAFFOLDING-Sektionen. Falls in prior_arguments_index Args verfügbar sind, sollte anchored_to darauf zeigen; falls nicht (z.B. erster Absatz eines rein expositorischen Subkapitels, das eine Quelle/Institution einführt), darf anchored_to leer bleiben.
 
 NICHT als scaffolding zu erfassen: Premissen sind Teil von Argumenten, nicht Stützstrukturen. Ein Belegzitat, das im Argument selbst aufgeht, gehört in dessen premises (stated), nicht ins scaffolding. scaffolding registriert nur Material, das *als textorganisatorische/didaktische Geste* erkennbar ist — also Material, das eine Argumentation rahmt, einleitet, illustriert, motiviert oder verbindet, ohne selbst behauptend zu sein.`;
 }
@@ -736,9 +746,15 @@ async function storeResult(
 				}
 			}
 
-			if (resolvedAnchorIds.length === 0) {
-				skippedScaffolding.push({ reason: `all anchored_to refs unresolved`, element: el.id });
-				continue;
+			// Leeres oder vollständig unauflösbares anchored_to ist kein Drop-Grund mehr:
+			// rein expositorische Absätze (Definitionen, Paraphrasen, deskriptive Passagen
+			// am Anfang eines Subkapitels) liefern legitim scaffolding ohne Argument-Anker.
+			// Wir speichern das Element trotzdem (paragraph-anchored über die char_anchor-
+			// Felder weiter unten) und legen einfach keine scaffolding_anchors-Rows an.
+			if (resolvedAnchorIds.length === 0 && el.anchored_to.length > 0) {
+				// LLM hat Anker geliefert, aber alle waren unauflösbar — das ist erwähnenswert
+				// (Hallu auf nicht-existente A1/A2, oder prior-§ ohne Args), aber kein Drop.
+				skippedScaffolding.push({ reason: `all anchored_to refs unresolved — kept paragraph-anchored`, element: el.id });
 			}
 
 			// Char anchor for the scaffolding element itself
@@ -802,22 +818,21 @@ async function storeResult(
 			}
 		}
 
-		// Storage-empty guard: wenn der Pass weder argument_nodes noch
-		// scaffolding_elements persistiert (z.B. weil das LLM nur scaffolding
-		// extrahiert hat, dessen Anchor-Refs aber alle auf nicht-existente
-		// lokale args A1/A2 zeigen → alle scaffolding skipped), würde der
-		// Orchestrator-Loop diesen ¶ als immer noch pending sehen und mit
-		// echten LLM-Calls in eine Endlosschleife geraten. Lieber als
-		// Persistierungs-Failure markieren — der Stuck-Guard im Orchestrator
-		// fängt das, aber hier mit konkreter Diagnose loggbar.
+		// Storage-empty guard: wenn der Pass gar nichts persistiert (weder
+		// argument_nodes noch scaffolding_elements), würde der Orchestrator-
+		// Loop diesen ¶ als immer noch pending sehen und mit echten LLM-Calls
+		// in eine Endlosschleife geraten. Seit dem Relax von anchored_to
+		// (siehe oben) tritt dieser Fall nur noch ein, wenn das LLM-Output
+		// echt leer ist — also weder ARGUMENT- noch SCAFFOLDING-Sektion
+		// extrahierbar war. Das ist ein echter Output-Fehler, kein Drop-
+		// Effekt der Storage-Logik.
 		if (nodeIds.length === 0 && scaffoldingIds.length === 0) {
 			throw new Error(
-				`AG-Pass produzierte parseable Output, aber nichts wurde persistiert: ` +
-				`${result.arguments.length} args (alle abgelehnt), ` +
-				`${result.scaffolding.length} scaffolding (alle skipped: ` +
-				`${skippedScaffolding.map((s) => s.reason).join(', ').slice(0, 200)}). ` +
-				`Üblicherweise: scaffolding.anchored_to verweist auf lokale args A1/A2, ` +
-				`die im selben Absatz nicht extrahiert wurden.`
+				`AG-Pass lieferte für diesen Absatz weder Argumente noch Stützstrukturen ` +
+				`(${result.arguments.length} args extrahiert, ${result.scaffolding.length} scaffolding extrahiert). ` +
+				`Üblicherweise ein LLM-Output-Fehler: leerer Response oder vollständig unparseable Sektionen. ` +
+				`Bei result.scaffolding.length > 0 zusätzlich diagnostisch: ` +
+				`${skippedScaffolding.map((s) => s.reason).join(', ').slice(0, 200) || '(keine skipped scaffolding)'}.`
 			);
 		}
 
