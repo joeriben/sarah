@@ -1,0 +1,43 @@
+{
+  "model": {
+    "key": "deepseek-v4-pro",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4-pro"
+  },
+  "wall_seconds": 61.614,
+  "tokens": {
+    "input": 7365,
+    "output": 1860,
+    "cacheCreation": 0,
+    "cacheRead": 0,
+    "total": 9225
+  },
+  "paragraphs_synthesized": 5,
+  "total_arguments": 17,
+  "total_scaffolding": 19,
+  "result": {
+    "synthese": "Das Subkapitel vollzieht eine argumentative Bewegung von der theoretischen Grundlegung eines kulturwissenschaftlichen Begriffs schulischer Kultur (§1) über die Diagnose ihrer Pluralisierung und der daraus erwachsenden professionellen Anforderungen (§2) hin zur anthropologischen und bildungstheoretischen Vertiefung (§3) und schließlich zur gesellschaftspolitischen Zuspitzung unter Bedingungen von Superdiversität (§5). Die argumentative Architektur beruht wesentlich auf einer Kaskade von Verfeinerungen (refines-Edges) und wechselseitigen Stützungen über Absatzgrenzen hinweg, wobei §2 als Scharnierstelle fungiert, die sowohl auf §1 aufbaut als auch die Folie für §3 und §5 liefert. Die Kernbewegung des Subkapitels ist der Übergang von der deskriptiven Analyse der Verunsicherung kultureller Orientierungsangebote (§1, §2, §3 teilweise) zur normativ aufgeladenen Forderung nach einer reflexiven Bearbeitung dieser Verunsicherung durch Lehrkräfte (§2:A5) und das Bildungssystem (§5:A3–A4) — ein Übergang, der argumentativ vor allem in §2:A5 vollzogen und in §5 normativ verstärkt wird. Architektonisch steht das Subkapitel zwischen der allgemeinen Bestimmung von Schule als kulturell durchwobenem Handlungsfeld und dem Folgekapitel 'Lehrkräfte als kulturelle Bildungsakteure'; es leistet die theoretische Grundierung, indem es die Begriffe Kultur, Pluralisierung, Selbst-Welt-Relationierung und gesellschaftliche Dringlichkeit so profiliert, dass die Fokussierung auf die Lehrkräfte im nächsten Schritt nicht als partikular, sondern als notwendig erscheint. Die argumentative Tragweite ist erheblich: das Subkapitel beansprucht, eine bildungstheoretisch fundierte Begründung für die professionsbezogene Relevanz kultureller Orientierungsangebote zu liefern, die sowohl anthropologische als auch gesellschaftspolitische Dimensionen integriert. Die Tragfähigkeit der Stützung ist für diesen Anspruch angemessen dimensioniert, bleibt jedoch in mehrfacher Hinsicht assertorisch, da zentrale Prämissen — die empirische Realität des kulturellen Wandels, die Kausalverbindung zwischen gesellschaftlicher Verunsicherung und bildungspolitischen Konsequenzen, die normative Geltung der Forderung nach 'Ermöglichung von Pluralität' — überwiegend durch rhetorische Markierungen, nominale Autoritätsreferenzen und Textorganisation gestützt werden, nicht durch entfaltete Argumentation oder empirische Belege.",
+    "auffaelligkeiten": [
+      {
+        "scope": "§1:S4",
+        "observation": "Die kontextualisierende Stützstruktur stellt Bhabha und Reckwitz als Gewährsleute für A3/A4 nebeneinander, ohne das theoretische Spannungsverhältnis zwischen postkolonialer Hybriditätstheorie und praxeologischer Kultursoziologie zu thematisieren — eine Zusammenführung, die konzeptuell unterkomplex erscheint und den Verdacht einer strategischen Theorienutzung ohne hinreichende Integration aufkommen lässt."
+      },
+      {
+        "scope": "§2:S3",
+        "observation": "Die zentrale Prämisse der kulturellen Pluralisierung, die für die argumentative Bewegung des gesamten Subkapitels tragend ist (A2, A3), wird allein durch eine rhetorische Markierung ('aufgebrochen', 'differenzieren sich aus') gestützt; ein empirischer Beleg oder eine differenzierte zeitdiagnostische Einordnung fehlt an dieser argumentationslogisch kritischen Stelle."
+      },
+      {
+        "scope": "§3:A2",
+        "observation": "Der Zentralbegriff 'Globalität' wird eingeführt und terminologisch verankert, bleibt aber ohne jede minimale Begriffsbestimmung im Absatz selbst — die gesamte Erklärungslast wird auf spätere Kapitel verlagert, was den Lesefluss an dieser Stelle erschwert und die lokale Plausibilität von A2 schwächt."
+      },
+      {
+        "scope": "§5:S6",
+        "observation": "Die Schlussformel vollzieht einen unvermittelten normativen Sprung von 'Defizite bearbeiten' zu 'Pluralität und Wandelbarkeit ermöglichen', ohne diesen Übergang argumentativ einzuholen; die normative Zielformel wird gesetzt, nicht aus den vorangehenden Diagnosen abgeleitet, was die argumentative Bewegung des Subkapitels mit einer ungeschlossenen Lücke abschließt."
+      },
+      {
+        "scope": "§5:S5",
+        "observation": "Die Belegfunktion der bildungspolitischen Beispiele (BMBF, PISA 2018) für A4 illustriert ein gestiegenes Bewusstsein, ohne es zu belegen — zwei selektive Programmhinweise tragen die weitreichende Behauptung eines gewandelten gesellschaftlichen und bildungspolitischen Bewusstseins argumentativ kaum."
+      }
+    ]
+  }
+}

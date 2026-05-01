@@ -1,6 +1,201 @@
-# Handover — Stand 2026-05-01 (Folge-Session, Validierungslauf vorbereitet)
+# Handover — Stand 2026-05-01 spät (LLM-Strategie-Ermittlung + Chapter-1-Goldstandard)
 
-**Lies zuerst diesen Block.** Der ältere Handover-Text darunter ist Kontext, aber der aktuelle Stand und die nächsten Schritte stehen hier oben.
+**Lies zuerst diesen Block.** Die älteren Handover-Texte darunter sind Kontext, der aktuelle Stand und die nächsten Schritte stehen hier oben.
+
+## TL;DR — Wo wir stehen
+
+In dieser Session haben wir (a) die Direction-4-Pipeline **end-to-end** auf dem Theorie-Hauptkapitel des frischen Timm-Manuskripts laufen lassen, mit **Opus 4.7 als Goldstandard**, und (b) eine **Modell-Vergleichs-Reihe** durchgeführt, um Cost/Quality-Trade-offs für die einzelnen Pipeline-Pässe zu ermitteln. Die nächsten Sessions brauchen **(1) einen JSON-Repair-Fix** für 13 abgebrochene AG-Pässe in Chapter 1, **(2) einen Mistral-Large-Test** (User offen), **(3) den DS4-für-Collapses-Test** (Hypothese: günstiger Hybrid).
+
+## Goldstandard-Baseline: Chapter 1 mit Opus 4.7 (komplett gelaufen)
+
+Output: `docs/experiments/chapter1-opus-collapse.json` (chapter-collapse memo)
+
+| Phase | Outcome | Wall | ~Cost |
+|---|---|---:|---:|
+| Phase 1 — basal (74 ¶ × synth + AG) | 74/74 synth ✓; **13 AG failed** (alle JSON-Parse-Brüche durch typographische Quotes / unescaped control chars in LLM-Output) | ~32 min | ~$11.50 |
+| Phase 2 — section-collapse (7 L3) | 7/7 ✓ — reichhaltig (5–43 args, 3–45 scaff pro section) | ~3 min | ~$1.30 |
+| Phase 3 — chapter-collapse | ✓ level=3 (L3 als aggregation level), 6 spezifische Auffälligkeiten | 42 s | ~$0.50 |
+| **Total** | | **38.3 min** | **~$13.30** |
+
+Treiber: `scripts/run-chapter1-pipeline.ts` (idempotent: skip-on-existing für alle Pässe; resume-friendly).
+
+**Substanzielle Output-Qualität:** der chapter-memo identifiziert die "trichterförmige" Architektur 1.1→1.2→1.3, lokalisiert die Kernbewegung am Übergang 1.2.2→1.3 mit Kulminationspunkt bei 1.3.3 §4:A7 (Ungewissheit als globalitätskonstitutive Größe), und liefert eine materielle Tragweite/Tragfähigkeit-Diagnose: "Tragweite werksystematisch fundamental und programmatisch — Stützung durchgängig unterdimensioniert: tragende Setzungen werden gelistet, aber nicht hergeleitet, und die Begründungslast wird wiederholt auf Referenzautoren und Folgekapitel verlagert." Die 6 Auffälligkeiten sind alle paragraph-präzise verankert (mit §:A-Referenzen), keine Slop-Allgemeinplätze.
+
+**Wichtig für die Folge-Session:** Dies ist die Referenz, gegen die alle Cost-Reduction-Hypothesen geprüft werden müssen. Nicht "ist DS4-Output für sich plausibel" sondern "kommt es an Opus's Befunde heran".
+
+## Modell-Vergleich (Basal-Pipeline auf 1.1.1, 5 ¶ × synth + AG)
+
+Outputs in `docs/experiments/`: `model-compare-1.1.1-{deepseek-v4-pro,sonnet-4-6,opus-4.7}.json` + `-SIDE-BY-SIDE.md`
+
+| Modell (via OpenRouter) | Wall total | Tokens | AG-Erfolg | Pro-¶-Cost (geschätzt) |
+|---|---:|---:|---:|---:|
+| `deepseek/deepseek-v4-pro` | 946 s | 55k | **2/5** (Schema-Verletzung, no-JSON, control char) | ~$0.02 |
+| `anthropic/claude-sonnet-4.6` | 232 s | 66k | **4/5** (§4 Tenorth-Zitat fail) | ~$0.06 |
+| `anthropic/claude-opus-4.7` | 133 s | 86k | **4/5** (gleicher §4 fail) | ~$0.17 |
+
+**Klare Trennlinien:**
+- **Wall-Time invertiert zur Modellgröße:** Opus < Sonnet < DeepSeek. DeepSeek-v4-pro über OpenRouter ist 7× langsamer als Sonnet weil 5–6× verbosere Outputs (3000–6000 statt 500 tokens pro AG-Call).
+- **§4 Tenorth-Zitat scheitert für ALLE Modelle** — paragraph-spezifisches JSON-Escape-Problem (typographische Quotes bzw. mehrzeilige Strings ohne Escape). Nicht modell-spezifisch.
+- **Codes-Qualität:** Sonnet generiert tendenziell präzisere "Bohnsack-y" Labels, hebt eine zweite Dimension hervor; Opus und DS4 konvergieren öfter bei Anker-Phrase-Wahl.
+
+## Modell-Smoketest (4 weitere OpenRouter-Modelle, AG-only auf §1, parallel)
+
+`scripts/smoketest-models-ag.ts` — 4 Modelle parallel auf §1, Wall des langsamsten 137 s.
+
+| Modell | wall | json | shape | args | scaff |
+|---|---:|---|---|---:|---:|
+| `qwen/qwen3.6-max-preview` | 137s | YES | YES | 4 | 2 |
+| `~google/gemini-pro-latest` | 35s | nein (JSON.parse) | — | — | — |
+| `xiaomi/mimo-v2.5-pro` | 54s | nein (no { }) | — | — | — |
+| `z-ai/glm-5.1` | 30s | nein (JSON.parse) | — | — | — |
+
+Plus geprüft via 2-call-prose-Decomposition (`scripts/test-2call-prose.ts`): nur Qwen schaffte beide Calls; gemini/mimo/glm scheiterten am simplen `LABEL | ANCHOR`-Code-Format.
+
+## Modell-Strategie-Befunde
+
+1. **Basal-Pipeline (synth + AG) braucht JSON-strong Modelle.** Tested: Sonnet 4.6, Opus 4.7. **Mistral-Large-2512 noch nicht getestet** (User wollte explizit, kam zeitlich nicht dazu — siehe offene Punkte).
+2. **DeepSeek-v4-pro als Args-Producer untauglich** (3/5 fails). **Aber als Args-Consumer in collapses interessant** — DS4 hat im abgebrochenen Section-Collapse-Run (vor dem Pivot zu Chapter-1-Opus) tatsächlich funktioniert, dump existiert: `docs/experiments/collapse-compare-1.1.1-deepseek-v4-pro.json`. Synthese-Aufgabe ist prose-dominiert und passt zu DS4s Stärke. **Hybrid-Hypothese:** Opus für basal (zwingend JSON), DS4 für section-collapse → ggf. Sonnet/Opus für chapter-collapse. Cost-Reduktion bei vermuteter Qualitätserhaltung — **muss noch quantifiziert werden**.
+3. **Nemotron-3-super:latest (Ollama lokal) ist DEAD END** für diese Pipeline:
+   - JSON-Modus: Timeouts + unparseable JSON
+   - Prose-only Modus: 1/5 wirklich Prose (3/5 trotz expliziter Anweisung JSON, 1/5 Refusal mit ironischem "kann das gewünschte JSON nicht bereitstellen")
+   - Brutal slow lokal (~40s/¶)
+   Memory `feedback_no_xai_models.md` ist NICHT für Nemotron — Nemotron-Lektion sollte ggf. separat dokumentiert werden, falls jemand das nochmal vorschlägt.
+4. **Hartes User-Constraint:** Grok / xAI-Modelle politisch ausgeschlossen — siehe neue Memory `feedback_no_xai_models.md`. Beim nächsten Modell-Vorschlag-Listing (Mammouth-Katalog hat Grok-Familie, OpenRouter auch) automatisch auslassen.
+
+## Architekturelle Insights aus dieser Session
+
+### chat() unterstützt jetzt per-call modelOverride
+
+`src/lib/server/ai/client.ts`: `chat({...opts, modelOverride: { provider, model }})` baut bei Bedarf einen one-shot-Client für das Override-Modell. Bestehende Default-Settings (ai-settings.json) bleiben unangetastet. Threading: `runParagraphPass`, `runArgumentationGraphPass`, `runGraphCollapse` akzeptieren jetzt alle das `modelOverride`. **`runChapterCollapse` und `runDocumentCollapse` sind noch NICHT modelOverride-fähig** (offen für Folge-Session).
+
+### Per-paragraph-Helpers exportiert
+
+In `per-paragraph.ts` wurden für Test-Driver exportiert: `loadCaseContext`, `loadParagraphContext`, `buildSystemPrompt`, `buildUserMessage`, sowie die Interfaces `CaseContext`, `ParagraphContext`. Damit können Driver eigene Prompt-Varianten bauen ohne Code-Duplikation.
+
+### Failure-Dump-Path in per-paragraph
+
+Analog zu argumentation-graph.ts gibt es jetzt in `runParagraphPass` einen `/tmp/per-paragraph-failure-<paragraphId>.txt` Dump bei extractJSON / Schema-Fehlern. Hilfreich beim Debug fremder Modelle.
+
+### "Beamten-Diagnose" (User-Feedback, neue Memory)
+
+User-Korrektur dieser Session: ich habe das System-Prompt-Format (single-JSON-call) als gegeben behandelt und darüber die Modelle gefiltert ("kann Modell X dieses Schema?"). Die korrekte Frage ist umgekehrt: **welches Modell kann die Aufgabe wenn die Aufgabe modell-freundlich strukturiert ist?** Konkret: das per-paragraph-Memo könnte auch als 2 Calls gebaut werden (Interpretation prose, dann Codes simpler), wodurch viel mehr Modelle nutzbar wären. **Diese Insight ist nicht in eine Feedback-Memory geschrieben** — könnte sinnvoll sein für die Folge-Session (Stichwort: nicht das Format-Schema als Constraint setzen, wenn das Schema selbst Wahl ist).
+
+## Bekannte Bugs / Offene technische Posten
+
+### KRITISCH: extractJSON-Repair für AG-Pass
+
+13 AG-Pässe in Chapter 1 sind gescheitert, alle mit derselben Klasse:
+- **Bad control character in string literal** (unescaped \n / \r / \t innerhalb von quoted JSON-Strings — LLM emittiert Multi-Line-Zitat ohne Escape)
+- **Unexpected token '"'** (typographische close-quote `"` U+201D, vom LLM mit `\"` ASCII-escape vorangestellt — JSON-illegal)
+
+Existierender `repairTypographicQuotes` in `argumentation-graph.ts:583` deckt diese Klassen NICHT ab. Failure-IDs (Chapter 1, doc 54073d08):
+```
+§4 (1.1.1):     96556e05-9b69-482b-ace7-174252284536  (Tenorth-Zitat, beide Modelle)
+¶20:            11331d92-…
+¶24:            674b6337-…
+¶27:            4bceecb0-…
+¶29:            be12007a-…
+¶33:            2ab9f799-…
+¶44:            4db9fcce-…
+¶46:            4404dd63-…
+¶47:            3f2e2ae9-…
+¶61:            c96a869e-…
+¶67:            9f5f68c2-…
+¶69:            504ad43c-…
+¶71:            987a67fa-…
+```
+(Volle UUIDs in `/tmp/sarah-chapter1.log` und in den `/tmp/argumentation-graph-failure-<paragraph_id>.txt` dumps — Letzteres pro fail überschrieben, also nicht alle gleichzeitig vorhanden.)
+
+**Fix-Idee:** in `extractJSON` (oder einer neuen `repairJSON`-Helper-Schicht) zwei Repair-Pässe vor `JSON.parse`:
+1. **Control-Char-Escape:** innerhalb von quoted JSON-Strings literal `\n`/`\r`/`\t` zu `\\n`/`\\r`/`\\t`. Knifflig wegen Token-Boundary-Detection — eventuell via JSON5 oder json-repair npm package leichter.
+2. **Mis-escaped typographic quote:** Sequenz `\"` (Backslash + ASCII-Quote) gefolgt von typographischer Quote U+201C / U+201D im Inhalt → unescape den ASCII-Quote zur typographischen Quote.
+
+Nach Fix: Re-Run nur dieser 13 ¶s. Das geht weil AG idempotent SKIP wirft wenn argument_nodes bereits da sind — nur die 13 fehlen. Driver-Pattern: Liste der 13 IDs durchschleifen, runArgumentationGraphPass aufrufen, fertig.
+
+### ai-settings ist auf Opus eingestellt
+
+`ai-settings.json` zeigt aktuell auf `openrouter / anthropic/claude-opus-4.7`. **Achtung:** wenn der dev-server / andere Aufgaben (z.B. Outline-Confirmation per LLM, falls genutzt) auf den Default-Client zurückgreifen, läuft das jetzt auch auf Opus → unerwartet teuer. Mindestens für Production-Use sollte zurück auf `mammouth / claude-sonnet-4-6`. Für Folge-Session: bewusst entscheiden was Default sein soll.
+
+### runChapterCollapse + runDocumentCollapse ohne modelOverride
+
+Die anderen 3 Pässe (paragraph, AG, section-collapse) sind durchgreichbar; chapter-collapse + document-collapse noch nicht. Trivialer 1-Zeilen-Add wenn die Hybrid-Strategie kommen soll.
+
+## Stand der Test-Daten in DB
+
+Case-IDs unverändert vom vorigen Handover:
+
+```
+case_id          aa23d66e-9cd8-4583-9d14-6120dc343b10
+brief_id         f8fc8a30-404f-4378-bd8d-c1fb92799246  (argumentation_graph=true)
+document_id      54073d08-f577-453b-9a72-73a7654e1598
+user_id (sarah)  dac6ac05-bdab-4d68-a4fa-3eab0b40cc2b
+```
+
+In Chapter 1 (L1 heading `9c3e2dac-a9bb-4cb5-8a6d-19a87c086341`):
+- 74 paragraph-synth-memos (alle 74 ¶)
+- ~61 paragraph-AG (74 minus 13 failures)
+- 7 L3 section-collapse memos (alle 7 L3-Subkapitel)
+- 1 L1 chapter-collapse memo
+- `aggregation_subchapter_level = 3` persistiert auf chapter-1 heading
+
+In Chapter 2-4: nichts (frisch).
+
+## Konkrete nächste Aktionen, in Reihenfolge
+
+1. **JSON-Repair-Fix in extractJSON / repairJSON** für die zwei Bug-Klassen (bad control char, mis-escaped typographic quote). Re-Run dann der 13 Failure-¶s in Chapter 1 → kompletter Datenstand. Geschätzt 30 min Arbeit + ~$1 für Re-Run, **sehr hoher Wert** (entgrenzt die Pipeline auf reale Habilitations-Texte).
+
+2. **modelOverride-Threading** für `runChapterCollapse` und `runDocumentCollapse` (1 Zeile je). Voraussetzung für (3).
+
+3. **Hybrid-Test:** section-collapse + chapter-collapse mit DS4 statt Opus, gegen die Opus-Baseline aus `chapter1-opus-collapse.json`. Driver `compare-models-section-collapse.ts` ist schon vorbereitet; einmal cleanup (collapse-memo des Hauptkapitels rausschmeißen, dann mit DS4 erneut laufen). Eval: liegt DS4-output qualitativ in der Nähe von Opus, oder verliert er die Spezifität (paragraph-präzise Anker, materielle Tragweite-Diagnose)? Wenn ja: Cost-Hybrid-Strategie etabliert.
+
+4. **Mistral-Large-2512 Smoketest** (offen vom User explizit gewünscht): einmal AG-Smoketest (`scripts/smoketest-models-ag.ts` MODELS-Array auf `mistralai/mistral-large-2512`), dann je nach Ausgang collapse-Test.
+
+5. **ai-settings entscheiden** (Sonnet als Default zurück, oder Opus bewusst lassen).
+
+6. **Chapter-Memo in lesbares Markdown rendern** für die User-Eval (aktuell nur JSON dump). Quick: `jq -r '.result.synthese' docs/experiments/chapter1-opus-collapse.json` reicht, oder ein 30-Zeilen-Render-Script mit Synthese + Argumentationswiedergabe + Auffälligkeiten formatiert.
+
+7. **Endpoint-Erweiterung Auto-Trigger + SSE** (Schritt 6 vom vorigen Handover, immer noch offen). Erst nach LLM-Strategie-Entscheidung sinnvoll, weil Modell-Wahl ins Endpoint-Verhalten einfließt.
+
+## Dateien diese Session (alle im Repo)
+
+**Code-Änderungen:**
+- `src/lib/server/ai/client.ts` — `modelOverride` in chat() opts
+- `src/lib/server/ai/hermeneutic/per-paragraph.ts` — modelOverride durchgereicht, Helpers exportiert, failure-dump-path
+- `src/lib/server/ai/hermeneutic/argumentation-graph.ts` — modelOverride durchgereicht
+- `src/lib/server/ai/hermeneutic/section-collapse-from-graph.ts` — modelOverride durchgereicht
+- `ai-settings.json` — auf openrouter+claude-opus-4.7 umgestellt
+
+**Neue Test-/Driver-Scripts:**
+- `scripts/run-chapter1-pipeline.ts` — Phase 1+2+3 Orchestrator (DAS Skript für Chapter-1-Replay; idempotent)
+- `scripts/seed-basal-1.1.1-sonnet.ts` — Mini-seed für 1.1.1 (Test-Vorbereitung)
+- `scripts/compare-models-paragraph.ts` — basal-pipeline 5×3 Modell-Vergleich (DB-Cleanup zwischen Modellen)
+- `scripts/compare-models-section-collapse.ts` — section-collapse 4-Modell-Vergleich (DS4 dump existiert vom Vor-Pivot-Run)
+- `scripts/smoketest-models-ag.ts` — parallel-AG-smoketest (Modell-Liste Array-bearbeiten)
+- `scripts/test-deepseek-smoke.ts` — minimal JSON-test
+- `scripts/test-nemotron-prose.ts` — nemotron prose-only via Ollama
+- `scripts/test-2call-prose.ts` — 2-call-decomposition-test
+- `scripts/render-model-compare-markdown.ts` — basal-vergleich → MD
+- `scripts/render-collapse-compare-markdown.ts` — collapse-vergleich → MD (existiert, noch nicht ausgeführt)
+
+**Outputs in `docs/experiments/`:**
+- `chapter1-opus-collapse.json` ← **Goldstandard, Hauptergebnis**
+- `model-compare-1.1.1-{deepseek-v4-pro,sonnet-4-6,opus-4.7}.json` + `-SIDE-BY-SIDE.md`
+- `nemotron-prose-1.1.1.json`
+- `2call-prose-test-1.1.1-§1.json`
+- `collapse-compare-1.1.1-deepseek-v4-pro.json`
+
+## Memory-Updates diese Session
+
+- Neu: `feedback_no_xai_models.md` — politische Ablehnung Grok/xAI
+- Neu (NICHT GESCHRIEBEN, aber sollte): nemotron-3-super:latest ist für diese Pipeline DEAD END (über-aligned, refused einen neutralen Habilitations-Absatz, ignoriert Prose-Anweisungen). Bevor nemotron beim nächsten Modell-Vorschlag wieder auftaucht, hier nachsehen.
+
+## Kurze Selbstkritik (für Folge-Session)
+
+Diese Session war kontextual lang und hatte eine klare Unzulänglichkeit: **ich habe zweimal große Test-Pipelines gestartet ohne vorgeschalteten Mini-Smoketest** (erst beim 4-OpenRouter-Modell-Lauf, dann beim 5-Modell-Lauf). User-Korrektur war scharf und richtig: "Teste AG mit einem mini-Test. Das dauert SEKUNDEN." → Folge-Session: bei jeder Multi-Modell-Iteration zuerst 1-Call-Smoketest parallel, dann erst Volle Läufe. Außerdem: bei Cost-Estimates die ECHTE OpenRouter-Pricing prüfen, nicht aus Anthropic-Preisliste hochrechnen.
+
+---
+
+
 
 ## Was seit dem letzten Handover-Stand erledigt wurde
 

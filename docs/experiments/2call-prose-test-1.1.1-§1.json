@@ -1,0 +1,87 @@
+[
+  {
+    "key": "qwen3.6-max-preview",
+    "wall_total_seconds": 166.558,
+    "call1": {
+      "wall": 72.976,
+      "tokens_input": 1098,
+      "tokens_output": 2456,
+      "text": "Der Absatz verankert die folgende Argumentation explizit in einer kulturwissenschaftlich-praxeologischen Perspektive, die Schule nicht als neutralen Vermittlungsort, sondern als implizit wirkendes, routinisiertes Gefüge kultureller Werthorizonte und Machtmechanismen begreift. Kultur wird dabei dialektisch positioniert: Sie stiftet handlungsleitende Sicherheit und Gemeinschaft, begrenzt und exkludiert zugleich, bleibt jedoch durch ihre Prozesshaftigkeit ein stets verhandelbarer Möglichkeitsraum. Argumentativ vollzieht der Text eine Verdichtung vom theoretischen Referenzrahmen hin zur pädagogischen Problemkonstellation, indem er schulische Alltagsroutinen als Manifestationen gesellschaftlicher Aushandlungsprozesse lesbar macht. Damit fungiert der Passus als theoretische Scharnierstelle, die den späteren Fokus auf professionelle kulturelle Orientierungsangebote nicht als additives Curriculum, sondern als notwendige Reflexionsfigur im Spannungsfeld von Stabilisierung und Transformation vorstrukturiert.",
+      "error": null
+    },
+    "call2": {
+      "wall": 93.582,
+      "tokens_input": 982,
+      "tokens_output": 3234,
+      "text": "Dialektik kultureller Handlungsroutinen | doppelten Effekt\nTheoretische Scharnierstelle pädagogischer Problematisierung | gesellschaftlichen Problemzusammenhang",
+      "codes": [
+        {
+          "label": "Dialektik kultureller Handlungsroutinen",
+          "anchor": "doppelten Effekt"
+        },
+        {
+          "label": "Theoretische Scharnierstelle pädagogischer Problematisierung",
+          "anchor": "gesellschaftlichen Problemzusammenhang"
+        }
+      ],
+      "error": null
+    }
+  },
+  {
+    "key": "gemini-pro-latest",
+    "wall_total_seconds": 12.182,
+    "call1": {
+      "wall": 8.557,
+      "tokens_input": 1053,
+      "tokens_output": 596,
+      "text": "Der Absatz formuliert das theoretische Fundament der Argumentation, indem er den Kulturbegriff praxe",
+      "error": null
+    },
+    "call2": {
+      "wall": 3.625,
+      "tokens_input": 758,
+      "tokens_output": 196,
+      "text": "**\n    *   *Text:*",
+      "codes": [],
+      "error": "no parseable codes"
+    }
+  },
+  {
+    "key": "mimo-v2.5-pro",
+    "wall_total_seconds": 18.981,
+    "call1": {
+      "wall": 12.51,
+      "tokens_input": 1241,
+      "tokens_output": 600,
+      "text": "Der Absatz positioniert den gesamten Argumentationsgang kulturtheoretisch, indem er die eigene kulturwissenschaftliche Perspektive mit besonderem Bezug auf Reckwitz explizit macht und deren Mehrwert für die Analyse von Schule herausstellt. Es wird ein dynamischer, praxeologischer Kulturbegriff entfaltet, der Kultur sowohl als stabilisierende, gemeinschaftsstiftende und handlungsermöglichende, aber auch exkludierende und machtreproduzierende Routine versteht und diese Gleichzeit",
+      "error": null
+    },
+    "call2": {
+      "wall": 6.471,
+      "tokens_input": 999,
+      "tokens_output": 200,
+      "text": "",
+      "codes": [],
+      "error": "no parseable codes"
+    }
+  },
+  {
+    "key": "glm-5.1",
+    "wall_total_seconds": 7.799,
+    "call1": {
+      "wall": 6.092,
+      "tokens_input": 1142,
+      "tokens_output": 600,
+      "text": "",
+      "error": null
+    },
+    "call2": {
+      "wall": 1.707,
+      "tokens_input": 802,
+      "tokens_output": 200,
+      "text": "",
+      "codes": [],
+      "error": "no parseable codes"
+    }
+  }
+]

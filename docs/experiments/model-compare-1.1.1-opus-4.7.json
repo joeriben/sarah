@@ -1,0 +1,960 @@
+{
+  "model": {
+    "key": "opus-4.7",
+    "provider": "openrouter",
+    "model": "anthropic/claude-opus-4.7"
+  },
+  "total_wall_seconds": 133.10999999999999,
+  "total_tokens": 86237,
+  "runs": [
+    {
+      "paragraph_index": 1,
+      "paragraph_id": "60f9dfb1-5d9d-4c56-8288-1ef51f5eec63",
+      "synthetic": {
+        "result": {
+          "interpretierend": "Der Absatz verortet den Argumentationsgang kulturwissenschaftlich mit Referenz auf Reckwitz und entfaltet ein Kulturverständnis, das Kultur als implizites, gemeinschaftsstiftendes Reservoir von Werthorizonten fasst, das Handlungsgewissheit ermöglicht, zugleich aber Handlungsrepertoires begrenzt und Ausschlüsse perpetuiert. Als erster Absatz des Unterkapitels etabliert er damit die theoretische Lesefolie — Kultur als ambivalenter Prozess von Routine und Wandlung, Aushandlungsarena mit impliziten Machtmechanismen —, auf der die Bedeutung kultureller Orientierungsangebote in Schule in den folgenden Absätzen entwickelt werden soll.",
+          "codes": [
+            {
+              "label": "Kultur als Aushandlungsarena von Bedeutungen",
+              "anchor_phrase": "Arena der Aushand-lung von Bedeutungen",
+              "rationale": "Verdichtet die praxeologisch-kulturwissenschaftliche Kernbestimmung von Kultur, die der gesamten Argumentation als theoretische Referenz dient."
+            },
+            {
+              "label": "Doppeleffekt kultureller Routinen",
+              "anchor_phrase": "doppelten Effekt",
+              "rationale": "Zentrale These des Absatzes: Kultur ermöglicht Handlungsgewissheit und begrenzt zugleich das Handlungsrepertoire — diese Ambivalenz trägt die weitere Argumentation."
+            }
+          ]
+        },
+        "tokens": {
+          "input": 5602,
+          "output": 590,
+          "cacheCreation": 0,
+          "cacheRead": 0,
+          "total": 6192
+        },
+        "model": "anthropic/claude-4.7-opus-20260416",
+        "wall_seconds": 6.01,
+        "error": null
+      },
+      "argumentation_graph": {
+        "result": {
+          "arguments": [
+            {
+              "id": "A1",
+              "claim": "Die Argumentation der Arbeit stützt sich auf eine kulturwissenschaftliche Perspektive, insbesondere auf Reckwitz' Theorievorschläge.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Dem Argumentationsgang liegt eine kulturwissenschaftliche Perspektivierung mit besonderer Referenz auf Reckwitz (2004, 2017) zugrunde."
+                }
+              ],
+              "anchor_phrase": "kulturwissenschaftliche Perspekti-vierung mit einer besonderen Referenz"
+            },
+            {
+              "id": "A2",
+              "claim": "Eine praxeologisch-kulturwissenschaftliche Perspektivierung auf Schule und Unterricht erzeugt einen analytischen Mehrwert, weil sie kulturelle Prozesse als ansonsten zumeist implizit bleibende Werthorizonte sichtbar macht.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Praxeologisch-kulturwissenschaftliche Ansätze verweisen auf den Mehrwert einer Perspektivierung entlang kultureller Dimensionen."
+                },
+                {
+                  "type": "stated",
+                  "text": "Mit ihnen werden Ausprägungen kultureller Prozesse sichtbar; Kultur erscheint als Reservoir von Werthorizonten, die Gemeinsamkeit und Gemeinschaft zumeist implizit konstituieren."
+                },
+                {
+                  "type": "background",
+                  "text": "Praxeologische Forschung operiert mit der Annahme, dass soziale Praxis wesentlich durch implizite, körper- und routinegebundene Wissensbestände strukturiert ist."
+                }
+              ],
+              "anchor_phrase": "Mehrwert, der mit einer Perspektivierung"
+            },
+            {
+              "id": "A3",
+              "claim": "Kulturell geformte Routinen in Schule (Zeitregime, unterrichtliche Interaktion, schulkulturelle Arrangements) haben einen ambivalenten Doppeleffekt: Sie ermöglichen Handlungsgewissheit, begrenzen aber zugleich das individuelle Handlungsrepertoire.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Zeitregime von Schule, Routinen unterrichtlicher Interaktion und organisationale/schulkulturelle Arrangements sind Beispiele impliziter kultureller Werthorizonte."
+                },
+                {
+                  "type": "stated",
+                  "text": "Einerseits ermöglicht routinierte Gemeinschaft Handlungsgewissheit, andererseits begrenzt sie das Handlungsrepertoire des Einzelnen."
+                }
+              ],
+              "anchor_phrase": "doppelten Effekt"
+            },
+            {
+              "id": "A4",
+              "claim": "Kultur als gemeinschaftsstiftendes Element produziert zugleich Abgrenzungen und Ausschlüsse und impliziert damit Machtmechanismen.",
+              "premises": [
+                {
+                  "type": "carried",
+                  "text": "Kultur konstituiert implizit Gemeinsamkeiten und Gemeinschaft über geteilte Werthorizonte.",
+                  "from_paragraph": 1
+                },
+                {
+                  "type": "stated",
+                  "text": "Kultur perpetuiert als gemeinschaftsstiftendes Element auch Abgrenzungen und Ausschlüsse."
+                },
+                {
+                  "type": "stated",
+                  "text": "Als Arena der Aushandlung von Bedeutungen schließt Kultur implizite Machtmechanismen ein."
+                }
+              ],
+              "anchor_phrase": "Abgren-  zungen und Ausschlüsse"
+            },
+            {
+              "id": "A5",
+              "claim": "Kultur ist nicht nur Reproduktion, sondern in der Wiederholung tradierter Routinen zugleich ein Prozess der Wandlung, der einen Möglichkeitsraum für Neuformulierungen eröffnet.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Kultur ist in der Wiederholung tradierter Routinen auch ein Prozess der Wandlung und bietet einen Möglichkeitsraum für Neuformulierungen (Bhabha 2010)."
+                },
+                {
+                  "type": "background",
+                  "text": "Bhabhas Konzept des Dritten Raums/der Hybridität fasst kulturelle Wiederholung als Ort produktiver Verschiebung."
+                }
+              ],
+              "anchor_phrase": "Möglichkeitsraum für Neuformulierungen"
+            },
+            {
+              "id": "A6",
+              "claim": "Weil Kultur Gemeinschaft stiftet, Ausschlüsse produziert, Machtmechanismen einschließt und zugleich Wandlung ermöglicht, verweist sie auf einen gesellschaftlichen Problemzusammenhang, der analytisch zu bearbeiten ist.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Damit verweist [Kultur] auf einen gesellschaftlichen Problemzusammenhang."
+                }
+              ],
+              "anchor_phrase": "gesellschaftlichen Problemzusammenhang"
+            }
+          ],
+          "edges": [
+            {
+              "from": "A1",
+              "to": "A2",
+              "kind": "supports",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A2",
+              "to": "A3",
+              "kind": "supports",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A3",
+              "to": "A4",
+              "kind": "refines",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A5",
+              "to": "A4",
+              "kind": "refines",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A4",
+              "to": "A6",
+              "kind": "supports",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A5",
+              "to": "A6",
+              "kind": "supports",
+              "scope": "inter_argument"
+            }
+          ],
+          "scaffolding": [
+            {
+              "id": "S1",
+              "excerpt": "(Reckwitz, 2004; Reckwitz, 2017; vgl. auch 1.2.1)",
+              "function_type": "kontextualisierend",
+              "function_description": "Quellenverweis und interner Rückverweis, der A1 (die theoretische Grundlegung bei Reckwitz) mit dem späteren Theoriekapitel 1.2.1 verklammert.",
+              "assessment": "klar wirksam — verortet A1 im Werkaufbau und macht die Theorieentscheidung nachvollziehbar, ohne sie hier ausführen zu müssen.",
+              "anchored_to": [
+                "A1"
+              ],
+              "anchor_phrase": "Reckwitz, 2004; Reckwitz, 2017"
+            },
+            {
+              "id": "S2",
+              "excerpt": "(vgl. 1.2.3)",
+              "function_type": "textorganisatorisch",
+              "function_description": "Interner Vorverweis, der die in A2 behauptete Leistungsfähigkeit praxeologisch-kulturwissenschaftlicher Ansätze an die spätere ausführliche Darstellung in 1.2.3 delegiert.",
+              "assessment": "bedingt plausibel — der behauptete 'Mehrwert' wird hier nicht belegt, sondern auf später verschoben; die Stützfunktion ist organisatorisch tragfähig, argumentativ aber entlastend.",
+              "anchored_to": [
+                "A2"
+              ],
+              "anchor_phrase": "vgl. 1.2.3"
+            },
+            {
+              "id": "S3",
+              "excerpt": "Dies gilt beispielsweise für das Zeitregime von Schule, Routinen unterrichtlicher Interaktion oder organisationale und schulkulturelle Arrangements.",
+              "function_type": "didaktisch",
+              "function_description": "Beispielssetzung für A2 und A3 — konkretisiert die abstrakte Rede von impliziten Werthorizonten an schulbezogenen Feldern.",
+              "assessment": "klar wirksam — macht die Abstraktion von A2/A3 an feldspezifischen Instanzen fassbar und bereitet den Doppeleffekt-Gedanken vor.",
+              "anchored_to": [
+                "A2",
+                "A3"
+              ],
+              "anchor_phrase": "Zeitregime von Schule, Routinen unterrichtlicher Interaktion"
+            },
+            {
+              "id": "S4",
+              "excerpt": "(Bhabha, 2010)",
+              "function_type": "kontextualisierend",
+              "function_description": "Autoritätsverweis, der die Behauptung des kulturellen Möglichkeitsraums in A5 an Bhabhas Theorie anbindet.",
+              "assessment": "rhetorisch wirksam, sachlich dünn — die Bhabha-Referenz bleibt punktuell und wird nicht entfaltet; sie markiert die Denktradition, trägt A5 aber nur durch Autorität, nicht durch Rekonstruktion.",
+              "anchored_to": [
+                "A5"
+              ],
+              "anchor_phrase": "(Bhabha, 2010)"
+            },
+            {
+              "id": "S5",
+              "excerpt": "(Reckwitz 2003)",
+              "function_type": "kontextualisierend",
+              "function_description": "Quellenverweis, der die Rede von Kultur als 'Arena der Aushandlung von Bedeutungen' — Bestandteil der Begründung von A4 — an Reckwitz anbindet.",
+              "assessment": "klar wirksam im Sinne theoretischer Rückbindung; stützt die Machtdimension von A4 diskurstheoretisch, ohne die These selbst zu leisten.",
+              "anchored_to": [
+                "A4"
+              ],
+              "anchor_phrase": "(Reckwitz 2003)"
+            },
+            {
+              "id": "S6",
+              "excerpt": "Damit verweist sie auf einen gesellschaftlichen Problemzusammenhang.",
+              "function_type": "textorganisatorisch",
+              "function_description": "Abschließender Übergangssatz, der die vorangegangenen Argumente A3–A5 in A6 bündelt und den Anschluss an die folgende Problemexposition vorbereitet.",
+              "assessment": "rhetorisch wirksam, sachlich schwach — der 'gesellschaftliche Problemzusammenhang' wird hier nicht ausgeführt, sondern als Scharnier gesetzt; trägt Übergangsfunktion, lässt A6 aber inhaltlich unterbestimmt.",
+              "anchored_to": [
+                "A6"
+              ],
+              "anchor_phrase": "gesellschaftlichen Problemzusammenhang"
+            }
+          ]
+        },
+        "stored_summary": {
+          "args": 6,
+          "inter_edges": 6,
+          "prior_edges": 0,
+          "scaffolding": 6,
+          "unanchored_args": []
+        },
+        "tokens": {
+          "input": 7889,
+          "output": 3729,
+          "cacheCreation": 0,
+          "cacheRead": 0,
+          "total": 11618
+        },
+        "model": "anthropic/claude-4.7-opus-20260416",
+        "wall_seconds": 27.361
+      }
+    },
+    {
+      "paragraph_index": 2,
+      "paragraph_id": "7118aa10-b5d7-495a-9405-5b66116edb06",
+      "synthetic": {
+        "result": {
+          "interpretierend": "Der Absatz diagnostiziert, dass schulisches Lernen konstitutiv mit Einführung in Kultur verbunden ist, diese aber nicht länger als Hineinführen in ein geschlossenes Werte-Reservoir begriffen werden kann, da tradierte Konsense durch kulturelle Pluralisierung aufgebrochen sind. Aus dieser Diagnose wird eine Zuspitzung gewonnen: Kulturelle Bildung als Ausbildung von Selbst- und Weltverhältnissen wird brüchiger und komplexer, weshalb Lehrkräfte nicht mehr routiniert, sondern nur noch analytisch-reflexiv agieren können. Funktional schließt der Absatz an die im Vorgänger etablierte Ambivalenz von Kultur (Routine/Wandlung) an und überführt sie in eine Problemformulierung für schulische Professionalität — damit wird die im Unterkapiteltitel angekündigte Bedeutung kultureller Orientierungsangebote als Reaktion auf einen Konsensverlust konturiert.",
+          "codes": [
+            {
+              "label": "Pluralität kultureller Ordnungszusammenhänge",
+              "anchor_phrase": "Pluralität kultureller Ordnungszusammenhänge",
+              "rationale": "Dieser Begriff trägt die zentrale Diagnose des Absatzes — dass der traditionelle Konsens eines geschlossenen Werte-Reservoirs in Schule durch kulturelle Pluralisierung ersetzt ist."
+            },
+            {
+              "label": "Lehrhandeln als analytisch-reflexives Handlungsfeld",
+              "anchor_phrase": "analytisch-reflexiv zu bewältigenden",
+              "rationale": "Hier wird die professionstheoretische Schlussfolgerung formuliert: das Anstoßen kultureller Bildungsprozesse ist von Routine zu reflexivem Handlungsfeld geworden — eine Kernthese mit Blick auf das Gesamtprojekt."
+            }
+          ]
+        },
+        "tokens": {
+          "input": 6386,
+          "output": 744,
+          "cacheCreation": 0,
+          "cacheRead": 0,
+          "total": 7130
+        },
+        "model": "anthropic/claude-4.7-opus-20260416",
+        "wall_seconds": 7.854,
+        "error": null
+      },
+      "argumentation_graph": {
+        "result": {
+          "arguments": [
+            {
+              "id": "A1",
+              "claim": "Schulisches Lernen ist nicht allein Wissenserwerb, sondern umfasst zugleich kulturelle Bildungsprozesse, in denen die nachwachsende Generation in Kultur eingeführt wird.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Es ist Konsens, dass in der Schule nicht nur Fakten gelernt, sondern die nachwachsende Generation in Kultur eingeführt wird (Fend, 2006)."
+                },
+                {
+                  "type": "background",
+                  "text": "Schule wird in der erziehungswissenschaftlichen Diskussion als Sozialisations- und Enkulturationsinstanz verstanden."
+                }
+              ],
+              "anchor_phrase": "in Kultur eingeführt wird"
+            },
+            {
+              "id": "A2",
+              "claim": "Das Hineinführen in Kultur kann in der Gegenwart nicht mehr als Einführung in ein geschlossenes, konsensuell geteiltes Reservoir von Werten und Normen verstanden werden, weil tradierte kollektive Wertvorstellungen aufgebrochen und kulturelle Ordnungszusammenhänge pluralisiert sind.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Lange Zeit wurde das Hineinführen in Kultur als Einführung in ein geschlossenes Reservoir vorherrschender Werte und Normen verstanden; auf einen solchen Konsens kann nicht mehr zurückgegriffen werden."
+                },
+                {
+                  "type": "stated",
+                  "text": "Tradierte und kollektiv geteilte Wertvorstellungen sind aufgebrochen und Selbstverständnisse einer kulturellen Erinnerungsgemeinschaft differenzieren sich aus."
+                },
+                {
+                  "type": "carried",
+                  "text": "Kultur ist nicht stabile Reproduktion, sondern zugleich ein Prozess der Wandlung und eine Arena der Aushandlung von Bedeutungen.",
+                  "from_paragraph": 1
+                }
+              ],
+              "anchor_phrase": "breit gefächerten Pluralität kultureller Ordnungs-zusammenhänge"
+            },
+            {
+              "id": "A3",
+              "claim": "Kulturelle Bildungsprozesse in Schule müssen daher als Ausbildung von Selbst- und Weltverhältnissen begriffen werden, die unter Bedingungen kultureller Pluralität brüchiger und komplexer geworden sind.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Kulturelle Wertvorstellungen können weder als selbstverständlich vorausgesetzt noch tradierte Werte und Normen unhinterfragt als legitimiert gelten."
+                },
+                {
+                  "type": "stated",
+                  "text": "Kulturelle Bildungsprozesse in Schule sind als Ausbildung von Selbst- und Weltverhältnissen zu fassen, die brüchiger und dadurch komplexer werden."
+                }
+              ],
+              "anchor_phrase": "Ausbildung von Selbst-und Weltverhältnissen"
+            },
+            {
+              "id": "A4",
+              "claim": "Trotz pluralisierter kultureller Ordnungszusammenhänge bleibt es für das Individuum notwendig, eine tragfähige Selbstpositionierung zu erreichen und Anschluss an geteilte Wertdimensionen aufzubauen.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Für das Individuum bleibt die Notwendigkeit bestehen, eine spezifische und tragfähige Selbstpositionierung im Facettenreichtum kultureller Sinndimensionen zu erreichen und einen Anschluss an geteilte Wertdimensionen aufzubauen."
+                },
+                {
+                  "type": "background",
+                  "text": "Subjektbildung setzt eine gewisse Integration in geteilte Sinn- und Wertbezüge voraus, um handlungsfähig zu sein."
+                }
+              ],
+              "anchor_phrase": "tragfähige Selbstpositionierung im Facettenreichtum"
+            },
+            {
+              "id": "A5",
+              "claim": "Das Anstoßen kultureller Bildungsprozesse ist für Lehrkräfte von einer selbstverständlich-routinierten zu einer analytisch-reflexiv zu bewältigenden Aufgabe geworden, weshalb sie in einem unübersichtlichen Feld navigieren.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Lehrkräfte navigieren als schulische Akteure in einem unübersichtlichen Feld; das Anstoßen kultureller Bildungsprozesse ist von einer sich selbst genügenden Routine zu einem nur analytisch-reflexiv zu bewältigenden Handlungsfeld geworden."
+                },
+                {
+                  "type": "carried",
+                  "text": "Kulturelle Routinen in Schule sind ambivalent, ermöglichen Handlungsgewissheit und begrenzen zugleich Handlungsrepertoires.",
+                  "from_paragraph": 1
+                }
+              ],
+              "anchor_phrase": "nur analytisch-reflexiv zu bewältigenden Handlungsfeld"
+            }
+          ],
+          "edges": [
+            {
+              "from": "A2",
+              "to": "A1",
+              "kind": "refines",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A3",
+              "to": "A2",
+              "kind": "supports",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A4",
+              "to": "A3",
+              "kind": "refines",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A5",
+              "to": "A3",
+              "kind": "supports",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A5",
+              "to": "A4",
+              "kind": "supports",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A2",
+              "to": "§1:A5",
+              "kind": "supports",
+              "scope": "prior_paragraph"
+            },
+            {
+              "from": "A3",
+              "to": "§1:A6",
+              "kind": "supports",
+              "scope": "prior_paragraph"
+            },
+            {
+              "from": "A5",
+              "to": "§1:A3",
+              "kind": "refines",
+              "scope": "prior_paragraph"
+            }
+          ],
+          "scaffolding": [
+            {
+              "id": "S1",
+              "excerpt": "Es ist Konsens, dass die nachwachsende Generation in der Schule nicht nur Fakten lernt, sondern in Kultur eingeführt wird (Fend, 2006).",
+              "function_type": "kontextualisierend",
+              "function_description": "Beleg von A1 durch Verweis auf Fend (2006) als etablierte Referenz der Schultheorie für die Enkulturationsfunktion von Schule.",
+              "assessment": "klar wirksam — Fend trägt den disziplinären Konsens, auf den A1 sich beruft; minimal, aber funktional ausreichend.",
+              "anchored_to": [
+                "A1"
+              ],
+              "anchor_phrase": "Fend, 2006"
+            },
+            {
+              "id": "S2",
+              "excerpt": "Lange Zeit wurde dies – explizit oder implizit – als das Hineinführen in ein geschlossenes Reservoir vorherrschender Werte und Normen verstanden. Auch wenn das Hineinwachsen in Kultur geblieben ist, kann auf einen solchen Konsens nicht mehr zurückgegriffen werden.",
+              "function_type": "textorganisatorisch",
+              "function_description": "Kontrastsetzung zwischen einem historischen Verständnis und der gegenwärtigen Problemlage — bereitet A2 argumentativ vor, indem das nun zu Verwerfende explizit gemacht wird.",
+              "assessment": "klar wirksam — die Gegenüberstellung von 'Lange Zeit' versus Gegenwart trägt den argumentativen Bruch zu A2.",
+              "anchored_to": [
+                "A2"
+              ],
+              "anchor_phrase": "Lange Zeit wurde dies"
+            },
+            {
+              "id": "S3",
+              "excerpt": "Für kulturelle Dimensionen schulischer Vermittlung bedeutet dies, dass Lehrkräfte als schulische Akteure in einem unübersichtlichen Feld navigieren",
+              "function_type": "textorganisatorisch",
+              "function_description": "Konklusive Überleitung von A3/A4 zu A5 — fokussiert die vorhergehende Diagnose auf das Handlungsfeld der Lehrkräfte und bereitet so das Thema des gesamten Buches (kulturelle Professionalität) vor.",
+              "assessment": "klar wirksam — die Wendung 'bedeutet dies' bündelt die vorausgehende Diagnose und richtet sie auf die Handlungsebene, die das nachfolgende Kapitel 'Lehrkräfte als kulturelle Bildungsakteure' tragen wird.",
+              "anchored_to": [
+                "A5"
+              ],
+              "anchor_phrase": "Für kulturelle Dimensionen schulischer Vermittlung bedeutet dies"
+            }
+          ]
+        },
+        "stored_summary": {
+          "args": 5,
+          "inter_edges": 5,
+          "prior_edges": 3,
+          "scaffolding": 3,
+          "unanchored_args": []
+        },
+        "tokens": {
+          "input": 9413,
+          "output": 3162,
+          "cacheCreation": 0,
+          "cacheRead": 0,
+          "total": 12575
+        },
+        "model": "anthropic/claude-4.7-opus-20260416",
+        "wall_seconds": 23.151
+      }
+    },
+    {
+      "paragraph_index": 3,
+      "paragraph_id": "897ca890-e56a-4768-a078-fd5e59fda3d6",
+      "synthetic": {
+        "result": {
+          "interpretierend": "Der Absatz rekurriert auf den klassischen Bildungsbegriff als Selbst-Welt-Verhältnis und radikalisiert dessen Dynamik unter Bedingungen von Globalität zu einer fortwährenden Aushandlungsleistung. Er schließt an die im Vorgänger diagnostizierte Brüchigkeit kultureller Selbstverständlichkeiten an und vertieft sie bildungstheoretisch, indem Bildung nicht nur als individuelle Selbstpositionierung, sondern konstitutiv als gesellschaftlich-teilhabebezogener Prozess konzeptualisiert wird. Damit bereitet er die Überleitung zu einem umfassenderen, sozial gefassten Bildungsbegriff (Tenorth) im Folgeabsatz vor.",
+          "codes": [
+            {
+              "label": "Bildung als Selbst-Welt-Verhältnis",
+              "anchor_phrase": "zur Welt in ein Verhältnis",
+              "rationale": "Der Absatz knüpft an die bildungstheoretische Grundfigur der Selbst-Welt-Relationierung an und macht sie zum Ankerpunkt der Argumentation."
+            },
+            {
+              "label": "Bildung erfordert Teilhabe an Gesellschaft",
+              "anchor_phrase": "Teilhabe an Gesellschaft",
+              "rationale": "Die Pointe des Absatzes ist die Verkopplung individueller Selbstverortung mit gesellschaftlicher Teilhabe, die Bildung als sozial relevanten Prozess ausweist."
+            }
+          ]
+        },
+        "tokens": {
+          "input": 6544,
+          "output": 585,
+          "cacheCreation": 0,
+          "cacheRead": 0,
+          "total": 7129
+        },
+        "model": "anthropic/claude-4.7-opus-20260416",
+        "wall_seconds": 6.552,
+        "error": null
+      },
+      "argumentation_graph": {
+        "result": {
+          "arguments": [
+            {
+              "id": "A1",
+              "claim": "Bildung im bildungstheoretischen Verständnis bezeichnet den konstitutiven menschlichen Prozess, sich zu sich selbst und zur Welt in ein Verhältnis zu setzen, wobei dieses Verhältnis sich im kontinuierlichen Wechselspiel zwischen bestehender Weltsicht und veränderten Bedingungen, neuen Erkenntnissen und Begegnungen realisiert.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "In den verschiedenen Ausdeutungen des Bildungsbegriffs wird seit Jahrhunderten reflektiert, dass es eine Bedingung menschlicher Existenz ist, sich zu sich selber und zur Welt in ein Verhältnis zu setzen."
+                },
+                {
+                  "type": "stated",
+                  "text": "Dieser Prozess realisiert sich in einem Kontinuum des Wechselspiels zwischen der eigenen Weltsicht und veränderten Bedingungen, neuen Erkenntnissen wie Begegnungen."
+                },
+                {
+                  "type": "background",
+                  "text": "Das hier vorausgesetzte transformatorische Bildungsverständnis (Kokemohr, Koller) ist in der erziehungswissenschaftlichen Bildungstheorie etabliert und kann als tragfähige Referenz verwendet werden."
+                }
+              ],
+              "anchor_phrase": "sich zu sich selber und zur Welt"
+            },
+            {
+              "id": "A2",
+              "claim": "Unter Bedingungen von Globalität – verstanden als Steigerung sozialer, sachlicher und zeit-räumlicher Komplexität – radikalisiert sich die Dynamik bildungstheoretischer Selbst-Welt-Relationierung und erfordert vom Subjekt fortwährende Aushandlungsleistungen.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Die Dynamik hat sich angesichts sozialer, sachlicher, zeit-räumlicher Komplexitätssteigerung, kurz, angesichts von Globalität, radikalisiert und erfordert fortwährende Aushandlungsleistungen."
+                },
+                {
+                  "type": "carried",
+                  "text": "Kulturelle Ordnungszusammenhänge sind pluralisiert und tradierte Wertvorstellungen aufgebrochen, so dass Selbst-Welt-Verhältnisse brüchiger werden.",
+                  "from_paragraph": 2
+                }
+              ],
+              "anchor_phrase": "angesichts von Globalität, radikalisiert"
+            },
+            {
+              "id": "A3",
+              "claim": "Die bildungstheoretische Aufgabe des Subjekts unter diesen Bedingungen besteht darin, innerhalb kontingenter sachlicher und sozialer Bezüge Momente der Sicherheit aufzufinden, um selbstgewiss in einen Dialog mit anhaltenden Veränderungen treten zu können.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Es gilt, Momente der Sicherheit innerhalb der kontingenten Fassung sachlicher und sozialer Bezüge im Weltzusammenhang aufzufinden, und dadurch seiner selbst gewiss mit anhaltenden Veränderungen in den Dialog zu treten."
+                }
+              ],
+              "anchor_phrase": "Momente der Sicherheit innerhalb der kontingenten Fassung"
+            },
+            {
+              "id": "A4",
+              "claim": "Bildung ist nicht nur individuell-selbstbezüglich, sondern konstitutiv gesellschaftlich relevant, weil sie als Prozess der Selbstverortung nur unter gleichzeitiger Perspektive auf gesellschaftliche Teilhabe gedacht werden kann.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Bildungsprozesse sind dabei gerade nicht nur für das Individuum in seinem Selbstbezug, sondern in ihrem Bezug auf ein Außen auch gesellschaftlich relevant."
+                },
+                {
+                  "type": "stated",
+                  "text": "Bildung als Prozess der Selbstverortung ist ohne eine Perspektive auf Teilhabe an Gesellschaft nicht zu denken."
+                }
+              ],
+              "anchor_phrase": "ohne eine Perspektive auf Teilhabe an Gesellschaft"
+            }
+          ],
+          "edges": [
+            {
+              "from": "A2",
+              "to": "A1",
+              "kind": "refines",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A3",
+              "to": "A2",
+              "kind": "supports",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A4",
+              "to": "A1",
+              "kind": "refines",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A1",
+              "to": "§2:A3",
+              "kind": "supports",
+              "scope": "prior_paragraph"
+            },
+            {
+              "from": "A2",
+              "to": "§2:A3",
+              "kind": "supports",
+              "scope": "prior_paragraph"
+            },
+            {
+              "from": "A3",
+              "to": "§2:A4",
+              "kind": "supports",
+              "scope": "prior_paragraph"
+            },
+            {
+              "from": "A4",
+              "to": "§2:A4",
+              "kind": "refines",
+              "scope": "prior_paragraph"
+            }
+          ],
+          "scaffolding": [
+            {
+              "id": "S1",
+              "excerpt": "In den verschiedenen Ausdeutungen des Bildungsbegriffs wird seit Jahrhunderten reflektiert",
+              "function_type": "kontextualisierend",
+              "function_description": "Einbettung von A1 in die bildungstheoretische Tradition — markiert das Folgende als Rekurs auf einen etablierten Diskurs, nicht als eigene Setzung.",
+              "assessment": "klar wirksam — verleiht A1 Plausibilität durch Traditionsanbindung, ohne die Aussage selbst zu überdehnen.",
+              "anchored_to": [
+                "A1"
+              ],
+              "anchor_phrase": "seit Jahrhunderten reflektiert"
+            },
+            {
+              "id": "S2",
+              "excerpt": "(Hollunder, 2023; Kokemohr, 2007; Koller, 2012)",
+              "function_type": "kontextualisierend",
+              "function_description": "Quellenverweise als Beleg für A1 — verankern das transformatorisch-bildungstheoretische Verständnis an der einschlägigen Literatur (Koller, Kokemohr).",
+              "assessment": "klar wirksam — die zitierten Referenzen sind kanonisch für das transformatorische Bildungsverständnis und tragen A1 substantiell.",
+              "anchored_to": [
+                "A1"
+              ],
+              "anchor_phrase": "Hollunder, 2023; Kokemohr, 2007; Koller, 2012"
+            },
+            {
+              "id": "S3",
+              "excerpt": "kurz, angesichts von Globalität,",
+              "function_type": "textorganisatorisch",
+              "function_description": "Begriffliche Verdichtung/Einführung des Leitbegriffs 'Globalität' in A2 — bereitet zugleich das spätere Theoriekapitel zu Globalität vor.",
+              "assessment": "klar wirksam — verdichtet die vorher entfaltete Komplexitätsdiagnose zu einem handhabbaren Begriff und stützt A2 terminologisch.",
+              "anchored_to": [
+                "A2"
+              ],
+              "anchor_phrase": "kurz, angesichts von Globalität"
+            },
+            {
+              "id": "S4",
+              "excerpt": "Letztlich heißt dies, dass Bildung als Prozess der Selbstverortung ohne eine Perspektive auf Teilhabe an Gesellschaft nicht zu denken ist.",
+              "function_type": "textorganisatorisch",
+              "function_description": "Konklusive Bündelung von A1–A4 und Übergang zum Folgeabsatz, der Tenorth und die soziale Dimension von Bildung aufgreift.",
+              "assessment": "klar wirksam — fasst die Argumentationsbewegung in einem programmatischen Satz zusammen und legt den Anschluss an den Folgeabsatz.",
+              "anchored_to": [
+                "A4"
+              ],
+              "anchor_phrase": "Letztlich heißt dies"
+            }
+          ]
+        },
+        "stored_summary": {
+          "args": 4,
+          "inter_edges": 3,
+          "prior_edges": 4,
+          "scaffolding": 4,
+          "unanchored_args": []
+        },
+        "tokens": {
+          "input": 9988,
+          "output": 2909,
+          "cacheCreation": 0,
+          "cacheRead": 0,
+          "total": 12897
+        },
+        "model": "anthropic/claude-4.7-opus-20260416",
+        "wall_seconds": 21.921
+      }
+    },
+    {
+      "paragraph_index": 4,
+      "paragraph_id": "96556e05-9b69-482b-ace7-174252284536",
+      "synthetic": {
+        "result": {
+          "interpretierend": "Der Absatz zitiert Tenorths Bildungsdefinition als mehrdimensionales Konstrukt — zugleich kommunikative Praxis, Individualmerkmal und soziale Tatsache, gespannt zwischen Prozess und Produkt, Wissen und Habitus. Daraus gewinnt der Autor eine eigene Zuspitzung: Bildung als Selbstrelationierung zu sozialen Ordnungssystemen, deren implizite Werte die kulturelle Formierung ausmachen. Funktional schließt der Absatz an die im Vorgänger angekündigte Verschränkung von Selbstverortung und Teilhabe an und liefert die soziologisch-bildungstheoretische Fundierung, um Bildung systematisch als kulturell imprägnierten Prozess lesbar zu machen — womit der Kulturbezug nicht additiv, sondern konstitutiv in den Bildungsbegriff eingeschrieben wird.",
+          "codes": [
+            {
+              "label": "Bildung als Selbstrelationierung zu sozialen Ordnungssystemen",
+              "anchor_phrase": "Selbstrelationierung zu sozialen Ordnungssystemen",
+              "rationale": "Hier formuliert der Autor die eigene bildungstheoretische Kernbestimmung, die Bildung konstitutiv an soziale Ordnungen und damit an kulturelle Formierung bindet."
+            },
+            {
+              "label": "Bildung als mehrdimensionales Konstrukt (Tenorth)",
+              "anchor_phrase": "mehrdimensionales Konstrukt",
+              "rationale": "Die Tenorth-Referenz dient als theoretischer Anker, um Bildung gleichzeitig als individuelle, kommunikative und soziale Tatsache zu fassen und so den Weg zu ihrer kulturellen Lesart zu eröffnen."
+            }
+          ]
+        },
+        "tokens": {
+          "input": 6825,
+          "output": 683,
+          "cacheCreation": 0,
+          "cacheRead": 0,
+          "total": 7508
+        },
+        "model": "anthropic/claude-4.7-opus-20260416",
+        "wall_seconds": 6.729,
+        "error": null
+      },
+      "argumentation_graph": {
+        "failed": true,
+        "error": "Bad control character in string literal in JSON at position 2726 (line 34 column 258)"
+      }
+    },
+    {
+      "paragraph_index": 5,
+      "paragraph_id": "72919e94-79bb-4a0e-b507-e78aacc1fd5b",
+      "synthetic": {
+        "result": {
+          "interpretierend": "Der Absatz diagnostiziert die Gegenwart als Zustand kultureller Superdiversität, in der Enttraditionalisierung und Individualisierung Sozialisationsprozesse erschweren und zu Verunsicherungen führen, die sich politisch in agonalen Verhärtungen und Populismus niederschlagen. Daraus wird die gesteigerte Bedeutung orientierungsstiftender Bildungsprozesse abgeleitet und durch bildungspolitische Evidenz (BMBF-Programme, PISA 2018 globale Kompetenzen) belegt. Funktional schließt der Absatz das Unterkapitel, indem die zuvor bildungstheoretisch entwickelte Ambivalenz von Kultur in eine gesellschaftsdiagnostische Dringlichkeitsformel überführt wird — kulturelle Orientierungsangebote in Schule erscheinen nun als Bearbeitung von Kohärenzdefiziten unter Bedingungen pluralisierter Ordnungen.",
+          "codes": [
+            {
+              "label": "Kulturelle Superdiversität als Zeitdiagnose",
+              "anchor_phrase": "kultureller Superdiversität",
+              "rationale": "Dieser Begriff bündelt die gesellschaftsdiagnostische Rahmung des Absatzes und liefert die Legitimationsbasis für die Notwendigkeit kultureller Orientierungsangebote in Schule."
+            },
+            {
+              "label": "Defizite gesellschaftlich-kultureller Kohärenz",
+              "anchor_phrase": "gesellschaftlich-kultureller Kohärenz",
+              "rationale": "Formuliert die zentrale Problemdiagnose, auf die kulturelle Bildungsprozesse als temporäre Orientierungsstiftung antworten sollen."
+            }
+          ]
+        },
+        "tokens": {
+          "input": 6636,
+          "output": 664,
+          "cacheCreation": 0,
+          "cacheRead": 0,
+          "total": 7300
+        },
+        "model": "anthropic/claude-4.7-opus-20260416",
+        "wall_seconds": 6.743,
+        "error": null
+      },
+      "argumentation_graph": {
+        "result": {
+          "arguments": [
+            {
+              "id": "A1",
+              "claim": "Die Gegenwart ist durch kulturelle Superdiversität gekennzeichnet, sodass Enttraditionalisierungs- und Individualisierungsprozesse die kulturell dimensionierte Sozialisierung erschweren, weil Kontingenz und Historizität die eingeschriebenen Weltsichten und Sinndimensionen von Phänomenen und Praxen vervielfältigen.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "In wissenschaftlichen Zeitdiagnosen wird von kultureller Superdiversität als Kennzeichen der Gegenwart gesprochen (Vertovec, 2012)."
+                },
+                {
+                  "type": "stated",
+                  "text": "Widersprüchliche Elemente wie Kontingenz und Historizität rahmen Phänomene, Ereignisse und Praxen und vervielfältigen die ihnen eingeschriebenen Weltsichten und Sinndimensionen."
+                },
+                {
+                  "type": "carried",
+                  "text": "Tradierte kollektive Wertvorstellungen sind aufgebrochen und kulturelle Ordnungszusammenhänge pluralisiert.",
+                  "from_paragraph": 2
+                }
+              ],
+              "anchor_phrase": "kultureller Superdiversität als Kennzeichen der Gegenwart"
+            },
+            {
+              "id": "A2",
+              "claim": "Die kulturelle Komplexität und Unübersichtlichkeit der Gegenwart erzeugt Verunsicherungen, die sich gesellschaftlich in agonal verhärteten Diskurspositionen und im Erstarken national-populistischer Bewegungen manifestieren.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Angesichts dieser Phänomene können Verunsicherungen auftreten, die sich unter anderem in agonal verhärtete Positionen im öffentlichen Diskurs und im Erstarken national-populistischer Bewegungen zeigen."
+                }
+              ],
+              "anchor_phrase": "agonal verhärtete Positionen im öffentlichen Diskurs"
+            },
+            {
+              "id": "A3",
+              "claim": "Gerade angesichts kultureller Unübersichtlichkeit und der daraus resultierenden gesellschaftlichen Verunsicherungen ist es bedeutsam, Bildungsprozesse zu ermöglichen, die temporäre Orientierung erlauben.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Umso bedeutsamer ist es, Bildungsprozesse zu ermöglichen, die angesichts der nun schon alten Unübersichtlichkeit temporäre Orientierung finden lassen."
+                },
+                {
+                  "type": "carried",
+                  "text": "Bildung ist ein Prozess der Selbstrelationierung zu sich und zur Welt, der unter Bedingungen von Globalität Momente der Sicherheit inmitten von Kontingenz finden muss.",
+                  "from_paragraph": 3
+                }
+              ],
+              "anchor_phrase": "temporäre Orientierung finden lassen"
+            },
+            {
+              "id": "A4",
+              "claim": "Ein gestiegenes gesellschaftliches Bewusstsein für die Relevanz kulturell orientierender Bildungsprozesse lässt sich an bildungspolitischen Impulsen belegen, namentlich an BMBF-Förderprogrammen zur Erforschung kultureller Bildung und an der Erhebung globaler/interkultureller Kompetenzen in PISA 2018.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Auf ein gestiegenes Bewusstsein für die Relevanz solcher Bildungsprozesse verweisen nicht zuletzt bildungspolitische Impulse wie Förderprogramme zur Erforschung kultureller Bildung des BMBF sowie die Erhebung globaler Kompetenzen in PISA 2018."
+                },
+                {
+                  "type": "background",
+                  "text": "Bildungspolitische Förderprogramme und OECD-Erhebungsentscheidungen können als Indikatoren eines gesellschaftlich-institutionellen Problembewusstseins gelesen werden."
+                }
+              ],
+              "anchor_phrase": "bildungspolitische Impulse wie Förderprogramme"
+            },
+            {
+              "id": "A5",
+              "claim": "Solche bildungspolitischen Akzentsetzungen zielen auf die Bearbeitung von Defiziten gesellschaftlich-kultureller Kohärenz und auf die Ermöglichung kultureller Ordnungszusammenhänge in ihrer Pluralität und Wandelbarkeit.",
+              "premises": [
+                {
+                  "type": "stated",
+                  "text": "Solche Akzente beziehen sich nicht zuletzt auf die Dringlichkeit, Defizite gesellschaftlich-kultureller Kohärenz zu bearbeiten und kulturelle Ordnungszusammenhänge in ihrer Pluralität und Wandelbarkeit zu ermöglichen."
+                }
+              ],
+              "anchor_phrase": "Defizite gesellschaftlich-kultureller Kohärenz zu bearbeiten"
+            }
+          ],
+          "edges": [
+            {
+              "from": "A2",
+              "to": "A1",
+              "kind": "supports",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A3",
+              "to": "A2",
+              "kind": "supports",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A4",
+              "to": "A3",
+              "kind": "supports",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A5",
+              "to": "A4",
+              "kind": "refines",
+              "scope": "inter_argument"
+            },
+            {
+              "from": "A1",
+              "to": "§2:A2",
+              "kind": "supports",
+              "scope": "prior_paragraph"
+            },
+            {
+              "from": "A3",
+              "to": "§3:A3",
+              "kind": "supports",
+              "scope": "prior_paragraph"
+            },
+            {
+              "from": "A3",
+              "to": "§2:A5",
+              "kind": "supports",
+              "scope": "prior_paragraph"
+            }
+          ],
+          "scaffolding": [
+            {
+              "id": "S1",
+              "excerpt": "Auch in der Hinsicht, wie Kultur zur Sprache kommt, verweist der Diskurs auf die Komplexität schulischer Prozesse:",
+              "function_type": "textorganisatorisch",
+              "function_description": "Eröffnungssatz, der an die vorherigen Absätze anschließt und die Folgediagnose (A1) als weitere Facette des bereits etablierten Komplexitätsthemas rahmt.",
+              "assessment": "klar wirksam — verbindet A1 mit den in §1–§3 entwickelten Komplexitätsbefunden und signalisiert Kumulation.",
+              "anchored_to": [
+                "A1",
+                "§1:A3",
+                "§3:A2"
+              ],
+              "anchor_phrase": "Komplexität schulischer Prozesse"
+            },
+            {
+              "id": "S2",
+              "excerpt": "(Vertovec, 2012)",
+              "function_type": "kontextualisierend",
+              "function_description": "Quellenverweis, der den Begriff der Superdiversität (Teil der Begründung von A1) an die einschlägige Referenz anbindet.",
+              "assessment": "klar wirksam — Standardreferenz, die den diagnostischen Begriff absichert.",
+              "anchored_to": [
+                "A1"
+              ],
+              "anchor_phrase": "(Vertovec, 2012)"
+            },
+            {
+              "id": "S3",
+              "excerpt": "(Hörning, 2004; Straub, 2004)",
+              "function_type": "kontextualisierend",
+              "function_description": "Belegverweis für die Rede von Kontingenz und Historizität als Rahmungen von Phänomenen und Praxen in A1.",
+              "assessment": "bedingt plausibel — die Referenzen tragen die Diagnose, bleiben aber unausgeführt und fungieren als pauschaler Autoritätsverweis.",
+              "anchored_to": [
+                "A1"
+              ],
+              "anchor_phrase": "(Hörning, 2004; Straub, 2004)"
+            },
+            {
+              "id": "S4",
+              "excerpt": "der nun schon alten Unübersichtlichkeit",
+              "function_type": "kontextualisierend",
+              "function_description": "Implizite Anspielung auf Habermas' Diagnose der 'Neuen Unübersichtlichkeit', die A3 in einen etablierten zeitdiagnostischen Diskurs einbettet.",
+              "assessment": "rhetorisch wirksam, sachlich schwach — Anspielung ohne Zitat; stützt die Dringlichkeitsbehauptung atmosphärisch.",
+              "anchored_to": [
+                "A3"
+              ],
+              "anchor_phrase": "nun schon alten Unübersichtlichkeit"
+            },
+            {
+              "id": "S5",
+              "excerpt": "(vgl. genauer 1.2.1)",
+              "function_type": "textorganisatorisch",
+              "function_description": "Interner Vorverweis, der die ausführliche Darstellung der bildungspolitischen Förderlandschaft (Beleg von A4) an ein späteres Kapitel delegiert.",
+              "assessment": "klar wirksam — entlastet den aktuellen Argumentationsgang, ohne ihn unzulässig zu verkürzen.",
+              "anchored_to": [
+                "A4"
+              ],
+              "anchor_phrase": "(vgl. genauer 1.2.1)"
+            },
+            {
+              "id": "S6",
+              "excerpt": "(kritisch dazu siehe Ress et al., 2022; Simpson & Dervin, 2019)",
+              "function_type": "kontextualisierend",
+              "function_description": "Kritischer Gegenverweis zur PISA-Operationalisierung globaler Kompetenzen — relativiert den in A4 verwendeten Beleg, ohne ihn aufzugeben.",
+              "assessment": "klar wirksam — zeigt diskursive Selbstreflexion, signalisiert, dass der Beleg als Indikator institutioneller Aufmerksamkeit zitiert wird, nicht als Bestätigung der Operationalisierung.",
+              "anchored_to": [
+                "A4"
+              ],
+              "anchor_phrase": "kritisch dazu siehe Ress et al."
+            }
+          ]
+        },
+        "stored_summary": {
+          "args": 5,
+          "inter_edges": 4,
+          "prior_edges": 3,
+          "scaffolding": 6,
+          "unanchored_args": []
+        },
+        "tokens": {
+          "input": 1450,
+          "output": 3597,
+          "cacheCreation": 0,
+          "cacheRead": 8841,
+          "total": 13888
+        },
+        "model": "anthropic/claude-4.7-opus-20260416",
+        "wall_seconds": 26.789
+      }
+    }
+  ]
+}

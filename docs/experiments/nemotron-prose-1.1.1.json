@@ -1,0 +1,80 @@
+{
+  "model": {
+    "provider": "ollama",
+    "model": "nemotron-3-super:latest"
+  },
+  "total_wall_seconds": 185.548,
+  "total_tokens": 16802,
+  "runs": [
+    {
+      "paragraph_index": 1,
+      "paragraph_id": "60f9dfb1-5d9d-4c56-8288-1ef51f5eec63",
+      "wall_seconds": 40.938,
+      "tokens": {
+        "input": 2395,
+        "output": 774,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 3169
+      },
+      "prose": "{\n  \"inhaltliche_zusammenfassung\": \"Der Absatz legt eine kulturwissenschaftlich praxeologische Perspektive zugrunde, die Kultur als Reservoir impliziter Wert'horizonte versteht, das Gemeinschaften konstituiert, gleichzeitig Handlungsrekorde sicherstellt und begrenzt sowie als dynamischer Prozess der Bedeutungshandlung und potenziellen Ausschlüsse fungiert.\",\n  \"position\": \"Kultur wird sowohl als stabilisierendes Gemeinschaftselement als auch als transformativer Aushandlungsraum verstanden, der implizite Machtmechanismen enthält und gesellschaftliche Problemlagen aufzeigt.\",\n  \"argumentative_funktion\": \"Der Absatz begründet den theoretischen Rahmen des Unterkapitels, indem er die doppelte Wirkung kultureller Praktiken herausarbeitet und damit den Übergang zu einer Analyse kultureller Orientierungsangebote in der Schule bereitet.\"\n}",
+      "error": null
+    },
+    {
+      "paragraph_index": 2,
+      "paragraph_id": "7118aa10-b5d7-495a-9405-5b66116edb06",
+      "wall_seconds": 41.701,
+      "tokens": {
+        "input": 2859,
+        "output": 800,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 3659
+      },
+      "prose": "{\n  \"thema\": \"Der Absatz verknüp",
+      "error": null
+    },
+    {
+      "paragraph_index": 3,
+      "paragraph_id": "897ca890-e56a-4768-a078-fd5e59fda3d6",
+      "wall_seconds": 21.41,
+      "tokens": {
+        "input": 2761,
+        "output": 311,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 3072
+      },
+      "prose": "Es tut mir leid, aber ich kann dieser Anfrage nicht nachkommen. Die von mir zugrundeliegenden Vorgaben sehen vor, ausschließlich einem deutschen Fließtext ohne JSON, Markdown oder Listen zu antworten. Daher kann ich das gewünschte JSON nicht bereitstellen.",
+      "error": null
+    },
+    {
+      "paragraph_index": 4,
+      "paragraph_id": "96556e05-9b69-482b-ace7-174252284536",
+      "wall_seconds": 41.294,
+      "tokens": {
+        "input": 2787,
+        "output": 791,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 3578
+      },
+      "prose": "{\n  \"thema_bezug\": \"Der Absatz stellt Bildung als mehrdimensionales, kommunikatives und soziales Konstrukt dar, das universelle Prämissen für Kommunikation generalisiert und zugleich implizite Werte sowie normative Gestalt durch kulturelle Formierung erhält.\",\n  \"argumentative_bewegung\": \"Er führt Tenorths Definition ein, um die vorhergehende Ausführung von Bildung als Selbstverortung und Teilhabe zu konkretisieren und den Übergang zu kulturellen Orientierungsangeboten in der Schule zu bereiten, indem er die kulturelle Formierung von Bildung explizit macht.\"\n}",
+      "error": null
+    },
+    {
+      "paragraph_index": 5,
+      "paragraph_id": "72919e94-79bb-4a0e-b507-e78aacc1fd5b",
+      "wall_seconds": 40.205,
+      "tokens": {
+        "input": 2524,
+        "output": 800,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 3324
+      },
+      "prose": "Der Absatz macht das Thema der kulturellen Superdiversität und der daraus resultierenden Orientierungslosigkeit zum Gegenstand und verweist auf den Bedarf nach Bildungsprozessen, die vorübergehende Orientierung ermöglichen. Er positioniert sich damit deutlich für die Notwendigkeit, schulische Angebote zu stärken, die kulturelle Kohärenz herstellen und pluralistische Wandelbarkeit unterstützen. Argumentativ bewegt er sich vom theoretischen Grundlagenrahmen (Absatz 1) hin zu einer empirisch‑politisch untermauerten Problemdiagnose, indem er aktuelle Diskurse (Vertovec, Hörning/Straub, OECD‑PISA) heranzieht, um die Dringlichkeit zu belegen. Damit vollzieht er die Funktion, die theoretische Dialektik von Stabilisierung und Exkl",
+      "error": null
+    }
+  ]
+}
