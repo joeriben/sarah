@@ -42,7 +42,7 @@
 import { z } from 'zod';
 import { query, queryOne, transaction } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
-import { extractAndValidateJSON } from '../json-extract.js';
+import { parseProseAG, PROSE_FORMAT_SPEC } from './argumentation-graph-prose-parser.js';
 
 // ── Output schema ─────────────────────────────────────────────────
 
@@ -464,73 +464,47 @@ ${priorArgsBlock}
 [PRIOR-STÜTZSTRUKTUREN-INDEX — bereits registrierte Stützstrukturen aus vorherigen Absätzen]
 ${priorScaffoldingBlock}
 
-[OUTPUT-FORMAT]
-Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst (kein Vor-/Nachtext, kein Markdown-Codefence):
-
-{
-  "arguments": [
-    {
-      "id": "A1",
-      "claim": "<self-contained Aussage; muss isoliert vom Absatzkontext verständlich und prüfbar sein. 1–2 Sätze.>",
-      "premises": [
-        { "type": "stated",     "text": "<Voraussetzung, die im Absatz selbst (wörtlich oder paraphrasiert) gemacht wird>" },
-        { "type": "carried",    "text": "<Voraussetzung aus einem früheren Absatz dieses Unterkapitels>", "from_paragraph": <Position-in-Unterkapitel als Zahl> },
-        { "type": "background", "text": "<fachübliche Hintergrundannahme, die für die Geltung des claims notwendig ist und im Text nicht expliziert wird>" }
-      ],
-      "anchor_phrase": "<EXAKTE wörtliche Wortgruppe (≤ 8 Wörter) aus dem aktuellen Absatz, die das Argument am stärksten verankert; oder leerer String wenn keine geeignete Wortgruppe existiert>"
-    }
-  ],
-  "edges": [
-    { "from": "A2", "to": "A1",     "kind": "supports|refines|contradicts",                 "scope": "inter_argument" },
-    { "from": "A1", "to": "§2:A1",  "kind": "supports|refines|contradicts|presupposes",     "scope": "prior_paragraph" }
-  ],
-  "scaffolding": [
-    {
-      "id": "S1",
-      "excerpt": "<Textfragment des Absatzes, das die Stützfunktion trägt — Zitat, Beispiel, Übergangswendung, etc. ≤ 500 Zeichen.>",
-      "function_type": "textorganisatorisch | didaktisch | kontextualisierend | rhetorisch",
-      "function_description": "<Spezifische Funktion in Bezug auf konkrete Argumente — z.B. 'Beleg von §3:A2', 'Übergang von §1:A1 zu A1 (dieser Absatz)', 'Beispielssetzung für §2:A3', 'Rückbezug auf §1:A2'>",
-      "assessment": "<Bewertung der Stützfunktion AUS argumentationslogischer Sicht — z.B. 'klar wirksam', 'bedingt plausibel — Quelle stützt nur indirekt', 'redundant — schon durch §2:S1 abgedeckt', 'rhetorisch wirksam, sachlich schwach'. Der Bewertungsmaßstab ist: trägt das Element bei, die Argumentation A1, A2 → A3 verständlich/verlässlich zu machen?>",
-      "anchored_to": ["A1", "§2:A3"],
-      "anchor_phrase": "<EXAKTE wörtliche Wortgruppe (≤ 8 Wörter) für char-Verankerung, oder leerer String>"
-    }
-  ]
-}
+[OUTPUT-FORMAT — line-based prose, KEIN JSON]
+Antworte ausschließlich in dem unten gezeigten Sektions-Format. Sektion-Header sind GROSSGESCHRIEBEN; Felder kommen als \`key: value\` auf eigener Zeile; mehrzeilige Werte schreibst du fortlaufend in den Folgezeilen ohne Zeilenumbruch-Escape; keine Markdown-Codefences; kein einleitender Erklärtext; keine abschließende Zusammenfassung.
+${PROSE_FORMAT_SPEC}
 
 [REGELN]
 
-Zu **arguments**:
+Zu **ARGUMENT-Sektionen**:
 - IDs strikt "A1", "A2", ... in der Reihenfolge des Auftretens im Absatz.
-- claim: self-contained — d.h. ein Leser, der den Absatz nicht kennt, kann den claim verstehen. Verwende ggf. Theorie-Begriffe explizit ("Globalität als Komplexitätssteigerung", nicht nur "diese Steigerung").
+- claim: self-contained — d.h. ein Leser, der den Absatz nicht kennt, kann den claim verstehen. Verwende ggf. Theorie-Begriffe explizit ("Globalität als Komplexitätssteigerung", nicht nur "diese Steigerung"). 1–2 Sätze.
 - premises: nur was für die Geltung des claims **notwendig** ist. Drei Quellen-Typen:
-  · "stated"     — wörtlich oder paraphrasiert im Absatz selbst.
-  · "carried"    — aus früherem Absatz des Unterkapitels übernommen; gib die Position als Zahl an.
-  · "background" — fachübliche Hintergrundannahme, die der claim implizit voraussetzt. Sparsam verwenden — wenn eine Annahme im Absatz steht, ist sie "stated", nicht "background".
-- Eine leere premises-Liste ist erlaubt, wenn der claim wirklich freistehend ist (selten).
-- anchor_phrase: bevorzugt wörtliche in-vivo-Wortgruppe; wenn keine geeignete existiert, leer lassen.
+  · stated      — wörtlich oder paraphrasiert im Absatz selbst.
+  · carried §N  — aus früherem Absatz N des Unterkapitels übernommen; gib die Absatz-Position N hinter "carried §" als Zahl an.
+  · background  — fachübliche Hintergrundannahme, die der claim implizit voraussetzt. Sparsam verwenden — wenn eine Annahme im Absatz steht, ist sie "stated", nicht "background".
+- Eine leere premises-Liste ist erlaubt, wenn der claim wirklich freistehend ist (selten); dann lass den \`premises:\`-Block weg.
+- anchor: bevorzugt wörtliche in-vivo-Wortgruppe (≤ 8 Wörter); wenn keine geeignete existiert, leer lassen.
 
-Zu **edges**:
+Zu **EDGES-Sektion**:
+- Eine Sektion EDGES, mehrere Kanten-Zeilen.
 - inter_argument: Kanten zwischen zwei Argumenten DIESES Absatzes. Erlaubte kinds: supports, refines, contradicts.
-- prior_paragraph: Kanten zu Argumenten aus früheren Absätzen des Unterkapitels. Erlaubte kinds: supports, refines, contradicts, presupposes. Format der "to"-ID: "§<Position>:<ArgID>".
+- prior_paragraph: Kanten zu Argumenten aus früheren Absätzen des Unterkapitels. Erlaubte kinds: supports, refines, contradicts, presupposes. Ziel-Format: "§<Position>:<ArgID>".
 - presupposes ist nur als prior_paragraph-Kante zulässig.
+- Pfeil-Form strikt: "<id> -<kind>-> <id-oder-§N:Aid>".
 - Keine Kanten erfinden — wenn ein Argument keine erkennbare Beziehung zu anderen hat, keine Kante.
+- Wenn keine Edges, lass die EDGES-Sektion weg.
 
-Zu **scaffolding** (Layer 2 — Pflichtfeld neben arguments):
+Zu **SCAFFOLDING-Sektionen** (Layer 2):
 - IDs strikt "S1", "S2", ...
-- function_type ist eine der vier Kategorien:
-  · "textorganisatorisch" — Übergänge, Rückbezüge, Vorblicke (im Reichweite vorheriger Absätze), Strukturmarker, Aufzählungs-Bündelungen.
-  · "didaktisch" — Beispiele, Illustrationen, Kontrastsetzungen zur Verständnis-Erleichterung.
-  · "kontextualisierend" — Zitate als Beleg, Begriffsklärungen, Theorie-Einbettungen, Quellenverweise.
-  · "rhetorisch" — Relevanzmarkierungen, Meta-Reflexionen des Autors über das eigene Argument, Emphase, rhetorische Fragen.
-- function_description: spezifische Funktion in Bezug auf konkrete Argumente. **Format**: nenne die Bezugsargumente explizit (z.B. "Beleg von §3:A2 durch Hornberg-Studie").
+- function ist eine der vier Kategorien:
+  · textorganisatorisch — Übergänge, Rückbezüge, Vorblicke (im Reichweite vorheriger Absätze), Strukturmarker, Aufzählungs-Bündelungen.
+  · didaktisch          — Beispiele, Illustrationen, Kontrastsetzungen zur Verständnis-Erleichterung.
+  · kontextualisierend  — Zitate als Beleg, Begriffsklärungen, Theorie-Einbettungen, Quellenverweise.
+  · rhetorisch          — Relevanzmarkierungen, Meta-Reflexionen des Autors über das eigene Argument, Emphase, rhetorische Fragen.
+- description: spezifische Funktion in Bezug auf konkrete Argumente. **Format**: nenne die Bezugsargumente explizit (z.B. "Beleg von §3:A2 durch Hornberg-Studie").
 - assessment: Bewertung aus argumentationslogischer Sicht — was tut die Stützstruktur für die Tragfähigkeit/Verständlichkeit der bezogenen Argumente? **Nicht** Bewertung des stilistischen Werts isoliert, sondern: dient die Stützfunktion der Argumentation? Mögliche Befunde: "klar wirksam", "redundant", "bedingt plausibel — Beleg trägt nur indirekt", "rhetorisch wirksam, sachlich schwach", "trägt §X:AY entscheidend, ohne ihn wäre der claim unbelegt", etc.
-- anchored_to: Liste von Argument-IDs (lokal "A1" oder Cross "§N:AM"), an die diese Stützstruktur gebunden ist. **Pflicht**: ≥ 1 Anker. Stützstrukturen ohne Anker werden verworfen.
-- excerpt: Textfragment des Absatzes, das die Stützfunktion trägt; kann bis 500 Zeichen lang sein.
-- anchor_phrase: kürzere wörtliche Wortgruppe (≤ 8 Wörter) für char-genaue Verankerung.
+- anchored_to: Komma-getrennte Liste von Argument-IDs (lokal "A1" oder Cross "§N:AM"), an die diese Stützstruktur gebunden ist. **Pflicht**: ≥ 1 Anker. Stützstrukturen ohne Anker werden verworfen.
+- excerpt: Textfragment des Absatzes, das die Stützfunktion trägt; bis 500 Zeichen.
+- anchor: kürzere wörtliche Wortgruppe (≤ 8 Wörter) für char-genaue Verankerung.
 
-Wichtig: ein Absatz, der ausschließlich aus textorganisatorisch-didaktisch-kontextualisierend-rhetorischen Elementen besteht (z.B. ein reiner Übergangsabsatz, eine Belegkette, ein Methodenkommentar) hat dann \`arguments: []\` und ein nicht-leeres scaffolding-Array, dessen Einträge auf Argumente früherer Absätze zeigen.
+Wichtig: ein Absatz, der ausschließlich aus textorganisatorisch-didaktisch-kontextualisierend-rhetorischen Elementen besteht (z.B. ein reiner Übergangsabsatz, eine Belegkette, ein Methodenkommentar), hat dann KEINE ARGUMENT-Sektion und nur SCAFFOLDING-Sektionen, deren anchored_to auf Argumente früherer Absätze zeigt.
 
-NICHT als scaffolding zu erfassen: Premissen sind Teil von Argumenten, nicht Stützstrukturen. Ein Belegzitat, das im Argument selbst aufgeht, gehört in dessen premises (\`stated\`), nicht ins scaffolding. scaffolding registriert nur Material, das *als textorganisatorische/didaktische Geste* erkennbar ist — also Material, das eine Argumentation rahmt, einleitet, illustriert, motiviert oder verbindet, ohne selbst behauptend zu sein.`;
+NICHT als scaffolding zu erfassen: Premissen sind Teil von Argumenten, nicht Stützstrukturen. Ein Belegzitat, das im Argument selbst aufgeht, gehört in dessen premises (stated), nicht ins scaffolding. scaffolding registriert nur Material, das *als textorganisatorische/didaktische Geste* erkennbar ist — also Material, das eine Argumentation rahmt, einleitet, illustriert, motiviert oder verbindet, ohne selbst behauptend zu sein.`;
 }
 
 function buildUserMessage(paraCtx: ParagraphContext): string {
@@ -553,43 +527,14 @@ ${predecessor}
 
 ${successor}
 
-Erzeuge das JSON für den AKTUELLEN ABSATZ.`;
+Erzeuge das line-based prose-Output (ARGUMENT/EDGES/SCAFFOLDING-Sektionen) für den AKTUELLEN ABSATZ.`;
 }
 
 // ── Output extraction ─────────────────────────────────────────────
-
-function extractJSON(text: string): string {
-	const start = text.indexOf('{');
-	const end = text.lastIndexOf('}');
-	if (start === -1 || end === -1 || end < start) {
-		throw new Error('No JSON object found in LLM response');
-	}
-	return repairTypographicQuotes(text.slice(start, end + 1));
-}
-
-// The source documents often contain malformed quote pairs like „...XYZ"
-// (German typographic opener U+201E + straight ASCII closer — a recurring
-// DOCX/OCR artifact). When the LLM faithfully transcribes such substrings
-// into a JSON string value, the unescaped straight " breaks JSON parsing. We
-// rewrite the closing straight " to its typographic counterpart so JSON is
-// parseable and the string content is preserved.
-//
-// Mapping:
-//   „...   (U+201E low-9 opener)         → close with " (U+201C left)   — German style
-//   "...   (U+201C left opener)          → close with " (U+201D right)  — English style
-//
-// Conservative: only fires when the opener is one of these typographic chars
-// AND the close is a straight ASCII " AND there is no nested quote of any
-// kind in between.
-function repairTypographicQuotes(jsonText: string): string {
-	const opener  = '[„“]';                        // „ or "
-	const bodyNeg = '[^„“”"]';                // no nested quote
-	const re = new RegExp(`(${opener})(${bodyNeg}*?)"`, 'g');
-	return jsonText.replace(re, (_match, open: string, body: string) => {
-		const close = open === '„' ? '“' : '”';
-		return `${open}${body}${close}`;
-	});
-}
+// (Moved to argumentation-graph-prose-parser.ts. The legacy JSON-extract
+//  helpers — extractJSON, repairTypographicQuotes — live in
+//  src/lib/server/ai/json-extract.ts for use by other passes that still
+//  emit JSON [chapter-collapse, document-collapse, per-paragraph].)
 
 // ── Storage ───────────────────────────────────────────────────────
 
@@ -910,25 +855,43 @@ export async function runArgumentationGraphPass(
 		system,
 		cacheSystem: true,
 		messages: [{ role: 'user', content: user }],
-		// 8000 (was 4000): paragraphs with 4 args + 5 scaffolding entries hit
-		// the 4000-cap under truncation, producing unparseable cut-off JSON.
+		// 8000: prose-output is generally less verbose than the JSON it
+		// replaces (no quote/bracket boilerplate); 8000 still safe upper.
 		maxTokens: 8000,
 		modelOverride: opts.modelOverride,
 	});
 
-	const extract = extractAndValidateJSON(response.text, ArgumentationGraphResultSchema);
-	if (!extract.ok) {
+	const { result: parsedRaw, warnings, junkSections } = parseProseAG(response.text);
+
+	// Sanity-validate the parser output against the schema. The parser is
+	// permissive but produces shapes the schema expects; if Zod still rejects,
+	// it usually means the parser dropped too much (zero args + zero scaff)
+	// or the LLM emitted something the parser couldn't classify.
+	const validation = ArgumentationGraphResultSchema.safeParse(parsedRaw);
+	if (!validation.success || (validation.data.arguments.length === 0 && validation.data.scaffolding.length === 0)) {
+		// Empty parse = either (a) genuinely empty paragraph (rare), or
+		// (b) parser couldn't recognize anything (more common). Dump for
+		// post-mortem; a 2B-fallback recovery layer can hook in later.
 		const dumpPath = `/tmp/argumentation-graph-failure-${paragraphId}.txt`;
 		const fs = await import('node:fs/promises');
+		const errorBlob = validation.success
+			? 'parser-empty-output (zero args + zero scaffolding)'
+			: validation.error.message;
 		await fs.writeFile(
 			dumpPath,
-			`paragraph_id: ${paragraphId}\noutput_tokens: ${response.outputTokens}\nstage: ${extract.stage}\nerror: ${extract.error}\n\n--- RAW RESPONSE ---\n${response.text}\n\n--- CANDIDATE JSON ---\n${extract.candidateJson ?? '(none)'}\n`,
+			`paragraph_id: ${paragraphId}\noutput_tokens: ${response.outputTokens}\n` +
+			`parser warnings (${warnings.length}):\n${warnings.map(w => '  - ' + w).join('\n')}\n` +
+			`junk sections (${junkSections.length}):\n${junkSections.map((j, i) => `  [${i}] ${j.slice(0, 120)}`).join('\n')}\n` +
+			`schema error: ${errorBlob}\n\n--- RAW RESPONSE ---\n${response.text}\n`,
 			'utf8'
 		);
 		console.error(`     dumped raw response to ${dumpPath}`);
-		throw new Error(`Argumentation-graph extract failed: ${extract.stage} — ${extract.error.slice(0, 200)}`);
+		throw new Error(`Argumentation-graph prose-parse produced no usable output (${warnings.length} warnings, ${junkSections.length} junk sections)`);
 	}
-	const parsed: ArgumentationGraphResult = extract.value;
+	const parsed: ArgumentationGraphResult = validation.data;
+	if (warnings.length > 0) {
+		console.warn(`     parser warnings (${warnings.length}): ${warnings.slice(0, 3).join(' | ')}${warnings.length > 3 ? ' ...' : ''}`);
+	}
 	const stored = await storeResult(paraCtx, parsed);
 
 	return {

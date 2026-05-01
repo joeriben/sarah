@@ -1,6 +1,137 @@
-# Handover — Stand 2026-05-01 spät (LLM-Strategie-Ermittlung + Chapter-1-Goldstandard)
+# Handover — Stand 2026-05-01 nachts (Prose-Pivot des AG-Passes + Cost-Reset)
 
 **Lies zuerst diesen Block.** Die älteren Handover-Texte darunter sind Kontext, der aktuelle Stand und die nächsten Schritte stehen hier oben.
+
+## TL;DR — Wo wir stehen (2026-05-01 nachts)
+
+Diese Session hat eine **Architektur-Wende** für den AG-Pass vollzogen und damit die Cost-Strategie auf einen anderen Floor verschoben:
+
+1. **modelOverride durch chapter-/document-collapse durchgereicht** — beide Pässe nehmen jetzt `opts.modelOverride`, analog zu `runGraphCollapse` und `runArgumentationGraphPass`.
+2. **Hybrid-Test chapter-collapse mit DS4 vs. Opus-Goldstandard auf Chapter 1**: Makro-Diagnose konvergiert, Paragraph-Präzision (§:A-Anker) geht bei DS4 verloren. Cost-Win ~95 % auf Chapter-Ebene, aber Substanz-Verlust real. Ergebnis-Dump: `chapter1-compare-deepseek-v4-pro.json`, side-by-side: `chapter1-compare-SIDE-BY-SIDE.md`.
+3. **AG-Pass von strikter JSON auf prose-mit-Konventionen umgestellt** — User-Diagnose ("JSON-Fetisch") war richtig: das Schema hat Strenge erzwungen, die für die Synthesefähigkeit der Pipeline irrelevant ist. Konsequenz:
+   - **§4 Tenorth-Hammer (typografisches Zitat) klappt jetzt für DS4 + Sonnet 4/4** — auf der JSON-Pipeline scheiterten ALLE drei Modelle (inkl. Opus) wegen control chars / mis-escaped quotes.
+   - 2B-Fallback-Parser wurde geplant aber **nicht gebaut, weil nicht nötig** — beide Modelle landen first-shot parseable.
+   - DS4 ist als basal-Modell **viabel**: ~$0.59 pro 74-¶-Hauptkapitel statt ~$11.50 mit Opus (95 % günstiger), bei 4/4 AG-Erfolg im Smoketest.
+
+**Cost-Hochrechnung pro Hauptkapitel (74 ¶, basal-Pass synth + AG):**
+
+| Modell | ~Cost | Wall (4 ¶) | Substanz |
+|---|---:|---:|---|
+| Opus 4.7 | ~$11.50 | – | Goldstandard, §:A-präzise |
+| Sonnet 4.6 | ~$4.45 | 139 s | gut, §:A-präzise (per Counts) |
+| DeepSeek-v4-pro | ~$0.59 | 587 s* | nicht inhaltlich evaluiert |
+
+*DS4 §2 hatte 401 s outlier (out=13341 > maxTokens=8000, vermutlich OpenRouter-interner Retry). Ohne den Outlier ~185 s. Untersuchung steht aus.
+
+**Wichtig:** Substanz-Vergleich ist NICHT validiert. Der Smoketest dumpte nur Counts. Die improvements am Smoketest-Skript (jetzt mit `result`-Dump) sind in dem committeten Stand drin; ein Re-Run liefert Volltext für DS4-vs-Sonnet-Substanz-Vergleich.
+
+## Architektur-Wende AG-Pass: prose statt JSON
+
+### Warum
+
+User-Kritik 2026-05-01 nachts: das strikte JSON-Schema hat **Failure-Modes erzeugt, die nicht zu Substanz-Failures korrespondieren**. Eine Argument-Spaltung in zwei Objekte oder eine fehlende Edge sind harmlos für die Synthese (collapse-Pässe lesen die Daten als Text). Die JSON-Strenge bestrafte aber die Modelle für irrelevante Output-Noise. Konkretes Symptom: §4 Tenorth-Zitat brach selbst Opus.
+
+User-Insight: cheap-Modelle (DS4) wären 50–100× günstiger als Opus pro Call, das öffnet Multi-Pass-Architekturen (10× DS4 < 1× Sonnet). Aber **die Voraussetzung dafür ist, dass single-shot DS4 mit fairem Setup überhaupt zuverlässig parseable ist** — sonst verbrennt jeder Recursive-Setup im JSON-Bruch der Zwischenstufen.
+
+User-Insight zusätzlich: cheap 2B-Modelle könnten als Fallback-Parser fungieren, wenn der Auto-Parser scheitert. Multi-Tier-Parsing mit billigen Calls statt einer rigiden Schema-Validierung.
+
+### Was
+
+`src/lib/server/ai/hermeneutic/argumentation-graph.ts`:
+- Prompt rewrite: ARGUMENT/EDGES/SCAFFOLDING-Sektionen, line-based prose statt JSON-Objekt
+- `extractAndValidateJSON` rausgenommen, ersetzt durch `parseProseAG` aus dem neuen Parser
+- Schema-Validation läuft jetzt am Ende als **sanity check** auf der Parser-Ausgabe (nicht mehr als Strict-Gate auf LLM-Output)
+- Failure-Pfad: Parser-output empty → dump + throw (statt 2B-Fallback, der nicht gebraucht wurde)
+
+`src/lib/server/ai/hermeneutic/argumentation-graph-prose-parser.ts` (neu, ~310 Zeilen):
+- State-machine line parser
+- Tolerant gegen: Reihenfolge, Doppelungen, fehlende Felder, freien Begleittext, Markdown-Wrapper, alt-Pfeil-Formen (→ vs. ->), unbekannte function_types (→ default kontextualisierend mit warning)
+- Pflicht-Felder pro Sektion mit warning-skip statt throw
+- Output: `{ result: ArgumentationGraphResult; warnings: string[]; junkSections: string[] }`
+
+`src/lib/server/ai/json-extract.ts` (neu, aus dieser Session):
+- Reusable extraction für andere Pässe (chapter-collapse, document-collapse, per-paragraph), die immer noch JSON nutzen — dort sind die Schemata simpel (`synthese: ...` plus 2 Felder), JSON ist passend
+- Drei-Stufen-Repair: brace-trim → typographic-quote-repair → jsonrepair → JSON.parse → Zod
+- AG-Pass nutzt diese Schicht **nicht** mehr (prose-Pivot ist eigenständig)
+
+`src/lib/server/ai/client.ts`:
+- `responseFormat?: 'json'` opt-in für OpenAI-compat-Provider (OpenRouter passt durch zu Anthropic-via-OR, OpenAI, Mistral, DeepSeek, Qwen native JSON-mode)
+- Aktuell von keinem Pass aktiv genutzt — sleeping feature für die JSON-Pässe falls die brauchbar werden
+
+`scripts/smoketest-prose-ag.ts` (neu):
+- Validiert prose-AG auf §1-§4 von Subkapitel 1.1.1 inkl. Tenorth-Hammer
+- Cleanup zwischen Modellen, dump per-Modell-JSON
+- Im aktuellen Stand auch `result` (volle Parser-Ausgabe) im Dump → für Substanz-Inspektion bei nächstem Re-Run
+
+### Was nicht passierte
+
+- **2B-Fallback-Parser nicht gebaut**: weil DS4 + Sonnet 4/4 first-shot parseable. Wenn ein zukünftiger Smoketest mit Modellen, die nur teilweise parseable schreiben (Qwen, gemini, glm aus dem alten Smoketest), zeigt dass es nötig wird — Parser hat eine `junkSections`-Liste vorbereitet, die als Input für eine 2B-Recovery-Schicht direkt dient.
+- **Substanz-Vergleich DS4 vs. Sonnet vs. Opus nicht inhaltlich gemacht**: nur Counts. Re-Run mit dem improvten Smoketest gibt Volltext-Args/Edges/Scaffolding für direkten Vergleich.
+- **DS4-§2-Anomalie nicht erklärt**: wall=401s, output=13341 > maxTokens=8000. Vermutung: OpenRouter-interner Retry oder Reasoning-Tokens; der Parser hat den Output trotzdem sauber zerlegt (6 args, 9 edges, 0 scaff). Untersuchung wert, aber nicht-blockierend.
+
+## Konkrete nächste Aktionen, in Reihenfolge
+
+1. **Substanz-Re-Run mit dem improvten Smoketest** (~10 min, ~$0.10): liefert Volltext-Args/Edges/Scaffolding für DS4 + Sonnet auf §1-§4. Vergleich sollte zeigen: liefert DS4 substantiell vergleichbare Args wie Sonnet, oder fällt es auf eine flachere Beobachtungsebene zurück (analog zum Chapter-Collapse-Befund).
+2. **Per-Pass LLM-Settings + DS4-als-basal-Default**: die `taskAssignment`-Map in `ai-settings.json` mit Ansatz aus dieser Session — basal: DS4 (oder Sonnet wenn DS4 substanz-defizitär ist), section-collapse: Opus oder Sonnet, chapter-/document-collapse: Opus. UI optional, JSON-Konfig reicht für PoC.
+3. **Caching-Diagnose**: Opus-Goldstandard-Run hatte cacheRead=0 durch alle 74 ¶ trotz `cacheSystem: true`. DS4-Smoketest hat tatsächlich Cache-Hits (§1: 1536, §3: 1664) — Caching FUNKTIONIERT also. Frage: warum Opus-baseline trotzdem keine? Vermutlich liegt's am 5-min-TTL (Pipeline lief 32 min) oder an pro-Call-Variation im System-Prompt. Wenn das gefixt wird, sind 25 % weitere Cost-Reduktion drin.
+4. **DS4-§2-Anomalie**: ein Mini-Test mit DS4 auf §2 isoliert, Output speichern, prüfen ob der >8000-token-Output legitim ist (lange Argumente) oder OpenRouter-Retry-Artefakt. Falls Retry: kann mit `max_tokens` strikter eingestellt werden, oder pro-paragraph-Output-cap implementieren.
+5. **Re-Run Chapter-1-Pipeline mit DS4-basal**: end-to-end-Validierung auf 74 ¶. Wenn Substanz-Vergleich (Schritt 1) DS4 ok zeigt, dann ist das die echte Probe: DS4-basal + Opus-collapse-Stack, gegen die existierende Opus-Baseline. Cost ~$2-3 vs. $13.30. Prüft, ob 74 ¶ × DS4 stabil bleibt (Smoketest nur 4 ¶).
+6. **Mistral-Large-2512 Smoketest** (offen vom User explizit gewünscht, kam in dieser Session nicht dazu): einmal AG-Smoketest mit prose-Pipeline. Mistral hat saubere JSON-mode-Unterstützung; auf prose sollte es ebenfalls solide sein.
+7. **Endpoint-Erweiterung Auto-Trigger + SSE** (dauerstand vom vorigen Handover): erst nach Modell-Wahl-Entscheidung sinnvoll.
+
+## Stand der Test-Daten in DB
+
+Case-IDs unverändert vom vorigen Handover:
+```
+case_id          aa23d66e-9cd8-4583-9d14-6120dc343b10
+brief_id         f8fc8a30-404f-4378-bd8d-c1fb92799246  (argumentation_graph=true)
+document_id      54073d08-f577-453b-9a72-73a7654e1598
+user_id (sarah)  dac6ac05-bdab-4d68-a4fa-3eab0b40cc2b
+```
+
+In Chapter 1 (L1 heading `9c3e2dac-a9bb-4cb5-8a6d-19a87c086341`):
+- 74 paragraph-synth-memos (alle 74 ¶)
+- ~61 paragraph-AG (74 minus 13 failures vom vorigen Handover; **die 13 könnten jetzt mit prose-Pipeline durchlaufen** — aber DB-State noch unverändert)
+- 7 L3 section-collapse memos (alle 7 L3-Subkapitel) — Opus-generiert
+- **0 L1 chapter-collapse memos** — wurde in dieser Session als Teil des hybrid-tests gelöscht. Restoration: `npx tsx scripts/run-chapter-collapse.ts` mit ai-settings.json default = Opus, ~$0.50 + ~42s.
+- `aggregation_subchapter_level = 3` persistiert auf chapter-1 heading
+
+In Chapter 2-4: nichts (frisch).
+
+## Files diese Session (alle commited)
+
+**Code:**
+- `src/lib/server/ai/client.ts` — `responseFormat: 'json'` opt-in
+- `src/lib/server/ai/json-extract.ts` (neu) — Reusable JSON-extract mit jsonrepair-Fallback (für JSON-Pässe)
+- `src/lib/server/ai/hermeneutic/argumentation-graph.ts` — prose-Output, Parser-basiert
+- `src/lib/server/ai/hermeneutic/argumentation-graph-prose-parser.ts` (neu) — line-state-machine
+- `src/lib/server/ai/hermeneutic/chapter-collapse.ts` — modelOverride durchgereicht
+- `src/lib/server/ai/hermeneutic/document-collapse.ts` — modelOverride durchgereicht
+- `package.json`, `package-lock.json` — `jsonrepair` dep added
+
+**Scripts:**
+- `scripts/compare-models-chapter-collapse.ts` (neu) — chapter-collapse Modell-Rotation
+- `scripts/render-chapter-compare-markdown.ts` (neu) — side-by-side render
+- `scripts/smoketest-prose-ag.ts` (neu) — §1-§4 × {DS4, Sonnet} smoketest
+
+**Outputs in `docs/experiments/`:**
+- `chapter1-compare-deepseek-v4-pro.json`, `chapter1-compare-SIDE-BY-SIDE.md` — chapter-collapse DS4 vs. Opus
+- `smoketest-prose-ag-deepseek-v4-pro.json`, `-sonnet-4-6.json` — prose-AG Smoketest
+
+## Methodologische Lektion (für Folge-Sessions wichtig)
+
+**Die JSON-Strenge war ein Performance-Blocker, kein Substanz-Garant.**
+Der Reflex, Schema-Strenge zu erhöhen ("jsonrepair, retry, JSON-mode opt-in"), war Fortsetzung des Designfehlers, nicht dessen Korrektur. Frage zukünftig zuerst: *welcher Failure-Mode korrespondiert tatsächlich mit Substanz-Failure?* — und entwerfe Strenge nur dort.
+
+User-Korrektur direkt: *"Wieso dieser json-Fetisch hier? [...] Wenn ich einen Parsing-fehler habe und ein Argument in 2 Objekten aufgeteilt ist, so what? welchen konkreten Schaden für den Kollaps soll das verursachen?"* — der konkrete Schaden ist null, weil der Konsument (collapse-LLM) die Daten als Text liest. Strenge sollte da sitzen, wo sie die Synthese-Qualität schützt, nicht wo sie eine schicke Datenstruktur erzwingt.
+
+User-Korrektur zur Cost-Logik: *"Ich kann DS4.0 ZEHN MAL rekursiv auf das Material anwenden, adversarial und was nicht alle, pro Absatz, bevor ich an die Kosten von Sonnet/Opus herankomme."* — Cost-Asymmetrie öffnet Multi-Pass-Architekturen. Vor dieser Session war die Pipeline für single-shot best-model designed; das Auflösen dieser Annahme verschiebt den Floor radikal.
+
+Beides sollte in Folge-Sessions als default-frame gesetzt sein, bevor man neue Strenge-Schichten einbaut.
+
+---
+
+# (Älterer Handover-Text — Stand 2026-05-01 spät, LLM-Strategie-Ermittlung + Chapter-1-Goldstandard)
 
 ## TL;DR — Wo wir stehen
 

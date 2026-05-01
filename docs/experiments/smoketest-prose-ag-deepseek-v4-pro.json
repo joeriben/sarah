@@ -1,0 +1,81 @@
+{
+  "model": {
+    "key": "deepseek-v4-pro",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4-pro"
+  },
+  "paragraphs": [
+    {
+      "pid": "60f9dfb1-5d9d-4c56-8288-1ef51f5eec63",
+      "position": "§1",
+      "wall_seconds": 64.932,
+      "tokens": {
+        "input": 2895,
+        "output": 2048,
+        "cacheCreation": 0,
+        "cacheRead": 1536,
+        "total": 6479
+      },
+      "success": true,
+      "args_count": 3,
+      "edges_count": 1,
+      "scaffolding_count": 3,
+      "error": null
+    },
+    {
+      "pid": "7118aa10-b5d7-495a-9405-5b66116edb06",
+      "position": "§2",
+      "wall_seconds": 401.779,
+      "tokens": {
+        "input": 4975,
+        "output": 13341,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 18316
+      },
+      "success": true,
+      "args_count": 6,
+      "edges_count": 9,
+      "scaffolding_count": 0,
+      "error": null
+    },
+    {
+      "pid": "897ca890-e56a-4768-a078-fd5e59fda3d6",
+      "position": "§3",
+      "wall_seconds": 54.169,
+      "tokens": {
+        "input": 3510,
+        "output": 2019,
+        "cacheCreation": 0,
+        "cacheRead": 1664,
+        "total": 7193
+      },
+      "success": true,
+      "args_count": 5,
+      "edges_count": 5,
+      "scaffolding_count": 4,
+      "error": null
+    },
+    {
+      "pid": "96556e05-9b69-482b-ace7-174252284536",
+      "position": "§4",
+      "wall_seconds": 66.508,
+      "tokens": {
+        "input": 5679,
+        "output": 2863,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 8542
+      },
+      "success": true,
+      "args_count": 2,
+      "edges_count": 2,
+      "scaffolding_count": 1,
+      "error": null
+    }
+  ],
+  "total_wall_seconds": 587.388,
+  "total_tokens": 40530,
+  "success_count": 4,
+  "failed_count": 0
+}

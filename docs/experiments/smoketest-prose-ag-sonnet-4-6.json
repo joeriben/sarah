@@ -1,0 +1,81 @@
+{
+  "model": {
+    "key": "sonnet-4-6",
+    "provider": "openrouter",
+    "model": "anthropic/claude-sonnet-4.6"
+  },
+  "paragraphs": [
+    {
+      "pid": "60f9dfb1-5d9d-4c56-8288-1ef51f5eec63",
+      "position": "§1",
+      "wall_seconds": 38.235,
+      "tokens": {
+        "input": 5491,
+        "output": 2277,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 7768
+      },
+      "success": true,
+      "args_count": 4,
+      "edges_count": 4,
+      "scaffolding_count": 5,
+      "error": null
+    },
+    {
+      "pid": "7118aa10-b5d7-495a-9405-5b66116edb06",
+      "position": "§2",
+      "wall_seconds": 39.046,
+      "tokens": {
+        "input": 6620,
+        "output": 2651,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 9271
+      },
+      "success": true,
+      "args_count": 5,
+      "edges_count": 7,
+      "scaffolding_count": 4,
+      "error": null
+    },
+    {
+      "pid": "897ca890-e56a-4768-a078-fd5e59fda3d6",
+      "position": "§3",
+      "wall_seconds": 33.689,
+      "tokens": {
+        "input": 7400,
+        "output": 2256,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 9656
+      },
+      "success": true,
+      "args_count": 5,
+      "edges_count": 7,
+      "scaffolding_count": 3,
+      "error": null
+    },
+    {
+      "pid": "96556e05-9b69-482b-ace7-174252284536",
+      "position": "§4",
+      "wall_seconds": 28.384,
+      "tokens": {
+        "input": 8222,
+        "output": 1721,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 9943
+      },
+      "success": true,
+      "args_count": 2,
+      "edges_count": 5,
+      "scaffolding_count": 3,
+      "error": null
+    }
+  ],
+  "total_wall_seconds": 139.35399999999998,
+  "total_tokens": 36638,
+  "success_count": 4,
+  "failed_count": 0
+}
