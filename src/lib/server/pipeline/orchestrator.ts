@@ -538,12 +538,21 @@ export async function runPipelineLoop(
 ): Promise<void> {
 	const phases = phasesForRun(options);
 	let lastPhaseAnnounced: Phase | null = null;
-	// Stuck-Guard: wenn der Loop denselben Atom mehrfach hintereinander als
-	// pending listet, aber executeStep skipped=true zurückgibt, wäre das
-	// eine Endlosschleife (Symptom einer Inkongruenz zwischen list-done und
-	// pass-skip-Bedingung). Lieber graceful failen als Tokens fressen.
-	let lastStuckAtomId: string | null = null;
-	let stuckRepeatCount = 0;
+	// Stuck-Guard: schützt gegen Endlosschleifen, in denen derselbe Atom
+	// nach Step-Ausführung weiterhin als pending erkannt wird. Zwei
+	// Failure-Modes:
+	//   (a) skipped=true wiederholt — Inkongruenz zwischen
+	//       listAtomsForPhase-done-Bedingung und Pass-Skip-Bedingung.
+	//   (b) skipped=false wiederholt — Pass läuft mit echten LLM-Calls,
+	//       persistiert aber nichts (z.B. AG-Pass erzeugt scaffolding,
+	//       dessen Anchors auf nicht-existente lokale args zeigen → alle
+	//       Inserts werden skipped, DB-State bleibt unverändert).
+	// Failure-Mode (b) ist gefährlicher, weil er Tokens verbrennt — der
+	// AG-Pass selbst wirft mittlerweile in diesem Fall (Storage-empty-
+	// guard, siehe argumentation-graph.ts), aber der Guard hier ist die
+	// generische Verteidigung für jeden Pass.
+	let lastProcessedAtomId: string | null = null;
+	let sameAtomRepeatCount = 0;
 
 	while (true) {
 		const run = await getRun(runId);
@@ -591,23 +600,30 @@ export async function runPipelineLoop(
 		});
 
 		try {
-			const stepResult = await executeStep(next.phase, next.atom, caseId, userId);
-			if (stepResult.skipped && next.atom.id === lastStuckAtomId) {
-				stuckRepeatCount += 1;
-				if (stuckRepeatCount >= 3) {
-					const message = `Stuck on ${next.phase}/${next.atom.label}: pass returned skipped=true 3× but listAtomsForPhase still marks it pending. Likely inconsistency between done-detection and pass-skip-condition.`;
+			// Pre-Step Stuck-Guard: derselbe Atom kommt zum dritten Mal in
+			// Folge als pending (egal ob vorherige Versuche skipped oder
+			// success waren). Verhindert das Token-Verbrennen-Szenario aus
+			// failure-mode (b).
+			if (next.atom.id === lastProcessedAtomId) {
+				sameAtomRepeatCount += 1;
+				if (sameAtomRepeatCount >= 3) {
+					const message =
+						`Stuck on ${next.phase}/${next.atom.label}: ` +
+						`pass returned successfully 3× but listAtomsForPhase still marks it pending. ` +
+						`Either the pass is skip-on-existing without persisting, or it persists nothing ` +
+						`(e.g. AG-Pass output where all scaffolding anchors are unresolvable). ` +
+						`Run halted to prevent token-burn; inspect this paragraph manually.`;
 					safeSend(sendEvent, { type: 'step-error', phase: next.phase, atom: next.atom, message });
 					await markFailed(runId, message);
 					safeSend(sendEvent, { type: 'failed', message });
 					return;
 				}
-			} else if (stepResult.skipped) {
-				lastStuckAtomId = next.atom.id;
-				stuckRepeatCount = 1;
 			} else {
-				lastStuckAtomId = null;
-				stuckRepeatCount = 0;
+				lastProcessedAtomId = next.atom.id;
+				sameAtomRepeatCount = 1;
 			}
+
+			const stepResult = await executeStep(next.phase, next.atom, caseId, userId);
 			await updateProgress(
 				runId,
 				next.phase,

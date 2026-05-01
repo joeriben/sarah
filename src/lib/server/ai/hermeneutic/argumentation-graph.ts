@@ -802,6 +802,25 @@ async function storeResult(
 			}
 		}
 
+		// Storage-empty guard: wenn der Pass weder argument_nodes noch
+		// scaffolding_elements persistiert (z.B. weil das LLM nur scaffolding
+		// extrahiert hat, dessen Anchor-Refs aber alle auf nicht-existente
+		// lokale args A1/A2 zeigen → alle scaffolding skipped), würde der
+		// Orchestrator-Loop diesen ¶ als immer noch pending sehen und mit
+		// echten LLM-Calls in eine Endlosschleife geraten. Lieber als
+		// Persistierungs-Failure markieren — der Stuck-Guard im Orchestrator
+		// fängt das, aber hier mit konkreter Diagnose loggbar.
+		if (nodeIds.length === 0 && scaffoldingIds.length === 0) {
+			throw new Error(
+				`AG-Pass produzierte parseable Output, aber nichts wurde persistiert: ` +
+				`${result.arguments.length} args (alle abgelehnt), ` +
+				`${result.scaffolding.length} scaffolding (alle skipped: ` +
+				`${skippedScaffolding.map((s) => s.reason).join(', ').slice(0, 200)}). ` +
+				`Üblicherweise: scaffolding.anchored_to verweist auf lokale args A1/A2, ` +
+				`die im selben Absatz nicht extrahiert wurden.`
+			);
+		}
+
 		return {
 			nodeIds, unanchoredArguments,
 			interEdgeCount, priorEdgeCount, skippedEdges,

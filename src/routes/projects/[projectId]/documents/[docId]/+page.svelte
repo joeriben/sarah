@@ -252,11 +252,14 @@
 	async function pauseRun() {
 		if (!caseInfo || cancellingRun) return;
 		cancellingRun = true;
+		// SSE-Stream sofort abbrechen → UI-seitig entkoppelt, runActive=false
+		// kommt von selbst beim Stream-Ende. Der Server-Loop läuft noch bis
+		// zum nächsten Atom-Cancel-Check (~30s bei laufendem LLM-Call), aber
+		// für den User fühlt sich Pause sofort an.
+		runEventSource?.abort();
+		runEvents = [...runEvents, '⏸ Pause angefordert (Server stoppt nach laufendem Atom)…'];
 		try {
 			await fetch(`/api/cases/${caseInfo.id}/pipeline/run`, { method: 'DELETE' });
-			// Laufender Loop stoppt nach nächstem Atom-Step graceful;
-			// Stream-Reader auch abbrechen, damit UI sofort entkoppelt ist.
-			runEventSource?.abort();
 		} catch (e) {
 			runError = (e as Error).message;
 		} finally {
