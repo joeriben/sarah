@@ -12,7 +12,7 @@
   scrollTarget-Prop.
 -->
 <script lang="ts">
-	import type { DocumentElement, ParagraphMemo, CodeAnchor, SubchapterSynthesis, CaseInfo } from './+page.server.js';
+	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, CaseInfo } from './+page.server.js';
 
 	interface Props {
 		open: boolean;
@@ -22,7 +22,7 @@
 		caseInfo: CaseInfo | null;
 		memosByElement: Record<string, ParagraphMemo[]>;
 		codesByElement: Record<string, CodeAnchor[]>;
-		synthesesByHeading: Record<string, SubchapterSynthesis>;
+		synthesesByHeading: Record<string, HeadingSynthesis>;
 		scrollTarget?: { elementId: string; argumentId?: string } | null;
 	}
 
@@ -75,7 +75,7 @@
 	function codesFor(id: string): CodeAnchor[] {
 		return codesByElement[id] ?? [];
 	}
-	function synthesisFor(id: string): SubchapterSynthesis | null {
+	function synthesisFor(id: string): HeadingSynthesis | null {
 		return synthesesByHeading[id] ?? null;
 	}
 

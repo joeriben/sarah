@@ -12,7 +12,7 @@
 	import { browser } from '$app/environment';
 	import { replaceState, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
-	import type { DocumentElement, ParagraphMemo, CodeAnchor, SubchapterSynthesis, CaseInfo, OutlineEntry, BriefOption } from './+page.server.js';
+	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, WorkSynthesis, CaseInfo, OutlineEntry, BriefOption } from './+page.server.js';
 	import ReaderModal from './ReaderModal.svelte';
 
 	let { data } = $props();
@@ -21,9 +21,12 @@
 	const caseInfo = $derived(data.case as CaseInfo | null);
 	const memosByElement = $derived(data.memosByElement as Record<string, ParagraphMemo[]>);
 	const codesByElement = $derived(data.codesByElement as Record<string, CodeAnchor[]>);
-	const synthesesByHeading = $derived(data.synthesesByHeading as Record<string, SubchapterSynthesis>);
+	const synthesesByHeading = $derived(data.synthesesByHeading as Record<string, HeadingSynthesis>);
 	const outlineEntries = $derived(data.outlineEntries as OutlineEntry[]);
 	const briefOptions = $derived(data.briefOptions as BriefOption[]);
+	const paragraphHasAg = $derived(data.paragraphHasAg as Record<string, boolean>);
+	const aggregationLevelByL1 = $derived(data.aggregationLevelByL1 as Record<string, 1 | 2 | 3>);
+	const workSynthesis = $derived(data.workSynthesis as WorkSynthesis | null);
 
 	type View = 'pipeline' | 'outline' | 'companions';
 	const VIEWS: View[] = ['pipeline', 'outline', 'companions'];
@@ -441,20 +444,42 @@
 		return map;
 	});
 
-	// Memo-Coverage pro Heading: wie viele ¶ haben interpretierende Memo?
+	// Coverage pro Heading: wie viele ¶ analytisch erfasst (AG-Daten) und wie
+	// viele synthetisch (interpretierendes Per-¶-Memo, optionales Addendum).
+	// Beide Zahlen werden separat geführt, damit die UI die richtige Pending-
+	// Message wählen kann (synth ist optional, AG ist Pflicht-Hauptlinie).
 	const memoCoverageByHeading = $derived.by(() => {
-		const map = new Map<string, { withMemo: number; total: number }>();
+		const map = new Map<string, { withAg: number; withSynth: number; total: number }>();
 		let currentHeadingId: string | null = null;
 		for (const e of mainElements) {
 			if (e.element_type === 'heading') {
 				currentHeadingId = e.id;
-				if (!map.has(currentHeadingId)) map.set(currentHeadingId, { withMemo: 0, total: 0 });
+				if (!map.has(currentHeadingId)) map.set(currentHeadingId, { withAg: 0, withSynth: 0, total: 0 });
 			} else if (e.element_type === 'paragraph' && currentHeadingId) {
 				const cur = map.get(currentHeadingId)!;
 				cur.total += 1;
+				if (paragraphHasAg[e.id]) cur.withAg += 1;
 				if (memosByElement[e.id]?.some((m) => m.memo_type === 'interpretierend')) {
-					cur.withMemo += 1;
+					cur.withSynth += 1;
 				}
+			}
+		}
+		return map;
+	});
+
+	// Mapping headingId → parent-L1-headingId. Wird für die Pending-Message
+	// genutzt: ein L2-Subkapitel "gehört" semantisch zum L1, dessen
+	// aggregation_subchapter_level entscheidet, ob für das L2 eine eigene
+	// Synthese erzeugt wurde oder nicht.
+	const parentL1ByHeading = $derived.by(() => {
+		const map = new Map<string, string>();
+		let currentL1: string | null = null;
+		for (const h of outlineEntries) {
+			if (h.level === 1) {
+				currentL1 = h.elementId;
+				map.set(h.elementId, h.elementId);
+			} else if (currentL1) {
+				map.set(h.elementId, currentL1);
 			}
 		}
 		return map;
@@ -464,9 +489,9 @@
 		let withMemo = 0;
 		const total = paragraphs.length;
 		for (const e of paragraphs) {
-			if (memosByElement[e.id]?.some((m) => m.memo_type === 'interpretierend')) {
-				withMemo += 1;
-			}
+			// "Verarbeitet" = analytisch erfasst (AG-Hauptlinie). Das synthetische
+			// Per-¶-Memo ist optional und kein Indikator für Pipeline-Fortschritt.
+			if (paragraphHasAg[e.id]) withMemo += 1;
 		}
 		return { withMemo, total };
 	});
@@ -519,7 +544,7 @@
 					{/if}
 				</span>
 				<span class="progress-tag">
-					Hermeneutik: {totalProcessed.withMemo}/{totalProcessed.total}
+					Analytisch erfasst: {totalProcessed.withMemo}/{totalProcessed.total} ¶
 				</span>
 				{#if briefSwitchError}
 					<span class="brief-error">Wechsel fehlgeschlagen: {briefSwitchError}</span>
@@ -798,6 +823,15 @@
 						</p>
 					</div>
 				{:else}
+					{#if workSynthesis}
+						<article class="work-verdict">
+							<header class="work-verdict-head">
+								<span class="work-tag">Gesamtverdikt</span>
+								<h2>Werk-Synthese</h2>
+							</header>
+							<div class="work-content">{workSynthesis.content}</div>
+						</article>
+					{/if}
 					<p class="outline-intro">
 						Hierarchische Synthesen-Navigation. Klick auf §X:AY-Anker in
 						einer Synthese öffnet den Reader-Modal an der entsprechenden
@@ -808,6 +842,9 @@
 							{@const synthesis = synthesesByHeading[h.elementId]}
 							{@const cov = memoCoverageByHeading.get(h.elementId)}
 							{@const indent = Math.min(h.level, 5) - 1}
+							{@const parentL1 = parentL1ByHeading.get(h.elementId)}
+							{@const parentAggLevel = parentL1 ? aggregationLevelByL1[parentL1] : undefined}
+							{@const eingefasst = h.level > 1 && parentAggLevel === 1 && !synthesis}
 							<article class="outline-node level-{Math.min(h.level, 5)}" style:--indent="{indent}">
 								<header class="outline-node-head">
 									<span class="lvl-tag">L{h.level}</span>
@@ -816,8 +853,8 @@
 									{/if}
 									<h3 class="outline-heading">{h.text}</h3>
 									{#if cov && cov.total > 0}
-										<span class="coverage-tag" class:done={cov.withMemo === cov.total}>
-											{cov.withMemo}/{cov.total} ¶
+										<span class="coverage-tag" class:done={cov.withAg === cov.total}>
+											{cov.withAg}/{cov.total} ¶
 										</span>
 									{/if}
 								</header>
@@ -839,13 +876,17 @@
 											{/each}
 										</div>
 									</div>
-								{:else if (cov?.total ?? 0) > 0 && (cov?.withMemo ?? 0) === cov?.total}
+								{:else if eingefasst}
 									<p class="synth-pending">
-										Per-¶-Pass abgeschlossen, Section-Collapse steht noch aus.
+										In Hauptkapitel-Synthese eingefasst — die Subkapitel dieses Hauptkapitels waren im Schnitt zu klein für eigene Synthesen, daher direkt auf L1-Ebene aggregiert.
+									</p>
+								{:else if (cov?.total ?? 0) > 0 && cov && cov.withAg === cov.total}
+									<p class="synth-pending">
+										Argumentations-Graph erfasst ({cov.withAg}/{cov.total} ¶), Section-Collapse steht noch aus.
 									</p>
 								{:else if (cov?.total ?? 0) > 0}
 									<p class="synth-pending">
-										Per-¶-Pass läuft noch ({cov?.withMemo}/{cov?.total} Absätze analysiert).
+										Argumentations-Graph läuft noch ({cov?.withAg}/{cov?.total} ¶ erfasst).
 									</p>
 								{:else}
 									<p class="synth-pending">Noch keine Daten zu diesem Abschnitt.</p>
@@ -1046,6 +1087,30 @@
 	.outline-intro {
 		font-size: 0.82rem; color: #8b8fa3;
 		margin: 0 0 1rem; max-width: 70ch; line-height: 1.5;
+	}
+	.work-verdict {
+		padding: 1.1rem 1.3rem 1.2rem;
+		background: rgba(134, 239, 172, 0.06);
+		border: 1px solid rgba(134, 239, 172, 0.35);
+		border-radius: 8px;
+		margin: 0 0 1.6rem;
+	}
+	.work-verdict-head {
+		display: flex; align-items: baseline; gap: 0.7rem;
+		margin-bottom: 0.7rem;
+	}
+	.work-verdict-head h2 {
+		font-size: 1.1rem; margin: 0; color: #e7eaf6;
+	}
+	.work-tag {
+		font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase;
+		padding: 2px 8px; border-radius: 4px;
+		background: rgba(134, 239, 172, 0.18); color: #bbf7d0;
+		font-weight: 600;
+	}
+	.work-content {
+		font-size: 0.92rem; line-height: 1.55; color: #d6dae8;
+		white-space: pre-wrap;
 	}
 	.outline-list { display: flex; flex-direction: column; gap: 0.7rem; }
 	.outline-node {

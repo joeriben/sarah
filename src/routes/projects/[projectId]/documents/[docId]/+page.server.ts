@@ -31,8 +31,13 @@ export interface CodeAnchor {
 	char_end: number;
 }
 
-export interface SubchapterSynthesis {
+export interface HeadingSynthesis {
 	headingElementId: string;
+	memoId: string;
+	content: string;
+}
+
+export interface WorkSynthesis {
 	memoId: string;
 	content: string;
 }
@@ -44,6 +49,7 @@ export interface OutlineEntry {
 	text: string;
 	excluded: boolean;
 }
+
 
 export interface CaseInfo {
 	id: string;
@@ -149,7 +155,19 @@ export const load: PageServerLoad = async ({ params }) => {
 	// Hermeneutic layer — only loaded if there is a case
 	let memosByElement: Record<string, ParagraphMemo[]> = {};
 	let codesByElement: Record<string, CodeAnchor[]> = {};
-	let synthesesByHeading: Record<string, SubchapterSynthesis> = {};
+	let synthesesByHeading: Record<string, HeadingSynthesis> = {};
+	// Welche Paragraphen haben AG-Daten (argument_nodes ODER scaffolding_elements)?
+	// Wird im UI als "analytisch erfasst"-Coverage genutzt — unabhängig vom
+	// optionalen synthetisch-interpretierenden Per-¶-Memo.
+	let paragraphHasAg: Record<string, boolean> = {};
+	// Pro L1-Heading: das aggregation_subchapter_level aus heading_classifications.
+	// Bei Wert 1 hat der Section-Collapse-Pass die L2-Subkapitel bewusst nicht
+	// einzeln synthetisiert, sondern in die chapter-Synthese eingefasst.
+	let aggregationLevelByL1: Record<string, 1 | 2 | 3> = {};
+	// Werk-Synthese (scope_level='work'): nicht heading-gebunden, daher nicht
+	// in synthesesByHeading. Doc-Bezug via appearances.properties.document_id
+	// (siehe document-collapse.ts:374-385).
+	let workSynthesis: WorkSynthesis | null = null;
 
 	if (caseInfo) {
 		const memoRows = (
@@ -178,7 +196,14 @@ export const load: PageServerLoad = async ({ params }) => {
 					memo_type: m.memo_type,
 					content: m.content,
 				});
-			} else if (m.scope_level === 'subchapter' && m.memo_type === 'kontextualisierend') {
+			} else if (
+				(m.scope_level === 'subchapter' || m.scope_level === 'chapter') &&
+				m.memo_type === 'kontextualisierend'
+			) {
+				// Sowohl subchapter- als auch chapter-Synthesen sind heading-gebunden
+				// und werden im Outline-Tab unter ihrem heading angezeigt. Pro
+				// scope_element_id existiert höchstens eines von beiden (chapter
+				// auf L1-headings, subchapter auf L2/L3-headings) — kein Konflikt.
 				synthesesByHeading[m.scope_element_id] = {
 					headingElementId: m.scope_element_id,
 					memoId: m.naming_id,
@@ -217,6 +242,55 @@ export const load: PageServerLoad = async ({ params }) => {
 				char_end: c.char_end,
 			});
 		}
+
+		// AG-Coverage pro Paragraph: hat ≥1 argument_node ODER ≥1 scaffolding_element?
+		// Kongruent zur done-Bedingung im Pipeline-Orchestrator (orchestrator.ts:317-330).
+		const agRows = (await query<{ paragraph_id: string }>(
+			`SELECT DISTINCT de.id AS paragraph_id
+			 FROM document_elements de
+			 WHERE de.document_id = $1
+			   AND de.element_type = 'paragraph'
+			   AND de.section_kind = 'main'
+			   AND (EXISTS (SELECT 1 FROM argument_nodes an WHERE an.paragraph_element_id = de.id)
+			        OR EXISTS (SELECT 1 FROM scaffolding_elements s WHERE s.paragraph_element_id = de.id))`,
+			[params.docId]
+		)).rows;
+		for (const r of agRows) paragraphHasAg[r.paragraph_id] = true;
+
+		// Werk-Synthese laden (eine pro Dokument, jüngste falls mehrere).
+		const workRow = await queryOne<{ id: string; content: string }>(
+			`SELECT n.id, mc.content
+			 FROM namings n
+			 JOIN appearances a ON a.naming_id = n.id AND a.mode = 'entity'
+			 JOIN memo_content mc ON mc.naming_id = n.id
+			 WHERE n.inscription LIKE '[kontextualisierend/work/graph]%'
+			   AND mc.scope_level = 'work'
+			   AND mc.memo_type = 'kontextualisierend'
+			   AND a.properties->>'document_id' = $1
+			   AND n.deleted_at IS NULL
+			 ORDER BY n.created_at DESC
+			 LIMIT 1`,
+			[params.docId]
+		);
+		if (workRow) {
+			workSynthesis = { memoId: workRow.id, content: workRow.content };
+		}
+
+		// Aggregations-Entscheidung pro L1-Heading laden. NULL bleibt unsichtbar
+		// (wurde noch nicht entschieden / Section-Collapse noch nicht gelaufen).
+		const aggRows = (await query<{ element_id: string; aggregation_subchapter_level: number }>(
+			`SELECT element_id, aggregation_subchapter_level
+			 FROM heading_classifications
+			 WHERE document_id = $1
+			   AND aggregation_subchapter_level IS NOT NULL
+			   AND element_id IS NOT NULL`,
+			[params.docId]
+		)).rows;
+		for (const r of aggRows) {
+			if (r.aggregation_subchapter_level === 1 || r.aggregation_subchapter_level === 2 || r.aggregation_subchapter_level === 3) {
+				aggregationLevelByL1[r.element_id] = r.aggregation_subchapter_level;
+			}
+		}
 	}
 
 	const effectiveOutline = await loadEffectiveOutline(params.docId);
@@ -238,5 +312,8 @@ export const load: PageServerLoad = async ({ params }) => {
 		synthesesByHeading,
 		outlineEntries,
 		briefOptions,
+		paragraphHasAg,
+		aggregationLevelByL1,
+		workSynthesis,
 	};
 };
