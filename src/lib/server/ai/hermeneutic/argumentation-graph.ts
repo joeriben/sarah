@@ -42,6 +42,7 @@
 import { z } from 'zod';
 import { query, queryOne, transaction } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
+import { extractAndValidateJSON } from '../json-extract.js';
 
 // ── Output schema ─────────────────────────────────────────────────
 
@@ -915,23 +916,19 @@ export async function runArgumentationGraphPass(
 		modelOverride: opts.modelOverride,
 	});
 
-	const json = extractJSON(response.text);
-	let parsed: ArgumentationGraphResult;
-	try {
-		parsed = ArgumentationGraphResultSchema.parse(JSON.parse(json));
-	} catch (err) {
-		// Surface the raw LLM output for post-mortem when JSON.parse fails or
-		// schema validation throws something the existing fallbacks didn't catch.
+	const extract = extractAndValidateJSON(response.text, ArgumentationGraphResultSchema);
+	if (!extract.ok) {
 		const dumpPath = `/tmp/argumentation-graph-failure-${paragraphId}.txt`;
 		const fs = await import('node:fs/promises');
 		await fs.writeFile(
 			dumpPath,
-			`paragraph_id: ${paragraphId}\noutput_tokens: ${response.outputTokens}\n\n--- RAW RESPONSE ---\n${response.text}\n\n--- EXTRACTED JSON ---\n${json}\n`,
+			`paragraph_id: ${paragraphId}\noutput_tokens: ${response.outputTokens}\nstage: ${extract.stage}\nerror: ${extract.error}\n\n--- RAW RESPONSE ---\n${response.text}\n\n--- CANDIDATE JSON ---\n${extract.candidateJson ?? '(none)'}\n`,
 			'utf8'
 		);
 		console.error(`     dumped raw response to ${dumpPath}`);
-		throw err;
+		throw new Error(`Argumentation-graph extract failed: ${extract.stage} — ${extract.error.slice(0, 200)}`);
 	}
+	const parsed: ArgumentationGraphResult = extract.value;
 	const stored = await storeResult(paraCtx, parsed);
 
 	return {

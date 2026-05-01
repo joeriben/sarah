@@ -38,6 +38,7 @@
 // appearances).
 
 import { z } from 'zod';
+import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
 import { chat } from '../client.js';
 import {
@@ -715,7 +716,8 @@ export interface ChapterCollapseRun {
 export async function runChapterCollapse(
 	caseId: string,
 	l1HeadingId: string,
-	userId: string
+	userId: string,
+	opts: { modelOverride?: { provider: Provider; model: string } } = {}
 ): Promise<ChapterCollapseRun> {
 	// Idempotency guard: skip if a chapter-graph memo for this L1 exists.
 	const existingMemo = await queryOne<{ id: string }>(
@@ -752,6 +754,7 @@ export async function runChapterCollapse(
 		// auffaelligkeiten); the argumentationswiedergabe alone can run 1-3
 		// substantial paragraphs.
 		maxTokens: 6000,
+		modelOverride: opts.modelOverride,
 	});
 
 	const json = extractJSON(response.text);

@@ -29,6 +29,7 @@
 // to memo_content + appearances).
 
 import { z } from 'zod';
+import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
 import { chat } from '../client.js';
 import { loadChapterUnits, type ChapterUnit } from './heading-hierarchy.js';
@@ -358,7 +359,8 @@ export interface DocumentCollapseRun {
 
 export async function runDocumentCollapse(
 	caseId: string,
-	userId: string
+	userId: string,
+	opts: { modelOverride?: { provider: Provider; model: string } } = {}
 ): Promise<DocumentCollapseRun> {
 	const caseRow = await queryOne<{ central_document_id: string }>(
 		`SELECT central_document_id FROM cases WHERE id = $1`,
@@ -403,6 +405,7 @@ export async function runDocumentCollapse(
 		// 5000: work output is single (synthese + auffaelligkeiten); the
 		// synthese can run 10-18 sentences with substantial Pflichtbestandteile.
 		maxTokens: 5000,
+		modelOverride: opts.modelOverride,
 	});
 
 	const json = extractJSON(response.text);

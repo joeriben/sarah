@@ -225,6 +225,15 @@ export async function chat(opts: {
 	 * are unaffected.
 	 */
 	modelOverride?: { provider: Provider; model: string };
+	/**
+	 * If 'json', request strict JSON output. Passed as `response_format:
+	 * { type: 'json_object' }` on OpenAI-compat providers (OpenRouter, Mistral,
+	 * Mammouth, OpenAI, Ollama). Drastically reduces Markdown-wrapper /
+	 * preamble / control-char issues for many models. On Anthropic native this
+	 * is a no-op (Anthropic uses tool-use for guaranteed structured output;
+	 * for JSON-mode we rely on prompt-engineering instead).
+	 */
+	responseFormat?: 'json';
 }): Promise<ChatResponse> {
 	init();
 
@@ -325,9 +334,17 @@ export async function chat(opts: {
 			? { max_completion_tokens: opts.maxTokens }
 			: { max_tokens: opts.maxTokens };
 
+		// JSON-mode opt-in. OpenRouter passes through to native JSON-mode for
+		// providers that support it (Anthropic via OR, OpenAI, Mistral, DeepSeek,
+		// Qwen, etc.). Falls back silently to no-op for routes that don't.
+		const responseFormatParam = opts.responseFormat === 'json'
+			? { response_format: { type: 'json_object' as const } }
+			: {};
+
 		const response = await useOpenAI!.chat.completions.create({
 			model,
 			...tokenParam,
+			...responseFormatParam,
 			messages,
 			tools
 		});
