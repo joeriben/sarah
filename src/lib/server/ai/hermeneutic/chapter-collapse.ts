@@ -49,6 +49,7 @@ import {
 	type ChapterUnit,
 	type ResolvedHeading,
 } from './heading-hierarchy.js';
+import { extractFallacy, formatFallacyLine, FALLACY_AWARENESS_REGEL } from './validity-helpers.js';
 
 // ── Output schema ─────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ interface BriefMeta {
 	work_type: string;
 	criteria: string;
 	persona: string;
+	validityCheck: boolean;
 }
 
 interface SubchapterMemoInput {
@@ -116,7 +118,12 @@ interface ParagraphGraph {
 	paragraphId: string;
 	positionInChapter: number;
 	enclosingSubchapterLabel: string | null; // L2/L3 numbering+title context
-	args: { argLocalId: string; claim: string; premiseSummary: string }[];
+	args: {
+		argLocalId: string;
+		claim: string;
+		premiseSummary: string;
+		fallacy?: { type: string; targetPremise: string; explanation: string };
+	}[];
 	interEdges: { from: string; to: string; kind: string }[];
 	priorEdges: { from: string; to: string; kind: string }[];
 	scaffolding: {
@@ -142,10 +149,11 @@ async function loadChapterContext(
 		criteria: string;
 		persona: string;
 		argumentation_graph: boolean;
+		validity_check: boolean;
 	}>(
 		`SELECT c.project_id, c.central_document_id,
 		        b.name AS brief_name, b.work_type, b.criteria, b.persona,
-		        b.argumentation_graph
+		        b.argumentation_graph, b.validity_check
 		 FROM cases c
 		 LEFT JOIN assessment_briefs b ON b.id = c.assessment_brief_id
 		 WHERE c.id = $1`,
@@ -243,6 +251,7 @@ async function loadChapterContext(
 			work_type: caseRow.work_type,
 			criteria: caseRow.criteria,
 			persona: caseRow.persona,
+			validityCheck: caseRow.validity_check === true,
 		},
 		chapter,
 		chapterPosition: chapterIdx + 1,
@@ -298,8 +307,9 @@ async function loadParagraphGraphsForChapter(chapter: ChapterUnit): Promise<Para
 	for (const p of paragraphRows) {
 		const argRows = (await query<{
 			id: string; arg_local_id: string; claim: string; premises: { type: string }[];
+			validity_assessment: unknown;
 		}>(
-			`SELECT id, arg_local_id, claim, premises FROM argument_nodes
+			`SELECT id, arg_local_id, claim, premises, validity_assessment FROM argument_nodes
 			 WHERE paragraph_element_id = $1 ORDER BY position_in_paragraph`,
 			[p.id]
 		)).rows;
@@ -309,7 +319,14 @@ async function loadParagraphGraphsForChapter(chapter: ChapterUnit): Promise<Para
 			const counts: Record<string, number> = {};
 			for (const pr of r.premises) counts[pr.type] = (counts[pr.type] ?? 0) + 1;
 			const premiseSummary = Object.entries(counts).map(([k, v]) => `${k}:${v}`).join(' ');
-			return { argLocalId: r.arg_local_id, claim: r.claim, premiseSummary: premiseSummary || 'no premises' };
+			const fallacy = extractFallacy(r.validity_assessment);
+			const out: { argLocalId: string; claim: string; premiseSummary: string; fallacy?: { type: string; targetPremise: string; explanation: string } } = {
+				argLocalId: r.arg_local_id,
+				claim: r.claim,
+				premiseSummary: premiseSummary || 'no premises',
+			};
+			if (fallacy) out.fallacy = fallacy;
+			return out;
 		});
 
 		const edgeRows = (await query<{
@@ -531,7 +548,7 @@ Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst
   ]
 }
 
-auffaelligkeiten kann leeres Array sein, wenn nichts qualitätsmäßig hervorzuheben ist.`;
+auffaelligkeiten kann leeres Array sein, wenn nichts qualitätsmäßig hervorzuheben ist.${ctx.brief.validityCheck && ctx.mode === 'paragraphs' ? FALLACY_AWARENESS_REGEL : ''}`;
 }
 
 function buildUserMessage(ctx: ChapterContext): string {
@@ -601,7 +618,10 @@ function formatParagraphGraphBlock(p: ParagraphGraph): string {
 	const enclosing = p.enclosingSubchapterLabel ? ` (innerhalb: ${p.enclosingSubchapterLabel})` : '';
 	const argLines = p.args.length === 0
 		? '  (keine Argumente)'
-		: p.args.map(a => `  ${a.argLocalId} [${a.premiseSummary}]: ${a.claim}`).join('\n');
+		: p.args.map(a => {
+			const head = `  ${a.argLocalId} [${a.premiseSummary}]: ${a.claim}`;
+			return a.fallacy ? `${head}\n${formatFallacyLine(a.fallacy)}` : head;
+		}).join('\n');
 	const interLines = p.interEdges.length === 0
 		? ''
 		: '\n  Intra-Edges:\n' + p.interEdges.map(e => `    ${e.from} --${e.kind}--> ${e.to}`).join('\n');

@@ -206,8 +206,11 @@
 											{/if}
 											{#if a.premises.length > 0}
 												<ul class="premises">
-													{#each a.premises as p}
-														<li>
+													{#each a.premises as p, pIdx}
+														{@const pid = `P${pIdx + 1}`}
+														{@const isFallacyTarget = a.validityAssessment && !a.validityAssessment.carries && a.validityAssessment.fallacy.target_premise === pid}
+														<li class:prem-target={isFallacyTarget}>
+															<span class="prem-id">{pid}</span>
 															<span class="prem-type prem-{p.type}">{PREMISE_LABEL[p.type]}</span>
 															<span class="prem-text">{p.text}</span>
 														</li>
@@ -418,6 +421,24 @@
 	.premises li {
 		display: flex; gap: 0.4rem; align-items: flex-start;
 		font-size: 0.78rem; line-height: 1.4;
+	}
+	.premises li.prem-target {
+		background: rgba(248, 113, 113, 0.06);
+		box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.35);
+		border-radius: 3px;
+		padding: 2px 4px;
+		margin: 0 -4px;
+	}
+	.prem-id {
+		flex-shrink: 0;
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.7rem;
+		color: #6b7280;
+		font-weight: 600;
+		min-width: 1.6rem;
+	}
+	.premises li.prem-target .prem-id {
+		color: #fca5a5;
 	}
 	.prem-type {
 		flex-shrink: 0;

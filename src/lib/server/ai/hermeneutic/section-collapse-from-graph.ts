@@ -32,6 +32,7 @@ import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
 import { chat } from '../client.js';
 import { loadResolvedOutline } from './heading-hierarchy.js';
+import { extractFallacy, formatFallacyLine, FALLACY_AWARENESS_REGEL } from './validity-helpers.js';
 
 // ── Output schema ─────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ interface CollapseContext {
 	centralDocumentId: string;
 	documentTitle: string;
 	fullText: string;
-	brief: { name: string; work_type: string; criteria: string; persona: string };
+	brief: { name: string; work_type: string; criteria: string; persona: string; validityCheck: boolean };
 	mainHeadings: string[];
 	mainHeadingCount: number;
 	mainParagraphCount: number;
@@ -86,6 +87,10 @@ interface ArgumentSummary {
 	argLocalId: string;
 	claim: string;
 	premiseSummary: string;  // "stated:2 carried:1 background:1" etc.
+	// Aus dem opt-in argument_validity-Pass (Migration 040). Nur Fallacies werden
+	// durchgereicht — tragfähige Args bleiben unmarkiert (impliziert OK). Spart
+	// Tokens und macht erkannte Brüche durch Schmalheit der Erwähnung salient.
+	fallacy?: { type: string; targetPremise: string; explanation: string };
 }
 
 interface ScaffoldingSummary {
@@ -110,10 +115,11 @@ async function loadCollapseContext(
 		criteria: string;
 		persona: string;
 		argumentation_graph: boolean;
+		validity_check: boolean;
 	}>(
 		`SELECT c.project_id, c.central_document_id,
 		        b.name AS brief_name, b.work_type, b.criteria, b.persona,
-		        b.argumentation_graph
+		        b.argumentation_graph, b.validity_check
 		 FROM cases c
 		 LEFT JOIN assessment_briefs b ON b.id = c.assessment_brief_id
 		 WHERE c.id = $1`,
@@ -178,8 +184,9 @@ async function loadCollapseContext(
 
 		const argRows = (await query<{
 			id: string; arg_local_id: string; claim: string; premises: { type: string }[];
+			validity_assessment: unknown;
 		}>(
-			`SELECT id, arg_local_id, claim, premises FROM argument_nodes
+			`SELECT id, arg_local_id, claim, premises, validity_assessment FROM argument_nodes
 			 WHERE paragraph_element_id = $1 ORDER BY position_in_paragraph`,
 			[p.id]
 		)).rows;
@@ -189,7 +196,14 @@ async function loadCollapseContext(
 			const counts: Record<string, number> = {};
 			for (const pr of r.premises) counts[pr.type] = (counts[pr.type] ?? 0) + 1;
 			const premiseSummary = Object.entries(counts).map(([k, v]) => `${k}:${v}`).join(' ');
-			return { argLocalId: r.arg_local_id, claim: r.claim, premiseSummary: premiseSummary || 'no premises' };
+			const fallacy = extractFallacy(r.validity_assessment);
+			const out: ArgumentSummary = {
+				argLocalId: r.arg_local_id,
+				claim: r.claim,
+				premiseSummary: premiseSummary || 'no premises',
+			};
+			if (fallacy) out.fallacy = fallacy;
+			return out;
 		});
 
 		const edgeRows = (await query<{
@@ -312,6 +326,7 @@ async function loadCollapseContext(
 			work_type: caseRow.work_type,
 			criteria: caseRow.criteria,
 			persona: caseRow.persona,
+			validityCheck: caseRow.validity_check === true,
 		},
 		mainHeadings,
 		mainHeadingCount: parseInt(counts?.headings ?? '0', 10),
@@ -376,7 +391,7 @@ Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst
   ]
 }
 
-auffaelligkeiten kann leeres Array sein, wenn nichts qualitätsmäßig hervorzuheben ist. Schreibe keine Allerwelts-Beobachtungen — nur, was bei Begutachtung wirklich relevant wäre.`;
+auffaelligkeiten kann leeres Array sein, wenn nichts qualitätsmäßig hervorzuheben ist. Schreibe keine Allerwelts-Beobachtungen — nur, was bei Begutachtung wirklich relevant wäre.${ctx.brief.validityCheck ? FALLACY_AWARENESS_REGEL : ''}`;
 }
 
 function buildSystemSuffix(ctx: CollapseContext): string {
@@ -410,7 +425,10 @@ function buildUserMessage(ctx: CollapseContext): string {
 	const block = populated.map(p => {
 		const argLines = p.args.length === 0
 			? '  (keine Argumente)'
-			: p.args.map(a => `  ${a.argLocalId} [${a.premiseSummary}]: ${a.claim}`).join('\n');
+			: p.args.map(a => {
+				const head = `  ${a.argLocalId} [${a.premiseSummary}]: ${a.claim}`;
+				return a.fallacy ? `${head}\n${formatFallacyLine(a.fallacy)}` : head;
+			}).join('\n');
 
 		const interLines = p.interEdges.length === 0
 			? ''
