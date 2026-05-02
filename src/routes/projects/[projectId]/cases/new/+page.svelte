@@ -130,7 +130,7 @@
 		<h1>Neuer Case</h1>
 		<p class="sub">
 			Ein Case verknüpft ein zentrales Dokument mit dem Bewertungs-Brief.
-			Die hermeneutische Pipeline läuft am Case, nicht am Projekt.
+			Die argumentanalytische Pipeline läuft am Case, nicht am Projekt.
 		</p>
 	</header>
 

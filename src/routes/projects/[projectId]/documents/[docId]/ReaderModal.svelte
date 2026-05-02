@@ -2,9 +2,10 @@
   SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
   SPDX-License-Identifier: AGPL-3.0-or-later
 
-  Reader-Modal: Volltext-Lesefenster, das aus jedem Doc-Page-Tab oder per
-  §X:AY-Anker-Klick geöffnet wird. Zeigt drei Modi:
-   - hermeneutic: Paragraph + Memos + Codes inline (Default wenn Case existiert)
+  Reader-Modal: Peek-Lesefenster für §X:AY-Anker-Klicks aus dem Outline-Tab.
+  Hält die Outline-Scrollposition, während der User ein einzelnes Argument im
+  Dokument verifiziert. Drei Modi:
+   - arguments: Paragraph + Argumente/Memos/Codes inline (Default wenn Case existiert)
    - structure: alle parsed elements als debug-Liste
    - raw: Volltext
 
@@ -13,7 +14,7 @@
 -->
 <script lang="ts">
 	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, CaseInfo, ParagraphAnalysis } from './+page.server.js';
-	import HermeneuticReader from './HermeneuticReader.svelte';
+	import DocumentReader from './DocumentReader.svelte';
 
 	interface Props {
 		open: boolean;
@@ -41,8 +42,8 @@
 		scrollTarget = null,
 	}: Props = $props();
 
-	type Mode = 'hermeneutic' | 'structure' | 'raw';
-	let mode = $state<Mode>(caseInfo ? 'hermeneutic' : 'structure');
+	type Mode = 'arguments' | 'structure' | 'raw';
+	let mode = $state<Mode>(caseInfo ? 'arguments' : 'structure');
 
 	const counts = $derived.by(() => {
 		const m = new Map<string, number>();
@@ -69,7 +70,7 @@
 			<h2>{doc.label}</h2>
 			<div class="mode-switch">
 				{#if caseInfo}
-					<button class:active={mode === 'hermeneutic'} onclick={() => (mode = 'hermeneutic')}>Hermeneutik</button>
+					<button class:active={mode === 'arguments'} onclick={() => (mode = 'arguments')}>Argumente</button>
 				{/if}
 				<button class:active={mode === 'structure'} onclick={() => (mode = 'structure')}>Struktur</button>
 				<button class:active={mode === 'raw'} onclick={() => (mode = 'raw')}>Volltext</button>
@@ -100,8 +101,8 @@
 					</div>
 				{/if}
 			{:else}
-				<!-- mode === 'hermeneutic' -->
-				<HermeneuticReader
+				<!-- mode === 'arguments' -->
+				<DocumentReader
 					{elements}
 					{memosByElement}
 					{codesByElement}

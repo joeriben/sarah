@@ -4,8 +4,9 @@
 
   Dokumentenzentrierte, informationsangereicherte Volltext-Ansicht
   (transact-qda-Stil): Volltext links, Argumente/Edges/Scaffolding/Codes/Memos
-  rechts pro Paragraph. Wird sowohl im Reader-Modal (hermeneutic-Mode) als
-  auch als eigenständiger Doc-Page-Tab "Dokument" verwendet.
+  rechts pro Paragraph. Wird sowohl im Reader-Modal (Argumente-Mode, als
+  Peek-Sicht aus Outline-§X:AY-Klicks) als auch als eigenständiger Doc-Page-Tab
+  "Dokument" verwendet.
 
   Die "Vorwärts"-Sicht (Synthesen referenzieren §X:AY) lebt im Outline-Tab;
   diese Komponente ist die "Rückwärts"-Sicht: Argumente am Dokument.
@@ -272,7 +273,7 @@
 		return memo;
 	});
 
-	const hermeneuticElements = $derived(
+	const documentElements = $derived(
 		elements.filter(
 			(e) =>
 				e.section_kind === 'main' &&
@@ -283,7 +284,7 @@
 	const positionInSubchapter = $derived.by(() => {
 		const map = new Map<string, number>();
 		let posInSection = 0;
-		for (const el of hermeneuticElements) {
+		for (const el of documentElements) {
 			if (el.element_type === 'heading') {
 				posInSection = 0;
 			} else if (el.element_type === 'paragraph') {
@@ -334,12 +335,12 @@
 	});
 </script>
 
-<div class="herm">
-	{#each hermeneuticElements as el (el.id)}
+<div class="doc-reader">
+	{#each documentElements as el (el.id)}
 		{#if el.element_type === 'heading'}
 			{@const synthesis = synthesisFor(el.id)}
-			<section class="herm-section" id="head-{el.id}">
-				<h3 class="herm-heading">{el.text?.trim()}</h3>
+			<section class="doc-section" id="head-{el.id}">
+				<h3 class="doc-heading">{el.text?.trim()}</h3>
 				{#if synthesis}
 					<div class="synthesis">
 						<div class="synth-label">Kontextualisierende Synthese</div>
@@ -355,7 +356,7 @@
 			{@const showAnalysis = hasAnyAnalysis(analysis)}
 			{@const hasRightPane = !!interpr || !!formul || codes.length > 0 || showAnalysis}
 			{@const pos = positionInSubchapter.get(el.id)}
-			<article class="herm-paragraph" class:no-memo={!hasRightPane} id="para-{el.id}">
+			<article class="doc-paragraph" class:no-memo={!hasRightPane} id="para-{el.id}">
 				<div class="para-text">
 					{#if pos != null}
 						<span class="para-num">§{pos}</span>
@@ -500,9 +501,9 @@
 </div>
 
 <style>
-	.herm { display: flex; flex-direction: column; gap: 1.5rem; }
-	.herm-section { padding-top: 1rem; }
-	.herm-heading {
+	.doc-reader { display: flex; flex-direction: column; gap: 1.5rem; }
+	.doc-section { padding-top: 1rem; }
+	.doc-heading {
 		font-size: 1.1rem; font-weight: 600; color: #e1e4e8;
 		margin: 0 0 0.6rem; padding-bottom: 0.4rem;
 		border-bottom: 1px solid #2a2d3a;
@@ -519,7 +520,7 @@
 	}
 	.synth-content { color: #c9cdd5; line-height: 1.55; font-size: 0.92rem; }
 
-	.herm-paragraph {
+	.doc-paragraph {
 		display: grid;
 		grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
 		gap: 1.2rem;
@@ -527,8 +528,8 @@
 		border-top: 1px solid rgba(42,45,58,0.4);
 		transition: background 0.4s;
 	}
-	.herm-paragraph.flash { background: rgba(251, 191, 36, 0.10); }
-	.herm-paragraph.no-memo { grid-template-columns: 1fr; opacity: 0.7; }
+	.doc-paragraph.flash { background: rgba(251, 191, 36, 0.10); }
+	.doc-paragraph.no-memo { grid-template-columns: 1fr; opacity: 0.7; }
 	.para-text {
 		color: #c9cdd5; line-height: 1.6; font-size: 0.95rem;
 		position: relative; padding-left: 2.2rem;

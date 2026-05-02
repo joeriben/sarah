@@ -249,7 +249,7 @@ export const load: PageServerLoad = async ({ params }) => {
 	// Kapitelverlauf (memo_type='kapitelverlauf', scope_level='work'): narrativer
 	// Mittelabsatz des Gutachtens, parallel zum Werk-Verdikt.
 	let chapterFlow: ChapterFlow | null = null;
-	// Argument-Graph-Daten pro Paragraph für ReaderModal hermeneutic-Mode.
+	// Argument-Graph-Daten pro Paragraph für DocumentReader (Dokument-Tab + Modal-Argumente-Mode).
 	// Bei Cases ohne synthetisch-interpretierende Per-¶-Memos (Budget-Route, AG-only)
 	// ist das die einzige Analyse-Ebene, die der Reader anzeigen kann.
 	let analysisByElement: Record<string, ParagraphAnalysis> = {};

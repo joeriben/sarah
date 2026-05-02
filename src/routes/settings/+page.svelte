@@ -771,7 +771,7 @@
 				<div>
 					<h2>Bewertungs-Briefs</h2>
 					<p class="briefs-hint">
-						Werktyp, Persona und Bewertungs-Kriterien für die hermeneutische Pipeline.
+						Werktyp, Persona und Bewertungs-Kriterien für die argumentanalytische Pipeline.
 						Briefs werden systemweit gehalten und pro Case zugeordnet.
 					</p>
 				</div>

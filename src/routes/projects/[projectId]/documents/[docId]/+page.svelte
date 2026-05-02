@@ -4,7 +4,7 @@
 
   SARAH Doc-Page (Stufe-2-Layout, 2026-05-02):
   Drei Tabs (Pipeline · Outline · Begleitdocs) + Reader-Modal-Overlay.
-  Reader (Hermeneutik/Struktur/Volltext) lebt im Modal, getriggert vom Header
+  Reader (Argumente/Struktur/Volltext) lebt im Modal, getriggert von Outline-§X:AY-Klicks
   oder von §X:AY-Anker-Klicks im Outline-Tab.
 -->
 <script lang="ts">
@@ -14,7 +14,7 @@
 	import { page } from '$app/stores';
 	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, WorkSynthesis, ChapterFlow, CaseInfo, OutlineEntry, BriefOption, ParagraphAnalysis } from './+page.server.js';
 	import ReaderModal from './ReaderModal.svelte';
-	import HermeneuticReader from './HermeneuticReader.svelte';
+	import DocumentReader from './DocumentReader.svelte';
 	import ArgumentPopover from './ArgumentPopover.svelte';
 
 	let { data } = $props();
@@ -880,9 +880,6 @@
 	<header class="doc-head">
 		<div class="title-row">
 			<h1>{doc.label}</h1>
-			<button class="reader-btn" onclick={() => openReader()}>
-				Volltext öffnen →
-			</button>
 		</div>
 		<div class="meta">
 			<span class="mono">{doc.mime_type || '—'}</span>
@@ -1022,7 +1019,7 @@
 						<div>
 							<h2>Analyselauf</h2>
 							<p class="pipeline-sub">
-								Die hermeneutische Pipeline läuft sequenziell über das zentrale Dokument.
+								Die argumentanalytische Pipeline läuft sequenziell über das zentrale Dokument.
 								Du startest den Lauf einmal — die Pässe werden in der korrekten Reihenfolge
 								automatisch durchgezogen. Du kannst jederzeit pausieren und später
 								fortsetzen, ohne Zwischenstand zu verlieren.
@@ -1365,7 +1362,7 @@
 							{totalProcessed.withMemo}/{totalProcessed.total} ¶ analytisch erfasst
 						</span>
 					</div>
-					<HermeneuticReader
+					<DocumentReader
 						{elements}
 						{memosByElement}
 						{codesByElement}
@@ -1528,6 +1525,7 @@
 	.doc-head { margin-bottom: 1.5rem; border-bottom: 1px solid #2a2d3a; padding-bottom: 0.5rem; }
 	.title-row { display: flex; align-items: center; gap: 1rem; }
 	.title-row h1 { flex: 1; font-size: 1.4rem; margin: 0 0 0.5rem; color: #e1e4e8; }
+	/* TODO cleanup: dead style — Button "Volltext öffnen" wurde entfernt, Selektor ungenutzt. */
 	.reader-btn {
 		background: rgba(165, 180, 252, 0.10);
 		border: 1px solid rgba(165, 180, 252, 0.4);
