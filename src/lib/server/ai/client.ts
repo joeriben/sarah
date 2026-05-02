@@ -9,6 +9,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { assertSafeForExternal } from './failsafe.js';
 
 // ── Provider definitions ──────────────────────────────────────────
 
@@ -253,11 +254,37 @@ export async function chat(opts: {
 	 * for JSON-mode we rely on prompt-engineering instead).
 	 */
 	responseFormat?: 'json';
+	/**
+	 * Anonymisierungs-Failsafe. IDs aller Dokumente, deren Inhalt direkt oder
+	 * mittelbar in `system` / `messages` einfließt. Vor jedem Call an einen
+	 * Non-DSGVO-Provider werden alle aktiven `document_pii_seeds` dieser
+	 * Dokumente gegen die Outbound-Payload gescant; ein Treffer wirft
+	 * `AnonymizationFailsafeError` und der Call wird hart geblockt.
+	 *
+	 * Bei DSGVO-Providern (Mistral, IONOS, Mammouth, Ollama) wird der Scan
+	 * übersprungen — dort ist Klartext zulässig.
+	 *
+	 * Caller, die nachweislich keine Dokument-Daten senden (Connection-Test,
+	 * reine Strukturprompts), lassen das Feld weg oder übergeben `[]`.
+	 */
+	documentIds?: string[];
 }): Promise<ChatResponse> {
 	init();
 
 	const provider = opts.modelOverride?.provider ?? _provider;
 	const model = opts.modelOverride?.model ?? _model;
+
+	// Failsafe: vor jedem Outbound-Call das Outbound-Payload gegen die
+	// PII-Seeds aller involvierten Dokumente prüfen. Wirft bei Treffern
+	// AnonymizationFailsafeError, was den Call hart blockt.
+	if (opts.documentIds && opts.documentIds.length > 0) {
+		const payloadParts: string[] = [];
+		if (opts.cacheableSystemPrefix) payloadParts.push(opts.cacheableSystemPrefix);
+		if (opts.system) payloadParts.push(opts.system);
+		for (const m of opts.messages) payloadParts.push(m.content);
+		const fullPayload = payloadParts.join('\n');
+		await assertSafeForExternal(fullPayload, opts.documentIds, provider);
+	}
 
 	let oneShotAnthropic: Anthropic | null = null;
 	let oneShotOpenAI: OpenAI | null = null;

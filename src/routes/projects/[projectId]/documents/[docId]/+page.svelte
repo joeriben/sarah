@@ -19,6 +19,56 @@
 
 	let { data } = $props();
 	const doc = $derived(data.document);
+	const anonymization = $derived(data.anonymization as {
+		status: 'applied' | 'skipped_already_redacted' | 'no_candidates' | 'failed' | null;
+		anonymizedAt: string | null;
+		originalFilename: string | null;
+		seedCount: number;
+	});
+	let anonRunning = $state(false);
+	let anonError = $state<string | null>(null);
+	const anonKey = $derived(anonymization.status ?? 'missing');
+
+	async function runAnonymization() {
+		anonRunning = true;
+		anonError = null;
+		try {
+			const res = await fetch(
+				`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/anonymize`,
+				{ method: 'POST' }
+			);
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				throw new Error(err.error ?? `HTTP ${res.status}`);
+			}
+			await invalidateAll();
+		} catch (e) {
+			anonError = e instanceof Error ? e.message : String(e);
+		} finally {
+			anonRunning = false;
+		}
+	}
+
+	const ANON_LABEL: Record<NonNullable<typeof anonymization.status> | 'missing', string> = {
+		applied: 'Anonymisiert',
+		skipped_already_redacted: 'Vor-anonymisiert',
+		no_candidates: 'Keine PII gefunden',
+		failed: 'Anonymisierung fehlgeschlagen',
+		missing: 'Nicht anonymisiert'
+	};
+	const ANON_TITLE: Record<NonNullable<typeof anonymization.status> | 'missing', (a: typeof anonymization) => string> = {
+		applied: (a) =>
+			`Volltext wurde algorithmisch anonymisiert (${a.seedCount} PII-Seeds aktiv).` +
+			(a.originalFilename ? `\nOriginal-Dateiname: ${a.originalFilename}` : '') +
+			'\n\nFailsafe-Tripwire vor jedem Outbound-Call an Non-DSGVO-Provider scharf.',
+		skipped_already_redacted: (a) =>
+			`Frontpage war bereits geschwärzt — keine Überschreibung. ${a.seedCount} Seeds wurden trotzdem extrahiert und der Failsafe ist scharf.`,
+		no_candidates: () =>
+			'Keine PII-Kandidaten im Dokument gefunden. Externe LLM-Calls sind unkritisch.',
+		failed: () => 'Anonymisierungs-Lauf ist fehlgeschlagen. Klick zum Neu-Versuch.',
+		missing: () =>
+			'Dokument ist nicht anonymisiert. Klartext darf nicht an Non-DSGVO-Provider gehen, bis Anonymisierung gelaufen ist.'
+	};
 	const elements = $derived(data.elements as DocumentElement[]);
 	const caseInfo = $derived(data.case as CaseInfo | null);
 	const memosByElement = $derived(data.memosByElement as Record<string, ParagraphMemo[]>);
@@ -819,6 +869,28 @@
 			<span class="mono">{doc.mime_type || '—'}</span>
 			<span class="mono">{formatSize(doc.file_size)}</span>
 			<span class="mono">{elements.length} Elemente · {paragraphs.length} Absätze</span>
+
+			{#if anonymization.status === 'applied' || anonymization.status === 'skipped_already_redacted'}
+				<span class="anon-tag anon-ok" title={ANON_TITLE[anonKey](anonymization)}>
+					🔒 {ANON_LABEL[anonKey]}
+					{#if anonymization.seedCount > 0}<span class="anon-count">· {anonymization.seedCount} Seeds</span>{/if}
+				</span>
+			{:else if anonymization.status === 'no_candidates'}
+				<span class="anon-tag anon-neutral" title={ANON_TITLE[anonKey](anonymization)}>
+					Keine PII
+				</span>
+			{:else}
+				<span class="anon-tag anon-warn" title={ANON_TITLE[anonKey](anonymization)}>
+					⚠ {ANON_LABEL[anonKey]}
+					<button class="anon-action" onclick={runAnonymization} disabled={anonRunning}>
+						{anonRunning ? '…' : 'Jetzt anonymisieren'}
+					</button>
+				</span>
+			{/if}
+			{#if anonError}
+				<span class="anon-tag anon-warn" title={anonError}>Fehler: {anonError.slice(0, 60)}</span>
+			{/if}
+
 			{#if caseInfo}
 				<span class="case-tag">case: {caseInfo.name}</span>
 				<span class="brief-picker">
@@ -1450,6 +1522,24 @@
 	.case-tag { background: rgba(110, 231, 183, 0.10); color: #6ee7b7; border: 1px solid rgba(110, 231, 183, 0.25); }
 	.brief-tag { background: rgba(165, 180, 252, 0.08); color: #a5b4fc; border: 1px solid rgba(165, 180, 252, 0.2); }
 	.progress-tag { background: rgba(251, 191, 36, 0.08); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.2); }
+
+	.anon-tag {
+		font-size: 0.72rem; padding: 0.15rem 0.5rem;
+		border-radius: 4px;
+		display: inline-flex; align-items: center; gap: 0.4rem;
+	}
+	.anon-tag.anon-ok    { background: rgba(110, 231, 183, 0.10); color: #6ee7b7; border: 1px solid rgba(110, 231, 183, 0.25); }
+	.anon-tag.anon-neutral { background: rgba(148, 163, 184, 0.08); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
+	.anon-tag.anon-warn  { background: rgba(248, 113, 113, 0.10); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.30); }
+	.anon-count { opacity: 0.7; font-size: 0.95em; }
+	.anon-action {
+		background: transparent; border: 1px solid currentColor;
+		color: inherit; font: inherit;
+		padding: 0.05rem 0.4rem; border-radius: 3px;
+		cursor: pointer; font-size: 0.95em;
+	}
+	.anon-action:disabled { opacity: 0.5; cursor: wait; }
+	.anon-action:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); }
 
 	.brief-picker { position: relative; display: inline-block; }
 	.brief-tag.clickable {

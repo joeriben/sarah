@@ -7,6 +7,7 @@ import { transaction } from '$lib/server/db/index.js';
 import { saveFile } from '$lib/server/files/index.js';
 import { extractText, detectMimeType } from '$lib/server/documents/index.js';
 import { parseAndStore } from '$lib/server/documents/parsers/index.js';
+import { anonymizeDocumentDeterministic } from '$lib/server/documents/anonymize/index.js';
 // Embeddings are deferred (ticket: SARAH use case for retrieval is unclear;
 // onnxruntime-node + Vite SSR currently incompatible). The /embed endpoint
 // still works on demand for explicit triggering.
@@ -74,6 +75,40 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		};
 	});
 
+	// Anonymisierung (Use Case 1, deterministisch). Läuft als separate
+	// Transaktion nach dem Upload-Commit:
+	//   – Failsafe-Tripwire vor jedem Outbound-LLM-Call schützt unabhängig
+	//     davon. Sollte die Anonymisierung hier scheitern, ist der Volltext
+	//     in der DB zwar noch unverändert, aber kein automatischer Prozess
+	//     verschickt ihn ohne Failsafe-Check (der bei fehlenden Seeds eines
+	//     Non-DSGVO-Calls heute noch nichts blockt — TODO Phase 2: Pflicht-
+	//     Check, dass Documents im case `applied`-Status haben, bevor sie
+	//     an Non-DSGVO-Provider gehen).
+	//   – Bei Fehler: das Dokument bleibt unanonymisiert; der Aufrufer kann
+	//     POST /api/projects/[projectId]/documents/[docId]/anonymize manuell
+	//     nachholen.
+	let anonymization: { status: string; replacementCount?: number; newFilename?: string; error?: string } = {
+		status: 'pending'
+	};
+	try {
+		const result = await anonymizeDocumentDeterministic(doc.id);
+		anonymization = {
+			status: result.status,
+			replacementCount: result.replacementCount,
+			newFilename: result.newFilename
+		};
+		// Wenn die Anonymisierung den Inscription geändert hat, im Response
+		// reflektieren — die UI zeigt den neuen Namen sofort.
+		if (result.newFilename) {
+			doc.label = result.newFilename;
+		}
+	} catch (err) {
+		anonymization = {
+			status: 'failed',
+			error: err instanceof Error ? err.message : String(err)
+		};
+	}
+
 	// Embeddings deferred — see import-comment above.
-	return json(doc, { status: 201 });
+	return json({ ...doc, anonymization }, { status: 201 });
 };

@@ -137,12 +137,22 @@ export const load: PageServerLoad = async ({ params }) => {
 		full_text: string | null;
 		mime_type: string;
 		file_size: number;
+		anonymization_status: string | null;
+		anonymized_at: Date | null;
+		original_filename: string | null;
 	}>(
-		`SELECT n.id, n.inscription as label, dc.full_text, dc.mime_type, dc.file_size
+		`SELECT n.id, n.inscription as label, dc.full_text, dc.mime_type, dc.file_size,
+		        dc.anonymization_status, dc.anonymized_at, dc.original_filename
 		 FROM namings n
 		 JOIN document_content dc ON dc.naming_id = n.id
 		 WHERE n.id = $1 AND n.project_id = $2 AND n.deleted_at IS NULL`,
 		[params.docId, params.projectId]
+	);
+
+	const seedCount = await queryOne<{ cnt: number }>(
+		`SELECT COUNT(*)::int as cnt FROM document_pii_seeds
+		 WHERE document_id = $1 AND active = true`,
+		[params.docId]
 	);
 
 	if (!doc) error(404, 'Document not found');
@@ -590,6 +600,12 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	return {
 		document: doc,
+		anonymization: {
+			status: doc.anonymization_status,
+			anonymizedAt: doc.anonymized_at,
+			originalFilename: doc.original_filename,
+			seedCount: seedCount?.cnt ?? 0
+		},
 		elements,
 		projectId: params.projectId,
 		case: caseInfo,
