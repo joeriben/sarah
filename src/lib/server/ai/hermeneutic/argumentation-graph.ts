@@ -462,8 +462,8 @@ Zu **ARGUMENT-Sektionen**:
 - Eine leere premises-Liste ist erlaubt, wenn der claim wirklich freistehend ist (selten); dann lass den \`premises:\`-Block weg.
 - grounding: rein textbasierte Klassifikation, wie das Argument im Absatz belegt wird. Pflichtfeld. Genau einer der vier Werte:
   · none          — keine Verweise oder Belege.
-  · namedropping  — nur Autor:innen-/Theorienamen genannt, kein Werk- oder Stellenbezug ("nach Bourdieu", "wie Foucault zeigt").
-  · abstract      — Werk/Theorie/Studie inhaltlich angesprochen, aber ohne konkrete Stelle ("Bourdieus Habitus-Begriff", "die PISA-Studien").
+  · namedropping  — nur Autor:innen-/Theorienamen genannt, kein Werk- oder Stellenbezug ("nach Bourdieu", "wie Foucault zeigt", "Klafki sieht das ähnlich"). Auch mehrfache Wiederholung desselben Namens im Absatz bleibt namedropping, solange kein Werk-, Theorie- oder Studienname dazukommt.
+  · abstract      — konkret BENANNTES Werk, BENANNTE Theorie oder BENANNTE Studie wird inhaltlich angesprochen, aber ohne Stelle/Zitat ("Bourdieus Habitus-Begriff", "die PISA-Studien", "Klafkis kategoriale Bildung", "Foucaults Diskurstheorie"). Bloßer Personenname OHNE benannten Werk-/Theorie-/Studienbezug ist NICHT abstract — das bleibt namedropping.
   · concrete      — konkrete Stelle, Zitat, Seitenzahl oder Studienangabe ("Bourdieu 1982, S. 42", "wörtlich: '…'", "n=438, p<.05").
   Maßstab ist allein der Text dieses Absatzes — nicht, ob die Behauptung in der Forschungsrealität gut belegt ist (das wäre eine separate Bewertung). "background"-Premissen zählen nicht als Grounding.
 - anchor: bevorzugt wörtliche in-vivo-Wortgruppe (≤ 8 Wörter); wenn keine geeignete existiert, leer lassen.
