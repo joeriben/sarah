@@ -3,7 +3,12 @@
   SPDX-License-Identifier: AGPL-3.0-or-later
 
   Anlege-Dialog für einen neuen Case. Drei Pflichtfelder: Name, Brief,
-  zentrales Dokument (Picker aus den caseless Docs des Projekts).
+  zentrales Dokument. Letzteres entweder per Upload (primär) oder als
+  Auswahl aus dem Pool noch nicht zugewiesener Dokumente (Fallback).
+
+  UX-Setzung 2026-05-02: Hauptflow ist "Case anlegen MIT Doc-Upload".
+  Vorher musste man erst caseless hochladen und dann den Case anlegen —
+  das hat den Doc-Upload-Schritt visuell vom Case getrennt.
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
@@ -16,13 +21,61 @@
 
 	let name = $state('');
 	let briefId = $state('');
-	let centralDocumentId = $state('');
+
+	type DocSource =
+		| { kind: 'upload'; file: File }
+		| { kind: 'existing'; id: string }
+		| { kind: 'none' };
+	let docSource = $state<DocSource>({ kind: 'none' });
+	let dragOver = $state(false);
+	let showCaselessPicker = $state(false);
+
 	let submitting = $state(false);
+	let submitStage = $state<'idle' | 'uploading' | 'creating' | 'done'>('idle');
 	let submitError = $state<string | null>(null);
 
 	const canSubmit = $derived(
-		name.trim().length > 0 && briefId !== '' && centralDocumentId !== ''
+		name.trim().length > 0 &&
+			briefId !== '' &&
+			(docSource.kind === 'upload' || docSource.kind === 'existing')
 	);
+
+	function pickFile(file: File) {
+		docSource = { kind: 'upload', file };
+		showCaselessPicker = false;
+	}
+	function pickExisting(id: string) {
+		docSource = id === '' ? { kind: 'none' } : { kind: 'existing', id };
+	}
+	function clearDocChoice() {
+		docSource = { kind: 'none' };
+	}
+
+	function onFileInput(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const f = input.files?.[0];
+		if (f) pickFile(f);
+		input.value = '';
+	}
+	function onDrop(e: DragEvent) {
+		e.preventDefault();
+		dragOver = false;
+		const f = e.dataTransfer?.files?.[0];
+		if (f) pickFile(f);
+	}
+	function onDragOver(e: DragEvent) {
+		e.preventDefault();
+		dragOver = true;
+	}
+	function onDragLeave() {
+		dragOver = false;
+	}
+
+	function formatSize(bytes: number): string {
+		if (bytes < 1024) return bytes + ' B';
+		if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+		return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+	}
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
@@ -30,20 +83,42 @@
 		submitting = true;
 		submitError = null;
 		try {
+			let centralDocumentId: string;
+			if (docSource.kind === 'upload') {
+				submitStage = 'uploading';
+				const fd = new FormData();
+				fd.append('file', docSource.file);
+				const ur = await fetch(`/api/upload?projectId=${projectId}`, {
+					method: 'POST',
+					body: fd
+				});
+				if (!ur.ok) {
+					const text = await ur.text().catch(() => '');
+					throw new Error(`Upload fehlgeschlagen (HTTP ${ur.status})${text ? ': ' + text.slice(0, 200) : ''}`);
+				}
+				const uploaded = (await ur.json()) as { id: string };
+				centralDocumentId = uploaded.id;
+			} else if (docSource.kind === 'existing') {
+				centralDocumentId = docSource.id;
+			} else {
+				throw new Error('Kein Dokument ausgewählt');
+			}
+
+			submitStage = 'creating';
 			const r = await fetch(`/api/projects/${projectId}/cases`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name: name.trim(), briefId, centralDocumentId }),
+				body: JSON.stringify({ name: name.trim(), briefId, centralDocumentId })
 			});
 			if (!r.ok) {
 				const text = await r.text().catch(() => '');
-				throw new Error(`HTTP ${r.status}${text ? ': ' + text.slice(0, 200) : ''}`);
+				throw new Error(`Case-Anlage fehlgeschlagen (HTTP ${r.status})${text ? ': ' + text.slice(0, 200) : ''}`);
 			}
-			const result = (await r.json()) as { caseId: string };
+			submitStage = 'done';
 			await goto(`/projects/${projectId}/documents/${centralDocumentId}?view=pipeline`);
-			void result;
 		} catch (err) {
 			submitError = (err as Error).message;
+			submitStage = 'idle';
 		} finally {
 			submitting = false;
 		}
@@ -78,35 +153,105 @@
 			<a class="hint-link" href="/settings?tab=briefs">Brief-Library verwalten →</a>
 		</label>
 
-		<label class="field">
+		<div class="field">
 			<span class="label">Zentrales Dokument <span class="req">*</span></span>
-			{#if caselessDocs.length === 0}
-				<p class="empty-docs">
-					Im Projekt sind keine ungebundenen Dokumente. Lade eines hoch unter
-					<a href="/projects/{projectId}/documents">Documents</a>.
-				</p>
+
+			{#if docSource.kind === 'upload'}
+				<div class="doc-chosen">
+					<div class="chosen-info">
+						<span class="chosen-icon">📄</span>
+						<div class="chosen-text">
+							<div class="chosen-name">{docSource.file.name}</div>
+							<div class="chosen-meta">
+								{formatSize(docSource.file.size)} · wird beim Anlegen hochgeladen + automatisch anonymisiert
+							</div>
+						</div>
+					</div>
+					<button type="button" class="chosen-clear" onclick={clearDocChoice} disabled={submitting}>
+						Ändern
+					</button>
+				</div>
+			{:else if docSource.kind === 'existing'}
+				{@const picked = caselessDocs.find((d) => d.id === docSource.id)}
+				<div class="doc-chosen">
+					<div class="chosen-info">
+						<span class="chosen-icon">🔗</span>
+						<div class="chosen-text">
+							<div class="chosen-name">{picked?.label ?? '(unbekannt)'}</div>
+							<div class="chosen-meta">bereits hochgeladenes Dokument im Projekt</div>
+						</div>
+					</div>
+					<button type="button" class="chosen-clear" onclick={clearDocChoice} disabled={submitting}>
+						Ändern
+					</button>
+				</div>
 			{:else}
-				<select bind:value={centralDocumentId} required>
-					<option value="" disabled>— Dokument auswählen —</option>
-					{#each caselessDocs as d (d.id)}
-						<option value={d.id}>{d.label}</option>
-					{/each}
-				</select>
-				<p class="hint">
-					Aufgelistet sind nur Dokumente, die noch keinem Case zugeordnet sind
-					({caselessDocs.length}).
-				</p>
+				<!-- Upload-Zone als Primary-Path. -->
+				<label
+					class="dropzone"
+					class:active={dragOver}
+					ondrop={onDrop}
+					ondragover={onDragOver}
+					ondragleave={onDragLeave}
+				>
+					<input
+						type="file"
+						accept=".docx,.pdf,.txt,.md,.html"
+						onchange={onFileInput}
+						disabled={submitting}
+					/>
+					<div class="dz-icon">⬆</div>
+					<div class="dz-prim">Datei hier ablegen oder klicken</div>
+					<div class="dz-sec">.docx empfohlen · PII wird beim Upload automatisch anonymisiert</div>
+				</label>
+
+				{#if caselessDocs.length > 0}
+					<button
+						type="button"
+						class="link-btn"
+						onclick={() => (showCaselessPicker = !showCaselessPicker)}
+					>
+						{#if showCaselessPicker}
+							– Vorhandenes Dokument doch nicht …
+						{:else}
+							… oder vorhandenes Dokument im Projekt verwenden ({caselessDocs.length})
+						{/if}
+					</button>
+					{#if showCaselessPicker}
+						<select
+							class="caseless-select"
+							onchange={(e) => pickExisting((e.target as HTMLSelectElement).value)}
+						>
+							<option value="">— Dokument auswählen —</option>
+							{#each caselessDocs as d (d.id)}
+								<option value={d.id}>{d.label}</option>
+							{/each}
+						</select>
+					{/if}
+				{/if}
 			{/if}
-		</label>
+		</div>
 
 		{#if submitError}
-			<div class="error">Anlegen fehlgeschlagen: {submitError}</div>
+			<div class="error">{submitError}</div>
+		{/if}
+
+		{#if submitting}
+			<div class="progress">
+				{#if submitStage === 'uploading'}
+					Hochladen + Anonymisieren …
+				{:else if submitStage === 'creating'}
+					Case wird angelegt …
+				{:else}
+					…
+				{/if}
+			</div>
 		{/if}
 
 		<div class="actions">
 			<a class="cancel" href="/projects/{projectId}/cases">Abbrechen</a>
 			<button type="submit" class="submit" disabled={!canSubmit || submitting}>
-				{submitting ? 'Lege an…' : 'Anlegen'}
+				{submitting ? 'Lege an …' : 'Anlegen'}
 			</button>
 		</div>
 	</form>
@@ -136,24 +281,65 @@
 		box-shadow: 0 0 0 1px rgba(165, 180, 252, 0.3);
 	}
 
-	.hint, .hint-link {
-		font-size: 0.75rem; color: #6b7280;
-	}
 	.hint-link {
-		color: #a5b4fc; text-decoration: none;
+		font-size: 0.75rem; color: #a5b4fc; text-decoration: none;
 		align-self: flex-start;
 	}
 	.hint-link:hover { text-decoration: underline; }
 
-	.empty-docs {
-		font-size: 0.85rem; color: #c9cdd5;
-		background: rgba(251, 191, 36, 0.06);
-		border: 1px solid rgba(251, 191, 36, 0.25);
-		border-radius: 4px;
-		padding: 0.6rem 0.8rem;
-		margin: 0; line-height: 1.5;
+	.dropzone {
+		display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+		padding: 1.6rem 1rem;
+		background: rgba(165, 180, 252, 0.04);
+		border: 2px dashed rgba(165, 180, 252, 0.30);
+		border-radius: 6px;
+		cursor: pointer;
+		transition: background 120ms, border-color 120ms;
 	}
-	.empty-docs a { color: #a5b4fc; }
+	.dropzone:hover, .dropzone.active {
+		background: rgba(165, 180, 252, 0.10);
+		border-color: rgba(165, 180, 252, 0.65);
+	}
+	.dropzone input[type="file"] { display: none; }
+	.dz-icon { font-size: 1.8rem; color: #a5b4fc; line-height: 1; }
+	.dz-prim { font-size: 0.92rem; color: #c7d2fe; font-weight: 500; }
+	.dz-sec { font-size: 0.75rem; color: #8b8fa3; }
+
+	.link-btn {
+		background: none; border: none; padding: 0;
+		color: #a5b4fc; font-size: 0.78rem; cursor: pointer;
+		text-align: left; align-self: flex-start;
+		font-family: inherit;
+	}
+	.link-btn:hover { text-decoration: underline; }
+	.caseless-select { margin-top: 0.3rem; }
+
+	.doc-chosen {
+		display: flex; align-items: center; gap: 0.7rem;
+		padding: 0.7rem 0.9rem;
+		background: rgba(110, 231, 183, 0.06);
+		border: 1px solid rgba(110, 231, 183, 0.28);
+		border-radius: 5px;
+	}
+	.chosen-info { display: flex; align-items: center; gap: 0.7rem; flex: 1; min-width: 0; }
+	.chosen-icon { font-size: 1.2rem; }
+	.chosen-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+	.chosen-name {
+		font-size: 0.88rem; color: #e1e4e8; font-weight: 500;
+		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+	}
+	.chosen-meta { font-size: 0.72rem; color: #8b8fa3; }
+	.chosen-clear {
+		background: transparent; border: 1px solid #2a2d3a;
+		color: #8b8fa3; padding: 0.3rem 0.7rem;
+		font-size: 0.75rem; border-radius: 3px; cursor: pointer;
+		font-family: inherit;
+	}
+	.chosen-clear:hover:not(:disabled) {
+		background: rgba(255, 255, 255, 0.04);
+		color: #c9cdd5;
+	}
+	.chosen-clear:disabled { opacity: 0.5; cursor: not-allowed; }
 
 	.error {
 		padding: 0.6rem 0.8rem;
@@ -161,6 +347,13 @@
 		border: 1px solid rgba(239, 68, 68, 0.3);
 		border-radius: 4px;
 		color: #fca5a5; font-size: 0.85rem;
+	}
+	.progress {
+		padding: 0.5rem 0.8rem;
+		background: rgba(165, 180, 252, 0.06);
+		border: 1px solid rgba(165, 180, 252, 0.25);
+		border-radius: 4px;
+		color: #c7d2fe; font-size: 0.82rem;
 	}
 
 	.actions { display: flex; gap: 0.7rem; justify-content: flex-end; margin-top: 0.5rem; }
