@@ -22,10 +22,11 @@ interface PassStatus {
 interface PipelineStatus {
 	case_id: string;
 	document_id: string | null;
-	brief: { id: string; name: string; argumentation_graph: boolean } | null;
+	brief: { id: string; name: string; argumentation_graph: boolean; validity_check: boolean } | null;
 	total_paragraphs: number;
 	passes: {
 		argumentation_graph: PassStatus & { enabled: boolean };
+		argument_validity: PassStatus & { enabled: boolean };
 		subchapter: PassStatus;
 		chapter: PassStatus;
 		work: PassStatus;
@@ -62,9 +63,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		brief_id: string | null;
 		brief_name: string | null;
 		argumentation_graph: boolean | null;
+		validity_check: boolean | null;
 	}>(
 		`SELECT c.id, c.central_document_id, c.assessment_brief_id AS brief_id,
-		        b.name AS brief_name, b.argumentation_graph
+		        b.name AS brief_name, b.argumentation_graph, b.validity_check
 		 FROM cases c
 		 LEFT JOIN assessment_briefs b ON b.id = c.assessment_brief_id
 		 WHERE c.id = $1`,
@@ -75,6 +77,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
 	const docId = caseRow.central_document_id;
 	const useAg = caseRow.argumentation_graph === true;
+	const useValidity = caseRow.validity_check === true;
 
 	const empty: PassStatus = { completed: 0, total: null, last_run: null };
 
@@ -105,11 +108,17 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			case_id: caseId,
 			document_id: null,
 			brief: caseRow.brief_id
-				? { id: caseRow.brief_id, name: caseRow.brief_name ?? '', argumentation_graph: useAg }
+				? {
+					id: caseRow.brief_id,
+					name: caseRow.brief_name ?? '',
+					argumentation_graph: useAg,
+					validity_check: useValidity,
+				}
 				: null,
 			total_paragraphs: 0,
 			passes: {
 				argumentation_graph: { ...empty, enabled: useAg },
+				argument_validity: { ...empty, enabled: useValidity },
 				subchapter: empty,
 				chapter: empty,
 				work: empty,
@@ -214,15 +223,52 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		};
 	}
 
+	// Validity-Pass-Coverage: Paragraphen MIT mind. 1 Argument, deren ALLE
+	// Argumente validity_assessment != NULL haben. Nur sinnvoll wenn AG-Pass
+	// Daten geliefert hat — total ist daher die Anzahl Paragraphen mit args.
+	let validityPass: PassStatus = { completed: 0, total: null, last_run: null };
+	if (useValidity) {
+		const validityRow = await queryOne<{ total: number; completed: number; last_run: string | null }>(
+			`WITH para_stats AS (
+			   SELECT de.id AS pid,
+			          COUNT(an.id)::int AS total_args,
+			          COUNT(an.validity_assessment)::int AS assessed,
+			          MAX(an.created_at) AS last_run
+			   FROM document_elements de
+			   JOIN argument_nodes an ON an.paragraph_element_id = de.id
+			   WHERE de.document_id = $1
+			     AND de.element_type = 'paragraph'
+			     AND de.section_kind = 'main'
+			   GROUP BY de.id
+			 )
+			 SELECT COUNT(*)::int AS total,
+			        COUNT(*) FILTER (WHERE assessed = total_args AND assessed > 0)::int AS completed,
+			        MAX(last_run) AS last_run
+			 FROM para_stats`,
+			[docId]
+		);
+		validityPass = {
+			completed: validityRow?.completed ?? 0,
+			total: validityRow?.total ?? null,
+			last_run: validityRow?.last_run ?? null,
+		};
+	}
+
 	const result: PipelineStatus = {
 		case_id: caseId,
 		document_id: docId,
 		brief: caseRow.brief_id
-			? { id: caseRow.brief_id, name: caseRow.brief_name ?? '', argumentation_graph: useAg }
+			? {
+				id: caseRow.brief_id,
+				name: caseRow.brief_name ?? '',
+				argumentation_graph: useAg,
+				validity_check: useValidity,
+			}
 			: null,
 		total_paragraphs: totalParagraphs,
 		passes: {
 			argumentation_graph: { ...agPass, enabled: useAg },
+			argument_validity: { ...validityPass, enabled: useValidity },
 			subchapter: subchapterPass,
 			chapter: chapterPass,
 			work: workPass,

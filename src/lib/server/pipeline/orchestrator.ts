@@ -28,17 +28,22 @@ import {
 } from '../ai/hermeneutic/heading-hierarchy.js';
 import { runParagraphPass } from '../ai/hermeneutic/per-paragraph.js';
 import { runArgumentationGraphPass } from '../ai/hermeneutic/argumentation-graph.js';
+import { runArgumentValidityPass } from '../ai/hermeneutic/argument-validity.js';
 import { runGraphCollapse } from '../ai/hermeneutic/section-collapse-from-graph.js';
 import { runChapterCollapse } from '../ai/hermeneutic/chapter-collapse.js';
 import { runDocumentCollapse } from '../ai/hermeneutic/document-collapse.js';
 
 export type Phase =
 	| 'argumentation_graph'
+	| 'argument_validity'
 	| 'section_collapse'
 	| 'chapter_collapse'
 	| 'document_collapse'
 	| 'paragraph_synthetic';
 
+// Hauptlinie ohne argument_validity — diese Phase ist opt-in und wird per
+// phasesForRun() bei aktivem RunOptions.include_validity zwischen
+// argumentation_graph und section_collapse eingefügt.
 export const PHASE_ORDER_ANALYTICAL: Phase[] = [
 	'argumentation_graph',
 	'section_collapse',
@@ -48,6 +53,7 @@ export const PHASE_ORDER_ANALYTICAL: Phase[] = [
 
 export const PHASE_LABEL: Record<Phase, string> = {
 	argumentation_graph: 'Argumentation pro Absatz',
+	argument_validity: 'Argument-Validität (Charity-Pass)',
 	section_collapse: 'Subkapitel-Synthesen',
 	chapter_collapse: 'Hauptkapitel-Synthesen',
 	document_collapse: 'Werk-Synthese',
@@ -56,6 +62,7 @@ export const PHASE_LABEL: Record<Phase, string> = {
 
 export interface RunOptions {
 	include_synthetic?: boolean;
+	include_validity?: boolean;
 	cost_cap_usd?: number | null;
 }
 
@@ -199,6 +206,7 @@ export async function startOrResumeRun(
 function mergeOptions(prev: RunOptions, next: RunOptions): RunOptions {
 	return {
 		include_synthetic: next.include_synthetic ?? prev.include_synthetic ?? false,
+		include_validity: next.include_validity ?? prev.include_validity ?? false,
 		cost_cap_usd: next.cost_cap_usd ?? prev.cost_cap_usd ?? null,
 	};
 }
@@ -345,6 +353,29 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 			);
 			return { all, pending: all.filter((a) => !done.has(a.id)) };
 		}
+		case 'argument_validity': {
+			// Atoms = Paragraphen MIT mindestens einem Argument. Reine
+			// scaffolding-¶ haben nichts zu beurteilen → fallen aus dem all-Set.
+			const allRows = (await query<{ pid: string; total: number; assessed: number }>(
+				`SELECT de.id AS pid,
+				        COUNT(an.id)::int AS total,
+				        COUNT(an.validity_assessment)::int AS assessed
+				 FROM document_elements de
+				 JOIN argument_nodes an ON an.paragraph_element_id = de.id
+				 WHERE de.document_id = $1
+				   AND de.element_type = 'paragraph'
+				   AND de.section_kind = 'main'
+				 GROUP BY de.id, de.char_start
+				 ORDER BY de.char_start`,
+				[documentId]
+			)).rows;
+			const all: AtomRef[] = allRows.map((r, i) => ({
+				id: r.pid,
+				label: `Validität ¶${i + 1} (${r.total} Arg)`,
+			}));
+			const pending = all.filter((a, i) => allRows[i].assessed < allRows[i].total);
+			return { all, pending };
+		}
 		case 'section_collapse': {
 			const subchapters = await listSubchapterAtoms(documentId);
 			const done = new Set(
@@ -466,6 +497,17 @@ async function executeStep(
 				},
 			};
 		}
+		case 'argument_validity': {
+			const r = await runArgumentValidityPass(caseId, atom.id);
+			return {
+				skipped: r.skipped,
+				tokens: {
+					input: r.tokens?.input ?? 0,
+					output: r.tokens?.output ?? 0,
+					cacheRead: r.tokens?.cacheRead ?? 0,
+				},
+			};
+		}
 		case 'paragraph_synthetic': {
 			const r = await runParagraphPass(caseId, atom.id, userId);
 			return {
@@ -519,9 +561,17 @@ async function executeStep(
 // ── Loop ──────────────────────────────────────────────────────────────────
 
 function phasesForRun(options: RunOptions): Phase[] {
-	return options.include_synthetic
-		? [...PHASE_ORDER_ANALYTICAL, 'paragraph_synthetic']
-		: PHASE_ORDER_ANALYTICAL;
+	const phases: Phase[] = [...PHASE_ORDER_ANALYTICAL];
+	if (options.include_validity) {
+		// argument_validity NACH argumentation_graph (braucht die Argumente),
+		// VOR section_collapse (Synthese kann bewertete Argumente nutzen).
+		const agIdx = phases.indexOf('argumentation_graph');
+		phases.splice(agIdx + 1, 0, 'argument_validity');
+	}
+	if (options.include_synthetic) {
+		phases.push('paragraph_synthetic');
+	}
+	return phases;
 }
 
 /**
@@ -729,11 +779,12 @@ export interface PhasePreflightStatus {
  */
 export async function computePreflight(
 	documentId: string,
-	includeSynthetic: boolean
+	options: { includeSynthetic: boolean; includeValidity: boolean }
 ): Promise<PhasePreflightStatus[]> {
-	const phases = includeSynthetic
-		? [...PHASE_ORDER_ANALYTICAL, 'paragraph_synthetic' as Phase]
-		: PHASE_ORDER_ANALYTICAL;
+	const phases = phasesForRun({
+		include_synthetic: options.includeSynthetic,
+		include_validity: options.includeValidity,
+	});
 	const result: PhasePreflightStatus[] = [];
 	for (const phase of phases) {
 		const list = await listAtomsForPhase(phase, documentId);

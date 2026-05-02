@@ -18,7 +18,8 @@
 		work_type: brief.work_type,
 		criteria: brief.criteria,
 		persona: brief.persona,
-		include_formulierend: brief.include_formulierend
+		include_formulierend: brief.include_formulierend,
+		validity_check: brief.validity_check ?? false
 	});
 
 	async function handleSubmit(form: typeof formInitial) {

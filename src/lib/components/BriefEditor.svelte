@@ -21,6 +21,7 @@
 		criteria: string;
 		persona: string;
 		include_formulierend: boolean;
+		validity_check: boolean;
 	};
 
 	let {
@@ -42,6 +43,7 @@
 	let criteria = $state(initial.criteria);
 	let persona = $state(initial.persona);
 	let include_formulierend = $state(initial.include_formulierend);
+	let validity_check = $state(initial.validity_check ?? false);
 
 	const WORK_TYPE_LABELS: Record<WorkType, string> = {
 		habilitation: 'Habilitation',
@@ -61,7 +63,8 @@
 			work_type,
 			criteria,
 			persona,
-			include_formulierend
+			include_formulierend,
+			validity_check
 		});
 	}
 
@@ -119,6 +122,21 @@
 		<p class="hint">
 			Aus: Synthese-Memo enthält die Gist implizit (Standard, ~40 % weniger Tokens).
 			Ein: Zweites Memo mit textnaher Verdichtung als Audit-Trail.
+		</p>
+	</div>
+
+	<div class="field-toggle">
+		<label>
+			<input type="checkbox" bind:checked={validity_check} />
+			<span>Argument-Validitätsprüfung (Charity-Pass, opt-in)</span>
+		</label>
+		<p class="hint">
+			Aus (Standard): keine Validitäts-Bewertung am einzelnen Argument.
+			Ein: pro Argument wird zuerst die Tragfähigkeit positiv rekonstruiert
+			(deduktiv/induktiv/abduktiv); nur wenn das nicht gelingt, wird eine
+			Fallacy aus enger Whitelist (metabasis_eis_allo_genos, ex_falso_quodlibet,
+			petitio_principii etc.) benannt. Eigener Pass nach AG, vor Synthesen.
+			Marginal teurer als AG (nur Argument-Re-Lecture, kein Volltext-Re-Embed).
 		</p>
 	</div>
 

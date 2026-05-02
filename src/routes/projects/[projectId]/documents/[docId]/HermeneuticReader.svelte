@@ -49,6 +49,19 @@
 		contradicts: { out: 'widerspricht', in: 'widersprochen von' },
 		presupposes: { out: 'setzt voraus', in: 'wird vorausgesetzt von' },
 	};
+	// Referenz-Grounding: rein textbasierte Belegqualität, default-on im AG-Pass.
+	const GROUNDING_LABEL: Record<'none' | 'namedropping' | 'abstract' | 'concrete', string> = {
+		none: 'kein Verweis',
+		namedropping: 'namedropping',
+		abstract: 'abstrakt',
+		concrete: 'konkret',
+	};
+	// Schluss-Form aus dem Charity-Pass (opt-in argument_validity).
+	const FORM_LABEL: Record<'deductive' | 'inductive' | 'abductive', string> = {
+		deductive: 'deduktiv',
+		inductive: 'induktiv',
+		abductive: 'abduktiv',
+	};
 	function formatEdgeTarget(e: ParagraphEdge): string {
 		if (e.scope === 'prior_paragraph' && e.other.paraNumWithinChapter) {
 			return `§${e.other.paraNumWithinChapter}:${e.other.argLocalId}`;
@@ -180,6 +193,12 @@
 											<div class="arg-head">
 												<span class="arg-id">{a.argLocalId}</span>
 												<span class="arg-pos">Position {a.positionInParagraph}</span>
+												{#if a.referentialGrounding}
+													<span
+														class="ref-chip ref-{a.referentialGrounding}"
+														title="Referenzqualität im Text: {GROUNDING_LABEL[a.referentialGrounding]}"
+													>{GROUNDING_LABEL[a.referentialGrounding]}</span>
+												{/if}
 											</div>
 											<div class="arg-claim">{a.claim}</div>
 											{#if a.anchorPhrase}
@@ -194,6 +213,29 @@
 														</li>
 													{/each}
 												</ul>
+											{/if}
+											{#if a.validityAssessment}
+												{@const va = a.validityAssessment}
+												{#if va.carries}
+													<div class="validity validity-ok">
+														<div class="validity-head">
+															<span class="validity-icon">✓</span>
+															<span class="validity-label">tragfähig</span>
+															<span class="validity-form">{FORM_LABEL[va.inference_form]}</span>
+														</div>
+														<div class="validity-rationale">{va.rationale}</div>
+													</div>
+												{:else}
+													<div class="validity validity-fail">
+														<div class="validity-head">
+															<span class="validity-icon">⚠</span>
+															<span class="validity-label">Tragfähigkeitsbruch</span>
+															<span class="validity-fallacy" title={va.fallacy.type}>{va.fallacy.type}</span>
+															<span class="validity-target">@ {va.fallacy.target_premise}</span>
+														</div>
+														<div class="validity-rationale">{va.rationale}</div>
+													</div>
+												{/if}
 											{/if}
 										</div>
 									{/each}
@@ -341,12 +383,25 @@
 		background: rgba(251, 191, 36, 0.18);
 		box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.6);
 	}
-	.arg-head { display: flex; align-items: baseline; gap: 0.5rem; }
+	.arg-head { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
 	.arg-id {
 		font-family: 'JetBrains Mono', monospace; font-weight: 600;
 		color: #c7d2fe; font-size: 0.8rem;
 	}
 	.arg-pos { font-size: 0.7rem; color: #6b7280; }
+	.ref-chip {
+		font-size: 0.62rem;
+		padding: 1px 6px;
+		border-radius: 3px;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		font-weight: 500;
+		margin-left: auto;
+	}
+	.ref-none        { background: rgba(107, 114, 128, 0.15); color: #9ca3af; }
+	.ref-namedropping{ background: rgba(248, 113, 113, 0.12); color: #fca5a5; }
+	.ref-abstract    { background: rgba(251, 191, 36, 0.14); color: #fbbf24; }
+	.ref-concrete    { background: rgba(110, 231, 183, 0.14); color: #6ee7b7; }
 	.arg-claim { color: #e1e4e8; line-height: 1.5; font-size: 0.86rem; }
 	.arg-anchor {
 		margin: 0;
@@ -377,6 +432,50 @@
 	.prem-carried { background: rgba(165, 180, 252, 0.15); color: #c7d2fe; }
 	.prem-background { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
 	.prem-text { flex: 1; color: #c9cdd5; }
+
+	.validity {
+		margin-top: 0.3rem;
+		padding: 0.4rem 0.55rem;
+		border-radius: 4px;
+		display: flex; flex-direction: column; gap: 0.25rem;
+		font-size: 0.78rem;
+	}
+	.validity-head {
+		display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap;
+	}
+	.validity-icon {
+		font-weight: 700; font-size: 0.85rem;
+	}
+	.validity-label {
+		font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em;
+		font-weight: 600;
+	}
+	.validity-form {
+		font-size: 0.66rem; padding: 1px 6px;
+		text-transform: uppercase; letter-spacing: 0.04em;
+		font-weight: 500;
+		background: rgba(110, 231, 183, 0.18); color: #6ee7b7;
+		border-radius: 3px;
+	}
+	.validity-fallacy {
+		font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+		font-weight: 600; color: #fca5a5;
+	}
+	.validity-target {
+		font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+		color: #fda4af;
+	}
+	.validity-rationale { color: #c9cdd5; line-height: 1.4; }
+	.validity-ok {
+		background: rgba(110, 231, 183, 0.06);
+		border-left: 2px solid rgba(110, 231, 183, 0.5);
+	}
+	.validity-ok .validity-icon, .validity-ok .validity-label { color: #6ee7b7; }
+	.validity-fail {
+		background: rgba(248, 113, 113, 0.06);
+		border-left: 2px solid rgba(248, 113, 113, 0.55);
+	}
+	.validity-fail .validity-icon, .validity-fail .validity-label { color: #f87171; }
 
 	.edges-list {
 		margin: 0; padding: 0; list-style: none;

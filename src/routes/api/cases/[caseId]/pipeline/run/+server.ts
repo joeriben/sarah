@@ -42,10 +42,12 @@ import {
 	type PipelineEvent,
 } from '$lib/server/pipeline/orchestrator.js';
 
-async function ensureCaseAccess(caseId: string, userId: string): Promise<{ central_document_id: string | null }> {
-	const row = await queryOne<{ central_document_id: string | null; project_id: string }>(
-		`SELECT c.central_document_id, c.project_id
+async function ensureCaseAccess(caseId: string, userId: string): Promise<{ central_document_id: string | null; brief_validity_check: boolean }> {
+	const row = await queryOne<{ central_document_id: string | null; project_id: string; brief_validity_check: boolean | null }>(
+		`SELECT c.central_document_id, c.project_id,
+		        b.validity_check AS brief_validity_check
 		 FROM cases c
+		 LEFT JOIN assessment_briefs b ON b.id = c.assessment_brief_id
 		 WHERE c.id = $1`,
 		[caseId]
 	);
@@ -55,7 +57,10 @@ async function ensureCaseAccess(caseId: string, userId: string): Promise<{ centr
 		[row.project_id, userId]
 	);
 	if (!member) error(403, 'Not a member of this project');
-	return { central_document_id: row.central_document_id };
+	return {
+		central_document_id: row.central_document_id,
+		brief_validity_check: row.brief_validity_check === true,
+	};
 }
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
@@ -79,10 +84,14 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	const body = (await request.json().catch(() => ({}))) as {
 		include_synthetic?: boolean;
+		include_validity?: boolean;
 		cost_cap_usd?: number | null;
 	};
+	// include_validity: explicit body wins, sonst Default aus brief.validity_check.
+	const explicitValidity = typeof body?.include_validity === 'boolean' ? body.include_validity : null;
 	const options: RunOptions = {
 		include_synthetic: body?.include_synthetic === true,
+		include_validity: explicitValidity ?? access.brief_validity_check,
 		cost_cap_usd: typeof body?.cost_cap_usd === 'number' ? body.cost_cap_usd : null,
 	};
 

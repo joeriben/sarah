@@ -88,6 +88,12 @@ const ArgumentSchema = z.object({
 	// prompt; schema only guards against pathological full-paragraph echoes.
 	// Style overflow (> 80 chars) is logged in storeResult but doesn't fail.
 	anchor_phrase: z.string().max(500).default(''),
+	// Default-on Pflichtfeld (Migration 040). Pure Textanalyse: wie ist das
+	// Argument im Text textbasiert belegt — Namensnennung, abstrakter Werk-
+	// bezug, oder konkrete Stelle/Zitat? Niedriges Halluzinationsrisiko, daher
+	// im Layer-1-AG-Pass mit-erfasst statt eigenem Pass. Bei fehlendem Wert
+	// fällt der Parser auf 'none' zurück (kein hard fail).
+	referential_grounding: z.enum(['none', 'namedropping', 'abstract', 'concrete']).default('none'),
 });
 
 const InterArgumentEdge = z.object({
@@ -454,6 +460,12 @@ Zu **ARGUMENT-Sektionen**:
   · carried §N  — aus früherem Absatz N des Unterkapitels übernommen; gib die Absatz-Position N hinter "carried §" als Zahl an.
   · background  — fachübliche Hintergrundannahme, die der claim implizit voraussetzt. Sparsam verwenden — wenn eine Annahme im Absatz steht, ist sie "stated", nicht "background".
 - Eine leere premises-Liste ist erlaubt, wenn der claim wirklich freistehend ist (selten); dann lass den \`premises:\`-Block weg.
+- grounding: rein textbasierte Klassifikation, wie das Argument im Absatz belegt wird. Pflichtfeld. Genau einer der vier Werte:
+  · none          — keine Verweise oder Belege.
+  · namedropping  — nur Autor:innen-/Theorienamen genannt, kein Werk- oder Stellenbezug ("nach Bourdieu", "wie Foucault zeigt").
+  · abstract      — Werk/Theorie/Studie inhaltlich angesprochen, aber ohne konkrete Stelle ("Bourdieus Habitus-Begriff", "die PISA-Studien").
+  · concrete      — konkrete Stelle, Zitat, Seitenzahl oder Studienangabe ("Bourdieu 1982, S. 42", "wörtlich: '…'", "n=438, p<.05").
+  Maßstab ist allein der Text dieses Absatzes — nicht, ob die Behauptung in der Forschungsrealität gut belegt ist (das wäre eine separate Bewertung). "background"-Premissen zählen nicht als Grounding.
 - anchor: bevorzugt wörtliche in-vivo-Wortgruppe (≤ 8 Wörter); wenn keine geeignete existiert, leer lassen.
 
 Zu **EDGES-Sektion**:
@@ -606,8 +618,9 @@ async function storeResult(
 			const r = await client.query(
 				`INSERT INTO argument_nodes
 				   (paragraph_element_id, arg_local_id, claim, premises, anchor_phrase,
-				    anchor_char_start, anchor_char_end, position_in_paragraph)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				    anchor_char_start, anchor_char_end, position_in_paragraph,
+				    referential_grounding)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 				 RETURNING id`,
 				[
 					paraCtx.paragraphId,
@@ -618,6 +631,7 @@ async function storeResult(
 					charStart,
 					charEnd,
 					i + 1,
+					arg.referential_grounding,
 				]
 			);
 			nodeIds.push(r.rows[0].id);

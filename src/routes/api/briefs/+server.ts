@@ -26,7 +26,8 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		criteria: typeof body.criteria === 'string' ? body.criteria : '',
 		persona: typeof body.persona === 'string' ? body.persona : '',
 		include_formulierend: !!body.include_formulierend,
-		argumentation_graph: body.argumentation_graph !== false
+		argumentation_graph: body.argumentation_graph !== false,
+		validity_check: !!body.validity_check
 	});
 
 	return json({ brief }, { status: 201 });

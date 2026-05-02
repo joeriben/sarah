@@ -39,6 +39,7 @@ export const PATCH: RequestHandler = async ({ params, locals, request }) => {
 	if (typeof body.persona === 'string') patch.persona = body.persona;
 	if (typeof body.include_formulierend === 'boolean') patch.include_formulierend = body.include_formulierend;
 	if (typeof body.argumentation_graph === 'boolean') patch.argumentation_graph = body.argumentation_graph;
+	if (typeof body.validity_check === 'boolean') patch.validity_check = body.validity_check;
 
 	const brief = await updateBrief(params.briefId, patch);
 	if (!brief) error(404, 'Brief not found');

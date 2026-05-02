@@ -11,7 +11,8 @@
 		work_type: 'bachelor_thesis' as const,
 		criteria: '',
 		persona: '',
-		include_formulierend: false
+		include_formulierend: false,
+		validity_check: false
 	};
 
 	let busy = $state(false);

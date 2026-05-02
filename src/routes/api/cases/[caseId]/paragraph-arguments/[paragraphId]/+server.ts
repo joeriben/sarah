@@ -23,6 +23,8 @@ interface ArgumentNodeDto {
 	anchorCharStart: number;
 	anchorCharEnd: number;
 	positionInParagraph: number;
+	referentialGrounding: 'none' | 'namedropping' | 'abstract' | 'concrete' | null;
+	validityAssessment: unknown;
 }
 
 interface EdgeOtherSide {
@@ -71,9 +73,12 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			anchor_char_start: number;
 			anchor_char_end: number;
 			position_in_paragraph: number;
+			referential_grounding: 'none' | 'namedropping' | 'abstract' | 'concrete' | null;
+			validity_assessment: unknown;
 		}>(
 			`SELECT id, arg_local_id, claim, premises, anchor_phrase,
-			        anchor_char_start, anchor_char_end, position_in_paragraph
+			        anchor_char_start, anchor_char_end, position_in_paragraph,
+			        referential_grounding, validity_assessment
 			 FROM argument_nodes
 			 WHERE paragraph_element_id = $1
 			 ORDER BY position_in_paragraph ASC`,
@@ -92,6 +97,8 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		anchorCharStart: r.anchor_char_start,
 		anchorCharEnd: r.anchor_char_end,
 		positionInParagraph: r.position_in_paragraph,
+		referentialGrounding: r.referential_grounding,
+		validityAssessment: r.validity_assessment ?? null,
 	}));
 
 	if (args.length === 0) {

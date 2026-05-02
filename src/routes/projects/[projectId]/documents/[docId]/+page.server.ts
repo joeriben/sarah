@@ -55,6 +55,22 @@ export interface OutlineEntry {
 	excluded: boolean;
 }
 
+export type ReferentialGrounding = 'none' | 'namedropping' | 'abstract' | 'concrete';
+
+export type ValidityAssessment =
+	| {
+			carries: true;
+			inference_form: 'deductive' | 'inductive' | 'abductive';
+			rationale: string;
+			fallacy?: null;
+	  }
+	| {
+			carries: false;
+			inference_form: 'deductive' | 'inductive' | 'abductive' | null;
+			rationale: string;
+			fallacy: { type: string; target_premise: string; explanation: string };
+	  };
+
 export interface ParagraphArgument {
 	id: string;
 	argLocalId: string;
@@ -64,6 +80,8 @@ export interface ParagraphArgument {
 	anchorCharStart: number;
 	anchorCharEnd: number;
 	positionInParagraph: number;
+	referentialGrounding: ReferentialGrounding | null;
+	validityAssessment: ValidityAssessment | null;
 }
 
 export interface ParagraphEdge {
@@ -381,9 +399,12 @@ export const load: PageServerLoad = async ({ params }) => {
 				anchor_char_start: number;
 				anchor_char_end: number;
 				position_in_paragraph: number;
+				referential_grounding: ReferentialGrounding | null;
+				validity_assessment: unknown;
 			}>(
 				`SELECT id, paragraph_element_id, arg_local_id, claim, premises,
-				        anchor_phrase, anchor_char_start, anchor_char_end, position_in_paragraph
+				        anchor_phrase, anchor_char_start, anchor_char_end, position_in_paragraph,
+				        referential_grounding, validity_assessment
 				 FROM argument_nodes
 				 WHERE paragraph_element_id = ANY($1::uuid[])
 				 ORDER BY paragraph_element_id, position_in_paragraph`,
@@ -487,6 +508,8 @@ export const load: PageServerLoad = async ({ params }) => {
 					anchorCharStart: r.anchor_char_start,
 					anchorCharEnd: r.anchor_char_end,
 					positionInParagraph: r.position_in_paragraph,
+					referentialGrounding: r.referential_grounding,
+					validityAssessment: (r.validity_assessment as ValidityAssessment | null) ?? null,
 				});
 			}
 

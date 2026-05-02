@@ -23,6 +23,7 @@ export interface AssessmentBrief {
 	persona: string;
 	include_formulierend: boolean;
 	argumentation_graph: boolean;
+	validity_check: boolean;
 	output_schema_version: number;
 	created_at: string;
 	created_by: string | null;
@@ -56,6 +57,7 @@ export interface CreateBriefInput {
 	persona?: string;
 	include_formulierend?: boolean;
 	argumentation_graph?: boolean;
+	validity_check?: boolean;
 }
 
 export async function createBrief(
@@ -64,8 +66,9 @@ export async function createBrief(
 ): Promise<AssessmentBrief> {
 	const r = await query<AssessmentBrief>(
 		`INSERT INTO assessment_briefs
-		   (name, work_type, criteria, persona, include_formulierend, argumentation_graph, created_by)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		   (name, work_type, criteria, persona, include_formulierend, argumentation_graph,
+		    validity_check, created_by)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING *`,
 		[
 			input.name,
@@ -74,6 +77,7 @@ export async function createBrief(
 			input.persona ?? '',
 			input.include_formulierend ?? false,
 			input.argumentation_graph ?? true,
+			input.validity_check ?? false,
 			userId
 		]
 	);
@@ -87,6 +91,7 @@ export interface UpdateBriefInput {
 	persona?: string;
 	include_formulierend?: boolean;
 	argumentation_graph?: boolean;
+	validity_check?: boolean;
 }
 
 export async function updateBrief(

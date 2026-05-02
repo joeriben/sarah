@@ -33,6 +33,7 @@ premises:
 - stated: <Voraussetzung, im Absatz wörtlich oder paraphrasiert>
 - carried §<N>: <Voraussetzung aus früherem Absatz N des Unterkapitels>
 - background: <fachübliche Hintergrundannahme>
+grounding: <none | namedropping | abstract | concrete>
 anchor: <wörtliche Wortgruppe ≤ 8 Wörter, oder leer>
 
 ARGUMENT A2
@@ -71,6 +72,7 @@ interface RawArg {
 	claim: string;
 	premises: { type: string; text: string; from_paragraph?: number }[];
 	anchor_phrase: string;
+	referential_grounding: 'none' | 'namedropping' | 'abstract' | 'concrete';
 }
 interface RawEdge {
 	from: string;
@@ -185,6 +187,7 @@ export function parseProseAG(rawText: string): ProseParseResult {
 				return out;
 			}),
 			anchor_phrase: a.anchor_phrase,
+			referential_grounding: a.referential_grounding,
 		})),
 		edges: edges.map(e => ({
 			from: e.from,
@@ -265,6 +268,8 @@ function parseFields(body: string[]): { fields: FieldMap; premiseLines: string[]
 
 const PREMISE_LINE = /^\s*(stated|carried|background)\b(?:\s*§\s*(\d+))?\s*:\s*(.+)$/i;
 
+const VALID_GROUNDING = new Set(['none', 'namedropping', 'abstract', 'concrete']);
+
 function parseArgumentBody(id: string, body: string[], warnings: string[]): RawArg | null {
 	const { fields, premiseLines } = parseFields(body);
 	const claim = fields.claim ?? '';
@@ -273,6 +278,18 @@ function parseArgumentBody(id: string, body: string[], warnings: string[]): RawA
 		return null;
 	}
 	const anchor = fields.anchor ?? fields.anchor_phrase ?? '';
+	const groundingRaw = (fields.grounding ?? fields.referential_grounding ?? '').toLowerCase().trim();
+	let referential_grounding: RawArg['referential_grounding'];
+	if (VALID_GROUNDING.has(groundingRaw)) {
+		referential_grounding = groundingRaw as RawArg['referential_grounding'];
+	} else {
+		// Default 'none' bei Fehlen oder unbekanntem Wert. Nicht-Pflicht im
+		// Tolerance-Modus: lieber 'none' annehmen als Argument verwerfen.
+		if (groundingRaw.length > 0) {
+			warnings.push(`ARGUMENT ${id} has unknown grounding="${groundingRaw}" — defaulting to "none"`);
+		}
+		referential_grounding = 'none';
+	}
 	const premises: RawArg['premises'] = [];
 	for (const pl of premiseLines) {
 		const m = pl.match(PREMISE_LINE);
@@ -292,7 +309,7 @@ function parseArgumentBody(id: string, body: string[], warnings: string[]): RawA
 		if (typeof fromN === 'number') p.from_paragraph = fromN;
 		premises.push(p);
 	}
-	return { id, claim, premises, anchor_phrase: anchor };
+	return { id, claim, premises, anchor_phrase: anchor, referential_grounding };
 }
 
 function parseEdgesBody(body: string[], warnings: string[]): RawEdge[] {
