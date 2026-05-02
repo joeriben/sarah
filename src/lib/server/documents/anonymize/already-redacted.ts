@@ -9,7 +9,22 @@
 // extrahiert hätte) — falls die User-Schwärzung Lücken hat, blockt der
 // Failsafe vor dem ersten Outbound-Call.
 
-import { extractFrontmatter, looksLikePersonName, collapseSpaces } from './seeds.js';
+import { extractFrontmatter } from './seeds.js';
+
+// Inline-Helfer (vorher aus seeds.ts importiert) — beim NER-Refactor
+// wurden looksLikePersonName / collapseSpaces dort gestrichen, weil der
+// Hauptpfad jetzt spaCy nutzt. Hier reicht eine simple Plausibilitäts-
+// Heuristik: 2–5 Tokens, jeweils Cap-Start.
+function collapseSpaces(s: string): string {
+	return s.replace(/\s+/g, ' ').trim();
+}
+function looksLikePersonNameSimple(value: string): boolean {
+	const cleaned = value.replace(/\([^)]*\)/g, '').trim();
+	if (cleaned.length < 5) return false;
+	const tokens = cleaned.match(/\p{Lu}[\p{L}\p{M}.'’-]{1,}|\p{Lu}\./gu) ?? [];
+	if (tokens.length < 2 || tokens.length > 5) return false;
+	return true;
+}
 
 // Block-Box-Glyphs in der Frontpage. Drei oder mehr in Folge gelten als
 // Schwärzung. Inkludiert Unicode-Block-Characters und ASCII-Fallbacks.
@@ -54,18 +69,20 @@ export function isAuthorAlreadyRedacted(fullText: string): RedactionCheckResult 
 		const tail = line.slice(labelMatch.index + labelMatch[0].length).trim();
 		const candidate = tail || (i + 1 < lines.length ? lines[i + 1] : '');
 
-		// Wenn da ein plausibler Name steht → NICHT geschwärzt.
-		if (looksLikePersonName(candidate)) {
-			return { skipped: false, reason: 'name_present', evidence: candidate };
-		}
-
-		// Wenn da Schwärzung-Patterns stehen → JA, geschwärzt.
+		// Reihenfolge: erst Schwärzung prüfen (sonst würde "Dr. phil.
+		// [ANONYMISIERT]" durch looksLikePersonNameSimple als gültiger
+		// Name akzeptiert werden, weil es genug Cap-Tokens hat).
 		if (
 			REDACTION_GLYPH_RE.test(candidate) ||
 			BRACKET_PLACEHOLDER_RE.test(candidate) ||
 			WORD_PLACEHOLDER_RE.test(candidate)
 		) {
 			return { skipped: true, reason: 'redacted', evidence: candidate };
+		}
+
+		// Sonst: ist ein plausibler Name da → NICHT geschwärzt.
+		if (looksLikePersonNameSimple(candidate)) {
+			return { skipped: false, reason: 'name_present', evidence: candidate };
 		}
 	}
 

@@ -4,7 +4,11 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
 import { query } from '$lib/server/db/index.js';
-import { anonymizeDocumentDeterministic, getPersistedSeeds } from '$lib/server/documents/anonymize/index.js';
+import {
+	anonymizeDocumentDeterministic,
+	getPersistedSeeds,
+	reAnonymizeFromOriginal
+} from '$lib/server/documents/anonymize/index.js';
 
 /**
  * POST: Führt die deterministische Anonymisierung (UC1) aus.
@@ -35,12 +39,18 @@ export const POST: RequestHandler = async ({ params, url }) => {
 		return json({ error: 'mode=peer-review not yet implemented' }, { status: 501 });
 	}
 
-	if (mode !== 'deterministic') {
+	if (mode !== 'deterministic' && mode !== 'reset') {
 		return json({ error: `unknown mode '${mode}'` }, { status: 400 });
 	}
 
 	try {
-		const result = await anonymizeDocumentDeterministic(docId);
+		// Bei mode=reset: lies das Original-DOCX neu ein, lösche bestehende
+		// Seeds, setze full_text zurück und re-anonymisiere mit der aktuellen
+		// Heuristik. Wichtig nach Algorithmus-Updates (NER-Pivot 2026-05-02).
+		const result =
+			mode === 'reset'
+				? await reAnonymizeFromOriginal(docId)
+				: await anonymizeDocumentDeterministic(docId);
 		return json(result);
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);

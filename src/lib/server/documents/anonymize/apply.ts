@@ -44,9 +44,19 @@ function buildVariantPattern(variant: string, category: SeedCategory): RegExp {
 	let escaped = escapeRegExp(variant);
 	escaped = escaped.replace(/(?:\\\s)+/g, '\\s+');
 	if (category === 'email') {
-		return new RegExp(`(?<![A-Z0-9._%+-])${escaped}(?!(?:[A-Z0-9_%+-]|\\.[A-Z0-9]))`, 'gi');
+		// Email: Lookbehind erlaubt Digit-Prefix (Fall "21925501Fidan@..." aus
+		// DOCX-Run-Boundary-Konkatenation), blockt aber Position INNERHALB
+		// einer anderen Mailadresse. Lookahead sperrt fortgesetzte Email-
+		// Chars hinten.
+		return new RegExp(`(?<![@_])${escaped}(?![A-Z0-9._%+\\-]|@)`, 'gi');
 	}
 	if (category === 'student_id' || category === 'matrikel') {
+		return new RegExp(`(?<!\\d)${escaped}(?!\\d)`, 'gi');
+	}
+	if (category === 'phone') {
+		// Telefonnummer: am ehesten zwischen Word-Boundaries. Da die
+		// Variants oft Sonderzeichen (+, /, -, Spaces) enthalten, ist
+		// ein Lookbehind/Lookahead auf "kein Digit" am stabilsten.
 		return new RegExp(`(?<!\\d)${escaped}(?!\\d)`, 'gi');
 	}
 	return new RegExp(`(?<![\\w])${escaped}(?![\\w])`, 'gi');

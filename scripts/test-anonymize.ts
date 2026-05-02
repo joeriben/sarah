@@ -1,37 +1,60 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Smoke-test the anonymization pipeline end-to-end (without DB):
-//   1. seed extraction from a realistic frontmatter
-//   2. already-redacted skip-check on three frontmatter variants
-//   3. edit + apply round-trip
-//   4. element-offset shift correctness
-//   5. synthetic filename
-//
-// Run:  npx tsx scripts/test-anonymize.ts
+// Smoke-test der Anonymisierungs-Pipeline (NER-basiert, lokal via spaCy).
+// Run: npx tsx scripts/test-anonymize.ts
 
-import {
-	buildSeeds,
-	looksLikePersonName,
-	extractFrontmatter
-} from '../src/lib/server/documents/anonymize/seeds.ts';
-import {
-	findEdits,
-	applyEdits,
-	recomputeElementSlice
-} from '../src/lib/server/documents/anonymize/apply.ts';
+import { buildSeeds, extractTitleHint } from '../src/lib/server/documents/anonymize/seeds.ts';
+import { findEdits, applyEdits, recomputeElementSlice } from '../src/lib/server/documents/anonymize/apply.ts';
 import { isAuthorAlreadyRedacted } from '../src/lib/server/documents/anonymize/already-redacted.ts';
 import { buildSyntheticFilename } from '../src/lib/server/documents/anonymize/filename.ts';
 import { scanForPiiHits } from '../src/lib/server/ai/failsafe.ts';
 
-const sample = `Friedrich-Alexander-Universität Erlangen-Nürnberg
+async function runCase(label: string, frontpage: string): Promise<void> {
+	console.log(`\n========== ${label} ==========`);
+	console.log('--- input ---');
+	console.log(frontpage.slice(0, 400) + (frontpage.length > 400 ? '…' : ''));
+
+	const seeds = await buildSeeds(frontpage);
+	console.log(`\n--- ${seeds.length} seeds ---`);
+	for (const s of seeds) {
+		console.log(`  [${s.category}/${s.role ?? '-'}] "${s.value}" → ${s.replacement}`);
+		if (s.variants.length > 1) console.log(`    variants: ${JSON.stringify(s.variants)}`);
+	}
+
+	const edits = findEdits(frontpage, seeds);
+	const out = applyEdits(frontpage, edits);
+	console.log(`\n--- after apply (${edits.length} edits) ---`);
+	console.log(out);
+
+	const seedsForFailsafe = seeds.map((s) => ({
+		id: 'fake',
+		documentId: 'fake',
+		category: s.category,
+		role: s.role,
+		value: s.value,
+		variants: s.variants,
+		replacement: s.replacement,
+		source: s.source as string
+	}));
+	const leak = scanForPiiHits(out, seedsForFailsafe);
+	console.log(`\n--- failsafe-scan on anonymized: ${leak.length} hits ---`);
+	for (const h of leak) console.log(`    LEAK: "${h.matchedString}" — ${h.context}`);
+
+	const titleHint = await extractTitleHint(frontpage);
+	const fname = buildSyntheticFilename({ title: titleHint, ext: 'docx' });
+	console.log(`\n--- title hint: "${titleHint ?? '(none)'}" → filename: ${fname} ---`);
+}
+
+// Case 1 — strukturierte Habil-Frontpage (Multi-Line)
+await runCase(
+	'Habil structured',
+	`Friedrich-Alexander-Universität Erlangen-Nürnberg
 Philosophische Fakultät und Fachbereich Theologie
-Lehrstuhl für Pädagogik II
 
 Habilitationsschrift
 
-Bildungsphilosophie als Reflexion. Untersuchung zu einem unzeitgemäßen
-Begriff im Spannungsfeld digitaler Transformationen.
+Bildungsphilosophie als Reflexion. Untersuchung zu einem unzeitgemäßen Begriff im Spannungsfeld digitaler Transformationen.
 
 vorgelegt von Dr. phil. Maria Mustermann
 Matrikelnummer: 12345678
@@ -46,90 +69,41 @@ Erlangen, im Frühjahr 2026
 
 Die vorliegende Arbeit unternimmt den Versuch, mit Maria Mustermann
 und Hans Müller in einen Dialog zu treten. Mustermann argumentiert ...
-`;
-
-console.log('=== looksLikePersonName probes ===');
-const probes = [
-	['Maria Mustermann', true],
-	['Universität', false],
-	['Prof. Dr. Hans Müller', true],
-	['M', false],
-	['Erlangen-Nürnberg', false],
-	['Mustermann, Maria', true],
-	['Lehrstuhl', false]
-];
-for (const [probe, expected] of probes) {
-	const got = looksLikePersonName(probe as string);
-	const mark = got === expected ? '✓' : '✗';
-	console.log(`  ${mark} ${(probe as string).padEnd(30)} → ${got} (expected ${expected})`);
-}
-
-console.log('\n=== Seeds ===');
-const seeds = buildSeeds(sample);
-for (const s of seeds) {
-	console.log(`  [${s.category}/${s.role}] "${s.value}" → ${s.replacement}`);
-	console.log(`    variants: ${JSON.stringify(s.variants)}`);
-}
-
-console.log('\n=== Edit application ===');
-const edits = findEdits(sample, seeds);
-console.log(`  edits: ${edits.length}`);
-const newText = applyEdits(sample, edits);
-console.log('--- result ---');
-console.log(newText);
-
-console.log('\n=== Failsafe scan after substitution ===');
-const seedsForFailsafe = seeds.map((s) => ({
-	id: 'fake',
-	documentId: 'fake',
-	category: s.category,
-	role: s.role,
-	value: s.value,
-	variants: s.variants,
-	replacement: s.replacement,
-	source: s.source as string
-}));
-const hitsAfter = scanForPiiHits(newText, seedsForFailsafe);
-console.log(`  hits in anonymized text: ${hitsAfter.length} (expected 0)`);
-if (hitsAfter.length > 0) {
-	for (const h of hitsAfter) {
-		console.log(`    LEAK: "${h.matchedString}" at ${h.matchedAt} — context: ${h.context}`);
-	}
-}
-
-const hitsBefore = scanForPiiHits(sample, seedsForFailsafe);
-console.log(`  hits in original: ${hitsBefore.length} (expected ≥ ${seeds.length})`);
-
-console.log('\n=== Already-redacted check (clean) ===');
-console.log(' ', isAuthorAlreadyRedacted(sample));
-
-const bracketRedacted = sample.replace('Maria Mustermann', '[ANONYMISIERT]');
-console.log('\n=== Already-redacted check (bracket) ===');
-console.log(' ', isAuthorAlreadyRedacted(bracketRedacted));
-
-const blockBoxRedacted = sample.replace('Maria Mustermann', '████████████████');
-console.log('\n=== Already-redacted check (block box) ===');
-console.log(' ', isAuthorAlreadyRedacted(blockBoxRedacted));
-
-console.log('\n=== Synthetic filename ===');
-console.log(
-	' ',
-	buildSyntheticFilename({
-		title: 'Bildungsphilosophie als Reflexion. Untersuchung zu einem unzeitgemäßen Begriff',
-		ext: 'docx'
-	})
+`
 );
-console.log(' ', buildSyntheticFilename({ title: '', ext: 'docx' }));
-console.log(' ', buildSyntheticFilename({ docType: 'Habilitation', title: 'Education', ext: 'docx' }));
 
-console.log('\n=== Element-offset shift ===');
-// Pick a synthetic element range that overlaps a substitution.
-// Find "Maria Mustermann" position in sample → simulate an element wrapping it.
-const mariaPos = sample.indexOf('Maria Mustermann');
-const elStart = sample.lastIndexOf('\n', mariaPos) + 1;
-const elEnd = sample.indexOf('\n', mariaPos);
-console.log(`  Element [${elStart}..${elEnd}]: "${sample.slice(elStart, elEnd)}"`);
-const e = recomputeElementSlice(sample, elStart, elEnd, edits);
-console.log(`  → New [${e.newStart}..${e.newEnd}]: "${newText.slice(e.newStart, e.newEnd)}"`);
-console.log(`  → recomputed content: "${e.newContent}"`);
-console.log(`  match: ${e.newContent === newText.slice(e.newStart, e.newEnd) ? '✓' : '✗'}`);
+// Case 2 — DOCX-konkatenierte Single-Paragraph-Frontpage (Timm-Pattern)
+await runCase(
+	'Habil concatenated (Timm pattern)',
+	`Kultur professionell lehren lernen Elemente einer Theorie der Lehrkräftebildung in der globalen Welt Habilitationsschrift in der Erziehungswissenschaft Vorgelegt von Dr. phil. Susanne Timm Otto-Friedrich-Universität Bamberg Fakultät für Humanwissenschaften Mentorat Prof. Dr. Dr. h.c. Dr. h.c. Annette Scheunpflug (Vorsitz) Prof. Dr. Julia Franz Prof. Dr. Claudia Jahnel`
+);
+
+// Case 3 — BA-Cover ohne Vorgelegt-von-Label (Gabbari-Pattern)
+const gabbari = `Bachelorarbeit Institut für Pädagogik mit dem Schwerpunkt Kultur und ästhetische Bildung und UNESCO Chair in Digital Culture and Arts in Education Titel: Global Citizenship Education aus pädagogischer Perspektive. Eine kritische Analyse. Fidan Gabbari Am Zehentstadel 3 91166 Georgensgmünd Matrikelnummer: 21925501 Fidan.gabbari@gmail.com Tel.: 0176/82077902 Betreuer: Prof. Dr. Benjamin Jörissen Datum Einreichung: 26.08.2025 Inhaltsverzeichnis Abkürzungsverzeichnis Einleitung Kapitel 1`;
+await runCase('BA Gabbari (real DOCX shape)', gabbari);
+
+// Case 4 — already-redacted skip-checks
+console.log('\n========== Already-redacted check ==========');
+const clean = `vorgelegt von Dr. phil. Maria Mustermann
+Matrikelnummer: 12345678`;
+console.log('  clean:    ', isAuthorAlreadyRedacted(clean));
+console.log('  bracket:  ', isAuthorAlreadyRedacted(clean.replace('Dr. phil. Maria Mustermann', 'Dr. phil. [ANONYMISIERT]')));
+console.log('  block-box:', isAuthorAlreadyRedacted(clean.replace('Dr. phil. Maria Mustermann', 'Dr. phil. ████████████████')));
+
+// Case 5 — element-offset shift
+console.log('\n========== Element-offset shift ==========');
+const seeds = await buildSeeds(gabbari);
+const edits = findEdits(gabbari, seeds);
+const newText = applyEdits(gabbari, edits);
+const fidanPos = gabbari.indexOf('Fidan Gabbari');
+if (fidanPos >= 0) {
+	const elStart = fidanPos;
+	const elEnd = fidanPos + 'Fidan Gabbari'.length;
+	const e = recomputeElementSlice(gabbari, elStart, elEnd, edits);
+	const oldSlice = gabbari.slice(elStart, elEnd);
+	const newSlice = newText.slice(e.newStart, e.newEnd);
+	console.log(`  old [${elStart}..${elEnd}]: "${oldSlice}"`);
+	console.log(`  new [${e.newStart}..${e.newEnd}]: "${newSlice}"`);
+	console.log(`  recomputed content: "${e.newContent}"`);
+	console.log(`  match: ${e.newContent === newSlice ? '✓' : '✗'}`);
+}

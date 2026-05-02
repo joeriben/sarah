@@ -29,14 +29,16 @@
 	let anonError = $state<string | null>(null);
 	const anonKey = $derived(anonymization.status ?? 'missing');
 
-	async function runAnonymization() {
+	async function runAnonymization(action: 'run' | 'reset' = 'run') {
 		anonRunning = true;
 		anonError = null;
 		try {
-			const res = await fetch(
-				`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/anonymize`,
-				{ method: 'POST' }
-			);
+			// 'reset' lädt das Original-DOCX neu und re-anonymisiert mit der
+			// aktuellen Heuristik. Sinnvoll nach Algorithmus-Updates.
+			const url = action === 'reset'
+				? `/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/anonymize?mode=reset`
+				: `/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/anonymize`;
+			const res = await fetch(url, { method: 'POST' });
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.error ?? `HTTP ${res.status}`);
@@ -874,6 +876,14 @@
 				<span class="anon-tag anon-ok" title={ANON_TITLE[anonKey](anonymization)}>
 					🔒 {ANON_LABEL[anonKey]}
 					{#if anonymization.seedCount > 0}<span class="anon-count">· {anonymization.seedCount} Seeds</span>{/if}
+					<button
+						class="anon-action anon-action-secondary"
+						onclick={() => runAnonymization('reset')}
+						disabled={anonRunning}
+						title="Original-Datei neu einlesen und mit aktueller Heuristik re-anonymisieren. Nutzen, wenn die Anonymisierung mit alter Heuristik unvollständig war."
+					>
+						{anonRunning ? '…' : '↻ neu'}
+					</button>
 				</span>
 			{:else if anonymization.status === 'no_candidates'}
 				<span class="anon-tag anon-neutral" title={ANON_TITLE[anonKey](anonymization)}>
@@ -882,7 +892,7 @@
 			{:else}
 				<span class="anon-tag anon-warn" title={ANON_TITLE[anonKey](anonymization)}>
 					⚠ {ANON_LABEL[anonKey]}
-					<button class="anon-action" onclick={runAnonymization} disabled={anonRunning}>
+					<button class="anon-action" onclick={() => runAnonymization('run')} disabled={anonRunning}>
 						{anonRunning ? '…' : 'Jetzt anonymisieren'}
 					</button>
 				</span>
@@ -1540,6 +1550,12 @@
 	}
 	.anon-action:disabled { opacity: 0.5; cursor: wait; }
 	.anon-action:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); }
+	.anon-action-secondary {
+		font-size: 0.85em;
+		padding: 0.05rem 0.35rem;
+		opacity: 0.7;
+	}
+	.anon-action-secondary:hover:not(:disabled) { opacity: 1; }
 
 	.brief-picker { position: relative; display: inline-block; }
 	.brief-tag.clickable {

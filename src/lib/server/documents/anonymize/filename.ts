@@ -15,7 +15,16 @@
 // 'Dokument'. Wenn case_documents existiert, wird daraus z.B. 'Habilitation'
 // oder 'PeerReview'.
 
-import { collapseSpaces, stripTitles } from './seeds.js';
+// Inline-Helfer (vorher aus seeds.ts importiert) — nach NER-Refactor
+// nicht mehr public. Hier reichen einfache lokale Versionen.
+function collapseSpaces(s: string): string {
+	return s.replace(/\s+/g, ' ').trim();
+}
+const TITLE_PREFIX_RE_LOCAL =
+	/\b(?:prof(?:essor)?|dr|ph\.?\s*d|m\.?\s*a|b\.?\s*a|m\.?\s*sc|b\.?\s*sc|hon|priv[.-]?doz|sir|mr|mrs|ms|mme|sra|sr|dipl[.-]?ing|mag|doc|kand|ass|phil|theol|med|iur|nat|h\.\s*c|h\.c)\.?(?=\b)/gi;
+function stripTitles(s: string): string {
+	return collapseSpaces(s.replace(TITLE_PREFIX_RE_LOCAL, '')).replace(/^[ ,;:.-]+|[ ,;:.-]+$/g, '');
+}
 
 const FILENAME_SAFE_RE = /[^a-zA-Z0-9äöüÄÖÜßÀ-ɏ_-]/g;
 
@@ -78,7 +87,20 @@ function firstSubstantiveWord(title: string): string {
 		'il', 'lo', 'gli',
 		'zur', 'zum', 'beim', 'vom', 'als', 'sind', 'werden', 'wird', 'wurde', 'kann', 'soll',
 		'über', 'unter', 'zwischen', 'gegen', 'trotz', 'wegen',
-		'on', 'in', 'of', 'to', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been'
+		'on', 'in', 'of', 'to', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
+		// Strukturelle Sektionen, die KEIN Werktitel sind — wenn sie als
+		// Title-Hint hereinkommen (z.B. weil das erste Heading "Inhalts-
+		// verzeichnis" war), sollen sie übersprungen werden.
+		'inhaltsverzeichnis', 'abkürzungsverzeichnis', 'abkuerzungsverzeichnis',
+		'abbildungsverzeichnis', 'tabellenverzeichnis', 'symbolverzeichnis',
+		'literaturverzeichnis', 'literatur', 'quellenverzeichnis',
+		'anhang', 'anhänge', 'anhange', 'einleitung', 'fazit', 'zusammenfassung',
+		'abstract', 'vorwort', 'danksagung', 'erklärung', 'erklaerung',
+		'eidesstattliche', 'selbstständigkeitserklärung', 'selbststaendigkeitserklaerung',
+		'einverständniserklärung', 'einverstaendniserklaerung', 'lebenslauf',
+		'introduction', 'conclusion', 'appendix', 'appendices', 'bibliography',
+		'references', 'acknowledgements', 'preface', 'foreword', 'glossary',
+		'kapitel', 'chapter', 'chapitre'
 	]);
 	const cleaned = stripTitles(title).replace(/[^\p{L}\p{N}\s-]/gu, ' ');
 	const tokens = cleaned.split(/\s+/).filter((t) => t.length >= 4);

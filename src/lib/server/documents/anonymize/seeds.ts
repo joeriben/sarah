@@ -1,17 +1,27 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Deterministischer Seed-Extraktor für die Anonymisierung (Use Case 1).
+// Seed-Extraktor für die deterministische Anonymisierung (UC1).
 //
-// Port von sacanev/backend/privacy.py @ d474667 — Konzept identisch
-// (Frontmatter-Window-Scan + Label-getriggerte Person-Name-Extraktion +
-// Regex-basierte Email-/Matrikel-/Student-ID-Extraktion), erweitert um
-// breite Mehrsprachigkeit (DE/EN/FR/ES/IT/PT/NL/PL/CS/SV/DA/NO/FI/EL/
-// TR/RU/JA/ZH/AR — soweit Label-basiert sinnvoll greifbar).
+// Architektur-Setzung 2026-05-02 (User):
+//   "Es gibt Technologien um Namen zu erkennen ohne externes LLM, so ein
+//    algorithmisches Ding oder mini-LLM"
 //
-// Aufgabe: aus dem Volltext eines Dokuments diejenigen Strings finden,
-// die später durch Platzhalter ersetzt werden müssen UND danach als
-// PII-Seeds für den Failsafe-Tripwire persistiert bleiben.
+// → Personen-/Organisations-/Location-Erkennung läuft über **spaCy** lokal
+//   (de_core_news_lg, ~545 MB, kein API-Call). Siehe ner.ts.
+//
+// Was bleibt im regex-Pfad:
+//   – Email-Extraktion (mit Digit-Prefix-Stripping für Matrikel-Email-
+//     Konkatenationen aus DOCX-Run-Boundaries)
+//   – Matrikel-/Student-ID-Extraktion (label-getriggert)
+//   – Telefonnummer-Extraktion (label-getriggert oder format-erkannt)
+//
+// Der frühere Regex-Walk für Personennamen (extractLeadingName,
+// inlineTitledNames, personNameCandidates) ist entfallen — er war
+// kämpfend gegen jede DOCX-Layout-Variante und produzierte kaputte
+// Seeds wie "Prof. Dr. Benjamin J örissen Datum Einreichung".
+
+import { runNer, type NerEntity } from './ner.js';
 
 export type SeedCategory =
 	| 'person_name'
@@ -20,190 +30,228 @@ export type SeedCategory =
 	| 'student_id'
 	| 'institution'
 	| 'project'
-	| 'self_citation';
+	| 'self_citation'
+	| 'phone';
 
 export type SeedRole = 'author' | 'supervisor' | 'examiner' | 'subject' | 'other' | null;
 
 export type SeedSource =
-	| 'frontmatter_label'
+	| 'ner_spacy'
 	| 'regex_email'
 	| 'regex_matrikel'
 	| 'regex_student_id'
+	| 'regex_phone'
+	| 'frontmatter_label'
 	| 'llm_assisted';
 
 export interface ReplacementSeed {
 	category: SeedCategory;
 	role: SeedRole;
-	value: string;          // Originalwert wie im Dokument
-	variants: string[];     // alternative Schreibweisen
-	replacement: string;    // [NAME_001] etc.
+	value: string;
+	variants: string[];
+	replacement: string;
 	source: SeedSource;
 }
 
-// ── Patterns ──────────────────────────────────────────────────────────
+// ── Frontmatter-Window ───────────────────────────────────────────────
 
-// Akademische Titel & Anredeformen, die bei Namens-Heuristik herausgekürzt
-// werden (sonst würde "Prof. Dr. Max Mustermann" als 4-Token-Name geparst).
-// Multi-language: deutsche, englische, romanische, slawische Titel.
-const TITLE_PREFIX_RE =
-	/\b(?:prof(?:essor)?|dr|ph\.?\s*d|m\.?\s*a|b\.?\s*a|m\.?\s*sc|b\.?\s*sc|hon|priv[.-]?doz|sir|mr|mrs|ms|mme|m\.|sra|sr|dipl[.-]?ing|mag|doc|kand|ass)\.?(?=\b)/gi;
-
-const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
-
-// Matrikel/Student-ID-Patterns — explizit gelabelt (z.B. "Matrikelnummer:
-// 12345678"). Kein freier Number-Scan, weil False-Positives auf Datums-
-// und Seitennummern.
-const STUDENT_ID_RE =
-	/\b(?:matrikel(?:nummer|nr\.?)?|student(?:en)?(?:nummer|id|number)|registration\s*number|n(?:o|um)\.?\s*(?:d[''']?)?(?:étudiant|estudiante|matr[ií]cula)|n[ºo°]?\s*matr[ií]cul[oa]|registrazione|n[uú]mero\s*de\s*matr[íi]cula)\s*[:#-]?\s*([A-Z]?\d[\d\s./-]{3,}\d)\b/gi;
-
-// Stoppt das Frontmatter-Fenster, sobald die erste eigentliche Kapitel-
-// überschrift kommt. Multi-language: "Einleitung / Introduction / Resumen
-// / Introduzione / Wstęp / Inledning / 序論 / 引言 / المقدمة" usw.
+// Stoppt das Frontmatter-Fenster, sobald die erste Kapitel-Überschrift
+// kommt. Mehrsprachig.
 const FRONTMATTER_STOP_RE =
-	/^\s*(?:\d+(?:\.\d+)*\s+)?(?:einleitung|einf(?:ue|ü)hrung|introduction|introduzione|introducci[oó]n|introdu[cç][aã]o|inleiding|wst[eę]p|[uú]vod|inledning|indledning|innledning|johdanto|εισαγωγή|giri[şs]|введение|序論|序論|序章|引言|前言|序|chapter\s+1|chapitre\s+1|kapitel\s+1|cap[ií]tulo\s+1|capitolo\s+1|hoofdstuk\s+1|rozdzia[lł]\s+1|kapitola\s+1|kapitel\s+ett|αʹ\s*κεφάλαιο|глава\s+1|第一章|الفصل\s+الأول|المقدمة|مقدمة)\b/im;
-
-// Token-Klasse für plausible Namen (groß-anfangende Wörter, Initialen,
-// Bindestriche). Cyrillic + Greek + CJK + Arabisch via expliziter Range.
-const NAME_TOKEN_RE =
-	/[A-ZÄÖÜÅÆØÉÈÊËÍÌÎÏÓÒÔÕÚÙÛÝÇŁŃŚŹŻŠČĆĐÀ-ɏͰ-ϿЀ-ӿ一-鿿぀-ゟ゠-ヿ؀-ۿ][A-Za-zÄÖÜäöüßåæøéèêëíìîïóòôõúùûýçłńśźżšščćđÀ-ɏͰ-ϿЀ-ӿ一-鿿぀-ゟ゠-ヿ؀-ۿ.'’-]{1,}|[A-Z]\./g;
-
-// Wörter, die an einem "Name"-Slot stehen, aber sicher KEIN Personenname sind.
-// Multi-language Hochschul-/Arbeits-Vokabular.
-const NAME_BLOCKLIST = new Set([
-	// DE
-	'arbeit', 'abschlussarbeit', 'bachelor', 'bachelorarbeit', 'master', 'masterarbeit',
-	'diplomarbeit', 'magisterarbeit', 'doktorarbeit', 'dissertation', 'habilitation',
-	'einleitung', 'fachbereich', 'fakultaet', 'fakultät', 'hochschule', 'institut',
-	'lehrstuhl', 'seminar', 'thesis', 'universitaet', 'universität', 'department',
-	// EN
-	'university', 'college', 'school', 'institute', 'faculty', 'chair', 'introduction',
-	// FR
-	'université', 'universite', 'faculté', 'faculte', 'école', 'ecole', 'institut',
-	'département', 'departement', 'mémoire', 'memoire',
-	// ES
-	'universidad', 'facultad', 'escuela', 'instituto', 'departamento', 'tesis',
-	// IT
-	'università', 'universita', 'facoltà', 'facolta', 'scuola', 'istituto', 'dipartimento', 'tesi',
-	// PT
-	'universidade', 'faculdade', 'escola', 'instituto', 'departamento', 'tese', 'dissertação',
-	// NL
-	'universiteit', 'faculteit', 'school', 'instituut', 'afdeling', 'scriptie',
-	// PL
-	'uniwersytet', 'wydział', 'wydzial', 'instytut', 'katedra', 'praca',
-	// SV/DA/NO/FI
-	'universitet', 'fakultet', 'institut', 'institution', 'avhandling', 'opinnäytetyö',
-	// CS
-	'univerzita', 'fakulta', 'ústav', 'ustav', 'katedra', 'práce', 'prace'
-]);
-
-interface LabelPattern {
-	pattern: RegExp;
-	role: SeedRole;
-}
-
-// Label-Patterns: Wort/Phrase, die VOR einem Namen steht.
-// Mehrsprachig, "max. 2-3 Termini pro Sprache" (User-Setzung).
-const NAME_LABELS: LabelPattern[] = [
-	// Author-Labels — sehr spezifisch (beste Vertrauenswürdigkeit)
-	{
-		pattern: /\b(?:vorgelegt|eingereicht|verfasst|abgegeben|presented|submitted|prepared|written|presented[ée]e?|soumis(?:e)?|pr[ée]sent[ée]e?|elaborada\s+por|presentada|presentato|apresentado|ingeleverd|przedstawiona\s+przez|zlo[zż]ony\s+przez|inskickad|indleveret|innlevert|esitetty)\s+(?:von|by|par|de|por|da|door|przez|av|af|tarafından|представлена)\b/i,
-		role: 'author'
-	},
-	// Author / Verfasser — Generic
-	{
-		pattern: /\b(?:autor(?:in)?|author|verfasser(?:in)?|bearbeiter(?:in)?|kandidat(?:in)?|student(?:in)?|name|auteur(?:e)?|autore|autora?|auteur|tekijä|skribent|forfatter|szerz[oő]|αυτή|yazar|автор)\b/i,
-		role: 'author'
-	},
-	// Supervisor / Betreuer / Gutachter
-	{
-		pattern: /\b(?:betreuer(?:in)?|erstgutachter(?:in)?|zweitgutachter(?:in)?|drittgutachter(?:in)?|pr(?:ue|ü)fer(?:in)?|gutachter(?:in)?|supervisor|advisor|examiner|director\s+of\s+studies|directeur(?:\s+de\s+th[èe]se)?|directrice|directora?|relatore|relatrice|orientador(?:a)?|begeleider|promotor|promotorin|opiekun|veiledere?|handledare|ohjaaja|επιβλέπων|epibl[eé]p[ōo]n|jury)\b/i,
-		role: 'supervisor'
-	}
-];
-
-// Reines "Author:"-Label auf eigener Zeile (Name folgt auf Folgezeile).
-const NEXT_LINE_NAME_LABEL_RE =
-	/^(?:vorgelegt\s+von|eingereicht\s+von|verfasst\s+von|submitted\s+by|presented\s+by|written\s+by|prepared\s+by|autor(?:in)?|author|verfasser(?:in)?|name|nom|nombre|nome|naam|imi[eę]\s+i\s+nazwisko|jméno|navn|namn|nimi|όνομα|ad|имя|nom\s+de\s+l[''']auteur|nombre\s+del\s+autor)\s*:?\s*$/i;
-
-// ── Frontmatter ──────────────────────────────────────────────────────
+	/^\s*(?:\d+(?:\.\d+)*\s+)?(?:einleitung|einf(?:ue|ü)hrung|introduction|introduzione|introducci[oó]n|introdu[cç][aã]o|inleiding|wst[eę]p|[uú]vod|inledning|indledning|innledning|johdanto|εισαγωγή|giri[şs]|введение|序論|序章|引言|前言|序|chapter\s+1|chapitre\s+1|kapitel\s+1|cap[ií]tulo\s+1|capitolo\s+1|hoofdstuk\s+1|rozdzia[lł]\s+1|kapitola\s+1|kapitel\s+ett|αʹ\s*κεφάλαιο|глава\s+1|第一章|الفصل\s+الأول|المقدمة|مقدمة)\b/im;
 
 export function extractFrontmatter(text: string, maxChars = 10000): string {
 	const window = text.slice(0, maxChars);
 	const m = FRONTMATTER_STOP_RE.exec(window);
-	if (m && m.index > 200) {
-		return window.slice(0, m.index);
-	}
+	if (m && m.index > 200) return window.slice(0, m.index);
 	return window;
 }
 
-// ── Plausibility: looksLikePersonName ────────────────────────────────
+// ── Regex-Extraktoren (Email/Matrikel/Phone) ─────────────────────────
 
-export function stripTitles(value: string): string {
-	return collapseSpaces(value.replace(TITLE_PREFIX_RE, '')).replace(/^[ ,;:.-]+|[ ,;:.-]+$/g, '');
-}
-
-export function collapseSpaces(value: string): string {
-	return value.replace(/\s+/g, ' ').trim();
-}
-
-export function looksLikePersonName(value: string): boolean {
-	let cleaned = stripTitles(value);
-	cleaned = cleaned.replace(/\([^)]*\)/g, '');
-	const lower = cleaned.toLowerCase();
-	for (const term of NAME_BLOCKLIST) {
-		if (lower.includes(term)) return false;
+// Email-Extraktion mit Digit-Prefix-Stripping. Hintergrund: in DOCX-
+// Frontpages werden Felder wie "Matrikelnummer: 21925501 mail@...com"
+// vom Parser oft an Run-Boundaries konkateniert zu "21925501mail@...com".
+// Eine naive Regex würde dann "21925501mail@..." als Local-Part fangen
+// und die Matrikel-Substitution überlappt nicht mehr → kaputte Seeds.
+//
+// Strategie: erst breit matchen (alles vor dem @ einsammeln), dann
+// `^\d+(?=[A-Za-z])` als Präfix wegtrimmen.
+function extractEmails(text: string): string[] {
+	const out = new Set<string>();
+	const re = /(?<![@.])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
+	for (const m of text.matchAll(re)) {
+		const full = m[0];
+		const at = full.indexOf('@');
+		let local = full.slice(0, at);
+		const domain = full.slice(at);
+		const stripped = local.replace(/^\d+(?=[A-Za-z])/, '');
+		if (stripped.length >= 1) out.add(stripped + domain);
 	}
-	const normalized = cleaned.replace(/,/g, ' ');
-	const tokens = normalized.match(NAME_TOKEN_RE) ?? [];
-	if (tokens.length < 2 || tokens.length > 5) return false;
-	const tokenText = tokens.join(' ');
-	if (tokenText.length < 5) return false;
-	for (const t of tokens) {
-		if (!t.endsWith('.') && !/^[A-ZÄÖÜÅÆØÀ-ɏͰ-ϿЀ-ӿ一-鿿぀-ゟ゠-ヿ؀-ۿ]/.test(t)) {
-			return false;
+	return [...out];
+}
+
+// Matrikel-/Student-ID-Patterns — explizit gelabelt.
+const STUDENT_ID_RE =
+	/\b(?:matrikel(?:nummer|nr\.?)?|student(?:en)?(?:nummer|id|number)|registration\s*number|n[uú]mero\s*de\s*matr[íi]cula|n[ºo°]?\s*matr[ií]cul[oa]|registrazione)\s*[:#-]?\s*([A-Z]?\d[\d\s./-]{3,}\d)/gi;
+
+function extractMatrikel(text: string): string[] {
+	const out = new Set<string>();
+	for (const m of text.matchAll(STUDENT_ID_RE)) {
+		const cleaned = m[1].replace(/[\s./-]+/g, '').trim();
+		if (cleaned.length >= 4) out.add(cleaned);
+	}
+	return [...out];
+}
+
+// Telefonnummer-Extraktion — STRIKT: nur mit explizitem Tel-Label
+// ODER mit "+"-Country-Code-Präfix. Sonst greift es auf jede 7+-stellige
+// Number-Sequence (Matrikel, Datum, ISBN), und wir bekommen False-
+// Positives wie "12345678" oder "26.08.2025".
+const PHONE_LABELED_RE =
+	/\b(?:tel(?:\.|efon)?|mobil(?:funk)?|handy|phone|fax|t\.|tel\s*nr\.?)\s*[:.]?\s*([+]?[\d\s./()-]{7,20}\d)/gi;
+const PHONE_INTL_RE =
+	/(?<![\d])\+\d{1,3}[\s./()-]*(?:\d[\s./()-]*){6,15}\d/g;
+
+// Datum-Patterns, die wir NICHT als Phone akzeptieren wollen.
+const DATE_LIKE_RE =
+	/^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}$|^\d{4}-\d{2}-\d{2}$|^\d{2}\.\d{2}\.\d{4}$/;
+
+function extractPhones(text: string): string[] {
+	const out = new Set<string>();
+	for (const m of text.matchAll(PHONE_LABELED_RE)) {
+		const cleaned = m[1].trim().replace(/[ \t]+$/, '');
+		const digits = cleaned.replace(/\D/g, '');
+		if (digits.length < 7 || digits.length > 16) continue;
+		if (DATE_LIKE_RE.test(cleaned)) continue;
+		out.add(cleaned);
+	}
+	for (const m of text.matchAll(PHONE_INTL_RE)) {
+		const cleaned = m[0].trim();
+		const digits = cleaned.replace(/\D/g, '');
+		if (digits.length < 7 || digits.length > 16) continue;
+		out.add(cleaned);
+	}
+	return [...out];
+}
+
+// ── Rolle-Inferenz aus NER-Kontext ───────────────────────────────────
+
+// Label-Patterns, deren räumliche Position einer NER-Person die Rolle
+// (author/supervisor) zuweist. Die Person SELBST wird vom NER erkannt;
+// das Label markiert nur den Kontext.
+const ROLE_LABELS: { pattern: RegExp; role: SeedRole }[] = [
+	{
+		pattern: /\b(?:vorgelegt|eingereicht|verfasst|abgegeben|presented|submitted|prepared|written|presentado|presentata|apresentado|przedstawion[aey]|ingeleverd|inskickad|indleveret|innlevert|esitetty)\s+(?:von|by|par|de|por|da|door|przez|av|af|tarafından|представлена)\b/i,
+		role: 'author'
+	},
+	{
+		pattern: /\b(?:autor(?:in)?|author|verfasser(?:in)?|bearbeiter(?:in)?|kandidat(?:in)?|name|verfasst\s+von)\b/i,
+		role: 'author'
+	},
+	{
+		pattern: /\b(?:betreuer(?:in)?|erstgutachter(?:in)?|zweitgutachter(?:in)?|drittgutachter(?:in)?|pr(?:ue|ü)fer(?:in)?|gutachter(?:in)?|mentorat|mentor(?:in)?|doktorvater|doktormutter|promotionskommission|pr(?:ue|ü)fungskommission|promotionsausschuss|supervisor|advisor|examiner|director\s+of\s+studies|directeur(?:\s+de\s+th[èe]se)?|relatore|orientador(?:a)?|begeleider|promotor|opiekun|veiledere?|handledare|ohjaaja|jury)\b/i,
+		role: 'supervisor'
+	}
+];
+
+function findLabelPositions(text: string): { pos: number; role: SeedRole }[] {
+	const positions: { pos: number; role: SeedRole }[] = [];
+	for (const lbl of ROLE_LABELS) {
+		const re = new RegExp(lbl.pattern.source, 'gi');
+		let m: RegExpExecArray | null;
+		while ((m = re.exec(text)) !== null) {
+			positions.push({ pos: m.index, role: lbl.role });
 		}
 	}
-	return true;
+	positions.sort((a, b) => a.pos - b.pos);
+	return positions;
 }
 
-// ── Person Name Candidates ───────────────────────────────────────────
-
-interface PersonNameCandidate {
-	role: SeedRole;
-	value: string;
-}
-
-export function personNameCandidates(frontmatter: string): PersonNameCandidate[] {
-	const lines = frontmatter
-		.split(/\r?\n/)
-		.map((l) => collapseSpaces(l.replace(/^[ \-*\t]+|[ \-*\t]+$/g, '')));
-
-	const candidates: PersonNameCandidate[] = [];
-
-	for (let idx = 0; idx < lines.length; idx++) {
-		const line = lines[idx];
-		if (!line) continue;
-
-		for (const lbl of NAME_LABELS) {
-			const m = lbl.pattern.exec(line);
-			if (!m) continue;
-			const tail = line.slice(m.index + m[0].length).replace(/^[ :,\-\t]+/, '');
-			if (tail && looksLikePersonName(tail)) {
-				candidates.push({ role: lbl.role, value: tail });
-			} else if (idx + 1 < lines.length && looksLikePersonName(lines[idx + 1])) {
-				candidates.push({ role: lbl.role, value: lines[idx + 1] });
+// Splittet PER-Spans, die zwei zusammengezogene Namen enthalten. Trenner:
+// inline `Prof. Dr.`, `Dr.`, `Prof.`-Sequenzen oder `(Vorsitz)`-artige
+// Klammerausdrücke.
+function splitConcatenatedPersons(entities: NerEntity[], text: string): NerEntity[] {
+	const out: NerEntity[] = [];
+	const splitRe = /\s+(?:\(|Prof\.|Dr\.|Mr\.|Mrs\.|Hon\.|PhD\.?|MD\.?)/g;
+	for (const ent of entities) {
+		// Suche INNERHALB der Span nach Splitter-Positionen.
+		const span = text.slice(ent.start, ent.end);
+		const splits: number[] = [];
+		let m: RegExpExecArray | null;
+		const re = new RegExp(splitRe.source, 'g');
+		while ((m = re.exec(span)) !== null) {
+			if (m.index > 0) splits.push(m.index);
+		}
+		if (splits.length === 0) {
+			out.push(ent);
+			continue;
+		}
+		// Splitte die Span an den gefundenen Positionen.
+		let cursor = 0;
+		for (const splitPos of [...splits, span.length]) {
+			const subRaw = span.slice(cursor, splitPos).trim();
+			// Title-Präfix aus dem Sub-Namen entfernen — sonst kommt
+			// z.B. "Dr. Claudia Jahnel" als value heraus statt "Claudia
+			// Jahnel". Failsafe-variants hätten den nackten Namen zwar
+			// auch, aber der Display-value bleibt sauberer.
+			const sub = subRaw.replace(/^(?:Prof|Dr|h\.c|phil|theol|med|iur|nat|Mr|Mrs|Hon|Sir)\.?(?:\s+(?:Prof|Dr|h\.c|phil|theol|med|iur|nat)\.?)*\s+/gi, '').trim();
+			const tokens = sub.match(/\p{Lu}[\p{L}\p{M}'’-]+/gu) ?? [];
+			if (tokens.length >= 2) {
+				const subStart = ent.start + cursor + (subRaw.length - sub.length);
+				out.push({
+					text: sub,
+					label: 'PER',
+					start: subStart,
+					end: subStart + sub.length
+				});
 			}
-		}
-
-		if (NEXT_LINE_NAME_LABEL_RE.test(line) && idx + 1 < lines.length && looksLikePersonName(lines[idx + 1])) {
-			candidates.push({ role: 'author', value: lines[idx + 1] });
+			cursor = splitPos;
 		}
 	}
-
-	return candidates;
+	return out;
 }
 
-// ── Variants ─────────────────────────────────────────────────────────
+function roleForPosition(pos: number, labels: { pos: number; role: SeedRole }[]): SeedRole {
+	let role: SeedRole = 'other';
+	let bestDistance = Infinity;
+	for (const lp of labels) {
+		if (lp.pos > pos) break;
+		const d = pos - lp.pos;
+		// Label muss nicht zu weit weg sein (max ~150 Zeichen Abstand —
+		// sonst wirkt der Kontext nicht mehr). Wenn weiter weg, Label gilt
+		// nicht mehr; Person bekommt 'other'.
+		if (d <= 150 && d < bestDistance) {
+			bestDistance = d;
+			role = lp.role;
+		}
+	}
+	if (bestDistance === Infinity) {
+		// Kein Label gefunden — bei der ERSTEN Person in der Frontpage gilt
+		// implizit "author" (häufiges Cover-Pattern: "Titel: ... Name ...
+		// Matrikelnummer ..."), bei späteren 'other'.
+		return null;
+	}
+	return role;
+}
+
+// ── Variants (für Failsafe-Tripwire) ─────────────────────────────────
+
+// Akademische Titel, die wir bei der Variant-Generation strippen, damit
+// "Prof. Dr. Benjamin Jörissen" auch als "Jörissen", "B. Jörissen" etc.
+// im Failsafe-Scan greift.
+const TITLE_PREFIX_RE =
+	/\b(?:prof(?:essor)?|dr|ph\.?\s*d|m\.?\s*a|b\.?\s*a|m\.?\s*sc|b\.?\s*sc|hon|priv[.-]?doz|sir|mr|mrs|ms|mme|sra|sr|dipl[.-]?ing|mag|doc|kand|ass|phil|theol|med|iur|nat|h\.\s*c|h\.c)\.?(?=\b)/gi;
+
+const NAME_TOKEN_RE = /\p{Lu}[\p{L}\p{M}.'’-]{1,}|\p{Lu}\./gu;
+
+function collapseSpaces(s: string): string {
+	return s.replace(/\s+/g, ' ').trim();
+}
+
+function stripTitles(s: string): string {
+	return collapseSpaces(s.replace(TITLE_PREFIX_RE, '')).replace(/^[ ,;:.-]+|[ ,;:.-]+$/g, '');
+}
 
 function splitName(value: string): { firstNames: string[]; lastName: string } {
 	const cleaned = stripTitles(value);
@@ -233,7 +281,7 @@ export function nameVariants(value: string): string[] {
 			`${first} ${lastName}`,
 			`${lastName}, ${first}`,
 			`${firstNames[0][0]}. ${lastName}`,
-			lastName // Nachname allein — riskant für False-Positives, aber wichtig für UC2
+			lastName // Nachname allein — riskant für False-Positives, aber wichtig im Volltext
 		];
 		for (const c of candidates) {
 			if (!variants.includes(c)) variants.push(c);
@@ -242,54 +290,43 @@ export function nameVariants(value: string): string[] {
 	return variants.sort((a, b) => b.length - a.length);
 }
 
-// ── Identifier cleanup ───────────────────────────────────────────────
+// ── Public API: buildSeeds ───────────────────────────────────────────
 
-function cleanIdentifier(value: string, category: SeedCategory): string {
-	let cleaned = collapseSpaces(value).replace(/^\s+|\s+$/g, '');
+function normalizeKey(value: string, category: SeedCategory): string {
 	if (category === 'person_name') {
-		cleaned = cleaned.split(/\s+(?:matrikel|student(?:en)?nummer|student\s*id|matr[ií]cula)\b/i)[0];
-		cleaned = cleaned.replace(/\([^)]*\)/g, '');
-		cleaned = cleaned.replace(/^[ ,;:.\-]+|[ ,;:.\-]+$/g, '');
-		return looksLikePersonName(cleaned) ? cleaned : '';
+		return stripTitles(value).toLowerCase().replace(/,/g, ' ').replace(/\s+/g, ' ');
 	}
-	if (category === 'matrikel' || category === 'student_id') {
-		return collapseSpaces(cleaned).replace(/^[ .,/;\-]+|[ .,/;\-]+$/g, '');
-	}
-	return cleaned;
+	return value.toLowerCase().replace(/\s+/g, ' ');
 }
 
-function normalizeIdentifierKey(value: string, category: SeedCategory): string {
-	if (category === 'person_name') {
-		return stripTitles(value).toLowerCase().replace(/,/g, ' ');
-	}
-	return collapseSpaces(value).toLowerCase();
-}
+/**
+ * Baut die Seed-Liste für ein Dokument:
+ *   1. Personen-Erkennung via spaCy NER auf dem Frontmatter-Window.
+ *   2. Email/Matrikel/Phone via Regex (über das gesamte Dokument).
+ *   3. Rolle-Zuordnung (author/supervisor/...) aus räumlicher Nähe zu
+ *      Label-Wörtern wie "Vorgelegt von" / "Betreuer:".
+ *
+ * Idempotent: zweiter Aufruf auf demselben (zwischenzeitlich anonymi-
+ * sierten) Text liefert leere Seeds, weil Klartext bereits durch
+ * `[NAME_001]` etc. ersetzt ist.
+ */
+export async function buildSeeds(text: string): Promise<ReplacementSeed[]> {
+	const frontmatter = extractFrontmatter(text);
+	const labelPositions = findLabelPositions(frontmatter);
 
-// ── Build Seeds ──────────────────────────────────────────────────────
+	// 1. Personen via NER auf Frontmatter
+	const ner = await runNer(frontmatter, 'auto');
+	let personEntities: NerEntity[] = ner.entities.filter((e) => e.label === 'PER');
 
-export interface BuildSeedsOptions {
-	/** First N chars used as frontmatter window. Default 10000. */
-	frontmatterMaxChars?: number;
-}
-
-export function buildSeeds(text: string, opts: BuildSeedsOptions = {}): ReplacementSeed[] {
-	const frontmatter = extractFrontmatter(text, opts.frontmatterMaxChars ?? 10000);
-
-	const raw: { category: SeedCategory; role: SeedRole; value: string; source: SeedSource }[] = [];
-
-	for (const c of personNameCandidates(frontmatter)) {
-		raw.push({ category: 'person_name', role: c.role, value: c.value, source: 'frontmatter_label' });
-	}
-	for (const m of text.matchAll(EMAIL_RE)) {
-		raw.push({ category: 'email', role: null, value: m[0], source: 'regex_email' });
-	}
-	for (const m of text.matchAll(STUDENT_ID_RE)) {
-		// Capture group 1 = die eigentliche Nummer (ohne Label).
-		raw.push({ category: 'student_id', role: null, value: m[1], source: 'regex_student_id' });
-	}
+	// Post-Processing: spaCy fasst bei DOCX-konkatenierten Frontpages
+	// gelegentlich zwei aufeinanderfolgende Namen zu einem PER-Span
+	// zusammen, wenn dazwischen kein Trenner ausser Whitespace + Title
+	// steht ("Julia Franz Prof. Dr. Claudia Jahnel"). Wir splitten an
+	// inline-Title-Sequenzen nachträglich.
+	personEntities = splitConcatenatedPersons(personEntities, frontmatter);
 
 	const seeds: ReplacementSeed[] = [];
-	const seen = new Set<string>();
+	const seenKeys = new Set<string>();
 	const counters: Record<SeedCategory, number> = {
 		person_name: 0,
 		email: 0,
@@ -297,38 +334,114 @@ export function buildSeeds(text: string, opts: BuildSeedsOptions = {}): Replacem
 		student_id: 0,
 		institution: 0,
 		project: 0,
-		self_citation: 0
+		self_citation: 0,
+		phone: 0
 	};
 
-	for (const r of raw) {
-		const cleaned = cleanIdentifier(r.value, r.category);
-		if (!cleaned) continue;
-		const key = `${r.category}:${normalizeIdentifierKey(cleaned, r.category)}`;
-		if (seen.has(key)) continue;
-		seen.add(key);
-		counters[r.category]++;
-		const idx = String(counters[r.category]).padStart(3, '0');
+	function addSeed(seed: Omit<ReplacementSeed, 'replacement'>): void {
+		const key = `${seed.category}:${normalizeKey(seed.value, seed.category)}`;
+		if (seenKeys.has(key)) return;
+		seenKeys.add(key);
+		counters[seed.category]++;
+		const idx = String(counters[seed.category]).padStart(3, '0');
 		const replacement = ({
 			person_name: `[NAME_${idx}]`,
 			email: `[EMAIL_${idx}]`,
-			student_id: `[STUDENT_ID_${idx}]`,
 			matrikel: `[MATRIKEL_${idx}]`,
+			student_id: `[STUDENT_ID_${idx}]`,
 			institution: `[INSTITUTION_${idx}]`,
 			project: `[PROJECT_${idx}]`,
-			self_citation: `[CITATION_${idx}]`
-		} satisfies Record<SeedCategory, string>)[r.category];
+			self_citation: `[CITATION_${idx}]`,
+			phone: `[PHONE_${idx}]`
+		} satisfies Record<SeedCategory, string>)[seed.category];
+		seeds.push({ ...seed, replacement });
+	}
 
-		const variants = r.category === 'person_name' ? nameVariants(cleaned) : [cleaned];
+	// Erste Person ohne Label-Kontext bekommt 'author' implizit.
+	let firstPersonSeen = false;
+	for (const ent of personEntities) {
+		const value = ent.text.trim();
+		if (value.length < 3) continue;
+		// Tokens-Check: mindestens 2 Wörter (Vor- + Nachname) — sonst False-
+		// Positive auf einzelne Cap-Wörter, die spaCy hier und da wirft.
+		const tokens = value.match(NAME_TOKEN_RE) ?? [];
+		if (tokens.length < 2) continue;
+		let role = roleForPosition(ent.start, labelPositions);
+		if (role === null) {
+			role = firstPersonSeen ? 'other' : 'author';
+		}
+		firstPersonSeen = true;
+		addSeed({
+			category: 'person_name',
+			role,
+			value,
+			variants: nameVariants(value),
+			source: 'ner_spacy'
+		});
+	}
 
-		seeds.push({
-			category: r.category,
-			role: r.role,
-			value: cleaned,
-			variants,
-			replacement,
-			source: r.source
+	// 2. Emails (Volltext, nicht nur Frontmatter — Mailadressen können
+	//    auch im Anhang stehen, sind aber DSGVO-relevant überall)
+	for (const email of extractEmails(text)) {
+		addSeed({
+			category: 'email',
+			role: null,
+			value: email,
+			variants: [email],
+			source: 'regex_email'
+		});
+	}
+
+	// 3. Matrikel/Student-IDs (label-getriggert → Volltext OK)
+	for (const m of extractMatrikel(text)) {
+		addSeed({
+			category: 'matrikel',
+			role: null,
+			value: m,
+			variants: [m],
+			source: 'regex_matrikel'
+		});
+	}
+
+	// 4. Telefonnummern (nur Frontmatter — im Haupttext könnten Tel-Nummern
+	//    inhaltlich relevant sein und sollten nicht plattgemacht werden)
+	for (const phone of extractPhones(frontmatter)) {
+		addSeed({
+			category: 'phone',
+			role: null,
+			value: phone,
+			variants: [phone],
+			source: 'regex_phone'
 		});
 	}
 
 	return seeds;
+}
+
+/**
+ * Liefert den vermuteten Werktitel für die Filename-Generierung. Greift
+ * auf NER-MISC-Entities zurück (spaCy klassifiziert lange Werktitel im
+ * de_core_news_lg häufig als MISC) und auf "Titel:"-Label.
+ */
+export async function extractTitleHint(text: string): Promise<string | undefined> {
+	const frontmatter = extractFrontmatter(text);
+
+	// "Titel:"-Label hat die höchste Vertrauenswürdigkeit.
+	const titleLabelMatch = /\b(?:titel|title|titre|t[íi]tulo|titolo|onderwerp|otsikko|tittel|nadpis|başlık|название|θέμα|عنوان|主題|题目|제목)\s*[:.]?\s*/i.exec(frontmatter);
+	if (titleLabelMatch) {
+		const tail = frontmatter.slice(titleLabelMatch.index + titleLabelMatch[0].length);
+		// Bis zum ersten Satzende (`. ` mit folgender Cap) oder \n.
+		const m = tail.match(/^([^.\n]+(?:\.[^.\n]*)*?)(?:[.!?](?=\s+\p{Lu}|\s*$|\s*\n)|\n)/u);
+		const title = collapseSpaces((m ? m[1] : tail.slice(0, 200)).trim());
+		if (title.length >= 8) return title;
+	}
+
+	// Fallback: NER-MISC (oft Werktitel)
+	const ner = await runNer(frontmatter, 'auto');
+	const miscs = ner.entities.filter((e) => e.label === 'MISC');
+	for (const m of miscs) {
+		if (m.text.length >= 12 && m.text.length <= 200) return m.text.trim();
+	}
+
+	return undefined;
 }

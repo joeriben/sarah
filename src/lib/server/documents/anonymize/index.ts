@@ -23,11 +23,15 @@
 // bleibt nichts halb-anonymisiert.
 
 import type { PoolClient } from 'pg';
+import { readFile } from 'node:fs/promises';
 import { transaction, query } from '$lib/server/db/index.js';
-import { buildSeeds, type ReplacementSeed } from './seeds.js';
+import { buildSeeds, extractTitleHint, type ReplacementSeed } from './seeds.js';
 import { isAuthorAlreadyRedacted } from './already-redacted.js';
 import { findEdits, applyEdits, recomputeElementSlice, countByCategory, type Edit } from './apply.js';
 import { buildSyntheticFilename } from './filename.js';
+import { extractText } from '$lib/server/documents/index.js';
+import { reparseDocument } from '$lib/server/documents/parsers/index.js';
+import { resolveFilePath } from '$lib/server/files/index.js';
 
 export type AnonymizationStatus = 'applied' | 'skipped_already_redacted' | 'no_candidates' | 'failed';
 
@@ -83,8 +87,9 @@ export async function anonymizeDocumentDeterministic(documentId: string): Promis
 		// 2. Skip-Check.
 		const redactionCheck = isAuthorAlreadyRedacted(fullText);
 
-		// 3. Seeds bauen.
-		const seeds = buildSeeds(fullText);
+		// 3. Seeds bauen — Personen via spaCy NER (lokal), Email/Matrikel/
+		// Phone via Regex. Async wegen NER-Subprocess.
+		const seeds = await buildSeeds(fullText);
 
 		if (seeds.length === 0) {
 			// Keine Kandidaten — z.B. ein bereits anonymisiertes Dokument oder
@@ -136,8 +141,11 @@ export async function anonymizeDocumentDeterministic(documentId: string): Promis
 			[newFullText, documentId]
 		);
 
-		// 10. Filename neu generieren.
-		const titleHint = await pickTitleHint(client, documentId);
+		// 10. Filename neu generieren — Title-Hint via NER (MISC-Entity oder
+		// "Titel:"-Label) statt erstes Heading. Vermeidet, dass z.B.
+		// "Inhaltsverzeichnis" oder "Abkürzungsverzeichnis" als TitleWord
+		// gewählt wird.
+		const titleHint = await extractTitleHint(newFullText);
 		const ext = inferExt(inscription, row.mime_type);
 		const newInscription = buildSyntheticFilename({ title: titleHint, ext });
 		await client.query(
@@ -233,29 +241,6 @@ async function persistSeeds(
 	}
 }
 
-async function pickTitleHint(client: PoolClient, documentId: string): Promise<string | undefined> {
-	// Erstes heading-Element. element_type='heading' wurde im docx-academic-Parser
-	// gesetzt; properties.level == 1 (oder kleinster Level) bevorzugt.
-	const res = await client.query(
-		`SELECT char_start, char_end, properties
-		   FROM document_elements
-		  WHERE document_id = $1
-		    AND element_type = 'heading'
-		  ORDER BY (properties->>'level')::int NULLS LAST, char_start
-		  LIMIT 1`,
-		[documentId]
-	);
-	if (res.rows.length === 0) return undefined;
-
-	const ftRes = await client.query(
-		`SELECT full_text FROM document_content WHERE naming_id = $1`,
-		[documentId]
-	);
-	const fullText: string = ftRes.rows[0]?.full_text ?? '';
-	const { char_start, char_end } = res.rows[0];
-	return fullText.slice(char_start, char_end);
-}
-
 function inferExt(inscription: string, mimeType: string | null): string {
 	const m = inscription.match(/\.([a-z0-9]{1,5})$/i);
 	if (m) return m[1].toLowerCase();
@@ -264,6 +249,67 @@ function inferExt(inscription: string, mimeType: string | null): string {
 	if (mimeType === 'text/plain') return 'txt';
 	if (mimeType === 'text/markdown') return 'md';
 	return 'docx';
+}
+
+/**
+ * Reset + Re-Anonymize: liest das ORIGINAL-DOCX aus dem File-Storage,
+ * re-extrahiert Volltext, re-parsed in Elements, löscht alte Seeds,
+ * setzt Anonymisierungs-Status zurück, und führt dann
+ * `anonymizeDocumentDeterministic` neu aus.
+ *
+ * Use Cases:
+ *   – Algorithmus-Bugs aus früheren Läufen rückgängig machen (z.B. die
+ *     pre-NER Regex-Variante hatte korrupte Seeds wie "J örissen Datum
+ *     Einreichung" produziert; Re-Anonymisierung auf der bereits
+ *     überschriebenen full_text fängt diese Reste nicht mehr ein).
+ *   – Heuristik-Update gegen alle bestehenden Docs durchziehen.
+ *
+ * Voraussetzung: file_path muss noch auf eine lesbare Original-Datei
+ * im Storage zeigen.
+ */
+export async function reAnonymizeFromOriginal(documentId: string): Promise<AnonymizationResult> {
+	// Phase 1: Datei lesen + Volltext extrahieren (außerhalb der Transaktion,
+	// weil readFile() langsam sein kann und wir die Transaktion knapp halten
+	// wollen).
+	const meta = await query<{
+		project_id: string;
+		file_path: string | null;
+		mime_type: string;
+	}>(
+		`SELECT n.project_id, dc.file_path, dc.mime_type
+		   FROM document_content dc
+		   JOIN namings n ON n.id = dc.naming_id
+		  WHERE dc.naming_id = $1`,
+		[documentId]
+	);
+	if (meta.rows.length === 0) throw new Error(`Document ${documentId} not found`);
+	const { project_id: projectId, file_path: filePath, mime_type: mimeType } = meta.rows[0];
+	if (!filePath) throw new Error(`Document ${documentId} has no file_path — cannot re-import`);
+
+	const absPath = await resolveFilePath(projectId, filePath);
+	if (!absPath) throw new Error(`Original file not accessible at ${filePath}`);
+	const buffer = await readFile(absPath);
+	const freshText = await extractText(buffer, mimeType);
+
+	// Phase 2: in einer Transaktion: alten Stand aufräumen, Volltext +
+	// Elements neu setzen, Seed-Tabelle leeren, Status auf NULL.
+	await transaction(async (client) => {
+		await client.query(`DELETE FROM document_pii_seeds WHERE document_id = $1`, [documentId]);
+		// Schreib einen sauberen Volltext zurück (mammoth-Output).
+		await client.query(
+			`UPDATE document_content
+			    SET full_text = $1,
+			        anonymization_status = NULL,
+			        anonymized_at = NULL
+			  WHERE naming_id = $2`,
+			[freshText, documentId]
+		);
+		// Re-parse rebuilds document_elements + canonical full_text.
+		await reparseDocument(client, documentId, freshText, mimeType);
+	});
+
+	// Phase 3: jetzt ganz normal anonymisieren — eigene Transaktion.
+	return anonymizeDocumentDeterministic(documentId);
 }
 
 // ── Public utility for the failsafe layer ────────────────────────────

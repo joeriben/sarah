@@ -10,20 +10,22 @@ Phase B ist der **zweite** Anonymisierungs-Pfad, separat von Phase A. Beide lebe
 |---|---|---|
 | Trigger | Qualifikationsarbeiten — DSGVO-Vorbereitung | Peer-Review-Artikel — Blind-Review |
 | Threat-Modell | Legal: PII darf System nicht verlassen | Wissenschaftlich: inferentielle Anonymität |
-| Strategie | Deterministisch (Frontmatter-Label-Scan + Regex) | LLM-assistiert (semantisches Verständnis) |
-| Umfang | Nur explizite Identifier (Autor, Mailadresse, Matrikel) | Auch **Kontextketten**: Selbstzitate, eigene Forschungsprojekte, methodische/regionale/institutionelle Marker |
-| Run-Pfad | DSGVO-konform per Konstruktion (kein LLM-Call) | Läuft über DSGVO-Provider (Mammouth/Sonnet — Volltext-Input ist klartext) |
+| Strategie | **spaCy-NER (lokal) + Regex** für Email/Matrikel/Phone | LLM-assistiert (semantisches Verständnis) |
+| Umfang | Personen + explizite Identifier (Mailadresse, Matrikel, Phone) | Zusätzlich **Kontextketten**: Selbstzitate, eigene Forschungsprojekte, methodische/regionale/institutionelle Marker |
+| Run-Pfad | **Vollständig lokal (spaCy de_core_news_lg ~545 MB)** — kein LLM-Call, kein API-Call | Läuft über DSGVO-Provider (Mammouth/Sonnet — Volltext-Input ist klartext) |
+
+**Architektur-Pivot 2026-05-02**: Phase A nutzt jetzt spaCy-NER statt der ursprünglichen Regex-Frontmatter-Heuristik. Begründung: Regex war zu fragil bei DOCX-Layout-Variationen (Single-Paragraph-Frontpages, Umlaut-Splitting an Run-Boundaries, fehlende "Vorgelegt-von"-Labels). spaCy fängt PER-Entitäten zuverlässig auch in unstrukturiertem Text. Bleibt 100 % DSGVO-konform — kein Netzwerk-Call.
 
 **User-Setzung 2026-05-02**: Budget-Track (Mistral) ist für Phase B nicht ausreichend (Kontextketten-Erkennung braucht Sonnet-Niveau). Premium-Track only.
 
 ## Phase A — was schon steht (Phase B baut darauf auf)
 
-### Datenbank (Migration 041)
+### Datenbank (Migration 041 + 042)
 - `document_content.anonymization_status` ∈ `{applied, skipped_already_redacted, no_candidates, failed, NULL}`
 - `document_content.anonymized_at`, `original_filename`
 - `document_pii_seeds` Tabelle — Pro Doc N Einträge mit `category`, `role`, `value`, `variants`, `replacement`, `source`. UNIQUE auf `(document_id, category, value)`.
-- Kategorien aktuell: `person_name`, `email`, `matrikel`, `student_id`, `institution`, `project`, `self_citation`. Die letzten drei sind für Phase B reserviert (in Phase A nicht produziert).
-- Sources aktuell: `frontmatter_label`, `regex_email`, `regex_matrikel`, `regex_student_id`, **`llm_assisted`** ← für Phase B vorgesehen.
+- Kategorien: `person_name`, `email`, `matrikel`, `student_id`, `phone`, `institution`, `project`, `self_citation`. Die letzten drei sind für Phase B reserviert (in Phase A nicht produziert).
+- Sources: `ner_spacy` (Phase-A-Hauptpfad), `regex_email`, `regex_matrikel`, `regex_student_id`, `regex_phone`, `frontmatter_label`, **`llm_assisted`** ← für Phase B vorgesehen.
 
 ### Failsafe-Tripwire (gemeinsam genutzt)
 - [src/lib/server/ai/failsafe.ts](../src/lib/server/ai/failsafe.ts): `assertSafeForExternal(payload, documentIds, provider)`. Lädt aktive Seeds, scannt Payload, wirft `AnonymizationFailsafeError`.
@@ -34,13 +36,24 @@ Phase B ist der **zweite** Anonymisierungs-Pfad, separat von Phase A. Beide lebe
 - [src/lib/server/documents/anonymize/index.ts](../src/lib/server/documents/anonymize/index.ts): `anonymizeDocumentDeterministic(documentId)` läuft in **einer Transaktion**:
   1. Volltext + Inscription per `FOR UPDATE` lesen.
   2. Skip-Check (`already-redacted.ts`).
-  3. Seeds bauen (`seeds.ts`).
+  3. Seeds bauen (`seeds.ts`) — **spaCy-NER für Personen + Regex für Email/Matrikel/Phone**. NER-Subprocess wird via [`ner.ts`](../src/lib/server/documents/anonymize/ner.ts) gespawnt, ruft [`scripts/ner_titlepage.py`](../scripts/ner_titlepage.py) auf.
   4. Verifikations-Pass: `findEdits()` → wenn Skip-Pfad UND keine Treffer → wirklich skippen.
   5. Sonst: `applyEdits()` auf full_text, `recomputeElementSlice()` auf jedes `document_elements`-Offset.
-  6. Filename rewrite via `buildSyntheticFilename()`.
+  6. Filename rewrite via `buildSyntheticFilename()` mit Title-Hint aus NER-MISC-Entity oder "Titel:"-Label.
   7. Seeds mit `ON CONFLICT … DO UPDATE` persistieren (idempotent).
   8. `anonymization_status = 'applied'`, `anonymized_at = now()`, `original_filename` einmalig setzen.
+
+- **Reset/Re-Anonymize**: `reAnonymizeFromOriginal(documentId)` lädt das Original-DOCX aus dem File-Storage neu, re-extrahiert Volltext, re-parsed in Elements, löscht alte Seeds und ruft `anonymizeDocumentDeterministic` neu auf. Wichtig nach Heuristik-Updates. Endpoint: `POST /api/projects/[id]/documents/[id]/anonymize?mode=reset`.
+
 - Phase B muss das **gleiche Schema** befüllen — gleiche Spalten, gleiches Seed-Schema. Caller-Code (Failsafe, UI-Tag, Pipeline-Gate) bleibt unverändert.
+
+### Setup für Phase A (spaCy)
+```bash
+pip3 install spacy
+python3 -m spacy download de_core_news_lg
+python3 -m spacy download en_core_web_sm
+```
+Modell-Load ~3 s pro NER-Aufruf. Pro Dokument-Anonymisierung 1× plus 1× im `extractTitleHint` (also 2 spawns). Daemon-Modus wäre optimierbar, ist aktuell aber überflüssig.
 
 ### Endpoint-Stub
 - `POST /api/projects/[projectId]/documents/[docId]/anonymize?mode=peer-review` antwortet aktuell mit `501 Not Implemented`.
@@ -67,24 +80,30 @@ Default-Provider: `mammouth` (DSGVO + Sonnet). Override für Tests.
 ```
 ROLLE: Anonymisierungs-Assistent für Blind-Peer-Review.
 
-Du bekommst einen wissenschaftlichen Artikel-Volltext. Identifiziere ALLE
-Stellen, die einen Reviewer den Autor identifizieren lassen würden:
+Du bekommst einen wissenschaftlichen Artikel-Volltext. PERSONENNAMEN
+und MAILADRESSEN sind bereits durch [NAME_xxx]/[EMAIL_xxx]-Token ersetzt
+(spaCy-NER hat das in Phase A erledigt). DEINE Aufgabe ist die SEMANTISCHE
+Schicht — Stellen, die einem Reviewer den Autor verraten würden, ohne
+selbst ein direkter Identifier zu sein:
 
-1. Direkte Identifier: Namen, E-Mails, Affiliations.
-2. Selbstzitate: "wie ich in [Author 2023] gezeigt habe", "in our previous
-   work …", aber auch indirekt über typische Zitierketten.
-3. Eigene Forschungsprojekte: Projekt-Namen, Förderkennzeichen, eigene
+1. Selbstzitate: "wie ich in [Author 2023] gezeigt habe", "in our previous
+   work …", indirekt über Zitierketten.
+2. Eigene Forschungsprojekte: Projekt-Namen, Förderkennzeichen, eigene
    methodische Apparate, eigene Datasets.
-4. Institutionelle Marker: "an unserer Hochschule X", "im Institut Y",
+3. Institutionelle Marker: "an unserer Hochschule X", "im Institut Y",
    "Förderung durch Z".
-5. Methodische Signaturen, die einen kleinen Kreis identifizieren würden
+4. Methodische Signaturen, die einen kleinen Kreis identifizieren würden
    (sehr spezielle Methoden-Tools, regionale Datenerhebungen).
+
+DIREKTE Identifier (Personennamen, Mailadressen) sind aus Phase A schon
+weg — falls du eine übersehen hast, melde sie als category='person_name'
+zurück (Phase-B-Lauf ergänzt dann den Phase-A-Output).
 
 OUTPUT-FORMAT: Ausschließlich JSON. Schema:
 {
   "findings": [
     {
-      "category": "person_name" | "email" | "institution" | "project" | "self_citation" | "other",
+      "category": "person_name" | "institution" | "project" | "self_citation" | "other",
       "value": "Originalstring im Text",
       "rationale": "kurze Begründung",
       "confidence": "high" | "medium" | "low"
