@@ -240,8 +240,25 @@
 				signal: ac.signal,
 			});
 			if (!r.ok || !r.body) {
+				// Server liefert für strukturierte Fehler JSON {code, message},
+				// für SvelteKit-Default-Errors HTML — beide Fälle abfangen.
 				const txt = await r.text().catch(() => '');
-				throw new Error(`HTTP ${r.status}${txt ? ': ' + txt.slice(0, 200) : ''}`);
+				let nice: string | null = null;
+				try {
+					const obj = JSON.parse(txt);
+					if (obj?.code === 'OUTLINE_NOT_CONFIRMED') {
+						nice = 'Outline noch nicht bestätigt — bitte zuerst im Outline-Tab die Kapitel-Struktur prüfen und bestätigen.';
+					} else if (obj?.message) {
+						nice = obj.message;
+					} else if (obj?.error) {
+						nice = String(obj.error);
+					}
+				} catch {
+					// HTML-Body — versuche <title> zu greifen
+					const m = txt.match(/<title>([^<]*)<\/title>/i);
+					if (m) nice = m[1].trim();
+				}
+				throw new Error(nice ?? `HTTP ${r.status}${txt ? ': ' + txt.slice(0, 80) : ''}`);
 			}
 			const reader = r.body.getReader();
 			const decoder = new TextDecoder();

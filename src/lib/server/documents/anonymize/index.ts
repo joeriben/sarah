@@ -293,9 +293,27 @@ export async function reAnonymizeFromOriginal(documentId: string): Promise<Anony
 
 	// Phase 2: in einer Transaktion: alten Stand aufräumen, Volltext +
 	// Elements neu setzen, Seed-Tabelle leeren, Status auf NULL.
+	//
+	// Wichtig: reparseDocument setzt outline_status auf 'pending' zurück
+	// (per Design — Re-Import soll User zwingen, neue Outline zu prüfen).
+	// Bei einer Anonymisierungs-Re-Run ist das aber unerwünscht: der
+	// Volltext nach Re-Extraktion ist IDENTISCH zum vorherigen Original-
+	// Stand (wir laden ja dieselbe Datei), und heading_classifications
+	// haben soft-anchors. Deshalb sichern wir die outline-Confirmation
+	// vorher und stellen sie nach dem Re-Parse wieder her.
 	await transaction(async (client) => {
+		const prev = await client.query<{
+			outline_status: string;
+			outline_confirmed_at: Date | null;
+			outline_confirmed_by: string | null;
+		}>(
+			`SELECT outline_status, outline_confirmed_at, outline_confirmed_by
+			   FROM document_content WHERE naming_id = $1`,
+			[documentId]
+		);
+		const prevConfirmed = prev.rows[0]?.outline_status === 'confirmed';
+
 		await client.query(`DELETE FROM document_pii_seeds WHERE document_id = $1`, [documentId]);
-		// Schreib einen sauberen Volltext zurück (mammoth-Output).
 		await client.query(
 			`UPDATE document_content
 			    SET full_text = $1,
@@ -304,8 +322,18 @@ export async function reAnonymizeFromOriginal(documentId: string): Promise<Anony
 			  WHERE naming_id = $2`,
 			[freshText, documentId]
 		);
-		// Re-parse rebuilds document_elements + canonical full_text.
 		await reparseDocument(client, documentId, freshText, mimeType);
+
+		if (prevConfirmed) {
+			await client.query(
+				`UPDATE document_content
+				    SET outline_status = 'confirmed',
+				        outline_confirmed_at = $1,
+				        outline_confirmed_by = $2
+				  WHERE naming_id = $3`,
+				[prev.rows[0].outline_confirmed_at, prev.rows[0].outline_confirmed_by, documentId]
+			);
+		}
 	});
 
 	// Phase 3: jetzt ganz normal anonymisieren — eigene Transaktion.

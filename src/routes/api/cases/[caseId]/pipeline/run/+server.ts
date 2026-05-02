@@ -79,7 +79,15 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		[access.central_document_id]
 	);
 	if (outlineCheck && outlineCheck.outline_status !== 'confirmed') {
-		error(409, 'OUTLINE_NOT_CONFIRMED');
+		// JSON-Antwort statt SvelteKit-`error()`-HTML-Page — der Caller
+		// fragt mit `Accept: text/event-stream`, dort liefert SvelteKit
+		// die HTML-Error-Page. Wir geben deshalb explizit JSON zurück,
+		// damit der Client die Code-Konstante (OUTLINE_NOT_CONFIRMED)
+		// auswerten und eine sinnvolle Meldung zeigen kann.
+		return json(
+			{ code: 'OUTLINE_NOT_CONFIRMED', message: 'Die Outline des Dokuments muss vor dem Pipeline-Lauf bestätigt werden. Wechsle in den Outline-Tab und prüfe die Kapitel-Struktur.' },
+			{ status: 409 }
+		);
 	}
 
 	const body = (await request.json().catch(() => ({}))) as {
