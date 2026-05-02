@@ -14,6 +14,7 @@
 	import { page } from '$app/stores';
 	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, WorkSynthesis, ChapterFlow, CaseInfo, OutlineEntry, BriefOption, ParagraphAnalysis } from './+page.server.js';
 	import ReaderModal from './ReaderModal.svelte';
+	import HermeneuticReader from './HermeneuticReader.svelte';
 	import ArgumentPopover from './ArgumentPopover.svelte';
 
 	let { data } = $props();
@@ -31,10 +32,11 @@
 	const chapterFlow = $derived(data.chapterFlow as ChapterFlow | null);
 	const analysisByElement = $derived(data.analysisByElement as Record<string, ParagraphAnalysis>);
 
-	type View = 'pipeline' | 'outline' | 'companions';
-	const VIEWS: View[] = ['pipeline', 'outline', 'companions'];
+	type View = 'pipeline' | 'dokument' | 'outline' | 'companions';
+	const VIEWS: View[] = ['pipeline', 'dokument', 'outline', 'companions'];
 	const VIEW_LABEL: Record<View, string> = {
 		pipeline: 'Pipeline',
+		dokument: 'Dokument',
 		outline: 'Outline',
 		companions: 'Begleitdocs',
 	};
@@ -1200,6 +1202,48 @@
 					{/if}
 				{/if}
 			</section>
+		{:else if view === 'dokument'}
+			<section class="tab-content dokument-tab">
+				{#if !caseInfo}
+					<div class="placeholder">
+						<h2>Dokument-Ansicht</h2>
+						<p>
+							Dokumentenzentrierte Volltext-Ansicht mit Argumenten, Beziehungen,
+							Stützstrukturen und Codes pro Absatz. Voraussetzung: ein Case mit
+							ausgeführter Argumentations-Graph-Pipeline.
+						</p>
+					</div>
+				{:else if totalProcessed.withMemo === 0}
+					<div class="placeholder">
+						<h2>Noch keine Argumente extrahiert</h2>
+						<p>
+							Die dokumentenzentrierte Ansicht zeigt Argumente am Volltext,
+							sobald die analytische Pipeline (Argumentations-Graph) gelaufen
+							ist. Wechsle zum <button class="link-btn" onclick={() => selectView('pipeline')}>Pipeline-Tab</button>,
+							um den Run zu starten.
+						</p>
+					</div>
+				{:else}
+					<div class="dokument-intro">
+						<p>
+							Volltext mit Argumenten (und ggf. Codes/Beziehungen/Stützstrukturen)
+							am jeweiligen Absatz. Umkehrung der Outline-Sicht: Statt von der
+							Synthese zu den Argumenten geht der Blick hier vom Dokument
+							ausgehend.
+						</p>
+						<span class="coverage-tag" class:done={totalProcessed.withMemo === totalProcessed.total}>
+							{totalProcessed.withMemo}/{totalProcessed.total} ¶ analytisch erfasst
+						</span>
+					</div>
+					<HermeneuticReader
+						{elements}
+						{memosByElement}
+						{codesByElement}
+						{synthesesByHeading}
+						{analysisByElement}
+					/>
+				{/if}
+			</section>
 		{:else if view === 'outline'}
 			<section class="tab-content outline-tab">
 				{#if visibleOutline.length === 0}
@@ -1571,6 +1615,22 @@
 		font-size: 0.82rem; color: #8b8fa3;
 		margin: 0 0 1rem; max-width: 70ch; line-height: 1.5;
 	}
+	.dokument-intro {
+		display: flex; align-items: baseline; gap: 1rem;
+		flex-wrap: wrap;
+		margin: 0 0 1.4rem;
+	}
+	.dokument-intro p {
+		flex: 1; min-width: 0;
+		font-size: 0.82rem; color: #8b8fa3;
+		margin: 0; max-width: 70ch; line-height: 1.5;
+	}
+	.link-btn {
+		background: none; border: none; padding: 0;
+		color: #a5b4fc; text-decoration: underline;
+		font: inherit; cursor: pointer;
+	}
+	.link-btn:hover { color: #c7d2fe; }
 	.work-verdict {
 		padding: 1.1rem 1.3rem 1.2rem;
 		background: rgba(134, 239, 172, 0.06);
