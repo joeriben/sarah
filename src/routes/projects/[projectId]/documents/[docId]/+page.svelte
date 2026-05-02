@@ -49,10 +49,11 @@
 	// Reihenfolge der ANALYTISCHEN Hauptlinie:
 	//   argumentation_graph → subchapter → chapter → work
 	// Synthetisch-hermeneutischer Per-¶-Pass ist ADDENDUM (separat dargestellt).
-	type AnalyticalPassKey = 'argumentation_graph' | 'subchapter' | 'chapter' | 'work';
+	type AnalyticalPassKey = 'argumentation_graph' | 'argument_validity' | 'subchapter' | 'chapter' | 'work';
 	type PassStatus = { completed: number; total: number | null; last_run: string | null; enabled?: boolean };
 	type RunPhase =
 		| 'argumentation_graph'
+		| 'argument_validity'
 		| 'section_collapse'
 		| 'chapter_collapse'
 		| 'document_collapse'
@@ -77,7 +78,7 @@
 	type PipelineStatus = {
 		case_id: string;
 		document_id: string | null;
-		brief: { id: string; name: string; argumentation_graph: boolean } | null;
+		brief: { id: string; name: string; argumentation_graph: boolean; validity_check: boolean } | null;
 		total_paragraphs: number;
 		passes: Record<AnalyticalPassKey, PassStatus> & {
 			kapitelverlauf: PassStatus;
@@ -88,12 +89,14 @@
 
 	const ANALYTICAL_ORDER: AnalyticalPassKey[] = [
 		'argumentation_graph',
+		'argument_validity',
 		'subchapter',
 		'chapter',
 		'work',
 	];
 	const PASS_LABEL: Record<AnalyticalPassKey | 'paragraph_synthetic', string> = {
 		argumentation_graph: 'Argumentation pro Absatz',
+		argument_validity: 'Argument-Validität (Charity-Pass, opt-in)',
 		subchapter: 'Subkapitel-Synthesen',
 		chapter: 'Hauptkapitel-Synthesen',
 		work: 'Werk-Synthese',
@@ -102,6 +105,8 @@
 	const PASS_DESC: Record<AnalyticalPassKey | 'paragraph_synthetic', string> = {
 		argumentation_graph:
 			'Argumente, Edges und Scaffolding pro Absatz — Grundlage der Aggregation.',
+		argument_validity:
+			'Charity-First-Prüfung pro Argument: zuerst positiver Tragfähigkeitsnachweis (deduktiv/induktiv/abduktiv); nur wenn der nicht erbracht werden kann, Auswahl aus enger Fallacy-Whitelist. Eigener Pass nach AG, vor Synthesen — addiert ~1 LLM-Call pro Absatz mit Argumenten.',
 		subchapter:
 			'Kontextualisierende Synthese pro Subkapitel (L2/L3 adaptiv) aus dem Argumentations-Graph.',
 		chapter:
@@ -115,6 +120,7 @@
 	// Run-Phase-Bezeichner aus dem Orchestrator.
 	const PHASE_TO_PASS: Record<RunPhase, AnalyticalPassKey | 'paragraph_synthetic'> = {
 		argumentation_graph: 'argumentation_graph',
+		argument_validity: 'argument_validity',
 		section_collapse: 'subchapter',
 		chapter_collapse: 'chapter',
 		document_collapse: 'work',
@@ -984,6 +990,12 @@
 											{cancellingRun ? 'Pausiere…' : '⏸ Pausieren'}
 										</button>
 									{:else}
+										{#if pipelineStatus.brief?.validity_check}
+											<p class="run-validity-note">
+												Brief-Flag <code>validity_check</code> aktiv → der Lauf umfasst zusätzlich
+												die Charity-Pass-Phase (Argument-Validität) zwischen AG und Synthesen.
+											</p>
+										{/if}
 										<label class="opt-toggle">
 											<input
 												type="checkbox"
@@ -1053,32 +1065,51 @@
 								<h3>Analytische Hauptlinie</h3>
 								<p>
 									Sequenzielle Pässe in der Reihenfolge, in der sie aufeinander aufbauen:
-									Argumentations-Graph pro Absatz · Subkapitel-Synthesen · Hauptkapitel-Synthesen
-									· Werk-Synthese.
+									Argumentations-Graph pro Absatz · {pipelineStatus.brief?.validity_check ? 'Argument-Validität (Charity-Pass) · ' : ''}Subkapitel-Synthesen · Hauptkapitel-Synthesen · Werk-Synthese.
+									{#if !pipelineStatus.brief?.validity_check}
+										<span class="hint-inline">Argument-Validität ist im Brief deaktiviert — siehe Karte 2.</span>
+									{/if}
 								</p>
 							</header>
 							<div class="pass-grid">
 								{#each ANALYTICAL_ORDER as key, i (key)}
 									{@const p = pipelineStatus.passes[key]}
 									{@const isAgPass = key === 'argumentation_graph'}
-									{@const enabled = !isAgPass || p.enabled !== false}
+									{@const isValidityPass = key === 'argument_validity'}
+									{@const enabled = isValidityPass
+										? p.enabled === true
+										: (!isAgPass || p.enabled !== false)}
 									{@const state = passState(p)}
 									{@const phaseLabel = run?.current_phase && PHASE_TO_PASS[run.current_phase] === key}
 									<article
 										class="pass-card pass-{state}"
 										class:disabled={!enabled}
 										class:current={runIsLive && phaseLabel}
+										class:opt-in={isValidityPass}
 									>
 										<header class="pass-head">
 											<span class="pass-num">{i + 1}</span>
 											<h4>{PASS_LABEL[key]}</h4>
 											<span class="pass-state-tag tag-{state}">
-												{state === 'done' ? 'Abgeschlossen' : state === 'partial' ? 'Teilweise' : 'Offen'}
+												{#if isValidityPass && !enabled}
+													Inaktiv
+												{:else}
+													{state === 'done' ? 'Abgeschlossen' : state === 'partial' ? 'Teilweise' : 'Offen'}
+												{/if}
 											</span>
 										</header>
 										<p class="pass-desc">{PASS_DESC[key]}</p>
 										{#if !enabled}
-											<p class="pass-note">Im Brief deaktiviert (argumentation_graph=false).</p>
+											{#if isValidityPass}
+												<p class="pass-note">
+													Im Brief deaktiviert (validity_check=false). Aktivieren in der
+													<a href="/settings?tab=briefs">Brief-Library</a> → läuft beim
+													nächsten Run als zusätzliche Phase nach AG, vor Synthesen
+													(≈ +1 LLM-Call pro Absatz mit Argumenten).
+												</p>
+											{:else}
+												<p class="pass-note">Im Brief deaktiviert (argumentation_graph=false).</p>
+											{/if}
 										{:else}
 											<div class="pass-progress">
 												<div class="bar"><div class="bar-fill" style:width="{passPercent(p)}%"></div></div>
@@ -1811,6 +1842,18 @@
 	.pass-card.pass-done { border-color: rgba(110, 231, 183, 0.3); }
 	.pass-card.pass-partial { border-color: rgba(251, 191, 36, 0.3); }
 	.pass-card.disabled { opacity: 0.55; }
+	.pass-card.opt-in {
+		border-style: dashed;
+		background: rgba(165, 180, 252, 0.025);
+	}
+	.pass-card.opt-in.disabled { opacity: 0.7; }
+	.hint-inline {
+		display: inline-block;
+		margin-left: 0.4rem;
+		font-size: 0.78rem;
+		color: #8b8fa3;
+		font-style: italic;
+	}
 
 	.pass-head {
 		display: flex; align-items: baseline; gap: 0.6rem;
@@ -1946,6 +1989,25 @@
 	}
 	.opt-toggle input { cursor: pointer; }
 	.opt-toggle input:disabled { cursor: not-allowed; }
+	.run-validity-note {
+		flex-basis: 100%;
+		margin: 0 0 0.4rem;
+		padding: 0.45rem 0.7rem;
+		background: rgba(165, 180, 252, 0.06);
+		border-left: 2px solid rgba(165, 180, 252, 0.5);
+		border-radius: 0 4px 4px 0;
+		font-size: 0.78rem;
+		color: #c9cdd5;
+		line-height: 1.4;
+	}
+	.run-validity-note code {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.74rem;
+		color: #c7d2fe;
+		background: rgba(165, 180, 252, 0.1);
+		padding: 1px 4px;
+		border-radius: 3px;
+	}
 	.run-btn {
 		padding: 0.5rem 1.1rem;
 		font-size: 0.85rem;
