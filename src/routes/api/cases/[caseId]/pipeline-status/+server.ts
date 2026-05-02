@@ -29,6 +29,7 @@ interface PipelineStatus {
 		subchapter: PassStatus;
 		chapter: PassStatus;
 		work: PassStatus;
+		kapitelverlauf: PassStatus;
 		paragraph_synthetic: PassStatus;
 	};
 	run: {
@@ -112,6 +113,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 				subchapter: empty,
 				chapter: empty,
 				work: empty,
+				kapitelverlauf: empty,
 				paragraph_synthetic: empty,
 			},
 			run: runDto,
@@ -176,6 +178,9 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	const workPass = find('work', 'kontextualisierend');
 	workPass.total = 1;
 
+	const kapitelverlaufPass = find('work', 'kapitelverlauf');
+	kapitelverlaufPass.total = 1;
+
 	let agPass: PassStatus = { completed: 0, total: totalParagraphs, last_run: null };
 	if (useAg) {
 		// "Done" für AG-Pass: arg_nodes ODER scaffolding_elements (kongruent
@@ -221,6 +226,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			subchapter: subchapterPass,
 			chapter: chapterPass,
 			work: workPass,
+			kapitelverlauf: kapitelverlaufPass,
 			paragraph_synthetic: synthPass,
 		},
 		run: runDto,

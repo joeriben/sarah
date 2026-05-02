@@ -31,6 +31,7 @@ import { z } from 'zod';
 import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
 import { chat } from '../client.js';
+import { loadResolvedOutline } from './heading-hierarchy.js';
 
 // ── Output schema ─────────────────────────────────────────────────
 
@@ -142,14 +143,22 @@ async function loadCollapseContext(
 		throw new Error(`Heading ${subchapterHeadingId} is in section_kind=${heading.section_kind}, not 'main'`);
 	}
 
-	const nextHeading = await queryOne<{ char_start: number }>(
-		`SELECT char_start FROM document_elements
-		 WHERE document_id = $1 AND element_type = 'heading' AND section_kind = 'main'
-		   AND char_start > $2
-		 ORDER BY char_start ASC LIMIT 1`,
-		[caseRow.central_document_id, heading.char_start]
+	// Subchapter-Ende: nächstes Heading auf SAME-OR-HIGHER level, nicht beliebiges
+	// nächstes Heading. Sonst schneidet eine L2-Synthese, die unmittelbar von einer
+	// L3 gefolgt wird (z.B. 2.1 → 2.1.1), bei der L3-Position ab und findet 0
+	// Paragraphen — obwohl alle Absätze unter 2.1.1, 2.1.2 etc. zu 2.1 gehören.
+	// Kongruent zu paragraphCountForUnit in heading-hierarchy.ts:179-192.
+	const outline = await loadResolvedOutline(caseRow.central_document_id);
+	const headingResolved = outline.find((h) => h.headingId === subchapterHeadingId);
+	if (!headingResolved) {
+		throw new Error(
+			`Heading ${subchapterHeadingId} not found in resolved outline (outline must be confirmed and heading not excluded)`
+		);
+	}
+	const nextSiblingOrHigher = outline.find(
+		(h) => h.charStart > headingResolved.charStart && h.level <= headingResolved.level
 	);
-	const subchapterEnd = nextHeading?.char_start ?? docRow.full_text.length;
+	const subchapterEnd = nextSiblingOrHigher?.charStart ?? docRow.full_text.length;
 
 	const subPars = (
 		await query<{ id: string; char_start: number; char_end: number }>(

@@ -12,8 +12,9 @@
 	import { browser } from '$app/environment';
 	import { replaceState, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
-	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, WorkSynthesis, CaseInfo, OutlineEntry, BriefOption } from './+page.server.js';
+	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, WorkSynthesis, ChapterFlow, CaseInfo, OutlineEntry, BriefOption, ParagraphAnalysis } from './+page.server.js';
 	import ReaderModal from './ReaderModal.svelte';
+	import ArgumentPopover from './ArgumentPopover.svelte';
 
 	let { data } = $props();
 	const doc = $derived(data.document);
@@ -27,6 +28,8 @@
 	const paragraphHasAg = $derived(data.paragraphHasAg as Record<string, boolean>);
 	const aggregationLevelByL1 = $derived(data.aggregationLevelByL1 as Record<string, 1 | 2 | 3>);
 	const workSynthesis = $derived(data.workSynthesis as WorkSynthesis | null);
+	const chapterFlow = $derived(data.chapterFlow as ChapterFlow | null);
+	const analysisByElement = $derived(data.analysisByElement as Record<string, ParagraphAnalysis>);
 
 	type View = 'pipeline' | 'outline' | 'companions';
 	const VIEWS: View[] = ['pipeline', 'outline', 'companions'];
@@ -74,7 +77,10 @@
 		document_id: string | null;
 		brief: { id: string; name: string; argumentation_graph: boolean } | null;
 		total_paragraphs: number;
-		passes: Record<AnalyticalPassKey, PassStatus> & { paragraph_synthetic: PassStatus };
+		passes: Record<AnalyticalPassKey, PassStatus> & {
+			kapitelverlauf: PassStatus;
+			paragraph_synthetic: PassStatus;
+		};
 		run: RunStatusDto | null;
 	};
 
@@ -290,6 +296,33 @@
 		}
 	}
 
+	// Kapitelverlauf-Pass: einmalig nach abgeschlossener analytischer Hauptlinie
+	// triggerbar. Synchroner POST (~10–30s). force=true beim Re-Generieren.
+	let flowGenerating = $state(false);
+	let flowError = $state<string | null>(null);
+	async function generateChapterFlow(force: boolean) {
+		if (!caseInfo || flowGenerating) return;
+		flowGenerating = true;
+		flowError = null;
+		try {
+			const r = await fetch(`/api/cases/${caseInfo.id}/chapter-flow-summary`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ force }),
+			});
+			if (!r.ok) {
+				const txt = await r.text().catch(() => '');
+				throw new Error(`HTTP ${r.status}${txt ? ': ' + txt.slice(0, 300) : ''}`);
+			}
+			await loadPipelineStatus();
+			await invalidateAll();
+		} catch (e) {
+			flowError = (e as Error).message;
+		} finally {
+			flowGenerating = false;
+		}
+	}
+
 	onMount(() => {
 		if (!browser) return;
 		const params = new URLSearchParams(window.location.search);
@@ -385,44 +418,311 @@
 	// Effective outline (mit Level/Numbering aus loadEffectiveOutline) + Heading-Element-Lookup.
 	const visibleOutline = $derived(outlineEntries.filter((e) => !e.excluded));
 
-	// Resolver §X (im Kontext eines Headings) → paragraph_element_id.
-	// §X bezeichnet den X-ten paragraph zwischen diesem heading und dem nächsten heading.
-	const paragraphsByHeading = $derived.by(() => {
-		const map = new Map<string, string[]>();
-		let currentHeadingId: string | null = null;
-		for (const e of mainElements) {
-			if (e.element_type === 'heading') {
-				currentHeadingId = e.id;
-				if (!map.has(currentHeadingId)) map.set(currentHeadingId, []);
-			} else if (e.element_type === 'paragraph' && currentHeadingId) {
-				map.get(currentHeadingId)!.push(e.id);
+	// Sanity-Heuristik: Heading-Texte > 200 Zeichen sind quasi immer parser-
+	// fehlklassifizierte Sätze (Autor:in hat einen Absatz mit Heading-Style versehen).
+	// Wenn sie nicht excluded sind, brechen sie Synthese-Boundaries und §X-Numerierung
+	// — also als Banner anzeigen mit Link in den Outline-Editor.
+	const SUSPICIOUS_HEADING_LEN = 200;
+	const suspiciousHeadings = $derived.by(() => {
+		const out: { elementId: string; level: number; preview: string; len: number }[] = [];
+		for (const h of outlineEntries) {
+			if (h.excluded) continue;
+			const text = h.text ?? '';
+			if (text.length > SUSPICIOUS_HEADING_LEN) {
+				out.push({
+					elementId: h.elementId,
+					level: h.level,
+					preview: text.slice(0, 80).trim() + '…',
+					len: text.length,
+				});
 			}
+		}
+		return out;
+	});
+
+	// Resolver §X (im Kontext eines Headings) → paragraph_element_id.
+	// Eine Heading-Synthese referenziert Paragraphen, die in der Synthese-Einheit
+	// liegen — und das ist kongruent zu den Aggregations-Pässen:
+	//   - chapter-collapse → Paragraphen vom L1 bis zum nächsten non-excluded L1
+	//     (alle Subsections eingeschlossen). Siehe loadChapterUnits.
+	//   - section-collapse-from-graph → Paragraphen vom L2/L3-Heading bis zum
+	//     nächsten non-excluded Heading auf SAME-OR-HIGHER level (alle Sub-Subsections
+	//     eingeschlossen). Siehe loadCollapseContext.
+	// Excluded Headings (z.B. parser-fehlklassifizierte Pseudo-Überschriften wie
+	// ein langer Satz mit Heading-Style) sind weder Synthese-Einheit noch
+	// Boundary — sie werden hier ignoriert. Sonst würden §-Anchors auf Paragraphen
+	// hinter einem excluded Pseudo-Heading als "dead" durchgestrichen, obwohl die
+	// Synthese sie korrekt zählt.
+	const outlineMetaById = $derived(
+		new Map(outlineEntries.map((e) => [e.elementId, { level: e.level, excluded: e.excluded }]))
+	);
+	const synthesisUnitParagraphsByHeading = $derived.by(() => {
+		const map = new Map<string, string[]>();
+		const headingsInOrder = mainElements.filter((e) => e.element_type === 'heading');
+		const allParas = mainElements.filter((e) => e.element_type === 'paragraph');
+		for (let i = 0; i < headingsInOrder.length; i++) {
+			const h = headingsInOrder[i];
+			const meta = outlineMetaById.get(h.id);
+			if (!meta || meta.excluded) continue;
+			let endChar = Number.POSITIVE_INFINITY;
+			for (let j = i + 1; j < headingsInOrder.length; j++) {
+				const candMeta = outlineMetaById.get(headingsInOrder[j].id);
+				if (!candMeta || candMeta.excluded) continue;
+				if (candMeta.level <= meta.level) {
+					endChar = headingsInOrder[j].char_start;
+					break;
+				}
+			}
+			const paras: string[] = [];
+			for (const p of allParas) {
+				if (p.char_start >= h.char_start && p.char_start < endChar) {
+					paras.push(p.id);
+				}
+			}
+			map.set(h.id, paras);
 		}
 		return map;
 	});
 	function resolveParagraph(headingId: string, paraNum: number): string | null {
-		const list = paragraphsByHeading.get(headingId) ?? [];
+		const list = synthesisUnitParagraphsByHeading.get(headingId) ?? [];
 		if (paraNum < 1 || paraNum > list.length) return null;
 		return list[paraNum - 1];
 	}
 
-	// §X(:AY)-Linkifizierung: zerlegt einen Memo-Text in [text, link, text, link, ...]
-	type Segment = { kind: 'text'; value: string } | { kind: 'anchor'; raw: string; paraNum: number; argNum: number | null };
+	// ── Hover-Popover für §X:AY-Anker (Phase A: nur §X:AY, plain AY später) ──
+	type Premise = { type: 'stated' | 'carried' | 'background'; text: string };
+	type ArgumentNode = {
+		id: string;
+		argLocalId: string;
+		claim: string;
+		premises: Premise[];
+		anchorPhrase: string;
+		positionInParagraph: number;
+	};
+	type EdgeOther = {
+		argLocalId: string;
+		paragraphId: string;
+		paraNumWithinChapter: number | null;
+		claimSnippet: string;
+	};
+	type Edge = {
+		kind: 'supports' | 'refines' | 'contradicts' | 'presupposes';
+		scope: 'inter_argument' | 'prior_paragraph';
+		direction: 'outgoing' | 'incoming';
+		selfArgLocalId: string;
+		other: EdgeOther;
+	};
+	type ParaArgsResponse = {
+		paragraphId: string;
+		paraNumWithinChapter: number | null;
+		args: ArgumentNode[];
+		edges: Edge[];
+	};
+	type CacheState =
+		| { kind: 'pending'; promise: Promise<ParaArgsResponse> }
+		| { kind: 'ok'; data: ParaArgsResponse }
+		| { kind: 'error'; message: string };
+	const argCache = new Map<string, CacheState>();
+
+	let hoveredAnchor = $state<{
+		paragraphId: string;
+		paraNum: number;
+		argNum: number | null;
+		rect: DOMRect | null;
+	} | null>(null);
+	let popoverData = $state<{ args: ArgumentNode[]; edges: Edge[]; paraNumWithin: number | null } | null>(null);
+	let popoverLoading = $state(false);
+	let popoverError = $state<string | null>(null);
+
+	let showTimer: ReturnType<typeof setTimeout> | null = null;
+	let hideTimer: ReturnType<typeof setTimeout> | null = null;
+	const SHOW_DELAY = 220;
+	const HIDE_DELAY = 180;
+
+	function cancelShow() { if (showTimer) { clearTimeout(showTimer); showTimer = null; } }
+	function cancelHide() { if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; } }
+
+	async function loadParaArgs(paragraphId: string): Promise<ParaArgsResponse> {
+		const cached = argCache.get(paragraphId);
+		if (cached) {
+			if (cached.kind === 'ok') return cached.data;
+			if (cached.kind === 'pending') return cached.promise;
+			throw new Error(cached.message);
+		}
+		if (!caseInfo) throw new Error('Kein Case');
+		const promise = (async () => {
+			const r = await fetch(`/api/cases/${caseInfo.id}/paragraph-arguments/${paragraphId}`);
+			if (!r.ok) {
+				const txt = await r.text().catch(() => '');
+				throw new Error(`HTTP ${r.status}${txt ? ': ' + txt.slice(0, 200) : ''}`);
+			}
+			return r.json() as Promise<ParaArgsResponse>;
+		})();
+		argCache.set(paragraphId, { kind: 'pending', promise });
+		try {
+			const data = await promise;
+			argCache.set(paragraphId, { kind: 'ok', data });
+			return data;
+		} catch (e) {
+			argCache.set(paragraphId, { kind: 'error', message: (e as Error).message });
+			throw e;
+		}
+	}
+
+	function handleAnchorHover(
+		event: MouseEvent,
+		headingId: string,
+		paraNum: number,
+		argNum: number | null
+	) {
+		cancelHide();
+		cancelShow();
+		const target = event.currentTarget as HTMLElement;
+		const paragraphId = resolveParagraph(headingId, paraNum);
+		if (!paragraphId) return;
+		showTimer = setTimeout(async () => {
+			const rect = target.getBoundingClientRect();
+			hoveredAnchor = { paragraphId, paraNum, argNum, rect };
+			popoverLoading = true;
+			popoverError = null;
+			popoverData = null;
+			try {
+				const data = await loadParaArgs(paragraphId);
+				if (hoveredAnchor?.paragraphId !== paragraphId) return; // hover wechselte
+				popoverData = { args: data.args, edges: data.edges, paraNumWithin: data.paraNumWithinChapter };
+			} catch (e) {
+				if (hoveredAnchor?.paragraphId !== paragraphId) return;
+				popoverError = (e as Error).message;
+			} finally {
+				popoverLoading = false;
+			}
+		}, SHOW_DELAY);
+	}
+
+	function handleAnchorLeave() {
+		cancelShow();
+		cancelHide();
+		hideTimer = setTimeout(() => {
+			hoveredAnchor = null;
+			popoverData = null;
+			popoverError = null;
+			popoverLoading = false;
+		}, HIDE_DELAY);
+	}
+
+	function handlePopoverEnter() { cancelHide(); }
+	function handlePopoverLeave() { handleAnchorLeave(); }
+	function closePopover() {
+		cancelShow();
+		cancelHide();
+		hoveredAnchor = null;
+		popoverData = null;
+	}
+
+	const popoverArgNode = $derived.by(() => {
+		if (!hoveredAnchor || !popoverData) return null;
+		const { argNum } = hoveredAnchor;
+		if (argNum == null) return null;
+		const target = `A${argNum}`;
+		return popoverData.args.find((a) => a.argLocalId === target) ?? null;
+	});
+
+	const popoverArgEdges = $derived.by(() => {
+		if (!hoveredAnchor || !popoverData || !popoverArgNode) return [];
+		return popoverData.edges.filter((e) => e.selfArgLocalId === popoverArgNode.argLocalId);
+	});
+
+	// Bei plain §X (argNum null): Volltext + alle Argumente des Paragraphen.
+	const popoverParagraphText = $derived.by(() => {
+		if (!hoveredAnchor) return null;
+		const el = elements.find((e) => e.id === hoveredAnchor!.paragraphId);
+		return el?.text ?? null;
+	});
+	const popoverParagraphArgs = $derived.by(() => {
+		if (!hoveredAnchor || !popoverData) return [];
+		return popoverData.args;
+	});
+
+	function openPopoverInReader() {
+		if (!hoveredAnchor) return;
+		const { paragraphId, argNum } = hoveredAnchor;
+		closePopover();
+		openReader({ elementId: paragraphId, argumentId: argNum != null ? `A${argNum}` : undefined });
+	}
+
+	// §X(:AY)- und plain-AY-Linkifizierung: zerlegt einen Memo-Text in
+	// [text, link, text, link, ...]. Plain `AY` (z.B. "A5/A6/A7" ohne §-Prefix)
+	// wird über Distanz-Heuristik dem nächstgelegenen `§X` im Text zugeordnet
+	// (max. 100 Zeichen Distanz, sonst als Text gerendert).
+	type Segment =
+		| { kind: 'text'; value: string }
+		| {
+				kind: 'anchor';
+				raw: string;
+				paraNum: number;
+				argNum: number | null;
+				resolvedFromContext: boolean;
+		  };
+	const PLAIN_AY_MAX_DISTANCE = 100;
 	function parseAnchors(content: string): Segment[] {
+		// Pass 1: alle §X-Positionen für Distanz-Resolver bei plain AY sammeln.
+		const paraRefs: { idx: number; len: number; paraNum: number }[] = [];
+		{
+			const re = /§(\d+)/g;
+			let m: RegExpExecArray | null;
+			while ((m = re.exec(content)) !== null) {
+				paraRefs.push({ idx: m.index, len: m[0].length, paraNum: parseInt(m[1], 10) });
+			}
+		}
+		function nearestPara(ayIdx: number, ayLen: number): number | null {
+			let best: number | null = null;
+			let bestDist = Infinity;
+			for (const p of paraRefs) {
+				const dist = Math.min(
+					Math.abs(p.idx - (ayIdx + ayLen)),
+					Math.abs(p.idx + p.len - ayIdx)
+				);
+				if (dist < bestDist) {
+					bestDist = dist;
+					best = p.paraNum;
+				}
+			}
+			if (best === null || bestDist > PLAIN_AY_MAX_DISTANCE) return null;
+			return best;
+		}
+
+		// Pass 2: kombinierte Regex über §X(:AY) ODER plain AY (Word-Boundary).
 		const segments: Segment[] = [];
-		const re = /§(\d+)(?::A(\d+))?/g;
+		const re = /§(\d+)(?::A(\d+))?|\bA(\d+)\b/g;
 		let last = 0;
 		let m: RegExpExecArray | null;
 		while ((m = re.exec(content)) !== null) {
 			if (m.index > last) {
 				segments.push({ kind: 'text', value: content.slice(last, m.index) });
 			}
-			segments.push({
-				kind: 'anchor',
-				raw: m[0],
-				paraNum: parseInt(m[1], 10),
-				argNum: m[2] ? parseInt(m[2], 10) : null,
-			});
+			if (m[1] !== undefined) {
+				segments.push({
+					kind: 'anchor',
+					raw: m[0],
+					paraNum: parseInt(m[1], 10),
+					argNum: m[2] !== undefined ? parseInt(m[2], 10) : null,
+					resolvedFromContext: false,
+				});
+			} else if (m[3] !== undefined) {
+				const argNum = parseInt(m[3], 10);
+				const resolvedPara = nearestPara(m.index, m[0].length);
+				if (resolvedPara !== null) {
+					segments.push({
+						kind: 'anchor',
+						raw: m[0],
+						paraNum: resolvedPara,
+						argNum,
+						resolvedFromContext: true,
+					});
+				} else {
+					segments.push({ kind: 'text', value: m[0] });
+				}
+			}
 			last = m.index + m[0].length;
 		}
 		if (last < content.length) segments.push({ kind: 'text', value: content.slice(last) });
@@ -551,6 +851,34 @@
 				{/if}
 			{/if}
 		</div>
+		{#if suspiciousHeadings.length > 0}
+			<div class="suspicious-banner" role="status">
+				<div class="suspicious-head">
+					<span class="suspicious-icon">⚠</span>
+					<strong>Wahrscheinlich parser-fehlklassifizierte Heading{suspiciousHeadings.length > 1 ? 's' : ''}</strong>
+					<span class="suspicious-count">{suspiciousHeadings.length}× &gt; {SUSPICIOUS_HEADING_LEN} Zeichen Heading-Text</span>
+				</div>
+				<p class="suspicious-msg">
+					Lange Heading-Texte sind in DOCX-Dateien fast immer Absätze, die mit
+					einem Heading-Style versehen wurden. Sie brechen Kapitel-Boundaries
+					und die §X-Numerierung — bitte im Outline-Editor als
+					<em>excluded</em> markieren.
+				</p>
+				<ul class="suspicious-list">
+					{#each suspiciousHeadings.slice(0, 3) as s (s.elementId)}
+						<li>
+							<span class="lvl-tag">L{s.level}</span>
+							<span class="suspicious-len">({s.len} Z.)</span>
+							<span class="suspicious-preview">„{s.preview}"</span>
+						</li>
+					{/each}
+					{#if suspiciousHeadings.length > 3}
+						<li class="suspicious-more">… und {suspiciousHeadings.length - 3} weitere</li>
+					{/if}
+				</ul>
+				<a class="suspicious-cta" href="./{doc.id}/outline">In Outline-Editor öffnen →</a>
+			</div>
+		{/if}
 		<nav class="tabs" aria-label="Doc-Page Tabs">
 			{#each VIEWS as v}
 				<button
@@ -765,6 +1093,66 @@
 							</div>
 						</section>
 
+						<!-- Auf Anforderung: Kapitelverlauf -->
+						{@const flowReady = pipelineStatus.passes.chapter.completed > 0
+							&& pipelineStatus.passes.work.completed > 0}
+						{@const flowDone = pipelineStatus.passes.kapitelverlauf.completed > 0}
+						<section class="passes-section on-demand">
+							<header class="passes-section-head">
+								<h3>
+									Auf Anforderung
+									<span class="addendum-tag">einzelner Klick · Opus</span>
+								</h3>
+								<p>
+									Zusätzliche Bausteine, die nach der analytischen Hauptlinie auf Klick
+									erzeugt werden — kein Pflichtbestandteil der Pipeline.
+								</p>
+							</header>
+							<article class="pass-card pass-{flowDone ? 'done' : 'pending'} pass-on-demand">
+								<header class="pass-head">
+									<span class="pass-num add">↦</span>
+									<h4>Kapitelverlauf-Darstellung</h4>
+									<span class="pass-state-tag tag-{flowDone ? 'done' : 'pending'}">
+										{flowDone ? 'Erzeugt' : 'Offen'}
+									</span>
+								</header>
+								<p class="pass-desc">
+									Narrativ-referierender Mittelabsatz des Gutachtens: führt durch die
+									Kapitelfolge mit eingestreuten Wertungen, kalibriert in Länge am Werktyp.
+									Wird im Outline-Tab unter dem Werk-Verdikt angezeigt.
+								</p>
+								{#if !flowReady}
+									<p class="pass-note">
+										Erst verfügbar, wenn Hauptkapitel-Synthesen UND Werk-Synthese
+										abgeschlossen sind ({pipelineStatus.passes.chapter.completed}/{pipelineStatus.passes.chapter.total ?? '?'} Kap. · {pipelineStatus.passes.work.completed}/1 Werk).
+									</p>
+								{/if}
+								<div class="pass-actions">
+									<button
+										class="run-btn start"
+										onclick={() => generateChapterFlow(flowDone)}
+										disabled={!flowReady || flowGenerating}
+									>
+										{#if flowGenerating}
+											…erzeuge
+										{:else if flowDone}
+											↻ Neu erzeugen
+										{:else}
+											▶ Kapitelverlauf erzeugen
+										{/if}
+									</button>
+								</div>
+								{#if flowError}
+									<div class="error-box compact">{flowError}</div>
+								{/if}
+								{#if flowDone && pipelineStatus.passes.kapitelverlauf.last_run}
+									<div class="pass-meta">
+										<span class="last-run">Letzter Lauf: {formatLastRun(pipelineStatus.passes.kapitelverlauf.last_run)}</span>
+									</div>
+								{/if}
+							</article>
+						</section>
+
 						<!-- Addendum -->
 						<section class="passes-section addendum">
 							<header class="passes-section-head">
@@ -832,6 +1220,15 @@
 							<div class="work-content">{workSynthesis.content}</div>
 						</article>
 					{/if}
+					{#if chapterFlow}
+						<article class="work-verdict chapter-flow">
+							<header class="work-verdict-head">
+								<span class="work-tag flow-tag">Kapitelverlauf</span>
+								<h2>Argumentations­bewegung über die Kapitelfolge</h2>
+							</header>
+							<div class="work-content">{chapterFlow.content}</div>
+						</article>
+					{/if}
 					<p class="outline-intro">
 						Hierarchische Synthesen-Navigation. Klick auf §X:AY-Anker in
 						einer Synthese öffnet den Reader-Modal an der entsprechenden
@@ -869,8 +1266,17 @@
 														type="button"
 														class="anchor-link"
 														class:dead={!targetId}
-														title={targetId ? `Reader öffnen am ${seg.raw}` : `Kein Absatz §${seg.paraNum} in diesem Abschnitt`}
+														class:resolved-context={seg.resolvedFromContext}
+														title={targetId
+															? seg.resolvedFromContext
+																? `${seg.raw} kontextuell aufgelöst zu §${seg.paraNum}:A${seg.argNum} · Hover für Detail · Click öffnet Reader`
+																: `Hover für Argument-Detail · Click öffnet Reader am ${seg.raw}`
+															: `Kein Absatz §${seg.paraNum} in diesem Abschnitt`}
 														onclick={() => targetId && openReader({ elementId: targetId, argumentId: seg.argNum != null ? `A${seg.argNum}` : undefined })}
+														onmouseenter={(e) => targetId && handleAnchorHover(e, h.elementId, seg.paraNum, seg.argNum)}
+														onmouseleave={() => targetId && handleAnchorLeave()}
+														onfocus={(e) => targetId && handleAnchorHover(e as unknown as MouseEvent, h.elementId, seg.paraNum, seg.argNum)}
+														onblur={() => targetId && handleAnchorLeave()}
 													>{seg.raw}</button>
 												{/if}
 											{/each}
@@ -920,8 +1326,27 @@
 	{memosByElement}
 	{codesByElement}
 	{synthesesByHeading}
+	{analysisByElement}
 	scrollTarget={readerScrollTarget}
 />
+
+{#if hoveredAnchor}
+	<ArgumentPopover
+		anchorRect={hoveredAnchor.rect}
+		argLocalId={hoveredAnchor.argNum != null ? `A${hoveredAnchor.argNum}` : null}
+		paraNum={hoveredAnchor.paraNum}
+		loading={popoverLoading}
+		error={popoverError}
+		argumentNode={popoverArgNode}
+		edges={popoverArgEdges}
+		paragraphText={popoverParagraphText}
+		paragraphArgs={popoverParagraphArgs}
+		onOpenInReader={openPopoverInReader}
+		onClose={closePopover}
+		onMouseEnter={handlePopoverEnter}
+		onMouseLeave={handlePopoverLeave}
+	/>
+{/if}
 
 <style>
 	.page { padding: 2rem; max-width: 1400px; margin: 0 auto; }
@@ -1060,6 +1485,64 @@
 	}
 	.outline-link:hover { text-decoration: underline; }
 
+	.suspicious-banner {
+		margin: 0.75rem 0 0;
+		padding: 0.7rem 0.9rem;
+		background: rgba(251, 191, 36, 0.06);
+		border: 1px solid rgba(251, 191, 36, 0.35);
+		border-radius: 4px;
+		color: #c9cdd5;
+		font-size: 0.82rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.45rem;
+	}
+	.suspicious-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
+	.suspicious-icon { color: #fbbf24; font-size: 1rem; }
+	.suspicious-head strong { color: #fbbf24; font-weight: 600; }
+	.suspicious-count {
+		font-size: 0.72rem; color: #8b8fa3;
+		font-family: 'JetBrains Mono', monospace;
+	}
+	.suspicious-msg { margin: 0; line-height: 1.45; color: #b8bccc; }
+	.suspicious-msg em { color: #fbbf24; font-style: normal; font-weight: 500; }
+	.suspicious-list {
+		margin: 0; padding: 0; list-style: none;
+		display: flex; flex-direction: column; gap: 0.25rem;
+	}
+	.suspicious-list li {
+		display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: baseline;
+		font-size: 0.78rem; line-height: 1.4;
+	}
+	.suspicious-list .lvl-tag {
+		font-size: 0.66rem;
+		padding: 1px 5px;
+		background: rgba(165, 180, 252, 0.10);
+		border: 1px solid rgba(165, 180, 252, 0.25);
+		color: #c7d2fe;
+		border-radius: 3px;
+		font-family: 'JetBrains Mono', monospace;
+	}
+	.suspicious-len {
+		font-size: 0.72rem; color: #8b8fa3;
+		font-family: 'JetBrains Mono', monospace;
+	}
+	.suspicious-preview { color: #c9cdd5; font-style: italic; flex: 1; min-width: 0; }
+	.suspicious-more { color: #8b8fa3; font-size: 0.74rem; padding-left: 0.4rem; }
+	.suspicious-cta {
+		align-self: flex-start;
+		color: #fbbf24;
+		text-decoration: none;
+		font-size: 0.78rem;
+		padding: 0.3rem 0.6rem;
+		border: 1px solid rgba(251, 191, 36, 0.35);
+		border-radius: 4px;
+	}
+	.suspicious-cta:hover {
+		background: rgba(251, 191, 36, 0.10);
+		border-color: rgba(251, 191, 36, 0.55);
+	}
+
 	.tab-body { min-height: 60vh; }
 
 	.placeholder {
@@ -1185,6 +1668,19 @@
 		opacity: 0.5;
 		cursor: not-allowed;
 		text-decoration: line-through;
+	}
+	/* Plain AY, kontextuell über Distanz-Heuristik aufgelöst — dezenter
+	   als ein expliziter §X:AY-Anker, damit erkennbar bleibt dass das
+	   eine Auflösung ist und kein direkter Verweis. */
+	.anchor-link.resolved-context {
+		background: rgba(165, 180, 252, 0.05);
+		border-style: dashed;
+		border-color: rgba(165, 180, 252, 0.25);
+	}
+	.anchor-link.resolved-context:hover {
+		background: rgba(165, 180, 252, 0.15);
+		border-color: rgba(165, 180, 252, 0.45);
+		border-style: solid;
 	}
 	.synthesis {
 		background: rgba(110, 231, 183, 0.05);
@@ -1547,6 +2043,28 @@
 	.pass-card.pass-addendum {
 		border-style: dashed;
 		max-width: 760px;
+	}
+	.passes-section.on-demand {
+		margin-top: 1.4rem;
+		padding-top: 1rem;
+		border-top: 1px dashed #2a2d3a;
+	}
+	.pass-card.pass-on-demand {
+		max-width: 760px;
+		border-color: rgba(165, 180, 252, 0.28);
+		background: rgba(165, 180, 252, 0.04);
+	}
+	.pass-actions {
+		display: flex; gap: 0.6rem; align-items: center;
+		margin-top: 0.6rem;
+	}
+	.work-verdict.chapter-flow {
+		background: rgba(165, 180, 252, 0.06);
+		border-color: rgba(165, 180, 252, 0.35);
+	}
+	.work-tag.flow-tag {
+		background: rgba(165, 180, 252, 0.18);
+		color: #c7d2fe;
 	}
 
 	.empty { color: #6b7280; font-size: 0.85rem; font-style: italic; }
