@@ -17,6 +17,8 @@
 		CodeAnchor,
 		HeadingSynthesis,
 		ParagraphAnalysis,
+		ParagraphArgument,
+		ParagraphPremise,
 		ParagraphEdge,
 	} from './+page.server.js';
 
@@ -38,23 +40,29 @@
 		scrollTarget = null,
 	}: Props = $props();
 
-	const PREMISE_LABEL: Record<'stated' | 'carried' | 'background', string> = {
-		stated: 'gesetzt',
-		carried: 'getragen',
-		background: 'Hintergrund',
-	};
+	function premiseLabel(p: { type: 'stated' | 'carried' | 'background'; from_paragraph?: number }): string {
+		if (p.type === 'stated') return 'im Absatz';
+		if (p.type === 'background') return 'Hintergrund';
+		// carried: aus früherem Absatz desselben Unterkapitels
+		if (typeof p.from_paragraph === 'number' && p.from_paragraph >= 1) {
+			return `aus §${p.from_paragraph}`;
+		}
+		return 'aus früherem Absatz';
+	}
 	const KIND_VERB: Record<ParagraphEdge['kind'], { out: string; in: string }> = {
 		supports: { out: 'stützt', in: 'wird gestützt von' },
 		refines: { out: 'präzisiert', in: 'wird präzisiert durch' },
 		contradicts: { out: 'widerspricht', in: 'widersprochen von' },
 		presupposes: { out: 'setzt voraus', in: 'wird vorausgesetzt von' },
 	};
-	// Referenz-Grounding: rein textbasierte Belegqualität, default-on im AG-Pass.
+	// a1-Klassifikation des Belegtyps. Wortwahl konsistent: "Beleg" = Literaturverweis,
+	// nicht zu verwechseln mit Premissen-Bezug auf andere Argumente. Pipeline-Klassifikation,
+	// neutral angezeigt; Reviewer-Wertung trägt die separate Bodenkontakt-Pille.
 	const GROUNDING_LABEL: Record<'none' | 'namedropping' | 'abstract' | 'concrete', string> = {
-		none: 'kein Verweis',
-		namedropping: 'namedropping',
-		abstract: 'abstrakt',
-		concrete: 'konkret',
+		none: 'kein Beleg',
+		namedropping: 'Pseudo-Beleg',
+		abstract: 'Werkbezug ohne Stelle',
+		concrete: 'Stellenbeleg',
 	};
 	// Schluss-Form aus dem Charity-Pass (opt-in argument_validity).
 	const FORM_LABEL: Record<'deductive' | 'inductive' | 'abductive', string> = {
@@ -68,6 +76,201 @@
 		}
 		return e.other.argLocalId;
 	}
+
+	// Bodenkontakt-Severity = abgeleitete Reviewer-Achse, rekursiv über carried-/
+	// inter-argument-Edges. Quellen werden konkret aufgelöst (Premissen-Label
+	// "aus §N:Aₓ", nicht "Prämisse nicht belegt"); Severity erbt sich vom Quell-
+	// Argument. Pipeline-Realität: Cross-Paragraph-Edges kommen häufig als
+	// "refines" statt "presupposes" — beide werden für Resolution akzeptiert.
+	//   a1 — eigener Literaturbeleg im Absatz (referentialGrounding)
+	//   c  — Bezug auf anderes Argument (intra-¶ supports/refines, cross-¶
+	//        prior_paragraph supports/refines/presupposes)
+	//   b (common sense) bleibt blinder Fleck; Heuristik "alle Prämissen sind
+	//      Hintergrund" → gelb.
+	type GroundSeverity = {
+		level: 'rooted' | 'partial' | 'broken';
+		label: string;
+		reason: string;
+	};
+	type CarriedSource = {
+		paragraphId: string;
+		argLocalId: string;
+		paraNum: number | null;
+	};
+
+	const SEV_ORDER: Record<GroundSeverity['level'], number> = { rooted: 0, partial: 1, broken: 2 };
+
+	// Globaler Argument-Lookup, paragraphId → argLocalId → ParagraphArgument
+	const argsIndex = $derived.by(() => {
+		const idx = new Map<string, Map<string, ParagraphArgument>>();
+		for (const [pid, an] of Object.entries(analysisByElement ?? {})) {
+			if (!an) continue;
+			const sub = new Map<string, ParagraphArgument>();
+			for (const a of an.args) sub.set(a.argLocalId, a);
+			idx.set(pid, sub);
+		}
+		return idx;
+	});
+
+	// Auflösung einer carried-Prämisse zu einem konkreten Quell-Argument.
+	// Sucht prior_paragraph-Edges (presupposes bevorzugt, dann refines/supports);
+	// matcht über paraNumWithinChapter == premise.from_paragraph wenn möglich.
+	function resolveCarriedSource(
+		premise: ParagraphPremise,
+		edgesOfArg: ParagraphEdge[]
+	): CarriedSource | null {
+		if (premise.type !== 'carried') return null;
+		const candidates = edgesOfArg.filter(
+			(e) => e.direction === 'outgoing' && e.scope === 'prior_paragraph'
+		);
+		if (candidates.length === 0) return null;
+		const presup = candidates.filter((e) => e.kind === 'presupposes');
+		const pool = presup.length > 0 ? presup : candidates;
+		const target = (typeof premise.from_paragraph === 'number'
+			? pool.find((e) => e.other.paraNumWithinChapter === premise.from_paragraph)
+			: null) ?? pool[0];
+		return {
+			paragraphId: target.other.paragraphId,
+			argLocalId: target.other.argLocalId,
+			paraNum: target.other.paraNumWithinChapter ?? premise.from_paragraph ?? null,
+		};
+	}
+
+	function argumentSeverity(
+		arg: ParagraphArgument,
+		paragraphId: string,
+		visited: Set<string>,
+		memo: Map<string, GroundSeverity>
+	): GroundSeverity {
+		const key = `${paragraphId}:${arg.argLocalId}`;
+		const cached = memo.get(key);
+		if (cached) return cached;
+		if (visited.has(key)) {
+			const cyc: GroundSeverity = {
+				level: 'partial',
+				label: 'zyklischer Verweis',
+				reason: 'Stützkette führt rekursiv auf sich selbst zurück',
+			};
+			return cyc;
+		}
+		const v = new Set(visited);
+		v.add(key);
+
+		const finish = (r: GroundSeverity): GroundSeverity => {
+			memo.set(key, r);
+			return r;
+		};
+
+		// a1 — direktes grounding hat Vorrang
+		if (arg.referentialGrounding === 'concrete') {
+			return finish({ level: 'rooted', label: 'im Absatz belegt', reason: 'a1 — Stellenbeleg im Absatz' });
+		}
+		if (arg.referentialGrounding === 'namedropping') {
+			return finish({ level: 'broken', label: 'Pseudo-Beleg', reason: 'a1 — Autoritätsanruf ohne Werkbezug' });
+		}
+		if (arg.referentialGrounding === 'abstract') {
+			return finish({ level: 'partial', label: 'Werk genannt, ohne Stelle', reason: 'a1 — Werkbezug abstrakt' });
+		}
+
+		// grounding=none/null → Prämissen-Profil + Cross-Refs
+		if (arg.premises.length === 0) {
+			return finish({ level: 'broken', label: 'frei behauptet', reason: 'kein Beleg, keine Prämisse' });
+		}
+		if (arg.premises.every((p) => p.type === 'background')) {
+			return finish({
+				level: 'partial',
+				label: 'nur Hintergrund-Prämissen',
+				reason: 'kein eigener Beleg, nur fachüblicher Konsens — Eigenleistung sichten',
+			});
+		}
+
+		const ana = analysisByElement?.[paragraphId];
+		const edgesOfArg = ana?.edges.filter((e) => e.selfArgLocalId === arg.argLocalId) ?? [];
+
+		// Sammle Severity aller verfolgbaren Quellen
+		type SourceSev = { sev: GroundSeverity; via: string };
+		const sources: SourceSev[] = [];
+
+		// Carried-Prämissen → rekursiv das Quell-Argument
+		for (const p of arg.premises) {
+			if (p.type !== 'carried') continue;
+			const src = resolveCarriedSource(p, edgesOfArg);
+			if (!src) {
+				const num = p.from_paragraph;
+				sources.push({
+					sev: {
+						level: 'partial',
+						label: 'Quelle nicht verlinkt',
+						reason: 'c — Pipeline hat keinen prior_paragraph-Edge zur Quelle gesetzt',
+					},
+					via: num ? `§${num}` : '?',
+				});
+				continue;
+			}
+			const srcArg = argsIndex.get(src.paragraphId)?.get(src.argLocalId);
+			const via = src.paraNum != null ? `§${src.paraNum}:${src.argLocalId}` : src.argLocalId;
+			if (!srcArg) {
+				sources.push({
+					sev: { level: 'partial', label: 'Quelle nicht ladbar', reason: 'Ziel-Argument nicht im aktuellen Render-Set' },
+					via,
+				});
+				continue;
+			}
+			sources.push({ sev: argumentSeverity(srcArg, src.paragraphId, v, memo), via });
+		}
+
+		// Intra-¶ supports/refines incoming — A wird durch Aₓ aus demselben ¶ gestützt
+		const incoming = edgesOfArg.filter(
+			(e) =>
+				e.direction === 'incoming' &&
+				e.scope === 'inter_argument' &&
+				(e.kind === 'supports' || e.kind === 'refines')
+		);
+		for (const e of incoming) {
+			const supporter = argsIndex.get(paragraphId)?.get(e.other.argLocalId);
+			if (!supporter) continue;
+			sources.push({
+				sev: argumentSeverity(supporter, paragraphId, v, memo),
+				via: e.other.argLocalId,
+			});
+		}
+
+		if (sources.length === 0) {
+			return finish({
+				level: 'broken',
+				label: 'frei behauptet',
+				reason: 'kein Beleg, keine verfolgbare Prämissen-Quelle',
+			});
+		}
+
+		// Aggregat: schlechteste Severity der Quellen erbt sich.
+		const worst = sources.reduce((acc, s) => (SEV_ORDER[s.sev.level] > SEV_ORDER[acc.sev.level] ? s : acc));
+		if (worst.sev.level === 'rooted') {
+			return finish({
+				level: 'rooted',
+				label: `aus ${worst.via} geerbt`,
+				reason: `c — alle ${sources.length} Quelle(n) belegt; entscheidend ${worst.via}`,
+			});
+		}
+		return finish({
+			level: worst.sev.level,
+			label: `Quelle ${worst.via}: ${worst.sev.label}`,
+			reason: `geerbt von ${worst.via} (${worst.sev.label}); ${sources.length} Quelle(n) insgesamt`,
+		});
+	}
+
+	// Vollständige Severity-Map vorab — pro Render einmal, statt pro Argument-Aufruf.
+	const severityMap = $derived.by(() => {
+		const memo = new Map<string, GroundSeverity>();
+		for (const [pid, an] of Object.entries(analysisByElement ?? {})) {
+			if (!an) continue;
+			for (const a of an.args) {
+				const key = `${pid}:${a.argLocalId}`;
+				if (!memo.has(key)) argumentSeverity(a, pid, new Set(), memo);
+			}
+		}
+		return memo;
+	});
 
 	const hermeneuticElements = $derived(
 		elements.filter(
@@ -185,6 +388,8 @@
 								<div class="analysis-block">
 									<div class="memo-label analysis-label">Argumente ({analysis.args.length})</div>
 									{#each analysis.args as a (a.id)}
+										{@const argEdges = analysis.edges.filter((e) => e.selfArgLocalId === a.argLocalId)}
+										{@const sev = severityMap.get(`${el.id}:${a.argLocalId}`) ?? { level: 'partial' as const, label: '—', reason: 'noch nicht berechnet' }}
 										<div
 											class="arg-block"
 											class:arg-target={scrollTarget?.elementId === el.id && scrollTarget?.argumentId === a.argLocalId}
@@ -195,8 +400,8 @@
 												<span class="arg-pos">Position {a.positionInParagraph}</span>
 												{#if a.referentialGrounding}
 													<span
-														class="ref-chip ref-{a.referentialGrounding}"
-														title="Referenzqualität im Text: {GROUNDING_LABEL[a.referentialGrounding]}"
+														class="ref-chip"
+														title="Belegtyp im Absatz (Pipeline-Klassifikation): {a.referentialGrounding}"
 													>{GROUNDING_LABEL[a.referentialGrounding]}</span>
 												{/if}
 											</div>
@@ -209,37 +414,46 @@
 													{#each a.premises as p, pIdx}
 														{@const pid = `P${pIdx + 1}`}
 														{@const isFallacyTarget = a.validityAssessment && !a.validityAssessment.carries && a.validityAssessment.fallacy.target_premise === pid}
+														{@const carriedSrc = p.type === 'carried' ? resolveCarriedSource(p, argEdges) : null}
 														<li class:prem-target={isFallacyTarget}>
 															<span class="prem-id">{pid}</span>
-															<span class="prem-type prem-{p.type}">{PREMISE_LABEL[p.type]}</span>
+															{#if p.type === 'carried' && carriedSrc && carriedSrc.paraNum != null}
+																<span
+																	class="prem-type prem-carried"
+																	title="Cross-Paragraph-Verweis aus prior_paragraph-Edge"
+																>aus §{carriedSrc.paraNum}:{carriedSrc.argLocalId}</span>
+															{:else}
+																<span class="prem-type prem-{p.type}">{premiseLabel(p)}</span>
+															{/if}
 															<span class="prem-text">{p.text}</span>
 														</li>
 													{/each}
 												</ul>
 											{/if}
-											{#if a.validityAssessment}
-												{@const va = a.validityAssessment}
-												{#if va.carries}
-													<div class="validity validity-ok">
-														<div class="validity-head">
-															<span class="validity-icon">✓</span>
-															<span class="validity-label">tragfähig</span>
-															<span class="validity-form">{FORM_LABEL[va.inference_form]}</span>
+											<!-- Bewertungs-Block: zwei orthogonale Reviewer-Achsen direkt aneinander.
+													 Bodenkontakt (a1/c) zuerst, dann Konkludenz (a2). -->
+											<div class="assessment">
+												<div class="assess-row assess-ground sev-{sev.level}" title={sev.reason}>
+													<span class="assess-label">Bodenkontakt</span>
+													<span class="assess-value">{sev.label}</span>
+												</div>
+												{#if a.validityAssessment}
+													{@const va = a.validityAssessment}
+													{#if va.carries}
+														<div class="assess-row assess-validity sev-rooted">
+															<span class="assess-label">Konkludenz</span>
+															<span class="assess-value">formal konkludent <span class="assess-form">· {FORM_LABEL[va.inference_form]}</span></span>
+															<div class="assess-rationale">{va.rationale}</div>
 														</div>
-														<div class="validity-rationale">{va.rationale}</div>
-													</div>
-												{:else}
-													<div class="validity validity-fail">
-														<div class="validity-head">
-															<span class="validity-icon">⚠</span>
-															<span class="validity-label">Tragfähigkeitsbruch</span>
-															<span class="validity-fallacy" title={va.fallacy.type}>{va.fallacy.type}</span>
-															<span class="validity-target">@ {va.fallacy.target_premise}</span>
+													{:else}
+														<div class="assess-row assess-validity sev-broken">
+															<span class="assess-label">Konkludenz</span>
+															<span class="assess-value">nicht konkludent <span class="assess-fallacy" title={va.fallacy.type}>· {va.fallacy.type} @ {va.fallacy.target_premise}</span></span>
+															<div class="assess-rationale">{va.rationale}</div>
 														</div>
-														<div class="validity-rationale">{va.rationale}</div>
-													</div>
+													{/if}
 												{/if}
-											{/if}
+											</div>
 										</div>
 									{/each}
 								</div>
@@ -392,19 +606,74 @@
 		color: #c7d2fe; font-size: 0.8rem;
 	}
 	.arg-pos { font-size: 0.7rem; color: #6b7280; }
+	/* ref-chip = Pipeline-Klassifikator des Belegtyps; neutral, trägt KEIN Reviewer-Signal */
 	.ref-chip {
 		font-size: 0.62rem;
 		padding: 1px 6px;
 		border-radius: 3px;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
+		text-transform: lowercase;
+		letter-spacing: 0.02em;
 		font-weight: 500;
 		margin-left: auto;
+		background: rgba(255, 255, 255, 0.04);
+		color: #8b8fa3;
 	}
-	.ref-none        { background: rgba(107, 114, 128, 0.15); color: #9ca3af; }
-	.ref-namedropping{ background: rgba(248, 113, 113, 0.12); color: #fca5a5; }
-	.ref-abstract    { background: rgba(251, 191, 36, 0.14); color: #fbbf24; }
-	.ref-concrete    { background: rgba(110, 231, 183, 0.14); color: #6ee7b7; }
+	/* Bewertungs-Block am Argument-Ende: zwei orthogonale Reviewer-Achsen
+	   (Bodenkontakt = a1/c, Konkludenz = a2) direkt untereinander, nicht
+	   visuell getrennt durch Premissen-Liste o. ä. — sonst entsteht der
+	   irreführende Eindruck "oben gelb / unten grün als Gesamtbewertung". */
+	.assessment {
+		margin-top: 0.4rem;
+		display: flex; flex-direction: column;
+		gap: 0.2rem;
+	}
+	.assess-row {
+		padding: 0.35rem 0.55rem;
+		border-radius: 4px;
+		border-left: 2px solid transparent;
+		display: grid;
+		grid-template-columns: auto 1fr;
+		column-gap: 0.5rem;
+		row-gap: 0.2rem;
+		font-size: 0.78rem;
+		line-height: 1.4;
+	}
+	.assess-label {
+		font-size: 0.62rem;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		font-weight: 600;
+		opacity: 0.75;
+		align-self: baseline;
+	}
+	.assess-value { color: #e1e4e8; }
+	.assess-form { color: #8b8fa3; font-weight: 400; }
+	.assess-fallacy {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.7rem; color: #fca5a5;
+	}
+	.assess-rationale {
+		grid-column: 2;
+		color: #c9cdd5;
+		font-size: 0.76rem;
+		line-height: 1.4;
+	}
+	/* Reviewer-Signal-Klassen — drei und nur drei. */
+	.sev-rooted {
+		background: rgba(110, 231, 183, 0.06);
+		border-left-color: rgba(110, 231, 183, 0.5);
+	}
+	.sev-rooted .assess-label { color: #6ee7b7; }
+	.sev-partial {
+		background: rgba(251, 191, 36, 0.06);
+		border-left-color: rgba(251, 191, 36, 0.5);
+	}
+	.sev-partial .assess-label { color: #fbbf24; }
+	.sev-broken {
+		background: rgba(248, 113, 113, 0.06);
+		border-left-color: rgba(248, 113, 113, 0.55);
+	}
+	.sev-broken .assess-label { color: #f87171; }
 	.arg-claim { color: #e1e4e8; line-height: 1.5; font-size: 0.86rem; }
 	.arg-anchor {
 		margin: 0;
@@ -449,54 +718,13 @@
 		letter-spacing: 0.04em;
 		font-weight: 500;
 	}
-	.prem-stated { background: rgba(110, 231, 183, 0.15); color: #6ee7b7; }
-	.prem-carried { background: rgba(165, 180, 252, 0.15); color: #c7d2fe; }
-	.prem-background { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+	/* prem-stated/carried = neutrale Klassifikation der Premissen-Herkunft;
+	   prem-background bleibt gelb, weil der AG-Pass-Prompt selbst sagt:
+	   "background-Premissen zählen nicht als Grounding" → echtes Sichten-Signal. */
+	.prem-stated     { background: rgba(255, 255, 255, 0.04); color: #8b8fa3; }
+	.prem-carried    { background: rgba(255, 255, 255, 0.04); color: #8b8fa3; }
+	.prem-background { background: rgba(251, 191, 36, 0.14); color: #fbbf24; }
 	.prem-text { flex: 1; color: #c9cdd5; }
-
-	.validity {
-		margin-top: 0.3rem;
-		padding: 0.4rem 0.55rem;
-		border-radius: 4px;
-		display: flex; flex-direction: column; gap: 0.25rem;
-		font-size: 0.78rem;
-	}
-	.validity-head {
-		display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap;
-	}
-	.validity-icon {
-		font-weight: 700; font-size: 0.85rem;
-	}
-	.validity-label {
-		font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em;
-		font-weight: 600;
-	}
-	.validity-form {
-		font-size: 0.66rem; padding: 1px 6px;
-		text-transform: uppercase; letter-spacing: 0.04em;
-		font-weight: 500;
-		background: rgba(110, 231, 183, 0.18); color: #6ee7b7;
-		border-radius: 3px;
-	}
-	.validity-fallacy {
-		font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
-		font-weight: 600; color: #fca5a5;
-	}
-	.validity-target {
-		font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
-		color: #fda4af;
-	}
-	.validity-rationale { color: #c9cdd5; line-height: 1.4; }
-	.validity-ok {
-		background: rgba(110, 231, 183, 0.06);
-		border-left: 2px solid rgba(110, 231, 183, 0.5);
-	}
-	.validity-ok .validity-icon, .validity-ok .validity-label { color: #6ee7b7; }
-	.validity-fail {
-		background: rgba(248, 113, 113, 0.06);
-		border-left: 2px solid rgba(248, 113, 113, 0.55);
-	}
-	.validity-fail .validity-icon, .validity-fail .validity-label { color: #f87171; }
 
 	.edges-list {
 		margin: 0; padding: 0; list-style: none;
@@ -512,16 +740,15 @@
 		font-family: 'JetBrains Mono', monospace; font-weight: 600;
 		color: #c7d2fe;
 	}
+	/* Edge-Verben sind reine Klassifikatoren (stützt/präzisiert/widerspricht/setzt voraus).
+	   Sie tragen KEIN Reviewer-Signal — auch "widerspricht" ist nur die inhaltliche
+	   Beziehung, nicht ein Inkonsistenz-Befund. Daher alle Verben einheitlich neutral. */
 	.edge-verb { color: #8b8fa3; font-style: italic; white-space: nowrap; }
 	.edge-target {
 		font-family: 'JetBrains Mono', monospace; font-weight: 600;
 		color: #c7d2fe;
 	}
 	.edge-snippet { color: #b8bccc; font-size: 0.74rem; }
-	.edge-supports .edge-verb { color: #6ee7b7; }
-	.edge-contradicts .edge-verb { color: #f87171; }
-	.edge-refines .edge-verb { color: #fbbf24; }
-	.edge-presupposes .edge-verb { color: #c7d2fe; }
 	.edge-incoming .edge-self { color: #8b8fa3; }
 
 	.sc-block {
@@ -531,22 +758,24 @@
 		display: flex; flex-direction: column; gap: 0.3rem;
 	}
 	.sc-head { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: baseline; }
+	/* S-IDs = Identifikatoren wie A-IDs; gleiche Farb-Konvention für IDs.
+	   Rosa als ID-Farbe wäre inkonsistent zu .arg-id (indigo). */
 	.sc-id {
 		font-family: 'JetBrains Mono', monospace; font-weight: 600;
-		color: #f9a8d4; font-size: 0.78rem;
+		color: #c7d2fe; font-size: 0.78rem;
 	}
+	/* Stützstruktur-Funktion = Klassifikator (textorg./didakt./kontext./rhetor.);
+	   neutral, kein Reviewer-Signal. "rhetorisch" ist nicht "problematisch". */
 	.sc-fn {
 		font-size: 0.66rem;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
+		text-transform: lowercase;
+		letter-spacing: 0.02em;
 		padding: 1px 6px;
 		border-radius: 3px;
 		font-weight: 500;
+		background: rgba(255, 255, 255, 0.04);
+		color: #8b8fa3;
 	}
-	.sc-fn-textorganisatorisch { background: rgba(165, 180, 252, 0.12); color: #c7d2fe; }
-	.sc-fn-didaktisch { background: rgba(251, 191, 36, 0.12); color: #fbbf24; }
-	.sc-fn-kontextualisierend { background: rgba(110, 231, 183, 0.12); color: #6ee7b7; }
-	.sc-fn-rhetorisch { background: rgba(244, 114, 182, 0.12); color: #f9a8d4; }
 	.sc-anchored {
 		font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
 		color: #8b8fa3;

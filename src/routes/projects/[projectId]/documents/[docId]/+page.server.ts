@@ -71,11 +71,16 @@ export type ValidityAssessment =
 			fallacy: { type: string; target_premise: string; explanation: string };
 	  };
 
+export type ParagraphPremise =
+	| { type: 'stated';     text: string }
+	| { type: 'carried';    text: string; from_paragraph?: number }
+	| { type: 'background'; text: string };
+
 export interface ParagraphArgument {
 	id: string;
 	argLocalId: string;
 	claim: string;
-	premises: Array<{ type: 'stated' | 'carried' | 'background'; text: string }>;
+	premises: ParagraphPremise[];
 	anchorPhrase: string;
 	anchorCharStart: number;
 	anchorCharEnd: number;
@@ -511,9 +516,7 @@ export const load: PageServerLoad = async ({ params }) => {
 					id: r.id,
 					argLocalId: r.arg_local_id,
 					claim: r.claim,
-					premises: Array.isArray(r.premises)
-						? (r.premises as Array<{ type: 'stated' | 'carried' | 'background'; text: string }>)
-						: [],
+					premises: Array.isArray(r.premises) ? (r.premises as ParagraphPremise[]) : [],
 					anchorPhrase: r.anchor_phrase,
 					anchorCharStart: r.anchor_char_start,
 					anchorCharEnd: r.anchor_char_end,
