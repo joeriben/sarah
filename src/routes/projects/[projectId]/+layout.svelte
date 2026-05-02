@@ -12,6 +12,10 @@
 	const base = $derived(`/projects/${p.id}`);
 	const documents = $derived(data.documents as { id: string; label: string }[]);
 	const pathname = $derived($page.url.pathname);
+	// Doc-Detail-Tiefe (`/projects/X/documents/Y[/...]`) bekommt eine
+	// dokumentspezifische Sidebar von der Doc-Page selbst — die generische
+	// Project-Nav ist hier irrelevant (Triade pro Case, keine Geschwister-Docs).
+	const isDocDetail = $derived(/^\/projects\/[^/]+\/documents\/[^/]+(\/|$)/.test(pathname));
 
 	let renamingDocId = $state<string | null>(null);
 	let renameValue = $state('');
@@ -31,52 +35,54 @@
 	}
 </script>
 
-<div class="project-layout">
-	<aside class="project-sidebar">
-		<div class="proj-header">
-			<a href="/projects" class="back">← Projects</a>
-			<h2><a href={base} class:active={pathname === base} class="project-name-link">{p.name}</a></h2>
-			{#if p.description}<p class="desc">{p.description}</p>{/if}
-		</div>
-
-		<nav class="nav">
-			<a href={base} class:active={pathname === base}>Overview</a>
-			<a href="{base}/cases" class:active={pathname.startsWith(`${base}/cases`)}>
-				Cases <span class="count">{c.cases}</span>
-			</a>
-			<a href="{base}/documents" class:active={pathname.startsWith(`${base}/documents`)}>
-				Documents <span class="count">{c.documents}</span>
-			</a>
-			<a href="{base}/memos" class:active={pathname.startsWith(`${base}/memos`)}>
-				Memos <span class="count">{c.memos}</span>
-			</a>
-		</nav>
-
-		{#if documents.length > 0}
-			<div class="subnav">
-				<div class="subnav-label">Documents</div>
-				{#each documents as d}
-					{#if renamingDocId === d.id}
-						<!-- svelte-ignore a11y_autofocus -->
-						<input
-							class="doc-rename-input"
-							bind:value={renameValue}
-							autofocus
-							onkeydown={(e) => { if (e.key === 'Enter') saveDocRename(d.id); if (e.key === 'Escape') renamingDocId = null; }}
-							onblur={() => saveDocRename(d.id)}
-						/>
-					{:else}
-						<a
-							href="{base}/documents/{d.id}"
-							class="subnav-item"
-							class:active={pathname === `${base}/documents/${d.id}`}
-							ondblclick={(e) => { e.preventDefault(); renamingDocId = d.id; renameValue = d.label; }}
-						>{d.label}</a>
-					{/if}
-				{/each}
+<div class="project-layout" class:no-sidebar={isDocDetail}>
+	{#if !isDocDetail}
+		<aside class="project-sidebar">
+			<div class="proj-header">
+				<a href="/projects" class="back">← Projects</a>
+				<h2><a href={base} class:active={pathname === base} class="project-name-link">{p.name}</a></h2>
+				{#if p.description}<p class="desc">{p.description}</p>{/if}
 			</div>
-		{/if}
-	</aside>
+
+			<nav class="nav">
+				<a href={base} class:active={pathname === base}>Overview</a>
+				<a href="{base}/cases" class:active={pathname.startsWith(`${base}/cases`)}>
+					Cases <span class="count">{c.cases}</span>
+				</a>
+				<a href="{base}/documents" class:active={pathname.startsWith(`${base}/documents`)}>
+					Documents <span class="count">{c.documents}</span>
+				</a>
+				<a href="{base}/memos" class:active={pathname.startsWith(`${base}/memos`)}>
+					Memos <span class="count">{c.memos}</span>
+				</a>
+			</nav>
+
+			{#if documents.length > 0}
+				<div class="subnav">
+					<div class="subnav-label">Documents</div>
+					{#each documents as d}
+						{#if renamingDocId === d.id}
+							<!-- svelte-ignore a11y_autofocus -->
+							<input
+								class="doc-rename-input"
+								bind:value={renameValue}
+								autofocus
+								onkeydown={(e) => { if (e.key === 'Enter') saveDocRename(d.id); if (e.key === 'Escape') renamingDocId = null; }}
+								onblur={() => saveDocRename(d.id)}
+							/>
+						{:else}
+							<a
+								href="{base}/documents/{d.id}"
+								class="subnav-item"
+								class:active={pathname === `${base}/documents/${d.id}`}
+								ondblclick={(e) => { e.preventDefault(); renamingDocId = d.id; renameValue = d.label; }}
+							>{d.label}</a>
+						{/if}
+					{/each}
+				</div>
+			{/if}
+		</aside>
+	{/if}
 
 	<main class="project-main">
 		{@render children()}
@@ -89,6 +95,9 @@
 		grid-template-columns: 240px 1fr;
 		height: 100%;
 		min-height: 0;
+	}
+	.project-layout.no-sidebar {
+		grid-template-columns: 1fr;
 	}
 
 	.project-sidebar {

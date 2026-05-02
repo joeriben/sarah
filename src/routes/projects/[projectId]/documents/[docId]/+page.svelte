@@ -872,6 +872,69 @@
 		}
 		return { withMemo, total };
 	});
+
+	// TOC-Sidebar: nur in Dokument- und Outline-Tabs sichtbar (in den anderen
+	// Tabs gibt es keine Heading-verankerten Anker, sie wäre dort sinnlos).
+	const tocVisible = $derived(
+		(view === 'dokument' || view === 'outline') && visibleOutline.length > 0
+	);
+	let activeHeadingId = $state<string | null>(null);
+
+	function scrollToHeading(elementId: string) {
+		if (!browser) return;
+		const prefix = view === 'outline' ? 'outline-node-' : 'head-';
+		const el = window.document.getElementById(prefix + elementId);
+		if (!el) return;
+		el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+
+	// Scroll-Spy: highlightet das im Viewport oben sichtbare Heading. Beobachter
+	// wird bei Tab-Wechsel oder Outline-Änderung neu aufgesetzt, weil die DOM-
+	// Anker je nach Tab unterschiedliche IDs haben (head-* vs. outline-node-*).
+	$effect(() => {
+		if (!browser) return;
+		if (!tocVisible) {
+			activeHeadingId = null;
+			return;
+		}
+		const prefix = view === 'outline' ? 'outline-node-' : 'head-';
+		const headingIds = visibleOutline.map((h) => h.elementId);
+		if (headingIds.length === 0) return;
+
+		let cleanup: (() => void) | null = null;
+		// rAF, weil der Tab-Inhalt evtl. gerade erst gemountet wurde.
+		const raf = requestAnimationFrame(() => {
+			const intersecting = new Set<string>();
+			const observer = new IntersectionObserver(
+				(entries) => {
+					for (const e of entries) {
+						if (e.isIntersecting) intersecting.add(e.target.id);
+						else intersecting.delete(e.target.id);
+					}
+					let best: { id: string; top: number } | null = null;
+					for (const id of intersecting) {
+						const el = window.document.getElementById(id);
+						if (!el) continue;
+						const rect = el.getBoundingClientRect();
+						if (!best || rect.top < best.top) best = { id, top: rect.top };
+					}
+					if (best) activeHeadingId = best.id.slice(prefix.length);
+				},
+				// Spy-Band: oberste ~25 % des Viewports.
+				{ rootMargin: '0px 0px -75% 0px', threshold: 0 }
+			);
+			for (const id of headingIds) {
+				const el = window.document.getElementById(prefix + id);
+				if (el) observer.observe(el);
+			}
+			cleanup = () => observer.disconnect();
+		});
+
+		return () => {
+			cancelAnimationFrame(raf);
+			cleanup?.();
+		};
+	});
 </script>
 
 <svelte:window onclick={handleDocClick} />
@@ -998,7 +1061,30 @@
 		</nav>
 	</header>
 
-	<div class="tab-body">
+	<div class="tab-body" class:has-toc={tocVisible}>
+		{#if tocVisible}
+			<aside class="doc-toc" aria-label="Kapitel-Navigation">
+				<div class="toc-head">
+					<a href="/projects/{$page.params.projectId}/cases" class="toc-back">← Cases</a>
+					{#if caseInfo}<div class="toc-case" title="Case">{caseInfo.name}</div>{/if}
+				</div>
+				<nav class="toc-nav">
+					{#each visibleOutline as h (h.elementId)}
+						<button
+							type="button"
+							class="toc-item level-{Math.min(h.level, 5)}"
+							class:active={activeHeadingId === h.elementId}
+							onclick={() => scrollToHeading(h.elementId)}
+							title={h.text}
+						>
+							{#if h.numbering}<span class="toc-num">{h.numbering}</span>{/if}
+							<span class="toc-text">{h.text}</span>
+						</button>
+					{/each}
+				</nav>
+			</aside>
+		{/if}
+		<div class="tab-main">
 		{#if view === 'pipeline'}
 			<section class="tab-content pipeline-tab">
 				{#if !caseInfo}
@@ -1413,7 +1499,7 @@
 							{@const parentL1 = parentL1ByHeading.get(h.elementId)}
 							{@const parentAggLevel = parentL1 ? aggregationLevelByL1[parentL1] : undefined}
 							{@const eingefasst = h.level > 1 && parentAggLevel === 1 && !synthesis}
-							<article class="outline-node level-{Math.min(h.level, 5)}" style:--indent="{indent}">
+							<article class="outline-node level-{Math.min(h.level, 5)}" style:--indent="{indent}" id="outline-node-{h.elementId}">
 								<header class="outline-node-head">
 									<span class="lvl-tag">L{h.level}</span>
 									{#if h.numbering}
@@ -1485,6 +1571,7 @@
 				</div>
 			</section>
 		{/if}
+		</div>
 	</div>
 </div>
 
@@ -1740,6 +1827,86 @@
 	}
 
 	.tab-body { min-height: 60vh; }
+	.tab-body.has-toc {
+		display: grid;
+		grid-template-columns: 220px minmax(0, 1fr);
+		gap: 1.5rem;
+		align-items: start;
+	}
+	.tab-main { min-width: 0; }
+
+	.doc-toc {
+		position: sticky;
+		top: 1rem;
+		align-self: start;
+		max-height: calc(100vh - 2rem);
+		overflow-y: auto;
+		padding-right: 0.5rem;
+		border-right: 1px solid #1e2030;
+	}
+	.toc-head {
+		margin-bottom: 0.6rem;
+		padding-bottom: 0.5rem;
+		border-bottom: 1px solid #1e2030;
+	}
+	.toc-back {
+		display: block;
+		font-size: 0.78rem;
+		color: #6b7280;
+		text-decoration: none;
+		margin-bottom: 0.25rem;
+	}
+	.toc-back:hover { color: #c9cdd5; }
+	.toc-case {
+		font-size: 0.72rem;
+		color: #8b8fa3;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.toc-nav { display: flex; flex-direction: column; gap: 1px; }
+	.toc-item {
+		display: flex;
+		align-items: baseline;
+		gap: 0.4rem;
+		padding: 0.32rem 0.55rem;
+		font-size: 0.78rem;
+		font-family: inherit;
+		color: #8b8fa3;
+		text-align: left;
+		background: transparent;
+		border: 0;
+		border-left: 2px solid transparent;
+		cursor: pointer;
+		width: 100%;
+		min-width: 0;
+	}
+	.toc-item:hover { color: #c9cdd5; background: rgba(255,255,255,0.025); }
+	.toc-item.active {
+		color: #a5b4fc;
+		border-left-color: #a5b4fc;
+		background: rgba(165, 180, 252, 0.06);
+	}
+	.toc-item.level-1 { font-weight: 600; color: #c9cdd5; padding-left: 0.55rem; }
+	.toc-item.level-1.active { color: #a5b4fc; }
+	.toc-item.level-2 { padding-left: 1.3rem; }
+	.toc-item.level-3 { padding-left: 2.0rem; font-size: 0.74rem; }
+	.toc-item.level-4 { padding-left: 2.6rem; font-size: 0.74rem; }
+	.toc-item.level-5 { padding-left: 3.2rem; font-size: 0.72rem; }
+	.toc-num {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.66rem;
+		color: #6b7280;
+		flex-shrink: 0;
+	}
+	.toc-item.active .toc-num { color: #a5b4fc; }
+	.toc-text {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
 
 	.placeholder {
 		padding: 2rem 1.5rem;
