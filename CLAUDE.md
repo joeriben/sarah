@@ -1,3 +1,5 @@
+**Architektur-Doku**: `docs/ARCHITECTURE.md` ist der single-source-of-truth-Index für Datenmodell, Pipeline-Stand, API-Surface und Konventionen. Vor jeder neuen Code-Änderung dort einsteigen, nicht in `docs/design-*.md` (siehe `docs/architecture/09-legacy-docs-ledger.md`).
+
 Die Kernprinzipien aus Sessions 00-02:
 
   1. Transaktionale Ontologie (D/B): Die Grundeinheit ist das Ereignis (Naming-Akt), nicht die Entität. 3-Tabellen-Modell:

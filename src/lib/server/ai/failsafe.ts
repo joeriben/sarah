@@ -145,31 +145,23 @@ function escapeRegExp(s: string): string {
 }
 
 /**
- * Asserter für Outbound-Calls. Wirft `AnonymizationFailsafeError` bei
- * jedem Treffer, wenn der Provider Non-DSGVO ist.
+ * Asserter für Outbound-Calls.
  *
- * Bei DSGVO-Providern wird NICHT gescant — der Sinn der DSGVO-Provider ist
- * gerade, dass Klartext zulässig ist. (Bei UC2 / Peer-Review läuft die
- * LLM-assistierte Anonymisierung selbst über einen DSGVO-Provider mit
- * Klartext-Input — der Failsafe darf dort nicht blocken.)
+ * User-Setzung 2026-05-03: Hard-Block deaktiviert. Anonymisierung (DSGVO-
+ * Pre-Processing für Qualifizierungs-Werke) und DSGVO-konforme Provider-
+ * Wahl sind die expliziten User-Optionen für PII-sensitive Werke. Der
+ * Failsafe als zusätzliche Belt-and-Suspenders-Schicht erzeugte False-
+ * Positives (z.B. "Analyse" als person_name aus fehlerhaften PII-Seeds)
+ * und blockte legitime Calls auf bereits anonymisierten Dokumenten.
  *
- * Aufrufer, die WISSEN, dass sie keine Dokument-Daten senden (z.B. der
- * Connection-Test in client.ts), übergeben einfach ein leeres
- * `documentIds`-Array — dann wird nichts gescant.
+ * Funktion bleibt als no-op erhalten, damit Caller-Sites stabil bleiben.
+ * Re-Aktivierung erfordert User-Setzung; bevor das passiert, sollten die
+ * PII-Seeds einmal qualifiziert werden (False-Positive-Bereinigung).
  */
 export async function assertSafeForExternal(
-	payload: string,
-	documentIds: string[],
-	provider: Provider
+	_payload: string,
+	_documentIds: string[],
+	_provider: Provider
 ): Promise<void> {
-	if (isDsgvoProvider(provider)) return;
-	if (documentIds.length === 0) return;
-
-	const seeds = await loadActiveSeeds(documentIds);
-	if (seeds.length === 0) return;
-
-	const hits = scanForPiiHits(payload, seeds);
-	if (hits.length > 0) {
-		throw new AnonymizationFailsafeError(hits, provider, documentIds);
-	}
+	return;
 }
