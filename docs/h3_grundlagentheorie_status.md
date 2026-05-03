@@ -2,7 +2,7 @@
 
 Eigenständige Status-Doku der GRUNDLAGENTHEORIE-Session (parallel zu `h3_implementation_status.md`, das die FORSCHUNGSDESIGN-Session pflegt).
 
-Letztes Update: 2026-05-03 abends (Schritt 1 + Schritt 2 + Schritt 3 reproduktiv + Schritt 3 diskursiv implementiert und gegen BA H3 dev am Material verifiziert; Schritt 4 + Container-Orchestrator offen; Klammer-Heuristik-Refactor-Versuch tagsüber verworfen).
+Letztes Update: 2026-05-03 spätabends (Pyramide vollständig auf Habil Timm `2635e73c…` durchgelaufen — beide Container "explizit green", 4 LLM-Calls / ~20 ct OpenRouter; Bug-Fix in `grundlagentheorie_routing.ts:457` für leere BLOCK_ROUTING-Konstrukte; Schritt 4 + Container-Orchestrator offen).
 
 ---
 
@@ -247,14 +247,38 @@ Anonymisierungs-Failsafe deaktiviert (Commit `d617098`, User-Setzung) — Hard-B
 - Reproductive (3 Blöcke × 2 Calls): provenienz-Achse "red" für ¶25-29 (kein Beleg pro didaktischem Prinzip), Kontamination "lebenslanges Lernen" als nicht-Klafki-Begriff erkannt — am Material defensibel.
 - Discursive (4 standard_stretch-Blöcke): alle "implizit green" — Theorie-Kapitel arbeitet Klafki-Perspektive auf, GCED-Anwendungsfrage erst in DURCHFUEHRUNG. Klassifikator-Set `explizit/implizit/bezugslos` hat in diesem Werk noch keine Trennschärfe gezeigt; Härtetest mit gemischtem Bezugsverhalten steht aus.
 
+### Habil H3 Test (Case `2635e73c…`) — verifizierte Befunde am Material 2026-05-03 spätabends
+
+Pyramide vollständig durch (4 Schritte) auf 2 GTH-Containern der Habilitation Timm "Theorie kultureller Lehrerbildung":
+
+| Schritt | Calls | Tokens (in/out) | Laufzeit | Befund |
+|---|---|---|---|---|
+| EXPOSITION (Opus 4.7) | 2 | 14.658 / 436 | 8.9s | FRAGESTELLUNG + MOTIVATION sauber extrahiert |
+| Schritt 1 Verweisprofil (det.) | 0 | — | 1.9s | 2 Container, 76+106 Citations, 72+91 Autoren |
+| Schritt 2 Routing (Sonnet 4.6) | 0 | — | 1.4s | **0 Verdachts-Blöcke** beide Container |
+| Schritt 3 reproduktiv | 0 | — | 1.4s | no-op (keine Verdachts-Blöcke) |
+| Schritt 3 diskursiv (Sonnet 4.6) | 2 | 25.102 / 614 | 17.1s | beide Container "explizit green" |
+| **H3-GRUNDLAGENTHEORIE gesamt** | **4** | **39.760 / 1.050** | **~30s** | |
+
+**Container A "Theoretische Anschlüsse — Kulturalität und Globalität"** (27 ¶): HHI 0.018, Top-1-Share 0.05, max-Konsekutiv 2 ¶ — extrem polyphon. DISKURSIV "explizit green" mit 4 Anchors (¶0, ¶4, ¶26 nennen FRAGESTELLUNG direkt).
+
+**Container B "Schule und Professionalität in der Globalität"** (26 ¶): HHI 0.017, Top-1-Share 0.06, max-Konsekutiv 1 ¶ (Adick) — noch breiter. DISKURSIV "explizit green" mit 3 Anchors.
+
+**Pyramide trennt korrekt** zwischen mono-reproduktiver BA (HHI 0.64, Klafki-Cluster ¶25-29, Reproduktiv-Pass aktiviert) und polyphoner Habil (HHI 0.018, kein Cluster ≥4 ¶ und kein Citation-Gap ≥5 ¶, alles diskursiv). Klassen-Verhalten gemäß Spec.
+
+**Cost-Hypothese bestätigt**: Pyramide auf 53 ¶ = 4 LLM-Calls / 40k Tokens / **~20 ct OpenRouter** (User-Tracking). Pauschales H1 wäre ~160-265k Tokens (~5x). Plus epistemisch korrekt — pauschales H1 würde fremde Argumente in polyphonen Containern als eigene labeln.
+
+**Bug-Fix**: `grundlagentheorie_routing.ts:457` — `containerResultBlocks.length > 0`-Filter entfernt. Routing persistiert jetzt auch leere BLOCK_ROUTING-Konstrukte, sodass Reproduktiv und Diskursiv für polyphone Container anschlussfähig sind. Vorher: harter Fehler "BLOCK_ROUTING fehlt".
+
+**Klassifikator-Trennschärfe weiterhin offen**: BA "implizit green", Habil "explizit green" — `bezugslos` ist in beiden Werken nicht aufgetreten. Status-Doku-Hypothese ("Härtetest steht aus") gilt weiter.
+
+**Granularitäts-Beobachtung**: Diskursiv läuft auf je einem Standard-Stretch über 26-27 ¶ als Ganzes. Sub-Heading-bewusste Sub-Block-Bildung (Container A wechselt von "Kultur und Kulturalität" zu "Globalität") könnte innere Bandbreite sichtbar machen — Idee für Container-Orchestrator.
+
 ### Nächste Session — empfohlener Auftakt
 
-1. **Schritt 3 an einem Stück der Habil testen** (User-Setzung 2026-05-03 abends).
-   - Habil hat **keinen** GTH-Marker — vor Test entweder via UI oder SQL einen Heading mit `outline_function_type='GRUNDLAGENTHEORIE'` markieren, oder die Test-Skripte um einen `--container "<heading-substring>"`-Modus erweitern (analog `test-h3-grundlagentheorie-streuung.ts`).
-   - Zusätzlich: EXPOSITION-Pass auf Habil laufen lassen, sodass `FRAGESTELLUNG`-Konstrukt persistiert ist (sonst scheitert der diskursive Pass mit "EXPOSITION-Pass muss zuerst laufen").
-   - Erwartung: bei einem polyphonen Habil-Container mit hoher Bandbreite sollten DISKURSIV-Klassifikationen mehr Spannweite zeigen als bei BA H3 dev (mindestens "explizit"-Treffer wenn die Fragestellung explizit aufgenommen wird, und ggf. "bezugslos"-Treffer bei drumrum-Theorie).
-2. **Cost-Hypothese prüfen**: pro Container Gesamt-Token-Verbrauch alle vier Schichten messen, mit pauschalem H1-Aufwand vergleichen (= ¶-Anzahl × durchschnittliche H1-Tokens). Erwartung User: Pyramide spart deutlich gegenüber pauschalem H1.
-3. **Danach**: Schritt 4 (FORSCHUNGSGEGENSTAND_REKONSTRUIEREN) + Container-Orchestrator (verbindet die vier Schichten + bindet existierende H1-Pipeline auf diskursive ¶ ein). Dafür wahlweise weiterer Agent oder Handover (User-Entscheidung am Auftakt).
+1. **Vergleichslauf mit gesenkten Schwellen** (`--cluster=2 --gap=3`) auf Habil-Case `2635e73c…` — würde zeigen, was der Reproduktiv-Pass auf knappen Habil-Clustern findet (¶8 mit 17 Citations Mecheril, ¶15 mit 11 Forster — Single-¶-Hotspots aber kein Cluster).
+2. **Schritt 4 implementieren** (FORSCHUNGSGEGENSTAND_REKONSTRUIEREN) — Container-End-Aggregation. 1 LLM-Call pro Container, Input: alle Konstrukte + Outline + FRAGESTELLUNG. Spec ist final laut Pyramide-Tabelle.
+3. **Danach Container-Orchestrator** (verbindet alle vier Schichten + bindet existierende H1-Pipeline auf diskursive ¶ ein, falls Brief-Flag gesetzt). Sub-Block-Bildung an Sub-Headings als Erweiterung.
 
 ### Open Setq-Defaults
 

@@ -454,7 +454,7 @@ export async function runRoutingPass(
 		}
 
 		let constructId: string | null = null;
-		if (persistConstructs && containerResultBlocks.length > 0) {
+		if (persistConstructs) {
 			const persistedBlocks: RoutedBlockPersisted[] = containerResultBlocks.map((b) => ({
 				paragraphIds: b.paragraphIds,
 				paragraphIndexRange: b.paragraphIndexRange,
