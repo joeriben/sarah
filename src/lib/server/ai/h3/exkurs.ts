@@ -1,50 +1,54 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// H3:EXKURS — Re-Spezifikations-Akt am Forschungsgegenstand.
+// H3:EXKURS — Re-Spezifikation des Forschungsgegenstands durch externen Begriff.
 //
 // Mother-Setzung (project_three_heuristics_architecture.md):
 //   "EXKURSE sind iterativ spezifizierte GRUNDLAGENTHEORIE auf Basis
-//   gewonnener ERKENNTNISSE." Konstrukte: EXKURS_ANKER (auslösende
-//   Anlass-Stelle), RE_SPEC_AKT (neuer Designations-Akt im Stack des
-//   betroffenen KERNBEGRIFFS, kein Overwrite).
+//   gewonnener ERKENNTNISSE."
 //
-// User-Setzung 2026-05-03 spätabends (Folge-Session zur Mother):
-//   - EXKURS ist keine GRUNDLAGENTHEORIE-Spiegelung (keine Verweisprofil-
-//     /Routing-Pipeline), sondern eine theoretische Wendung des Autors,
-//     die einen externen Begriff einführt und damit Begriffe des bisherigen
-//     FORSCHUNGSGEGENSTANDs in einer neuen Lesart re-spezifiziert.
-//     Beispiel: Arbeit auf Bourdieus Habitus aufbauend; EXKURS diskutiert
-//     Foucaults Dispositivbegriff; danach wird Habitus als foucaultsche
-//     Disponierung verstanden.
-//   - "Trigger-BEFUND" ist nicht systematisch herstellbar (weder FK auf
-//     DURCHFÜHRUNGS-BEFUND noch sonst computable). Anlass-Text aus dem
-//     EXKURS selbst (Eingangs-¶) reicht — wird in RE_SPEC_AKT.content.
-//     exkursAnchorText abgelegt, kein separates EXKURS_ANKER-Konstrukt.
-//   - RE_SPEC_AKT zielt auf den FORSCHUNGSGEGENSTAND (Werk-Konstrukt),
-//     nicht auf isolierte subjectKeywords. Affected concepts werden
-//     bevorzugt aus den vorgegebenen subjectKeywords gewählt.
-//   - Stack-Repräsentation Option C (User-Bestätigung): RE_SPEC_AKT als
-//     eigenes Konstrukt mit eigenem origin-Stack-Eintrag, KEIN Append-
-//     Modify am vorgelagerten FORSCHUNGSGEGENSTAND.version_stack.
-//     Stack-Diff (für Reviewer-Indikator) ist später per Query
-//     rekonstruierbar: SELECT alle RE_SPEC_AKT WHERE document_id ORDER BY
-//     created_at oder Outline-Position.
-//   - Idempotenz: delete-before-insert pro EXKURS-Container, damit Re-Run
-//     keine Duplikate erzeugt. EXKURS produziert NIEMALS einen neuen
-//     FORSCHUNGSGEGENSTAND/FRAGESTELLUNG, nur RE_SPEC_AKT.
+// Architektur (Folge-Sessions zur Mother, 2026-05-04):
+//
+// EXKURS ist keine GRUNDLAGENTHEORIE-Spiegelung (keine Verweisprofil-/
+// Routing-Pipeline), sondern eine theoretische Wendung des Autors, die
+// einen externen Begriff einführt und damit Begriffe des bisherigen
+// FORSCHUNGSGEGENSTANDs in einer neuen Lesart re-spezifiziert. Beispiel:
+// Arbeit auf Bourdieus Habitus aufbauend; EXKURS diskutiert Foucaults
+// Dispositivbegriff; danach wird Habitus als foucaultsche Disponierung
+// verstanden.
+//
+// Persistenz-Modell (User-Setzung 2026-05-04 nach Variante-C-Verwerfung):
+// EXKURS modifiziert das vorhandene FORSCHUNGSGEGENSTAND-Konstrukt direkt:
+//   - content wird durch eine LLM-rekomponierte neue Version ersetzt,
+//     die die importierten Begriffe einarbeitet
+//   - version_stack bekommt einen 're_spec'-Eintrag (kind, at, source-
+//     exkurs-anchors, imported/affected/reSpecText, content_snapshot des
+//     vorigen Stands)
+// Die destruktive Überschreibung ist gewollt: Konsumenten (FORSCHUNGSDESIGN,
+// SYNTHESE, SR, WERK_*) lesen FG ganz normal per SELECT und bekommen ohne
+// weiteres Coding den re-spezifizierten Stand. Der version_stack bewahrt
+// den Audit-Trail; Stack-Diff als Reviewer-Indikator (Erkenntnisfortschritt
+// vs. Regression) ist als Feinheit deferred (V.3.0 oder später) und nicht
+// instrumentiert.
+//
+// Verworfene Variante C (Folge-Session zur Mother, vormittags 2026-05-04):
+// "RE_SPEC_AKT als eigenes Konstrukt + Aggregator-Read am FG-Loader" —
+// vom User als zu umständlich und weit weg von der epistemischen Bewegung
+// erkannt. Würde alle FG-Konsumenten zu Aggregator-Reads zwingen ohne
+// Mehrwert.
+//
+// "Trigger-BEFUND" ist nicht systematisch herstellbar (kein FK auf
+// DURCHFÜHRUNGS-BEFUND möglich). Anlass-Text aus dem EXKURS selbst
+// (Eingangs-¶) wird im Stack-Eintrag als exkursAnchorText abgelegt.
 //
 // Critical-Friend-Identität (project_critical_friend_identity.md):
-//   Tool BESCHREIBT, was im EXKURS passiert (welcher Begriff wird neu
-//   eingeführt, welcher wird umgedeutet, neue Lesart). KEINE Wertung
-//   ("guter EXKURS" / "verkürzt"). Reviewer-Indikator (Stack-Diff
-//   Erweiterung/Verschiebung/Regression) ist deferred bis WERK-Ebene
-//   und arbeitet auf dem read-only-Aggregat der RE_SPEC_AKT-Konstrukte.
+// Tool BESCHREIBT die Re-Spezifikation; keine Wertung. Bei reiner
+// Hintergrund-Notiz (kein Re-Spec-Akt) bleibt FG unverändert (noRespec=true).
 //
-// Persistenz: function_constructs mit construct_kind='RE_SPEC_AKT',
-//   outline_function_type='EXKURS'. Pro EXKURS-Container ein Konstrukt
-//   (anchor_element_ids = alle ¶ des Containers). version_stack hat einen
-//   origin-Eintrag mit content_snapshot — analog FORSCHUNGSGEGENSTAND.
+// Idempotenz: vor Stack-Append werden bestehende re_spec-Einträge mit
+// gleichen source_exkurs_anchors aus dem Stack entfernt; gleichzeitig
+// wird das content-Feld auf "Re-Apply ab letztem origin" gerechnet, damit
+// Re-Run für gleichen EXKURS keine Vermehrung erzeugt.
 
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
@@ -184,17 +188,47 @@ async function loadFragestellungWithDiagnostics(
 	};
 }
 
-interface ForschungsgegenstandFromDb {
+interface ForschungsgegenstandRow {
 	id: string;
+	content: ForschungsgegenstandContent;
+	versionStack: VersionStackEntry[];
+	anchorElementIds: string[];
+}
+
+interface ForschungsgegenstandContent {
 	text: string;
 	subjectKeywords: string[];
+	salientContainerIndices?: number[];
+	containerOverview?: Array<{
+		headingText: string;
+		paragraphCount: number;
+		topAuthors: string[];
+	}>;
+	llmModel?: string;
+	llmTimingMs?: number;
+}
+
+interface VersionStackEntry {
+	kind: 'origin' | 're_spec';
+	at: string;
+	by_user_id: string | null;
+	source_run_id: string | null;
+	source_construct_id?: string | null;
+	source_exkurs_anchors?: string[];
+	source_exkurs_heading_id?: string;
+	source_exkurs_heading_text?: string;
+	imported_concepts?: Array<{ name: string; sourceAuthor: string | null }>;
+	affected_concepts?: string[];
+	re_spec_text?: string;
+	exkurs_anchor_text?: string | null;
+	content_snapshot: ForschungsgegenstandContent;
 }
 
 async function loadForschungsgegenstandWithDiagnostics(
 	caseId: string,
 	documentId: string
 ): Promise<{
-	fg: ForschungsgegenstandFromDb | null;
+	fg: ForschungsgegenstandRow | null;
 	diag: ConstructDuplicateInfo;
 }> {
 	const countRow = await queryOne<{ n: string }>(
@@ -210,9 +244,11 @@ async function loadForschungsgegenstandWithDiagnostics(
 
 	const row = await queryOne<{
 		id: string;
-		content: { text: string; subjectKeywords?: string[] };
+		content: ForschungsgegenstandContent;
+		version_stack: VersionStackEntry[];
+		anchor_element_ids: string[];
 	}>(
-		`SELECT id, content
+		`SELECT id, content, version_stack, anchor_element_ids
 		 FROM function_constructs
 		 WHERE case_id = $1
 		   AND document_id = $2
@@ -229,72 +265,90 @@ async function loadForschungsgegenstandWithDiagnostics(
 	return {
 		fg: {
 			id: row.id,
-			text: row.content.text,
-			subjectKeywords: row.content.subjectKeywords ?? [],
+			content: row.content,
+			versionStack: Array.isArray(row.version_stack) ? row.version_stack : [],
+			anchorElementIds: row.anchor_element_ids,
 		},
 		diag: { count, duplicate: count > 1 },
 	};
 }
 
-// ── LLM-Call: RE_SPEC_AKT extrahieren ──────────────────────────────
+// ── LLM-Call: Re-Spezifikation produzieren ─────────────────────────
 
 const ImportedConceptSchema = z.object({
 	name: z.string().min(1),
 	sourceAuthor: z.string().nullable().optional(),
 });
 
-const RespecAktSchema = z.object({
+const RespecLLMSchema = z.object({
 	importedConcepts: z.array(ImportedConceptSchema),
 	affectedConcepts: z.array(z.string().min(1)),
+	newForschungsgegenstandText: z.string().min(1),
+	newSubjectKeywords: z.array(z.string().min(1)),
 	reSpecText: z.string().min(1),
 	exkursAnchorText: z.string().nullable(),
 	noRespec: z.boolean().optional(),
 });
-type RespecAktResult = z.infer<typeof RespecAktSchema>;
+type RespecLLMResult = z.infer<typeof RespecLLMSchema>;
 
-interface ExtractRespecAktInput {
+interface ExtractRespecInput {
 	fragestellung: string;
-	forschungsgegenstand: string;
-	subjectKeywords: string[];
+	priorForschungsgegenstandText: string;
+	priorSubjectKeywords: string[];
 	exkursContainer: ExkursContainer;
 	documentId: string;
 	maxTokens: number;
 	modelOverride?: { provider: Provider; model: string };
 }
 
-async function extractRespecAkt(input: ExtractRespecAktInput): Promise<{
-	result: RespecAktResult;
+async function extractRespec(input: ExtractRespecInput): Promise<{
+	result: RespecLLMResult;
 	model: string;
 	provider: string;
 	timingMs: number;
 	tokens: { input: number; output: number };
 }> {
 	const system = [
-		'Du bist ein analytisches Werkzeug, das aus einem EXKURS einer wissenschaftlichen Arbeit den darin vollzogenen RE-SPEZIFIKATIONS-AKT extrahiert.',
+		'Du bist ein analytisches Werkzeug, das aus einem EXKURS einer wissenschaftlichen Arbeit eine RE-SPEZIFIKATION des bisherigen FORSCHUNGSGEGENSTANDs ableitet.',
 		'',
 		'Begriffe (für das Verständnis der Aufgabe):',
 		'',
-		'  FORSCHUNGSGEGENSTAND: die Spezifizierung der FRAGESTELLUNG durch die in der Theoriearbeit erfolgte begriffliche Verortung. Er bildet den begrifflichen Bezugsrahmen, gegen den der EXKURS gelesen wird.',
+		'  FORSCHUNGSGEGENSTAND: die Spezifizierung der FRAGESTELLUNG durch die in der Theoriearbeit erfolgte begriffliche Verortung.',
 		'',
 		'  EXKURS: ein theoretischer Detour innerhalb der Arbeit, der typischerweise einen externen Begriff einführt und damit einen oder mehrere Begriffe des bisherigen FORSCHUNGSGEGENSTANDs in einer neuen Lesart re-spezifiziert. Beispiel: Eine Arbeit baut auf Bourdieus Habitusbegriff auf; ein EXKURS diskutiert Foucaults Dispositivbegriff; danach wird Habitus als foucaultsche Disponierung verstanden.',
 		'',
-		'  RE_SPEC_AKT: die im EXKURS vollzogene begriffliche Umarbeitung. Sie hat drei Komponenten:',
-		'    importedConcepts: die im EXKURS neu eingeführten Begriffe (mit Quellen-Autor, falls erkennbar — z.B. "Dispositiv (Foucault)"). Leer, wenn der EXKURS keinen externen Begriff einführt.',
-		'    affectedConcepts: die Begriffe des bisherigen FORSCHUNGSGEGENSTANDs, die durch den EXKURS umgedeutet/erweitert werden. Bevorzugt aus den vorgegebenen subjectKeywords wählen; nur freie Begriffe nennen, wenn keiner der subjectKeywords passt. Leer, wenn der EXKURS keinen vorhandenen Begriff umdeutet.',
-		'    reSpecText: 1–3 Sätze, die die neue Lesart darstellen — wie der affizierte Begriff jetzt im Lichte des importierten Begriffs zu verstehen ist. Bei keinem RE_SPEC: kurzer Hinweis "EXKURS vollzieht keinen Re-Spezifikations-Akt am Forschungsgegenstand; Inhalt: <kurze Beschreibung>".',
+		'  RE-SPEZIFIKATION: die im EXKURS vollzogene begriffliche Umarbeitung — wie sich der FORSCHUNGSGEGENSTAND nach dem EXKURS liest.',
 		'',
-		'Zusätzlich, wenn der EXKURS am Anfang explizit seinen Anlass benennt ("Im Folgenden wird X diskutiert, weil…", "Bevor wir weitergehen, ist eine Klärung von Y nötig", etc.), extrahiere diesen Anlass-Text wörtlich oder paraphrasiert als exkursAnchorText. Sonst null.',
+		'Aufgabe in zwei Teilen:',
 		'',
-		'Sonderfall: Wenn der EXKURS nur ergänzende Hintergrundinfo liefert (z.B. historische Notiz, Autor-Biografie, Methoden-Klärung) und KEINE begriffliche Umarbeitung des FORSCHUNGSGEGENSTANDs vollzieht, setze noRespec=true und liefere leere Arrays für importedConcepts/affectedConcepts. reSpecText enthält dann den Hinweis wie oben.',
+		'  TEIL A — Analyse des EXKURSes:',
+		'    importedConcepts: die im EXKURS neu eingeführten Begriffe (mit Quellen-Autor, falls erkennbar — z.B. {"name": "Dispositiv", "sourceAuthor": "Foucault"}). Leer bei reiner Hintergrund-Notiz.',
+		'    affectedConcepts: die Begriffe des bisherigen FORSCHUNGSGEGENSTANDs, die durch den EXKURS umgedeutet/erweitert werden. Bevorzugt aus den vorgegebenen subjectKeywords wählen; freie Begriffe nur, wenn keiner passt.',
+		'    reSpecText: 1–3 Sätze, die die im EXKURS vollzogene Umdeutung deskriptiv beschreiben.',
+		'    exkursAnchorText: vom EXKURS in den Eingangs-¶ explizit formulierter Anlass — wörtlich oder paraphrasiert. null, wenn nicht explizit benannt.',
 		'',
-		'Stil: DESKRIPTIV. Du beschreibst, was im EXKURS passiert. Du beurteilst NICHT (kein "guter EXKURS", "verkürzt", "tiefgehend"). Eigene Worte, keine wörtlichen Zitate (außer für exkursAnchorText, wenn der Anlass explizit formuliert ist).',
+		'  TEIL B — Re-Spezifizierter FORSCHUNGSGEGENSTAND (NEUE VERSION):',
+		'    newForschungsgegenstandText: der vollständige neu formulierte FORSCHUNGSGEGENSTAND-Text (3–5 Sätze, deskriptiv, im selben Stil wie der priorForschungsgegenstand), der die Re-Spezifikation einarbeitet. Dies ersetzt den bisherigen Text — keine Diff-Notation, keine "wie zuvor + dazu kommt", sondern eine kohärente neue Gesamtformulierung.',
+		'    newSubjectKeywords: die aktualisierte Kernbegriffs-Liste (3–7 Begriffe). Enthält die unveränderten alten Keywords und ergänzt um neue importierte Begriffe, soweit sie für den Forschungsgegenstand zentral werden. Begriffe, die durch den EXKURS in eine neue Lesart überführt werden, behalten ihre Bezeichnung (Bezeichnung bleibt "Habitus", auch wenn die Lesart jetzt foucaultsch ist).',
+		'',
+		'Sonderfall noRespec=true:',
+		'  Wenn der EXKURS nur ergänzende Hintergrundinfo liefert (z.B. historische Notiz, Autor-Biografie, Methoden-Klärung) und KEINE begriffliche Umarbeitung des FORSCHUNGSGEGENSTANDs vollzieht, setze noRespec=true. In dem Fall:',
+		'    - importedConcepts und affectedConcepts: leere Arrays',
+		'    - reSpecText: kurze Hinweis-Notiz "EXKURS vollzieht keinen Re-Spezifikations-Akt am Forschungsgegenstand; Inhalt: <kurze Beschreibung>"',
+		'    - newForschungsgegenstandText: identisch zum priorForschungsgegenstand (1:1, unverändert)',
+		'    - newSubjectKeywords: identisch zu den priorSubjectKeywords',
+		'    - exkursAnchorText: kann trotzdem extrahiert werden, falls Anlass formuliert',
+		'',
+		'Stil: DESKRIPTIV. Du beschreibst, was im EXKURS passiert und wie sich der FORSCHUNGSGEGENSTAND danach liest. Du beurteilst NICHT (kein "guter EXKURS", "verkürzt", "tiefgehend"). Eigene Worte; keine wörtlichen Zitate (Ausnahme: exkursAnchorText, wenn explizit formuliert).',
 		'',
 		'Antworte ausschließlich als JSON nach diesem Schema:',
 		'{',
 		'  "importedConcepts": [{"name": "<Begriff>", "sourceAuthor": "<Autor>"|null}, ...],',
 		'  "affectedConcepts": ["<Begriff>", ...],',
+		'  "newForschungsgegenstandText": "<3–5 Sätze deskriptiver neuer FG-Text>",',
+		'  "newSubjectKeywords": ["<begriff>", ...],',
 		'  "reSpecText": "<1–3 Sätze beschreibend>",',
-		'  "exkursAnchorText": "<vom EXKURS selbst formulierter Anlass>"|null,',
+		'  "exkursAnchorText": "<vom EXKURS formulierter Anlass>"|null,',
 		'  "noRespec": true|false (optional, default false)',
 		'}',
 	].join('\n');
@@ -304,18 +358,18 @@ async function extractRespecAkt(input: ExtractRespecAktInput): Promise<{
 		.join('\n\n');
 
 	const subjectKeywordsBlock =
-		input.subjectKeywords.length > 0
-			? input.subjectKeywords.map((k) => `- ${k}`).join('\n')
+		input.priorSubjectKeywords.length > 0
+			? input.priorSubjectKeywords.map((k) => `- ${k}`).join('\n')
 			: '(keine subjectKeywords im FORSCHUNGSGEGENSTAND erfasst)';
 
 	const userMessage = [
 		`FRAGESTELLUNG der Arbeit:`,
 		input.fragestellung,
 		'',
-		`FORSCHUNGSGEGENSTAND (aus GRUNDLAGENTHEORIE rekonstruiert):`,
-		input.forschungsgegenstand,
+		`priorForschungsgegenstand (bisheriger Stand, ggf. nach früheren EXKURS-Re-Spezifikationen):`,
+		input.priorForschungsgegenstandText,
 		'',
-		`Bisherige Kernbegriffe (subjectKeywords aus FORSCHUNGSGEGENSTAND):`,
+		`priorSubjectKeywords (bisheriger Stand):`,
 		subjectKeywordsBlock,
 		'',
 		`EXKURS "${input.exkursContainer.headingText}" (${input.exkursContainer.paragraphs.length} ¶):`,
@@ -334,9 +388,9 @@ async function extractRespecAkt(input: ExtractRespecAktInput): Promise<{
 	});
 	const timingMs = Date.now() - t0;
 
-	const parsed: ExtractResult<RespecAktResult> = extractAndValidateJSON(
+	const parsed: ExtractResult<RespecLLMResult> = extractAndValidateJSON(
 		response.text,
-		RespecAktSchema
+		RespecLLMSchema
 	);
 	if (!parsed.ok) {
 		// Bestehender Project-Type-Issue: TS-Compiler erkennt das
@@ -346,7 +400,7 @@ async function extractRespecAkt(input: ExtractRespecAktInput): Promise<{
 		const stage = 'stage' in parsed ? parsed.stage : 'unknown';
 		const error = 'error' in parsed ? parsed.error : 'unknown';
 		throw new Error(
-			`RE_SPEC_AKT: Antwort nicht parsbar (stage=${stage}): ${error}\n` +
+			`EXKURS-RE-SPEC: Antwort nicht parsbar (stage=${stage}): ${error}\n` +
 				`Raw: ${response.text.slice(0, 500)}`
 		);
 	}
@@ -360,76 +414,150 @@ async function extractRespecAkt(input: ExtractRespecAktInput): Promise<{
 	};
 }
 
-// ── Persistenz ────────────────────────────────────────────────────
+// ── Persistenz: destruktiver Overwrite + Stack-Append ─────────────
 
-interface RespecAktContent {
-	exkursHeadingText: string;
-	importedConcepts: Array<{ name: string; sourceAuthor: string | null }>;
-	affectedConcepts: string[];
-	reSpecText: string;
-	exkursAnchorText: string | null;
-	noRespec: boolean;
-	targetForschungsgegenstandId: string;
+interface ApplyRespecInput {
+	fg: ForschungsgegenstandRow;
+	exkursContainer: ExkursContainer;
+	llmResult: RespecLLMResult;
 	llmModel: string;
 	llmTimingMs: number;
 }
 
-async function clearExistingRespecActsForContainer(
-	caseId: string,
-	documentId: string,
-	containerParagraphIds: string[]
-): Promise<number> {
-	// Idempotenz: alle RE_SPEC_AKT für DIESEN EXKURS-Container löschen,
-	// bevor neuer eingefügt wird. Match über gleichen anchor_element_ids-
-	// Set (= gleicher EXKURS-Container). Bei Re-Run mit veränderten
-	// EXKURS-¶-Bestand (sehr selten — nur bei reparseDocument) werden
-	// alte RE_SPEC_AKT als orphan im Bestand bleiben, bis ein zweiter
-	// Cleanup-Pass dahinter läuft.
-	if (containerParagraphIds.length === 0) return 0;
-	const result = await query(
-		`DELETE FROM function_constructs
-		 WHERE case_id = $1
-		   AND document_id = $2
-		   AND outline_function_type = 'EXKURS'
-		   AND construct_kind = 'RE_SPEC_AKT'
-		   AND anchor_element_ids = $3::uuid[]`,
-		[caseId, documentId, containerParagraphIds]
-	);
-	return result.rowCount ?? 0;
+interface ApplyRespecResult {
+	updatedFgId: string;
+	noRespec: boolean;
+	priorContent: ForschungsgegenstandContent;
+	newContent: ForschungsgegenstandContent;
+	stackEntriesBefore: number;
+	stackEntriesAfter: number;
+	replacedPriorRespecForThisExkurs: boolean;
 }
 
-async function persistRespecAkt(
-	caseId: string,
-	documentId: string,
-	containerParagraphIds: string[],
-	content: RespecAktContent
-): Promise<string> {
-	if (containerParagraphIds.length === 0) {
-		throw new Error('RE_SPEC_AKT: keine EXKURS-¶ als Anker.');
+function sameAnchorSet(a: string[] | undefined, b: string[]): boolean {
+	if (!a) return false;
+	if (a.length !== b.length) return false;
+	const sortedA = [...a].sort();
+	const sortedB = [...b].sort();
+	for (let i = 0; i < sortedA.length; i++) {
+		if (sortedA[i] !== sortedB[i]) return false;
 	}
-	const stackEntry = {
-		kind: 'origin' as const,
+	return true;
+}
+
+function rebuildContentFromStack(
+	originContent: ForschungsgegenstandContent,
+	stack: VersionStackEntry[]
+): ForschungsgegenstandContent {
+	// Letzter re_spec-Eintrag (in Stack-Reihenfolge) bestimmt aktuellen Stand,
+	// weil jede LLM-Re-Spec eine vollständige neue Version produziert.
+	// Wenn keine re_spec-Einträge da sind, bleibt origin.
+	let current = originContent;
+	for (const entry of stack) {
+		if (entry.kind === 're_spec') {
+			current = entry.content_snapshot;
+		}
+	}
+	return current;
+}
+
+async function applyRespecToForschungsgegenstand(
+	input: ApplyRespecInput
+): Promise<ApplyRespecResult> {
+	const exkursAnchors = input.exkursContainer.paragraphs.map((p) => p.paragraphId);
+	const stackBefore = input.fg.versionStack;
+	const priorContent = input.fg.content;
+
+	// noRespec-Pfad: nichts ändern, kein Stack-Eintrag, FG bleibt 1:1.
+	if (input.llmResult.noRespec) {
+		return {
+			updatedFgId: input.fg.id,
+			noRespec: true,
+			priorContent,
+			newContent: priorContent,
+			stackEntriesBefore: stackBefore.length,
+			stackEntriesAfter: stackBefore.length,
+			replacedPriorRespecForThisExkurs: false,
+		};
+	}
+
+	// Idempotenz: bestehende re_spec-Einträge mit identischem
+	// source_exkurs_anchors-Set rauswerfen, damit Re-Run für gleichen
+	// EXKURS keine Vermehrung erzeugt.
+	const filteredStack: VersionStackEntry[] = [];
+	let replacedPriorRespecForThisExkurs = false;
+	for (const entry of stackBefore) {
+		if (
+			entry.kind === 're_spec' &&
+			sameAnchorSet(entry.source_exkurs_anchors, exkursAnchors)
+		) {
+			replacedPriorRespecForThisExkurs = true;
+			continue;
+		}
+		filteredStack.push(entry);
+	}
+
+	// Origin = erster Stack-Eintrag mit kind='origin' (Schritt-4-Persistenz
+	// hat genau einen origin-Eintrag angelegt). Sicherheits-Fallback: wenn
+	// kein origin-Eintrag im Stack, behandeln wir den heutigen FG-content
+	// als "as-if-origin".
+	const originEntry = filteredStack.find((e) => e.kind === 'origin');
+	const originContent = originEntry ? originEntry.content_snapshot : priorContent;
+
+	// Neuer FG-content aus dem LLM-Output. subjectKeywords explicitly
+	// aus newSubjectKeywords übernommen — der LLM kann sie ergänzen.
+	const newContent: ForschungsgegenstandContent = {
+		...originContent,
+		text: input.llmResult.newForschungsgegenstandText,
+		subjectKeywords: input.llmResult.newSubjectKeywords,
+		llmModel: input.llmModel,
+		llmTimingMs: input.llmTimingMs,
+	};
+
+	const newStackEntry: VersionStackEntry = {
+		kind: 're_spec',
 		at: new Date().toISOString(),
 		by_user_id: null,
 		source_run_id: null,
-		content_snapshot: content,
+		source_construct_id: null,
+		source_exkurs_anchors: exkursAnchors,
+		source_exkurs_heading_id: input.exkursContainer.headingId,
+		source_exkurs_heading_text: input.exkursContainer.headingText,
+		imported_concepts: input.llmResult.importedConcepts.map((c) => ({
+			name: c.name,
+			sourceAuthor: c.sourceAuthor ?? null,
+		})),
+		affected_concepts: input.llmResult.affectedConcepts,
+		re_spec_text: input.llmResult.reSpecText,
+		exkurs_anchor_text: input.llmResult.exkursAnchorText,
+		content_snapshot: newContent,
 	};
-	const row = await queryOne<{ id: string }>(
-		`INSERT INTO function_constructs
-		   (case_id, document_id, outline_function_type, construct_kind,
-		    anchor_element_ids, content, version_stack)
-		 VALUES ($1, $2, 'EXKURS', 'RE_SPEC_AKT', $3, $4, $5)
-		 RETURNING id`,
-		[
-			caseId,
-			documentId,
-			containerParagraphIds,
-			JSON.stringify(content),
-			JSON.stringify([stackEntry]),
-		]
+
+	const newStack = [...filteredStack, newStackEntry];
+
+	// content wird via Re-Build aus dem Stack errechnet, damit nach dem
+	// Filter (siehe oben) der aktuell sichtbare Stand korrekt aus dem
+	// letzten re_spec (= newStackEntry) kommt.
+	const finalContent = rebuildContentFromStack(originContent, newStack);
+
+	await query(
+		`UPDATE function_constructs
+		 SET content = $2,
+		     version_stack = $3,
+		     updated_at = now()
+		 WHERE id = $1`,
+		[input.fg.id, JSON.stringify(finalContent), JSON.stringify(newStack)]
 	);
-	if (!row) throw new Error('Failed to persist RE_SPEC_AKT');
-	return row.id;
+
+	return {
+		updatedFgId: input.fg.id,
+		noRespec: false,
+		priorContent,
+		newContent: finalContent,
+		stackEntriesBefore: stackBefore.length,
+		stackEntriesAfter: newStack.length,
+		replacedPriorRespecForThisExkurs,
+	};
 }
 
 // ── Public API ────────────────────────────────────────────────────
@@ -453,16 +581,21 @@ export interface ExkursContainerSummary {
 	paragraphCount: number;
 }
 
-export interface RespecActResult {
-	constructId: string | null;
+export interface RespecResult {
 	headingId: string;
 	headingText: string;
+	noRespec: boolean;
 	importedConcepts: Array<{ name: string; sourceAuthor: string | null }>;
 	affectedConcepts: string[];
 	reSpecText: string;
 	exkursAnchorText: string | null;
-	noRespec: boolean;
-	deletedPriorCount: number;
+	priorForschungsgegenstandText: string;
+	newForschungsgegenstandText: string;
+	priorSubjectKeywords: string[];
+	newSubjectKeywords: string[];
+	stackEntriesBefore: number;
+	stackEntriesAfter: number;
+	replacedPriorRespecForThisExkurs: boolean;
 }
 
 export interface ExkursPassResult {
@@ -472,8 +605,8 @@ export interface ExkursPassResult {
 	fragestellungSnippet: string | null;
 	forschungsgegenstandSnippet: string | null;
 	forschungsgegenstandId: string | null;
-	subjectKeywords: string[];
-	respecActs: RespecActResult[];
+	finalSubjectKeywords: string[];
+	respecs: RespecResult[];
 	llmCalls: number;
 	llmTimingMs: number;
 	tokens: { input: number; output: number };
@@ -518,8 +651,8 @@ export async function runExkursPass(
 	}
 	if (fgRes.diag.duplicate) {
 		warnings.push(
-			`FORSCHUNGSGEGENSTAND: ${fgRes.diag.count} Konstrukte vorhanden — jüngstes wird verwendet. ` +
-				`Cleanup empfohlen.`
+			`FORSCHUNGSGEGENSTAND: ${fgRes.diag.count} Konstrukte vorhanden — jüngstes wird ` +
+				`modifiziert. Cleanup empfohlen.`
 		);
 	}
 
@@ -531,10 +664,10 @@ export async function runExkursPass(
 			documentId,
 			exkursContainers: [],
 			fragestellungSnippet: fsRes.text?.slice(0, 200) ?? null,
-			forschungsgegenstandSnippet: fgRes.fg?.text.slice(0, 200) ?? null,
+			forschungsgegenstandSnippet: fgRes.fg?.content.text.slice(0, 200) ?? null,
 			forschungsgegenstandId: fgRes.fg?.id ?? null,
-			subjectKeywords: fgRes.fg?.subjectKeywords ?? [],
-			respecActs: [],
+			finalSubjectKeywords: fgRes.fg?.content.subjectKeywords ?? [],
+			respecs: [],
 			llmCalls: 0,
 			llmTimingMs: 0,
 			tokens: { input: 0, output: 0 },
@@ -562,9 +695,9 @@ export async function runExkursPass(
 		);
 	}
 	const fragestellung = fsRes.text;
-	const fg = fgRes.fg;
+	let fg = fgRes.fg;
 
-	const respecActs: RespecActResult[] = [];
+	const respecs: RespecResult[] = [];
 	let totalLlmCalls = 0;
 	let totalLlmTimingMs = 0;
 	let totalInputTokens = 0;
@@ -575,10 +708,16 @@ export async function runExkursPass(
 	for (const container of containers) {
 		if (container.paragraphs.length === 0) continue;
 
-		const llmRes = await extractRespecAkt({
+		// Prior-Stand aus aktuellem FG-content (jeder vorgehender EXKURS hat
+		// FG schon weitergedreht — sequenzielle Re-Spec entlang Outline-Order
+		// von loadExkursContainers).
+		const priorText = fg.content.text;
+		const priorKeywords = fg.content.subjectKeywords;
+
+		const llmRes = await extractRespec({
 			fragestellung,
-			forschungsgegenstand: fg.text,
-			subjectKeywords: fg.subjectKeywords,
+			priorForschungsgegenstandText: priorText,
+			priorSubjectKeywords: priorKeywords,
 			exkursContainer: container,
 			documentId,
 			maxTokens,
@@ -592,8 +731,40 @@ export async function runExkursPass(
 		lastProvider = llmRes.provider;
 		lastModel = llmRes.model;
 
-		const content: RespecAktContent = {
-			exkursHeadingText: container.headingText,
+		let applied: ApplyRespecResult;
+		if (persistConstructs) {
+			applied = await applyRespecToForschungsgegenstand({
+				fg,
+				exkursContainer: container,
+				llmResult: llmRes.result,
+				llmModel: llmRes.model,
+				llmTimingMs: llmRes.timingMs,
+			});
+			// FG für nächste Iteration: frisch aus DB neu lesen, damit der
+			// nächste EXKURS auf dem re-spezifizierten Stand aufsetzt.
+			const reread = await loadForschungsgegenstandWithDiagnostics(caseId, documentId);
+			if (reread.fg) fg = reread.fg;
+		} else {
+			// Read-only: simulate apply für Output-Berichterstellung, ohne UPDATE.
+			applied = {
+				updatedFgId: fg.id,
+				noRespec: llmRes.result.noRespec ?? false,
+				priorContent: fg.content,
+				newContent: {
+					...fg.content,
+					text: llmRes.result.newForschungsgegenstandText,
+					subjectKeywords: llmRes.result.newSubjectKeywords,
+				},
+				stackEntriesBefore: fg.versionStack.length,
+				stackEntriesAfter: fg.versionStack.length + (llmRes.result.noRespec ? 0 : 1),
+				replacedPriorRespecForThisExkurs: false,
+			};
+		}
+
+		respecs.push({
+			headingId: container.headingId,
+			headingText: container.headingText,
+			noRespec: applied.noRespec,
 			importedConcepts: llmRes.result.importedConcepts.map((c) => ({
 				name: c.name,
 				sourceAuthor: c.sourceAuthor ?? null,
@@ -601,40 +772,13 @@ export async function runExkursPass(
 			affectedConcepts: llmRes.result.affectedConcepts,
 			reSpecText: llmRes.result.reSpecText,
 			exkursAnchorText: llmRes.result.exkursAnchorText,
-			noRespec: llmRes.result.noRespec ?? false,
-			targetForschungsgegenstandId: fg.id,
-			llmModel: llmRes.model,
-			llmTimingMs: llmRes.timingMs,
-		};
-
-		const containerParagraphIds = container.paragraphs.map((p) => p.paragraphId);
-
-		let constructId: string | null = null;
-		let deletedPriorCount = 0;
-		if (persistConstructs) {
-			deletedPriorCount = await clearExistingRespecActsForContainer(
-				caseId,
-				documentId,
-				containerParagraphIds
-			);
-			constructId = await persistRespecAkt(
-				caseId,
-				documentId,
-				containerParagraphIds,
-				content
-			);
-		}
-
-		respecActs.push({
-			constructId,
-			headingId: container.headingId,
-			headingText: container.headingText,
-			importedConcepts: content.importedConcepts,
-			affectedConcepts: content.affectedConcepts,
-			reSpecText: content.reSpecText,
-			exkursAnchorText: content.exkursAnchorText,
-			noRespec: content.noRespec,
-			deletedPriorCount,
+			priorForschungsgegenstandText: priorText,
+			newForschungsgegenstandText: applied.newContent.text,
+			priorSubjectKeywords: priorKeywords,
+			newSubjectKeywords: applied.newContent.subjectKeywords,
+			stackEntriesBefore: applied.stackEntriesBefore,
+			stackEntriesAfter: applied.stackEntriesAfter,
+			replacedPriorRespecForThisExkurs: applied.replacedPriorRespecForThisExkurs,
 		});
 	}
 
@@ -647,10 +791,10 @@ export async function runExkursPass(
 			paragraphCount: c.paragraphs.length,
 		})),
 		fragestellungSnippet: fragestellung.slice(0, 200),
-		forschungsgegenstandSnippet: fg.text.slice(0, 200),
+		forschungsgegenstandSnippet: fg.content.text.slice(0, 200),
 		forschungsgegenstandId: fg.id,
-		subjectKeywords: fg.subjectKeywords,
-		respecActs,
+		finalSubjectKeywords: fg.content.subjectKeywords,
+		respecs,
 		llmCalls: totalLlmCalls,
 		llmTimingMs: totalLlmTimingMs,
 		tokens: { input: totalInputTokens, output: totalOutputTokens },

@@ -196,7 +196,31 @@ Pyramide aus deterministischer Analyse + selektivem LLM, alle vier Schichten am 
 - Idempotent via clear-before-insert auf `(case_id, document_id, outline_function_type='DURCHFUEHRUNG', construct_kind='BEFUND')`.
 - Validiert auf BA H3 dev: 1 Hotspot, BEFUND extrahiert (5 support_args, 6 grounding_¶), 4.5k in / 340 out Tokens, 4s. Re-Run idempotent.
 
-### 4.5 EXKURS, SYNTHESE, SCHLUSSREFLEXION, WERK_STRUKTUR — **nicht implementiert.**
+### 4.5 EXKURS (`ai/h3/exkurs.ts`) — **implementiert, formal validiert; semantischer Test offen**
+
+Architektur (User-Setzung 2026-05-04): EXKURS ist keine GRUNDLAGENTHEORIE-Spiegelung mit eigener Pyramide, sondern eine theoretische Wendung des Autors, die einen externen Begriff einführt und damit Begriffe des bisherigen FORSCHUNGSGEGENSTANDs in einer neuen Lesart re-spezifiziert (Beispiel: Habitus à la Bourdieu → Habitus als foucaultsche Disponierung nach Foucault-EXKURS).
+
+Persistenz-Modell: **destruktive Modifikation des bestehenden FORSCHUNGSGEGENSTAND-Konstrukts**. EXKURS schreibt KEIN eigenes Konstrukt; statt dessen:
+- `function_constructs.content` wird durch eine LLM-rekomponierte neue Version ersetzt (vollständiger neuer FG-Text + ggf. ergänzte subjectKeywords)
+- `function_constructs.version_stack` bekommt einen `re_spec`-Eintrag (kind, at, source_exkurs_anchors, imported_concepts, affected_concepts, re_spec_text, content_snapshot des neuen Stands)
+
+Konsumenten (FORSCHUNGSDESIGN, später SYNTHESE/SR/WERK_*) lesen FG ganz normal per SELECT und bekommen den re-spezifizierten Stand. Kein Aggregator-Read nötig.
+
+Idempotenz: vor Stack-Append werden bestehende `re_spec`-Einträge mit gleichem `source_exkurs_anchors`-Set aus dem Stack entfernt. content wird via `rebuildContentFromStack` aus dem gefilterten Stack errechnet — Re-Run für gleichen EXKURS ergibt genau einen `re_spec`-Eintrag.
+
+Sequenzialität: bei mehreren EXKURSEN im Werk läuft die Pipeline outline-sortiert; jeder EXKURS sieht den bereits re-spezifizierten Stand des vorigen.
+
+`noRespec=true`-Pfad: bei reiner Hintergrund-Notiz (historische Notiz, Methoden-Klärung, etc.) bleibt FG unverändert; kein Stack-Wachstum.
+
+Validierung 2026-05-04 gegen BA H3 dev mit temp-Markierung "Theoretischer Rahmen" als EXKURS:
+- LLM erkennt korrekt `noRespec=true` (Klafki-Theorierahmen ist Erstexposition, keine Re-Spezifikation eines vorhandenen Begriffs)
+- Stack-Tiefe 1 → 1 (kein neuer Eintrag)
+- Auto-Cleanup im Test-Skript: FG-Snapshot vor Lauf, restored im finally
+- Funktionaler Test mit semantisch echtem EXKURS-Container steht aus (im Bestand selten)
+
+**V.3.0-Roadmap**: intelligenterer Stack mit LLM-detektabler transformatorischer Emergenz (Stack-Diff als Fortschritt/Regression-Indikator). Dafür müsste der LLM die Stack-Sequenz lesen und Bewegungen klassifizieren. Heute deferred — der Stack ist materialisiert, aber nicht instrumentiert.
+
+### 4.5b SYNTHESE, SCHLUSSREFLEXION, WERK_STRUKTUR — **nicht implementiert.**
 
 Spec-Backlog. Heading-Marker-Regex erkennt SCHLUSSREFLEXION/SYNTHESE bereits (Pre-Heuristik), aber keine eigene Konstrukt-Extraktion.
 
