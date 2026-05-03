@@ -220,11 +220,24 @@ Validierung 2026-05-04 gegen BA H3 dev mit temp-Markierung "Theoretischer Rahmen
 
 **V.3.0-Roadmap**: intelligenterer Stack mit LLM-detektabler transformatorischer Emergenz (Stack-Diff als Fortschritt/Regression-Indikator). Dafür müsste der LLM die Stack-Sequenz lesen und Bewegungen klassifizieren. Heute deferred — der Stack ist materialisiert, aber nicht instrumentiert.
 
-### 4.5b SYNTHESE, SCHLUSSREFLEXION, WERK_STRUKTUR — **nicht implementiert.**
+### 4.6 SYNTHESE (`ai/h3/synthese.ts`) — **implementiert, validiert (BA H3 dev)**
 
-Spec-Backlog. Heading-Marker-Regex erkennt SCHLUSSREFLEXION/SYNTHESE bereits (Pre-Heuristik), aber keine eigene Konstrukt-Extraktion.
+Architektur (User-Setzung 2026-05-04): ein Konstrukt `construct_kind='GESAMTERGEBNIS'` mit reichem content (`gesamtergebnisText`, `fragestellungsAntwortText`, `erkenntnisIntegration[]`, `coverageRatio`). Werk-Aggregat: anchor = alle ¶ aller SYNTHESE-Container des Werks.
 
-### 4.6 WERK_GUTACHT (a/b/c+d/e/f gated) — **nicht implementiert.**
+Pipeline (1 LLM-Call pro Werk, default Sonnet 4.6, max 2000 Tokens):
+- Cross-Typ-Reads: FRAGESTELLUNG (EXPOSITION), FORSCHUNGSGEGENSTAND (GTH, ggf. EXKURS-modifiziert), alle BEFUND-Konstrukte mit text!=null (DURCHFÜHRUNG)
+- LLM-Aufgabe in drei Teilen: (A) deskriptiver GESAMTERGEBNIS-Text, (B) FRAGESTELLUNGS-ANTWORT, (C) Integration-Map pro BEFUND mit binärem `integriert` + optional anchor-¶ + Critical-Friend-Hinweis bei Nicht-Integration
+- Server-seitig: LLM-Indices auf UUIDs gemappt, `coverageRatio = integratedCount / befundCount`
+
+Idempotent (delete-before-insert pro Werk). Kein version_stack-Wachstum jenseits origin (SYNTHESE wird von keiner späteren Heuristik re-spezifiziert; SCHLUSSREFLEXION setzt sich daneben).
+
+Validierung 2026-05-04 gegen BA H3 dev (2 SYNTHESE-Container, 9 ¶, 1 BEFUND): GESAMTERGEBNIS und FRAGESTELLUNGS-ANTWORT deskriptiv-präzise, FRAGESTELLUNGS-ANTWORT mit Critical-Friend-Diagnose ("affirmativ-harmonisierend statt kritisch-differenzierend"); ERKENNTNIS-INTEGRATION mit coverage=0% und konkretem Hinweis, welcher BEFUND nicht adressiert ist. 4.8k in / 843 out Tokens, 18s. Idempotenz verifiziert (zweiter Lauf ersetzt prior).
+
+### 4.7 SCHLUSSREFLEXION, WERK_STRUKTUR — **nicht implementiert.**
+
+Spec-Backlog. Heading-Marker-Regex erkennt SCHLUSSREFLEXION bereits (Pre-Heuristik), aber keine eigene Konstrukt-Extraktion.
+
+### 4.8 WERK_GUTACHT (a/b/c+d/e/f gated) — **nicht implementiert.**
 
 Spec: `WERK_GUTACHT-c` (Synthese-Komponente) ist gegated durch ein eigenes User-`review_draft` (`case_review_drafts.owner_kind='SELF'`). Critical-Friend-Identity (Memory `project_critical_friend_identity`).
 
