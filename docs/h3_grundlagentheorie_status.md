@@ -2,7 +2,7 @@
 
 Eigenständige Status-Doku der GRUNDLAGENTHEORIE-Session (parallel zu `h3_implementation_status.md`, das die FORSCHUNGSDESIGN-Session pflegt).
 
-Letztes Update: 2026-05-03 spätabends (Pyramide vollständig auf Habil Timm `2635e73c…`; Default-Lauf "explizit green" + Vergleichslauf gesenkte Schwellen mit Reckwitz-Wiedergabe-Block kontamination yellow + Hörning ¶9-10 yellow — Klassifikator-Trennschärfe demonstriert; Bug-Fix `grundlagentheorie_routing.ts:457` für leere BLOCK_ROUTING; Schritt 4 + Container-Orchestrator offen).
+Letztes Update: 2026-05-03 spätabends (Pyramide alle vier Schritte auf Habil Timm `2635e73c…` durchgelaufen; Schritt 4 FORSCHUNGSGEGENSTAND als Werk-Aggregat implementiert — User-Setzung "aggregiert vor FORSCHUNGSDESIGN-Pass"; Default-Lauf "explizit green" + Vergleichslauf gesenkte Schwellen mit Reckwitz-Wiedergabe-Block + Hörning ¶9-10 yellow — Klassifikator-Trennschärfe demonstriert; Bug-Fix `grundlagentheorie_routing.ts:457` für leere BLOCK_ROUTING; Container-Orchestrator offen).
 
 ---
 
@@ -14,7 +14,7 @@ Letztes Update: 2026-05-03 spätabends (Pyramide vollständig auf Habil Timm `26
 | 2 | **Routing**: WIEDERGABE_PRÜFEN auf Verdachts-Blöcken aus Verweisprofil (Block-LLM) | LLM × Verdachts-Blöcke | **implementiert** in `grundlagentheorie_routing.ts` (Commit `bc5890f`) |
 | 3 reproduktiv | H2 synthetische Block-Würdigung + **ECKPUNKT_CHECK** (a Kernbegriff, b Kontamination, c Provenienz) | 2 LLM × Wiedergabe-Block | **implementiert** in `grundlagentheorie_reproductive.ts` (Commit `77806eb`) |
 | 3 diskursiv | DISKURSIV_BEZUG_PRÜFEN auf Block-Ebene (gegen FRAGESTELLUNG) — H1 §-AG-Wiederverwendung kommt im Container-Orchestrator | 1 LLM × Block | **implementiert** in `grundlagentheorie_discursive.ts` (Commit `a80bd3a`) |
-| 4 | **FORSCHUNGSGEGENSTAND_REKONSTRUIEREN** als Container-End-Aggregation | 1 LLM pro Container | offen, Spec final |
+| 4 | **FORSCHUNGSGEGENSTAND_REKONSTRUIEREN** als Werk-aggregierte End-Synthese | 1 LLM pro Werk | **implementiert** in `grundlagentheorie_forschungsgegenstand.ts` (User-Setzung 2026-05-03 spätabends: aggregiert vor FORSCHUNGSDESIGN-Pass) |
 | Orchestrator | Container-Pass, der alle Schichten koordiniert + bestehende H1-Pipeline auf diskursive ¶ anwendet | — | offen |
 
 Hypothese (Test nach Implementation): Pyramide spart deutlich gegenüber pauschalem H1 auf alle ¶ — reproduktive Strecken (laut Habil-Daten ≥30 % der ¶) entfallen aus dem teuren H1-Pass und werden durch Block-LLM-Calls ersetzt.
@@ -123,7 +123,9 @@ Output: Indikator pro Block + Aggregat "Anteil bezugsloser diskursiver Blöcke i
 
 ### Schritt 4 — FORSCHUNGSGEGENSTAND_REKONSTRUIEREN
 
-Container-End-Aggregation: ein LLM-Call pro Container, nachdem alle Block-Pässe (H1/H2/ECKPUNKT/DISKURSIV) durch sind. Input: alle bisherigen Konstrukte + Outline + FRAGESTELLUNG. Output: rekonstruierter Forschungsgegenstand des Kapitels (in BA/Habil oft implizit, selten explizit benannt).
+**Werk-aggregierte End-Synthese**: ein LLM-Call pro Werk (nicht pro Container), aggregiert über alle GRUNDLAGENTHEORIE-Container, nachdem alle Block-Pässe durch sind. Input: FRAGESTELLUNG aus EXPOSITION + kondensierte Container-Übersichten (VERWEIS_PROFIL Top-Autoren + HHI, BLOCK_WUERDIGUNG-Summaries der reproduktiv-Blöcke + ECKPUNKT-Signale, DISKURSIV-Block-Klassifikationen). Output: rekonstruierter Forschungsgegenstand des Werks + 3-7 Subject-Keywords (in BA/Habil oft implizit, selten explizit benannt).
+
+**Architektur-Setzung 2026-05-03 spätabends (User)**: aggregiertes Konstrukt pro Werk, nicht pro Container. Begründung: H3:FORSCHUNGSDESIGN-Pass braucht den vollständigen Forschungsgegenstand, also muss er bevor FORSCHUNGSDESIGN startet aggregiert vorliegen. Bei Werken mit nur einem GTH-Container (BA H3 dev) ist Werk-aggregiert == Container-aggregiert; bei Werken mit mehreren Containern (Habil) wird über alle Container hinweg synthetisiert.
 
 ### Effekt
 
@@ -234,8 +236,9 @@ Memory-Pfad: `/Users/joerissen/.claude/projects/-Users-joerissen-ai-sarah/memory
 | Routing (WIEDERGABE_PRÜFEN) | `grundlagentheorie_routing.ts` | `test-h3-routing.ts` | `bc5890f` |
 | H2 + ECKPUNKT_CHECK | `grundlagentheorie_reproductive.ts` | `test-h3-reproductive.ts` | `77806eb` |
 | DISKURSIV_BEZUG_PRÜFEN | `grundlagentheorie_discursive.ts` | `test-h3-discursive.ts` | `a80bd3a` |
+| FORSCHUNGSGEGENSTAND_REKONSTRUIEREN | `grundlagentheorie_forschungsgegenstand.ts` | `test-h3-forschungsgegenstand.ts` | (folgender Commit) |
 
-Persistenz-Konstrukte: `VERWEIS_PROFIL`, `BLOCK_ROUTING`, `BLOCK_WUERDIGUNG`, `ECKPUNKT_BEFUND`, `DISKURSIV_BEZUG_BEFUND` — alle mit `outline_function_type='GRUNDLAGENTHEORIE'`. Keine Idempotenz (experimentelle Phase).
+Persistenz-Konstrukte: `VERWEIS_PROFIL`, `BLOCK_ROUTING`, `BLOCK_WUERDIGUNG`, `ECKPUNKT_BEFUND`, `DISKURSIV_BEZUG_BEFUND`, `FORSCHUNGSGEGENSTAND` — alle mit `outline_function_type='GRUNDLAGENTHEORIE'`. Keine Idempotenz (experimentelle Phase). FORSCHUNGSGEGENSTAND verankert auf alle ¶ aller GTH-Container (Werk-Aggregat).
 
 Default-Modell überall: `openrouter/anthropic/claude-sonnet-4.6` (überschreibt `ai-settings.json`-Opus-Default; spec-konform "billig"). Konfigurierbar via `modelOverride`.
 
@@ -295,11 +298,25 @@ Pyramide vollständig durch (4 Schritte) auf 2 GTH-Containern der Habilitation T
 
 **Lehre für Schwellen**: Default `cluster=4 gap=5` ist auf BA-mono-reproduktive Werke kalibriert. Bei polyphonen Habil-artigen Werken liefern niedrigere Schwellen (`cluster=2 gap=3`) wertvolle granulare Befunde, ohne Cost-Hypothese zu sprengen (17 Calls bleiben deutlich unter pauschalem H1).
 
+#### Schritt 4 (FORSCHUNGSGEGENSTAND) auf Habil — verifizierter Befund
+
+| Werk-Schritt | Calls | Tokens (in/out) | Laufzeit |
+|---|---|---|---|
+| FORSCHUNGSGEGENSTAND_REKONSTRUIEREN (Sonnet 4.6) | 1 | 3.018 / 458 | 9.3s |
+
+**Output Habil** (5 Sätze deskriptiv): "Der Forschungsgegenstand ist eine Theorie kultureller Lehrkräftebildung, die Professionalisierung von Lehrkräften unter den Bedingungen kultureller Diversität und globaler Komplexität konzeptuell fasst. Kulturalität wird dabei nicht als festes Merkmal von Gruppen, sondern als kontingente, relational emergente und praxisgebundene Dimension des Sozialen verstanden, die durch Transkulturalität, Heterogenität und wechselnde Differenzlinien charakterisiert ist. Den gesellschaftlichen Horizont bildet eine Analyse antagonistischer Kulturalisierungsregimes — Hyperkultur und Kulturessentialismus —, die als Bezugsfolie für pädagogische Anforderungen in einer globalisierten Weltgesellschaft dienen. Schule wird dabei als Ort spezifischer Schulkultur und kultureller Bildungsprozesse gefasst…"
+
+**Subject-Keywords**: Kulturalität, Globalität, Kulturessentialismus, Hyperkultur, Schulkultur, Professionalisierung, Kultur-Reflexivität.
+
+Konstruktiv defensibel — die Synthese hebt die antagonistischen Kulturalisierungsregimes (Reckwitz-Container A) zusammen mit der Schulkultur-Linie (Helsper-Cramer-Container B) auf, ohne die Theoriearbeit zu beurteilen. Specification der FRAGESTELLUNG erfolgt korrekt: aus "wie lässt sich eine Theorie entwickeln" wird "der Gegenstand zielt auf eine kultur-reflexive Akzentuierung der Lehrkräftebildung".
+
+**Pyramide-Gesamt-Cost auf Habil** (alle 4 Schritte zusammen, mit gesenkten Schwellen): 18 LLM-Calls / ~44k Tokens / **~25-30 ct OpenRouter** für 53 ¶ in 2 Containern. Pauschales H1 wäre ~250-400k Tokens (~6-9x).
+
 ### Nächste Session — empfohlener Auftakt
 
-1. **Schritt 4 implementieren** (FORSCHUNGSGEGENSTAND_REKONSTRUIEREN) — Container-End-Aggregation. 1 LLM-Call pro Container, Input: alle Konstrukte + Outline + FRAGESTELLUNG. Spec ist final laut Pyramide-Tabelle.
-2. **Danach Container-Orchestrator** (verbindet alle vier Schichten + bindet existierende H1-Pipeline auf diskursive ¶ ein, falls Brief-Flag gesetzt). Sub-Block-Bildung an Sub-Headings als Erweiterung.
-3. **Schwellen-Konfigurierbarkeit** im Falltyp-System verankern: Habil-artige (polyphon) → niedrigere Defaults; BA-artige (mono-reproduktiv) → strenge Defaults. Heute pro Lauf via CLI-Flag, später Falltyp-Konfiguration.
+1. **Container-Orchestrator** (verbindet alle vier Schichten + bindet existierende H1-Pipeline auf diskursive ¶ ein, falls Brief-Flag gesetzt). Sub-Block-Bildung an Sub-Headings als Erweiterung.
+2. **Schwellen-Konfigurierbarkeit** im Falltyp-System verankern: Habil-artige (polyphon) → niedrigere Defaults; BA-artige (mono-reproduktiv) → strenge Defaults. Heute pro Lauf via CLI-Flag, später Falltyp-Konfiguration.
+3. **FORSCHUNGSGEGENSTAND auf BA H3 dev verifizieren** — bisher nur an Habil getestet. BA hat nur 1 GTH-Container ("Theoretischer Rahmen"), Pass läuft trotzdem als Werk-Aggregat (mit 1 Container == kein Aggregations-Spread). Erwartet sauberer Output Klafki-zentrisch.
 
 ### Open Setq-Defaults
 
