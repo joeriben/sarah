@@ -226,9 +226,9 @@ Memory-Pfad: `/Users/joerissen/.claude/projects/-Users-joerissen-ai-sarah/memory
 - `docs/h3_implementation_status.md` — pflegt die Forschungsdesign-Session; parallel zu dieser Datei.
 - `docs/h3_grundlagentheorie_parsing_strategy.md` — diese Session, vor User-Diskussion über Bibliografie-LLM und Klammer-Heuristik geschärft.
 
-## Implementations-Stand & nächste Schritte (2026-05-03 abends)
+## Implementations-Stand & nächste Schritte (2026-05-03 spätabends)
 
-### Implementiert (4 Tools + Test-Skripte, alle gegen BA H3 dev am Material verifiziert)
+### Implementiert (5 Tools + Test-Skripte, alle gegen BA H3 dev und Habil Timm am Material verifiziert)
 
 | Tool | Modul | Test-Skript | Commit |
 |---|---|---|---|
