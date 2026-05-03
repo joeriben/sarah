@@ -29,11 +29,7 @@ Strategie: `docs/h3_grundlagentheorie_parsing_strategy.md` (vom User gegen mein 
 
 1. **Container-Auflösung GRUNDLAGENTHEORIE**: heading-hierarchisch über `outline_function_type='GRUNDLAGENTHEORIE'`. Pro Heading ein Container.
 2. **Bibliografie-Liste am Werk-Ende**: primär über `section_kind='bibliography'` + `element_type IN ('bibliography_entry', 'paragraph')`; Fallback Heading-Text-Match `Literaturverzeichnis|Literatur|Bibliografie|…`. Persistiert in `bibliography_entries` (Migration 048). Pro Eintrag: Erstautor-Familienname + Year deterministisch extrahiert. Idempotent via DELETE-then-INSERT pro `document_id`.
-3. **Inline-Citation-Extraktion** im Container über zwei Stufen:
-   - Narrativer Stil `Author (Jahr)` (außerhalb von Klammern)
-   - Klammer-Block `\(([^()]+)\)` mit beliebig vielen Sub-Citations innerhalb (über `;`/`,`/Präfix-Trenner getrennt: `vgl.`, `Vgl.`, `auch`, `u.a.`, `kritisch dazu siehe`, …)
-   - Author-Pattern erfasst: Standardform, all-caps Akronyme (UNESCO/BUND/GENE), Mehrwort-Familiennamen (Castro Varela / United Nations / Kiwi Menrath bis 3 Wörter), Adelsformen (von Saldern / da Costa / van …), Mehrautoren mit `&`/`/`/`und`, et-al-Varianten (`et al.`/`et. al.`/`et al`/`et. al`), `u.a.`/`e.a.`-Marker.
-   - Stop-Liste filtert deutsche Datums-/Determinatoren-/Präpositions-Wörter über alle Wörter im Erstauthor (verhindert "Stand Anfang 2022", "Im Jahr 2022", "Vgl Reckwitz" etc.).
+3. **Inline-Citation-Extraktion** im Container — **klammer-zentriert** (Refactor 2026-05-03, Details in Sektion "Refactor 2026-05-03" weiter unten). Diagnostisches Merkmal ist die Klammer-Struktur (4-Ziffer-Year + ggf. Seiten-Tail oder Marker `aaO`/`ebd.`/`ders.`/`dies.`), Author-Extraktion ist sekundär. Greift sowohl Klammer-Form `(Author Jahr, S. 12)` als auch narratives `Author (Jahr)` (Author aus Fließtext vor `(`).
 4. **Cross-Referenz Inline → Bibliografie** über Familienname + Year + optional Suffix.
 5. **Verweisprofil** mit allen Indikatoren: `byAuthor`, `byParagraph` (Per-¶-Signatur mit citationCount/dominantAuthor/density), `firstMentionOrder`, Density-Felder (HHI, Top-1/Top-3-Share, maxConsecutiveParagraphsDominatedByAuthor — Reproduktions-Block-Indikator), Coverage-Felder (resolved/orphan).
 
