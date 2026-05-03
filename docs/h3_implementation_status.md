@@ -2,7 +2,7 @@
 
 Lebendes Status-Dokument der H3-Implementierung. Plan-Übersicht: [`h3_implementation_plan.md`](./h3_implementation_plan.md).
 
-Letztes Update: 2026-05-03 (H3:FORSCHUNGSDESIGN ergänzt; Qualifizierungs-Spec abgenickt, Implementation steht aus).
+Letztes Update: 2026-05-03 (H3:FORSCHUNGSDESIGN ergänzt; FRAGESTELLUNG_BEURTEILUNG implementiert + validiert; Parsing-Strategie-Doku nachgezogen).
 
 ---
 
@@ -84,7 +84,7 @@ Testlauf gegen "BA H3 dev" (`c42e2d8f-1771-43bb-97c8-f57d7d10530a`):
 
 ### Was offen ist (für Anschluss-Session)
 
-1. **Qualifizierung der selbstdeklarierten Original-Formulierung** — Spec abgenickt 2026-05-03 spät, Implementation steht aus. Volle Vorgabe als eigenständiges Handover-Dokument: [`docs/handover_h3_exposition_qualifizierung.md`](./handover_h3_exposition_qualifizierung.md). Anschluss-Session: dort lesen, dann Pflicht-Lektüre, dann Spec-Diff vorlegen, dann erst Lauf. Heute Nachmittag wurde ein erster Versuch (FRAGESTELLUNGS_BEFUND als drittes EXPOSITION-Konstrukt mit prosaischem Befund über fünf Achsen) gestartet, validiert und vom User komplett verworfen — wegen Memory-Verstoß im Prompt (Slop-Wortlaut wörtlich aufgenommen), Vermischung von Wertung mit Darstellung, Datenverlust-Risiko durch Re-Run-Duplikat. Der Versuch ist über `git revert` rückgängig gemacht.
+1. ~~**Qualifizierung der selbstdeklarierten Original-Formulierung**~~ — **erledigt 2026-05-03 abends als `FRAGESTELLUNG_BEURTEILUNG`.** Implementation: `runBeurteilungOnly(caseId)` in `src/lib/server/ai/h3/exposition.ts`, isolierter Eintrittspunkt; Trigger `npx tsx scripts/test-h3-exposition-beurteilung.ts <caseId>`. Persistierung als `function_constructs.construct_kind = 'FRAGESTELLUNG_BEURTEILUNG'`, content `{ beurteilung: <ein Satz> }`, Anker identisch mit FRAGESTELLUNG. Beurteilungs-Call sieht das Material des Fragestellungs-Clusters (vom Parser identifiziert), nicht die rekonstruierte FRAGESTELLUNG. Smoke-Test gegen BA H3 dev validiert (1 Call, 1771 in / 131 out tokens, 2.4 s). Parsing-Strategie und Lese-Pässe in eigener Doku festgeschrieben: [`docs/h3_exposition_parsing_strategy.md`](./h3_exposition_parsing_strategy.md). Vorausgegangenes verworfenes Vokabular „selbstdeklarierte Original-Formulierung" / „wörtliches Zitat" wurde als Slop des verworfenen Vorgänger-Versuchs identifiziert.
 
    **Architektur-Setzung (vom User abgenickt, strikt einzuhalten):**
    - Eigener, isolierter Lese-Schritt — drittes Lese-Resultat parallel zu FRAGESTELLUNG und MOTIVATION.

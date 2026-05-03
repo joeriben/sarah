@@ -1,5 +1,9 @@
 # Handover — Qualifizierung der selbstdeklarierten Original-Formulierung
 
+> **OBSOLET (2026-05-03 abends).** Dieses Handover hat zentrale Begriffe halluziniert („selbstdeklarierte Original-Formulierung", „wörtlich zitieren"). Die tatsächliche Aufgabe war ein zweiter unabhängiger Lese-Pass auf dem **vom Parser identifizierten Fragestellungs-Material** — Beurteilung in einem Satz, ohne Zitat-Komponente. Implementation als `FRAGESTELLUNG_BEURTEILUNG` umgesetzt und validiert. Maßgebliche Doku: [`docs/h3_exposition_parsing_strategy.md`](./h3_exposition_parsing_strategy.md). Dieses File wird zu Hintergrund-Zwecken erhalten, ist aber nicht mehr Spec.
+
+---
+
 **Adressat:** die nachfolgende Session, frischer Context.
 **Stand:** Spec abgenickt 2026-05-03, Implementation steht aus.
 **Bezug:** `docs/h3_implementation_status.md` Phase 3, „Was offen ist", Punkt 1.

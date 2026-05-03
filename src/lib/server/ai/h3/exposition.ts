@@ -227,6 +227,67 @@ async function rekonstruiereFragestellung(
 	};
 }
 
+// ── Stufe 2b: LLM-Beurteilung der Fragestellung ────────────────────
+//
+// Zweiter, vom Rekonstruktions-Call UNABHÄNGIGER Lese-Pass auf demselben
+// Material (`fragestellungParagraphs` aus dem Parser oder Fallback). Sieht
+// die rekonstruierte Fragestellung NICHT — operiert direkt auf dem
+// Quelltext-Material.
+
+const BeurteilungSchema = z.object({
+	beurteilung: z.string().min(1),
+});
+type BeurteilungResult = z.infer<typeof BeurteilungSchema>;
+
+async function beurteileFragestellung(
+	candidateParagraphs: ExpositionParagraph[],
+	containerLabel: string,
+	documentId: string
+): Promise<{ result: BeurteilungResult; tokens: { input: number; output: number } }> {
+	const system = [
+		'Du bekommst die Absätze einer Werk-Einleitung, in denen die Forschungsfragestellung der Arbeit formuliert ist. Beurteile diese Fragestellung in einem einzigen Satz, auf Basis einer selbst-gerankten Auswahl dieser fünf Kriterien:',
+		'  - sachliche Konsistenz',
+		'  - logische Konsistenz',
+		'  - sprachliche Präzision',
+		'  - Vermögen, die Arbeit zu motivieren / Klärungsbeitrag zu erlauben (eine bloße Themenangabe wie „Leben und Werk von Maria Montessori" fällt hier durch; „Werk von Montessori versus Leben" ist im Ansatz Fragestellung, weil ein Verhältnis gesetzt wird)',
+		'  - Zusammenführen heterogener Elemente',
+		'',
+		'Du wählst und rankst, welche dieser Kriterien an dieser Fragestellung am meisten ins Gewicht fallen — der beurteilende Satz stützt sich auf diese Auswahl, nicht zwingend auf alle fünf.',
+		'',
+		'Antwort als JSON:',
+		'{',
+		'  "beurteilung": "<ein Satz>"',
+		'}',
+	].join('\n');
+
+	const userMessage = [
+		`Container (Heading): ${containerLabel}`,
+		'',
+		'Fragestellungs-Absätze:',
+		...candidateParagraphs.map((p, i) => `[${i}] ${p.text}`),
+	].join('\n\n');
+
+	const response = await chat({
+		system,
+		messages: [{ role: 'user', content: userMessage }],
+		maxTokens: 600,
+		responseFormat: 'json',
+		documentIds: [documentId],
+	});
+
+	const parsed = extractAndValidateJSON(response.text, BeurteilungSchema);
+	if (!parsed.ok) {
+		throw new Error(
+			`BEURTEILUNG-Tool: Antwort nicht parsbar (stage=${parsed.stage}): ${parsed.error}\n` +
+			`Raw: ${response.text.slice(0, 500)}`
+		);
+	}
+	return {
+		result: parsed.value,
+		tokens: { input: response.inputTokens, output: response.outputTokens },
+	};
+}
+
 // ── Stufe 3: LLM-Zusammenfassung der Motivation ────────────────────
 
 const MotivationSchema = z.object({
@@ -366,9 +427,9 @@ async function llmFallbackVollerContainer(
 async function persistConstruct(
 	caseId: string,
 	documentId: string,
-	constructKind: 'FRAGESTELLUNG' | 'MOTIVATION',
+	constructKind: 'FRAGESTELLUNG' | 'MOTIVATION' | 'FRAGESTELLUNG_BEURTEILUNG',
 	anchorElementIds: string[],
-	content: { text: string }
+	content: { text: string } | { beurteilung: string }
 ): Promise<string> {
 	const stackEntry = {
 		kind: 'origin' as const,
@@ -414,6 +475,128 @@ export interface ExpositionPassResult {
 	llmCalls: number;
 	model: string;
 	provider: string;
+}
+
+// ── Public API: isolierter Beurteilungs-Lauf ───────────────────────
+//
+// Eigener Eintrittspunkt, der NUR den Beurteilungs-Schritt ausführt.
+// Lässt FRAGESTELLUNG / MOTIVATION unangetastet — schützt validierte
+// Stände, weil Re-Run-Idempotenz für H3:EXPOSITION noch nicht
+// implementiert ist (siehe docs/h3_implementation_status.md, offener
+// Punkt 2). Verwendet dieselbe Parser/Fallback-Logik wie der Haupt-
+// Pass, um an dasselbe Material zu kommen wie der Rekonstruktions-Call.
+
+export interface BeurteilungPassResult {
+	caseId: string;
+	documentId: string;
+	containerParagraphCount: number;
+	parserHit: boolean;
+	usedFallback: boolean;
+	beurteilungConstructId: string | null;
+	beurteilungText: string | null;
+	beurteilungAnchorParagraphIds: string[];
+	tokens: { input: number; output: number };
+	llmCalls: number;
+	model: string;
+	provider: string;
+}
+
+export async function runBeurteilungOnly(caseId: string): Promise<BeurteilungPassResult> {
+	const caseRow = await queryOne<{ central_document_id: string | null }>(
+		`SELECT central_document_id FROM cases WHERE id = $1`,
+		[caseId]
+	);
+	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
+	if (!caseRow.central_document_id) {
+		throw new Error(`Case ${caseId} has no central_document_id`);
+	}
+	const documentId = caseRow.central_document_id;
+
+	const paragraphs = await loadExpositionParagraphs(documentId);
+	if (paragraphs.length === 0) {
+		throw new Error(
+			`Werk ${documentId} hat keinen EXPOSITION-Container — ` +
+			`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`
+		);
+	}
+	const containerLabel = paragraphs[0].containerHeadingText;
+
+	let totalInput = 0;
+	let totalOutput = 0;
+	let llmCalls = 0;
+
+	let fragestellungParagraphs: ExpositionParagraph[] = [];
+
+	const parsed = parserIdentifyParagraphs(paragraphs);
+	const parserHit = parsed !== null;
+	let usedFallback = false;
+
+	if (parsed) {
+		fragestellungParagraphs = parsed.fragestellungParagraphs;
+	} else {
+		// Fallback: LLM identifiziert die Fragestellungs-¶ über den ganzen Container.
+		usedFallback = true;
+		const fb = await llmFallbackVollerContainer(paragraphs, containerLabel, documentId);
+		llmCalls += 1;
+		totalInput += fb.tokens.input;
+		totalOutput += fb.tokens.output;
+
+		if (fb.result.found && fb.result.fragestellung_paragraph_indices) {
+			fragestellungParagraphs =
+				fb.result.fragestellung_paragraph_indices.map((i) => paragraphs[i]);
+		}
+	}
+
+	if (fragestellungParagraphs.length === 0) {
+		// Keine Fragestellungs-¶ identifizierbar → kein Konstrukt anlegen
+		// (Abwesenheit ist Befund — Memory feedback_constructs_are_extracts_not_telemetry.md).
+		return {
+			caseId,
+			documentId,
+			containerParagraphCount: paragraphs.length,
+			parserHit,
+			usedFallback,
+			beurteilungConstructId: null,
+			beurteilungText: null,
+			beurteilungAnchorParagraphIds: [],
+			tokens: { input: totalInput, output: totalOutput },
+			llmCalls,
+			model: getModel(),
+			provider: getProvider(),
+		};
+	}
+
+	const beur = await beurteileFragestellung(
+		fragestellungParagraphs,
+		containerLabel,
+		documentId
+	);
+	llmCalls += 1;
+	totalInput += beur.tokens.input;
+	totalOutput += beur.tokens.output;
+
+	const beurteilungConstructId = await persistConstruct(
+		caseId,
+		documentId,
+		'FRAGESTELLUNG_BEURTEILUNG',
+		fragestellungParagraphs.map((p) => p.paragraphId),
+		{ beurteilung: beur.result.beurteilung }
+	);
+
+	return {
+		caseId,
+		documentId,
+		containerParagraphCount: paragraphs.length,
+		parserHit,
+		usedFallback,
+		beurteilungConstructId,
+		beurteilungText: beur.result.beurteilung,
+		beurteilungAnchorParagraphIds: fragestellungParagraphs.map((p) => p.paragraphId),
+		tokens: { input: totalInput, output: totalOutput },
+		llmCalls,
+		model: getModel(),
+		provider: getProvider(),
+	};
 }
 
 export async function runExpositionPass(caseId: string): Promise<ExpositionPassResult> {
