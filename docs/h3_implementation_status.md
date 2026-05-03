@@ -2,7 +2,7 @@
 
 Lebendes Status-Dokument der H3-Implementierung. Plan-Übersicht: [`h3_implementation_plan.md`](./h3_implementation_plan.md).
 
-Letztes Update: 2026-05-03 (H3:FORSCHUNGSDESIGN ergänzt).
+Letztes Update: 2026-05-03 (FRAGESTELLUNGS_BEFUND in H3:EXPOSITION ergänzt).
 
 ---
 
@@ -47,21 +47,23 @@ Was bleibt als nebenläufige Pflege (nicht als Phase):
 
 ## Phase 3 — begonnen: H3:EXPOSITION
 
-Erste H3-Heuristik. Extrahiert aus dem EXPOSITION-Container (heading-hierarchisch über `outline_function_type='EXPOSITION'`) eines Werkes:
+Erste H3-Heuristik. Extrahiert aus dem EXPOSITION-Container (heading-hierarchisch über `outline_function_type='EXPOSITION'`) eines Werkes drei Konstrukte:
 - **FRAGESTELLUNG**: rekonstruiert die *tatsächliche* Fragestellung der Arbeit (Problemfeld + Perspektive zusammengeführt; Methode/Motivation/Selbstdeklarations-Slop explizit ausgeschlossen). Persistiert als `function_constructs.construct_kind='FRAGESTELLUNG'`.
+- **FRAGESTELLUNGS_BEFUND** (ergänzt 2026-05-03): prosaischer Lese-Befund zur Fragestellung entlang fünf Achsen (sachliche / logische / sprachliche Konsistenz, Etablierung eines Klärungsbedarfs als Killer-Kriterium, Synthesis-Leistung). Bezugspunkt ist selbstdeklarierte Original-Formulierung + rekonstruierte tatsächliche Fragestellung + Spalt zwischen beiden. Freier Text, **keine Skala** (siehe Memory `project_fragestellungs_befund_axes.md` und `feedback_no_hallucinated_qskala.md`). Persistiert als `construct_kind='FRAGESTELLUNGS_BEFUND'`.
 - **MOTIVATION**: fasst die Motivations-¶ (vor dem Fragestellungs-Cluster) in 1–3 Sätzen zusammen, falls vorhanden. Persistiert als `construct_kind='MOTIVATION'`.
 
 ### Architektur
 
-`src/lib/server/ai/h3/exposition.ts` — drei Schritte:
+`src/lib/server/ai/h3/exposition.ts` — vier Schritte:
 
 1. **Parser** (deterministisch, regex-basiert, kein LLM): identifiziert rückwärts im Container den Cluster der ¶ mit Frage-Markern (Fragezeichen, "Forschungsfrage", "lautet:", "diese Arbeit untersucht/zeigt/fragt", "im Mittelpunkt steht", etc.). Alle ¶ vor diesem Cluster im selben Container = Motivation.
 2. **LLM rekonstruiert FRAGESTELLUNG** aus den Cluster-¶. Prompt fordert *kritische* Re-Konstruktion: die selbstdeklarierte Frage der Autorin ist oft naive Wirkungsfrage / Slop und nicht zu reproduzieren; rekonstruiere die analytische De-Facto-Anlage (typisch: theoretische Folie als Bezugspunkt für ein Material).
-3. **LLM fasst MOTIVATION** zusammen aus den Motivations-¶, falls vorhanden.
+3. **LLM erstellt FRAGESTELLUNGS_BEFUND** entlang der fünf Achsen. Input: Quell-¶ (mit selbstdeklarierter Formulierung) + rekonstruierte Fragestellung. Killer-Kriterium (d) und Spalt zwischen Selbstdeklaration und De-Facto-Anlage werden immer adressiert; Achsen ohne sichtbare Auffälligkeit nicht künstlich gefüllt. Läuft nur, wenn FRAGESTELLUNG erfolgreich rekonstruiert wurde (sonst kein Bezugspunkt).
+4. **LLM fasst MOTIVATION** zusammen aus den Motivations-¶, falls vorhanden.
 
-Fallback: wenn der Parser im Container nichts findet → ein einziger LLM-Call über den ganzen Container macht Identifikation + Rekonstruktion + Motivations-Zusammenfassung in einem Schwung.
+Fallback: wenn der Parser im Container nichts findet → ein einziger LLM-Call über den ganzen Container macht Identifikation + Rekonstruktion + Motivations-Zusammenfassung in einem Schwung. FRAGESTELLUNGS_BEFUND läuft auch im Fallback-Pfad, sofern der Fallback eine Fragestellung gefunden hat.
 
-Persistierung-Schema: `function_constructs.content = { text: <…> }`. Keine Klassifikator-Telemetrie (kein `status`, `rationale`, `probe_path`). Anker liegen in `anchor_element_ids`.
+Persistierung-Schema: `function_constructs.content = { text: <…> }`. Keine Klassifikator-Telemetrie (kein `status`, `rationale`, `probe_path`). Anker liegen in `anchor_element_ids`. Anker für FRAGESTELLUNGS_BEFUND = dieselben ¶-IDs wie FRAGESTELLUNG.
 
 **Bewusst weggelassen** (kommt erst wenn nötig):
 - Kein Eintrag in `pipeline_runs` — H3-Pipeline-Integration kommt erst, wenn mehrere H3-Heuristiken existieren UND Falltyp-System (Stufe 3 der UI-Roadmap) das Routing übernimmt.
@@ -77,14 +79,14 @@ CLI: `npx tsx scripts/test-h3-exposition.ts <caseId>`. Kein UI, kein API-Endpoin
 Testlauf gegen "BA H3 dev" (`c42e2d8f-1771-43bb-97c8-f57d7d10530a`):
 - Container: 2 paragraph-Elemente unter Heading "Einleitung"
 - Parser-Treffer (kein LLM-Fallback)
-- 1 LLM-Call · 2633 in / 324 out tokens · 4 sec · `openrouter/anthropic/claude-opus-4.7`
-- Rekonstruierte FRAGESTELLUNG (vom User als korrekt bestätigt):
-  > Im Zentrum steht die Frage, ob bzw. inwieweit die UNESCO-Bildungsprogramme der Global Citizenship Education (GCED) inhaltlich und bildungstheoretisch tragfähig sind, um globale Gegenwartsprobleme bildungsrelevant zu erschließen. Als Perspektive dient dabei Klafkis kritisch-konstruktive Didaktik mit der Theorie der epochaltypischen Schlüsselprobleme, die als bildungstheoretischer Maßstab an das GCED-Konzept angelegt wird. Zu klären ist damit, ob die GCED-Programme den von Klafki formulierten Ansprüchen an eine auf Mündigkeit, Emanzipation und Solidarität zielende Allgemeinbildung entsprechen oder konzeptionell nachgeschärft werden müssten.
+- 2 LLM-Calls · 5873 in / 1177 out tokens · 13.5 sec · `openrouter/anthropic/claude-opus-4.7`
+- Rekonstruierte FRAGESTELLUNG (vom User als korrekt bestätigt): Klafki als bildungstheoretische Folie an UNESCO-GCED, Frage nach Tragfähigkeit der Folie für das Material.
+- FRAGESTELLUNGS_BEFUND (Lauf 2026-05-03): identifiziert die selbstdeklarierte naive Wirkungsfrage als empirisch-kausale Frageformulierung; benennt den Spalt zur De-Facto-Anlage (theoretischer Vergleich) als zentralen Befund; weist auf Untertitel-Verschiebung hin ("Ein Vergleich im Kontext der epochaltypischen Schlüsselprobleme" verschiebt die eigentliche Operation in den Untertitel); diagnostiziert sprachliche Unschärfe zentraler Prüfgrößen ("Bewusstsein für globale Probleme", "tatsächlich fördern" — als Kriterien nicht entscheidbar gefasst); Klärungsbedarf (d) bestätigt durch Verhältnis "GCED gegen Klafki"; Synthesis-Leistung benannt (UNESCO-Programmatik + deutsche bildungstheoretische Tradition).
 - MOTIVATION: keines (Fragestellungs-¶ war erster im Container)
 
 ### Was offen ist (für Anschluss-Session)
 
-1. **Qualitätsindikator zur Original-Fragestellung** — offen, **Form noch nicht festgelegt**. Der Indikator soll auch ausweisen können, ob die in der Exposition formulierte Fragestellung bereits hart theoretisch / studienseitig erhärtet ist (≈ Spezifizierung schon in der Exposition erreicht) oder nur eine cue-basierte Charakterisierung darstellt — die Spezifizierung entsteht regulär erst durch GRUNDLAGENTHEORIE/FORSCHUNGSGEGENSTAND. Eine vorige Session hatte hier eine konkrete dreistufige Skala vorgeschlagen — diese ist NICHT autorisiert (siehe Memory `feedback_no_hallucinated_qskala.md`); Format und Werte sind beim User. Nicht eigenmächtig erfinden.
+1. ~~**Qualitätsindikator zur Original-Fragestellung**~~ — **erledigt 2026-05-03** als FRAGESTELLUNGS_BEFUND (drittes EXPOSITION-Konstrukt) mit fünf Achsen + freiem Text statt Skala. Siehe Memory `project_fragestellungs_befund_axes.md` und EXPOSITION-Sektion (oben aktualisiert).
 2. **Test gegen weitere Werke** — z.B. read-only Lauf gegen Habil-Timm (`161d41b4-…`) zum Vergleich. Benchmark-Cases NICHT modifizieren, nur runExpositionPass laufen lassen und Resultat anschauen.
 3. **Nächste H3-Heuristik gemäss Phasen-Plan**: H3:GRUNDLAGENTHEORIE (siehe `h3_implementation_plan.md`). H3:FORSCHUNGSDESIGN ist parallel ergänzt (siehe Sektion unten).
 
