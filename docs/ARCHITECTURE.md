@@ -23,7 +23,7 @@ Diese Doku ist der **single source of truth** für Architektur, Datenmodell und 
 | 02 | [documents](architecture/02-documents.md) | Parser (DOCX-academic), Outline-Gate, Embeddings, Anonymisierung Phase A | ... Dokument-Verarbeitung anfasst |
 | 03 | [ai-infrastructure](architecture/03-ai-infrastructure.md) | Provider-Routing, Two-Track-Strategie, Failsafe (PII-Pre-Call), JSON-Repair | ... LLM-Calls hinzufügst oder Modelle wechselst |
 | 04 | [pipeline-h1-h2](architecture/04-pipeline-h1-h2.md) | Orchestrator, analytische Hauptlinie AG→L3→L1→L0, synthetisches Addendum | ... an der hermeneutischen Pipeline arbeitest |
-| 05 | [pipeline-h3](architecture/05-pipeline-h3.md) | Drei-Heuristiken-Architektur, Funktionstyp-Zuweisung, EXPOSITION/FORSCHUNGSDESIGN/GRUNDLAGENTHEORIE-Status | ... H3 anfasst — **Implementations-Stand pro Funktionstyp hier** |
+| 05 | [pipeline-h3](architecture/05-pipeline-h3.md) | Drei-Heuristiken-Architektur, Funktionstyp-Zuweisung, EXPOSITION/FORSCHUNGSDESIGN/GRUNDLAGENTHEORIE/DURCHFUEHRUNG-Status | ... H3 anfasst — **Implementations-Stand pro Funktionstyp hier** |
 | 06 | [cases-briefs-falltyp](architecture/06-cases-briefs-falltyp.md) | Case-Triade, system-weite Brief-Library, Falltyp-System (geplant), 4-Stufen-UI-Roadmap | ... mit Cases, Briefs, oder Falltyp-Roadmap arbeitest |
 | 07 | [api-and-ui](architecture/07-api-and-ui.md) | Endpoint-Inventar, UI-Routes, Komponenten, Shared-Module | ... ein API-Endpoint suchst oder eine UI-Seite baust |
 | 08 | [conventions](architecture/08-conventions.md) | Commit-Disziplin, Doku-Update-Regeln, Vokabular, AUTO-Mode-Grenzen | ... committen, Doku updaten, oder unsicher über Vorgehen bist |
@@ -37,7 +37,8 @@ Diese Doku ist der **single source of truth** für Architektur, Datenmodell und 
 |-------|---------|
 | Welche Tabelle hat Spalte X? | [01-data-model](architecture/01-data-model.md) |
 | Welche Phase läuft im Pipeline-Run wann? | [04-pipeline-h1-h2 §1](architecture/04-pipeline-h1-h2.md) |
-| Was ist der aktuelle Stand von H3:GRUNDLAGENTHEORIE? | [05-pipeline-h3 §4](architecture/05-pipeline-h3.md) |
+| Was ist der aktuelle Stand von H3:GRUNDLAGENTHEORIE? | [05-pipeline-h3 §4.3](architecture/05-pipeline-h3.md) |
+| Wie funktioniert H3:DURCHFUEHRUNG (Hotspots → H1 → Grounding → BEFUND)? | [05-pipeline-h3 §4.4](architecture/05-pipeline-h3.md) |
 | Wie heißt der Outline-Confirm-Endpoint? | [07-api-and-ui §Outline](architecture/07-api-and-ui.md) |
 | Welche Migration hat das Feld eingeführt? | [01-data-model §1 Migrationsindex](architecture/01-data-model.md) |
 | Ist `design-clusters.md` noch gültig? | [09-legacy-docs-ledger](architecture/09-legacy-docs-ledger.md) (Antwort: nein) |

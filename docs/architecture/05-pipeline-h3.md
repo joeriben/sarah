@@ -14,7 +14,7 @@ Eintrittspunkt: `src/lib/server/pipeline/function-type-assignment.ts` (Pre-Heuri
 |-----------|-----------|-------|
 | **H1** | Werk-skaliert (paragraph→subchapter→chapter→work) | analytische Hauptlinie (siehe `04-pipeline-h1-h2.md`) |
 | **H2** | per-Paragraph synthetisch | formulierend + interpretierend, ergänzend |
-| **H3** | per-Funktionstyp (Werk-strukturell) | Funktionstyp-spezifische Konstrukte (FRAGESTELLUNG, METHODOLOGIE, VERWEIS_PROFIL, …) |
+| **H3** | per-Funktionstyp (Werk-strukturell) | Funktionstyp-spezifische Konstrukte (FRAGESTELLUNG, METHODOLOGIE, BASIS, VERWEIS_PROFIL, FORSCHUNGSGEGENSTAND, BEFUND, …) |
 
 H3 läuft **nach** Outline-Confirm und setzt korrekt klassifizierte Funktionstypen voraus.
 
@@ -219,7 +219,7 @@ Spec: `WERK_GUTACHT-c` (Synthese-Komponente) ist gegated durch ein eigenes User-
 
 ## 6. Scripts (CLI-Tests)
 
-`scripts/test-h3-exposition.ts`, `scripts/test-h3-forschungsdesign.ts`, `scripts/test-h3-grundlagentheorie.ts` — direkte Heuristik-Aufrufe mit Brief-Konfiguration via CLI-Flags. Pipeline-Integration für H3 wartet auf Falltyp-System (Stufe 3, siehe `06-cases-briefs-falltyp.md`).
+`scripts/test-h3-exposition.ts`, `scripts/test-h3-exposition-beurteilung.ts`, `scripts/test-h3-forschungsdesign.ts`, `scripts/test-h3-forschungsgegenstand.ts`, `scripts/test-h3-grundlagentheorie.ts`, `scripts/test-h3-routing.ts`, `scripts/test-h3-reproductive.ts`, `scripts/test-h3-discursive.ts`, `scripts/test-h3-durchfuehrung.ts` (Step-Flags `--step2 --step3 --step4`) — direkte Heuristik-Aufrufe mit Brief-Konfiguration via CLI-Flags. Pipeline-Integration für H3 wartet auf Falltyp-System (Stufe 3, siehe `06-cases-briefs-falltyp.md`).
 
 ---
 
