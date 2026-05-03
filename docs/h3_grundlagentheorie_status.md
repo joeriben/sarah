@@ -2,7 +2,7 @@
 
 Eigenständige Status-Doku der GRUNDLAGENTHEORIE-Session (parallel zu `h3_implementation_status.md`, das die FORSCHUNGSDESIGN-Session pflegt).
 
-Letztes Update: 2026-05-03 spätabends (Pyramide alle vier Schritte auf Habil Timm `2635e73c…` durchgelaufen; Schritt 4 FORSCHUNGSGEGENSTAND als Werk-Aggregat implementiert — User-Setzung "aggregiert vor FORSCHUNGSDESIGN-Pass"; Default-Lauf "explizit green" + Vergleichslauf gesenkte Schwellen mit Reckwitz-Wiedergabe-Block + Hörning ¶9-10 yellow — Klassifikator-Trennschärfe demonstriert; Bug-Fix `grundlagentheorie_routing.ts:457` für leere BLOCK_ROUTING; Container-Orchestrator offen).
+Letztes Update: 2026-05-03 spätabends (Pyramide alle vier Schritte am Material verifiziert: Habil Timm `2635e73c…` und BA H3 dev `c42e2d8f…`; Schritt 4 FORSCHUNGSGEGENSTAND als Werk-Aggregat implementiert; FORSCHUNGSDESIGN-Pass auf Habil end-to-end gelaufen — Specification-Kette FRAGESTELLUNG → FORSCHUNGSGEGENSTAND → METHODIK-Beurteilung trägt am Material, BASIS-Output enthält kontextuelle Sample-Kritik gegen den breiteren Forschungsgegenstand; Klassifikator-Trennschärfe demonstriert; Bug-Fix `grundlagentheorie_routing.ts:457` für leere BLOCK_ROUTING; Container-Orchestrator + WERK-Ebene offen).
 
 ---
 
@@ -312,11 +312,44 @@ Konstruktiv defensibel — die Synthese hebt die antagonistischen Kulturalisieru
 
 **Pyramide-Gesamt-Cost auf Habil** (alle 4 Schritte zusammen, mit gesenkten Schwellen): 18 LLM-Calls / ~44k Tokens / **~25-30 ct OpenRouter** für 53 ¶ in 2 Containern. Pauschales H1 wäre ~250-400k Tokens (~6-9x).
 
+#### BA H3 dev — Schritt 4 verifiziert (1-Container-Werk)
+
+| | Calls | Tokens (in/out) | Laufzeit |
+|---|---|---|---|
+| FORSCHUNGSGEGENSTAND_REKONSTRUIEREN | 1 | 1.124 / 443 | 8.3s |
+
+Werk-Aggregat-Modell läuft auch bei Werken mit nur einem GTH-Container ("Theoretischer Rahmen", 48 ¶) sauber durch. Output paragrafisch:
+
+> "Der Forschungsgegenstand ist das UNESCO-Konzept der Global Citizenship Education, verstanden als bildungsprogrammatisches Angebot zur Erschließung globaler Gegenwartsprobleme, das einer bildungstheoretischen Überprüfung unterzogen wird. Als Maßstab dieser Überprüfung dient Klafkis kritisch-konstruktive Didaktik, insbesondere seine Theorie der epochaltypischen Schlüsselprobleme als Strukturprinzip einer zeitgemäßen Allgemeinbildung. … Der Gegenstand ist somit die normativ vermessene Schnittfläche zwischen einer international-institutionellen Bildungsagenda und einer kritisch-emanzipatorischen didaktischen Tradition."
+
+**Subject-Keywords**: epochaltypische Schlüsselprobleme, kritisch-konstruktive Didaktik, Allgemeinbildung, Global Citizenship Education, Mündigkeit, Emanzipation, Solidarität.
+
+Specification der FRAGESTELLUNG ("ob bzw. inwieweit GCED bildungstheoretisch tragfähig ist") gelingt präzise: die Theoriearbeit hat das Spannungsverhältnis Klafki ↔ GCED konstituiert, das ist die Schnittfläche, an der die DURCHFÜHRUNG ansetzen kann.
+
+#### FORSCHUNGSDESIGN-Pass auf Habil — end-to-end-Specification-Kette validiert
+
+Erster Test der vollen Cross-Typ-Verkabelung: FRAGESTELLUNG (EXPOSITION) + FORSCHUNGSGEGENSTAND (GRUNDLAGENTHEORIE) → METHODIK-Beurteilung (FORSCHUNGSDESIGN).
+
+| | Calls | Tokens (in/out) | Laufzeit | Modell |
+|---|---|---|---|---|
+| FORSCHUNGSDESIGN end-to-end | 1 | 12.527 / 1.041 | 12.7s | Opus 4.7 |
+
+Container automatisch via outline_container-Strategie gefunden ("Orientierungen von Lehramtsstudierenden…", 25 ¶). Bezugsrahmen vollständig (FRAGESTELLUNG ✓, FORSCHUNGSGEGENSTAND ✓). Drei Konstrukte produziert:
+
+- **METHODOLOGIE**: qualitativ-rekonstruktive Forschungslogik praxistheoretischer Prägung, atheoretisches Wissen nach Mannheim, Beobachtung 2./3. Ordnung
+- **METHODEN**: dokumentarische Methode nach Bohnsack, Theoretical Sampling, kommunikativ-konsensuelle Validierung
+- **BASIS**: 28 Gruppendiskussionen, 112 Lehramtsstudierende, drei Fachgruppen + zwei selbstorganisierte politische Gruppen
+
+**Kritischer Befund am BASIS-Output**: der LLM erkennt aus dem FORSCHUNGSGEGENSTAND-Bezug eine *eingeschränkte Tragfähigkeit der Sample-Begründung*: "Die Begründung der Sampleauswahl bezieht sich schlüssig auf die Frage nach Orientierungen angehender Lehrkräfte im Feld kultureller Vermittlung, **greift aber nur eingeschränkt auf den breiteren Forschungsgegenstand (Kulturalität unter Bedingungen globaler Komplexität, Hyperkultur/Kulturessentialismus) zurück**; dies wird in den Limitationen selbst reflektiert — so fehlen etwa Gruppen mit stärker kulturell diversifizierter Lebenswelt."
+
+Genau das ist der Kern qualitativer Methodendiskussion: Sample-Adäquatheit gegen den vollen Forschungsgegenstand. Ohne FORSCHUNGSGEGENSTAND-Konstrukt wäre dieser Befund nicht möglich gewesen — der LLM hätte nur gegen die FRAGESTELLUNG als oberflächliche Wortform geprüft. Mit FORSCHUNGSGEGENSTAND prüft er gegen die *Specification der FRAGESTELLUNG aus der Theoriearbeit*. **Architektur trägt am Material.**
+
 ### Nächste Session — empfohlener Auftakt
 
-1. **Container-Orchestrator** (verbindet alle vier Schichten + bindet existierende H1-Pipeline auf diskursive ¶ ein, falls Brief-Flag gesetzt). Sub-Block-Bildung an Sub-Headings als Erweiterung.
+1. **Container-Orchestrator** (verbindet alle vier Schichten + bindet existierende H1-Pipeline auf diskursive ¶ ein, falls Brief-Flag gesetzt). Sub-Block-Bildung an Sub-Headings als Erweiterung gegen den 26-¶-Mega-Block-Befund.
 2. **Schwellen-Konfigurierbarkeit** im Falltyp-System verankern: Habil-artige (polyphon) → niedrigere Defaults; BA-artige (mono-reproduktiv) → strenge Defaults. Heute pro Lauf via CLI-Flag, später Falltyp-Konfiguration.
-3. **FORSCHUNGSGEGENSTAND auf BA H3 dev verifizieren** — bisher nur an Habil getestet. BA hat nur 1 GTH-Container ("Theoretischer Rahmen"), Pass läuft trotzdem als Werk-Aggregat (mit 1 Container == kein Aggregations-Spread). Erwartet sauberer Output Klafki-zentrisch.
+3. **WERK-Ebene** angehen — H3:WERK_DESKRIPTION + H3:WERK_GUTACHT (a/b ohne gated-c). Hängt davon ab, dass weitere Funktionstypen Konstrukte produzieren; mindestens FORSCHUNGSDESIGN ist heute mit dabei. WERK_GUTACHT-b nutzt das Bewertungsachsen-Raster aus der Mother-Session-Setzung (`project_three_heuristics_architecture.md`).
+4. **uncommitted DURCHFÜHRUNG-Änderungen klären** — `src/lib/server/ai/h3/durchfuehrung.ts`, `scripts/test-h3-durchfuehrung.ts`, `docs/architecture/05-pipeline-h3.md` liegen lokal modifiziert; nicht aus dieser Session.
 
 ### Open Setq-Defaults
 
