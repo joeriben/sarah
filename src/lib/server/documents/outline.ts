@@ -29,6 +29,11 @@ export interface EffectiveHeading {
 	// Diagnostics
 	hasNoNumberingFromParser: boolean;
 	hasNumberingMismatch: boolean;
+	// H3 Vor-Heuristik (Migration 044). NULL = noch nicht gesetzt.
+	outlineFunctionType: string | null;
+	granularityLevel: string | null;
+	outlineFunctionTypeConfidence: number | null;
+	outlineFunctionTypeUserSet: boolean;
 }
 
 export interface EffectiveOutline {
@@ -61,6 +66,10 @@ interface ClassificationRow {
 	user_text: string | null;
 	excluded: boolean;
 	notes: string | null;
+	outline_function_type: string | null;
+	granularity_level: string | null;
+	outline_function_type_confidence: number | string | null;
+	outline_function_type_user_set: boolean;
 }
 
 async function loadDocumentMeta(documentId: string): Promise<{
@@ -93,7 +102,10 @@ export async function loadEffectiveOutline(
 
 	const classifications = await query<ClassificationRow>(
 		`SELECT id, element_id, heading_text_normalized, approx_char_start,
-		        user_level, user_text, excluded, notes
+		        user_level, user_text, excluded, notes,
+		        outline_function_type, granularity_level,
+		        outline_function_type_confidence,
+		        outline_function_type_user_set
 		 FROM heading_classifications
 		 WHERE document_id = $1`,
 		[documentId]
@@ -136,6 +148,14 @@ export async function loadEffectiveOutline(
 			cls?.user_level ?? parserLevel ?? 1;
 		const effectiveText = cls?.user_text ?? text;
 
+		const confidenceRaw = cls?.outline_function_type_confidence ?? null;
+		const confidenceNum =
+			confidenceRaw === null
+				? null
+				: typeof confidenceRaw === 'number'
+					? confidenceRaw
+					: parseFloat(confidenceRaw);
+
 		return {
 			classificationId: cls?.id ?? null,
 			elementId: h.id,
@@ -151,7 +171,11 @@ export async function loadEffectiveOutline(
 			effectiveText,
 			effectiveLevel,
 			hasNoNumberingFromParser: !parserNumbering,
-			hasNumberingMismatch: !!h.properties?.numbering_mismatch
+			hasNumberingMismatch: !!h.properties?.numbering_mismatch,
+			outlineFunctionType: cls?.outline_function_type ?? null,
+			granularityLevel: cls?.granularity_level ?? null,
+			outlineFunctionTypeConfidence: confidenceNum,
+			outlineFunctionTypeUserSet: cls?.outline_function_type_user_set ?? false
 		};
 	});
 
@@ -190,6 +214,8 @@ export interface ClassificationPatch {
 	user_text?: string | null;
 	excluded?: boolean;
 	notes?: string | null;
+	outline_function_type?: string | null;
+	granularity_level?: string | null;
 }
 
 export async function upsertClassification(
@@ -246,6 +272,20 @@ export async function upsertClassification(
 			sets.push(`notes = $${i++}`);
 			vals.push(patch.notes);
 		}
+		// H3 Vor-Heuristik: outline_function_type/granularity_level werden
+		// hier mit user_set=true persistiert (User-Override). Confidence wird
+		// auf NULL gesetzt, weil ein User-Override keine heuristische
+		// Confidence trägt.
+		if (patch.outline_function_type !== undefined) {
+			sets.push(`outline_function_type = $${i++}`);
+			vals.push(patch.outline_function_type);
+			sets.push(`outline_function_type_user_set = true`);
+			sets.push(`outline_function_type_confidence = NULL`);
+		}
+		if (patch.granularity_level !== undefined) {
+			sets.push(`granularity_level = $${i++}`);
+			vals.push(patch.granularity_level);
+		}
 		sets.push(`updated_at = now()`);
 		vals.push(existing.id);
 		await pool.query(
@@ -262,17 +302,23 @@ export async function upsertClassification(
 		return { id: existing.id };
 	}
 
+	const userSetFunctionType = patch.outline_function_type !== undefined;
 	const insert = await queryOne<{ id: string }>(
 		`INSERT INTO heading_classifications
 		   (document_id, element_id, heading_text_normalized, approx_char_start,
-		    user_level, user_text, excluded, notes)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		    user_level, user_text, excluded, notes,
+		    outline_function_type, granularity_level,
+		    outline_function_type_user_set)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		 ON CONFLICT (document_id, heading_text_normalized, approx_char_start)
 		 DO UPDATE SET element_id = EXCLUDED.element_id,
 		               user_level = EXCLUDED.user_level,
 		               user_text  = EXCLUDED.user_text,
 		               excluded   = EXCLUDED.excluded,
 		               notes      = EXCLUDED.notes,
+		               outline_function_type = EXCLUDED.outline_function_type,
+		               granularity_level = EXCLUDED.granularity_level,
+		               outline_function_type_user_set = EXCLUDED.outline_function_type_user_set,
 		               updated_at = now()
 		 RETURNING id`,
 		[
@@ -283,7 +329,10 @@ export async function upsertClassification(
 			patch.user_level ?? null,
 			patch.user_text ?? null,
 			patch.excluded ?? false,
-			patch.notes ?? null
+			patch.notes ?? null,
+			patch.outline_function_type ?? null,
+			patch.granularity_level ?? null,
+			userSetFunctionType
 		]
 	);
 	if (!insert) throw new Error('insert failed');

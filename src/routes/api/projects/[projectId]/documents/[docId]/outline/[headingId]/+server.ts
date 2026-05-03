@@ -7,6 +7,10 @@ import {
 	upsertClassification,
 	type ClassificationPatch
 } from '$lib/server/documents/outline.js';
+import {
+	OUTLINE_FUNCTION_TYPES,
+	GRANULARITY_LEVELS
+} from '$lib/shared/h3-vocabulary.js';
 
 export const PUT: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'unauthorized');
@@ -37,6 +41,20 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 	}
 	if ('notes' in body) {
 		patch.notes = body.notes?.trim() || null;
+	}
+	if ('outline_function_type' in body) {
+		const v = body.outline_function_type;
+		if (v !== null && v !== undefined && (typeof v !== 'string' || !OUTLINE_FUNCTION_TYPES.includes(v as never))) {
+			throw error(400, `outline_function_type must be one of ${OUTLINE_FUNCTION_TYPES.join(', ')} or null`);
+		}
+		patch.outline_function_type = v ?? null;
+	}
+	if ('granularity_level' in body) {
+		const v = body.granularity_level;
+		if (v !== null && v !== undefined && (typeof v !== 'string' || !GRANULARITY_LEVELS.includes(v as never))) {
+			throw error(400, `granularity_level must be one of ${GRANULARITY_LEVELS.join(', ')} or null`);
+		}
+		patch.granularity_level = v ?? null;
 	}
 
 	try {
