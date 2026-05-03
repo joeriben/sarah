@@ -4,86 +4,83 @@ Lebendes Status-Dokument der H3-Implementierung. Jede Session aktualisiert diese
 
 ---
 
-## Aktueller Stand (Phase 0 abgeschlossen)
+## Aktueller Stand (Phase 1 abgeschlossen)
 
 ### Was steht
-- Konzept-Erarbeitung für H3 abgeschlossen, Memory-konsolidiert.
-- `docs/h3_implementation_plan.md` als Phasen-Übersicht angelegt.
-- Bestandsaufnahme der existierenden Pipeline-Architektur durch Explore-Agent in Phase 0 erstellt — Befunde unten als Phase-1-Spec präzisiert.
+- Migrationen 043–047 angewandt und schema-verifiziert (`function_constructs`, `heading_classifications`-Extension, `virtual_function_containers`, `case_review_drafts`, `assessment_briefs.h3_enabled`).
+- Isomorphes Vokabular `src/lib/shared/h3-vocabulary.ts` (Types, Konstanten, deutsche Display-Labels).
+- Backend-Service `src/lib/server/pipeline/function-type-assignment.ts` mit `computeFunctionTypeAssignments`, `persistFunctionTypeAssignments`, `suggestFunctionTypesForDocument`.
+- API: `POST /api/projects/[projectId]/documents/[docId]/outline/suggest-function-types` triggert die Heuristik; `PUT /outline/[headingId]` um `outline_function_type` + `granularity_level` erweitert.
+- `loadEffectiveOutline` liefert die vier neuen Felder (`outlineFunctionType`, `granularityLevel`, `outlineFunctionTypeConfidence`, `outlineFunctionTypeUserSet`).
+- Outline-Page-UI um pro-Heading-Funktionstyp- und Granularitäts-Dropdown + Header-Button "Funktionstypen heuristisch vorschlagen" + Counter erweitert.
+- Smoke-Skripte `scripts/test-h3-suggest.ts` + `scripts/test-h3-regression.ts` (CLI-Tools für Folge-Phasen).
+- Memory `feedback_commit_after_substantial_steps.md` neu, MEMORY-Index aktualisiert.
 
-### Was nicht steht
-- Keine Code-Änderungen.
-- Keine Migrationen.
-- H1/H2 unverändert.
+### Verifiziert
+- **Schema**: alle Tabellen + Constraints + Indizes wie spec'd (`psql \d`-Verifikation).
+- **Service-Smoke** an Test-Case "BA H3 dev" (`d1993e8a-…`, work_type=bachelor_thesis): 6 Konstrukt-Vorschläge persistiert — Einleitung→EXPOSITION/KAPITEL, Theoretischer Rahmen→GRUNDLAGENTHEORIE/UNTERKAPITEL, Gegenüberstellung-Heading→SYNTHESE, Kritische Reflexion + Fazit→SCHLUSSREFLEXION, "Eigenständigkeitserklärung" als letztes L1 → SCHLUSSREFLEXION (Position-Default mit conf 0.6) — saubere Demo, dass User-Override-Bedarf an unsicheren Stellen sichtbar wird.
+- **Benchmark-Schutz**: ein versehentlicher Smoke an Bachelorarbeit-Benchmark (e1a474a0-…) wurde im selben Schritt zurückgerollt (UPDATE … WHERE outline_function_type_user_set=false → NULL).
+- **Regression H1**: AG 71/71, section 7/7, chapter 5/5, work 1/1 — counts vollständig wie zuvor.
+- **Regression H2**: paragraph_synthetic 0/71 pending — Atom-Listing intakt.
+- **svelte-check**: 3 Errors, alle pre-existing (`./maps.js`-Modul, `cases/new`-DocSource, `briefs/new`-work_type), 0 neu.
+- **tsc --noEmit**: keine neuen Errors gegenüber pre-existing baseline.
 
----
+### Bekannte Probleme / bewusst aufgeschoben
+- **Migrations-Tracking-Drift**: 039+040 waren in der DB schema-aktiv, aber nicht in `_migrations` registriert. Wurden manuell eingetragen. 041+042 (Anonymization) sind weder schema- noch tracking-aktiv und wurden bewusst nicht angewandt — separate Anonymization-Aufgabe.
+- **Browser-UI-Verification ausgelassen**: Login-Daten in dev-DB nicht im Repo, manueller Browser-Test durch User empfohlen.
+- **FORSCHUNGSDESIGN-Kaskade implizit**: Memory-Spec spricht von "Kapitel→Unterkapitel→Abschnitt kaskadierend, wenn nirgends als Kapitel". Aktuelle `granularityFor()`-Logik richtet die Granularität am Heading-Level aus — passt für die meisten Fälle, aber explizite Kaskade über die ganze Outline wäre möglich. Aufgeschoben auf Phase 2/3, falls nötig.
+- **WERK_STRUKTUR aus Outline-Dropdown ausgeblendet**: per Architektur-Setzung wird WERK_STRUKTUR nicht über Outline-Knoten gesetzt, sondern durch H3:WERK_STRUKTUR-Heuristik (Phase 5).
 
-## Nächster Schritt: Phase 1 — Datenmodell + Vor-Heuristik FUNKTIONSTYP_ZUWEISEN
-
-### Migrations-Reihenfolge (additiv, NULL-able, kein Breaking Change)
-
-1. **Konstrukte-Tabelle** `function_constructs` (oder ähnlich)
-   - Spalten: `id`, `case_id` (FK), `document_id` (FK), `function_type` (ENUM: EXPOSITION, GRUNDLAGENTHEORIE, FORSCHUNGSDESIGN, DURCHFÜHRUNG, EXKURS, SYNTHESE, SCHLUSSREFLEXION, WERK_STRUKTUR), `construct_kind` (z.B. FRAGESTELLUNG, MOTIVATION, KERNBEGRIFF, FORSCHUNGSGEGENSTAND, METHODOLOGIE, METHODEN, BASIS, ERKENNTNIS, GESAMTERGEBNIS, GELTUNGSANSPRUCH, GRENZEN, ANSCHLUSSFORSCHUNG, STRUKTUR_HERLEITUNG, WERK_BESCHREIBUNG, GUTACHT_HINWEIS), `anchor_element_ids` (array of FK auf `document_elements`), `content` (TEXT/JSONB), `version_stack` (JSONB array für CCS-Stack via EXKURS-Re-Spec), `source_run_id` (FK auf `pipeline_runs`), Zeitstempel
-
-2. **Outline-Extension** an `heading_classifications`
-   - Neue Spalten: `function_type` (ENUM, NULL-able), `granularity_level` (ENUM: KAPITEL/UNTERKAPITEL/ABSCHNITT, NULL-able)
-   - Bestehende Konsumenten (`orchestrator.ts:301, 440`) ignorieren NULL — Backward-Compat trivial.
-
-3. **Virtual-Container-Tabelle** `virtual_function_containers`
-   - Spalten: `id`, `case_id` (FK), `document_id` (FK), `function_type` (ENUM), `source_anchor_ranges` (JSONB array `[{element_id, start_seq, end_seq}]`), Zeitstempel
-   - Generische Aggregations-Container — werden in Phase 1 nur von H3 konsumiert, sind aber perspektivisch auch für H1/H2 als Atom-Einheit ansprechbar (siehe BC-Klausel-Präzisierung unten).
-
-4. **review_draft-Liste** — neue Tabelle `case_review_drafts`
-   - Spalten: `id`, `case_id` (FK), `document_id` (FK auf `namings`), `owner_kind` (ENUM: SELF / SECOND_REVIEWER / EXTERNAL), `seq`, Zeitstempel
-   - Backward-Compat: bestehender FK `cases.review_draft_document_id` bleibt; neue Tabelle wird parallel gepflegt; in Phase 1 wird der bestehende FK bei Schreibvorgängen mitgesetzt; UI bleibt Single-Slot. Lange Sicht (Phase 6): Migration auf View, dann FK-Drop.
-
-5. **Brief-Flag** `assessment_briefs.h3_enabled` (BOOLEAN, Default false, NOT NULL)
-   - `orchestrator.phasesForRun()` schaltet H3-Phasen nur ein, wenn `brief.h3_enabled OR options.include_h3`.
-
-### Backend: Vor-Heuristik FUNKTIONSTYP_ZUWEISEN
-- Neue Service-Funktion in `src/lib/server/pipeline/` (eigene Datei, z.B. `function-type-assignment.ts`)
-- Input: `document_id`, `case_id`, `outline_state` (aus `heading_classifications`)
-- Heuristik: Position im Werk + Heading-Marker-Regex (`Einleitung|Methode|Methoden|Methodologie|Forschungsdesign|Fazit|Schluss|...`) + Falltyp-Default
-- Output: pro `heading_classifications`-Eintrag ein `(function_type, granularity_level)`-Paar mit Confidence
-- Persistenz: schreibt in die neuen Spalten (additiv, kein bestehender Code wird überschrieben)
-
-### UI: Outline-Confirm um Funktionstyp-Setter erweitern
-- Datei: `src/routes/projects/[projectId]/documents/[docId]/outline/+page.svelte`
-- Pro Outline-Knoten: Anzeige des heuristischen Funktionstyp-Vorschlags + Override-Dropdown
-- "Bestätigen"-Button speichert function_type + granularity_level zusammen mit dem Outline-Confirm
-- Endpoint-Erweiterung: `/api/projects/[projectId]/documents/[docId]/outline/confirm` nimmt zusätzliche Felder an
-
-### Regression-Check (Pflicht vor Phase-1-Abschluss)
-- H1-Pipeline auf Demo-Habilitation laufen lassen → Befunde identisch zu vor Phase 1
-- H2-Pipeline (include_synthetic) → Memos identisch
-- Status-Endpoint liefert unveränderte Counts
-- Outline-Confirm bestehender Cases ohne H3-Setzung weiter möglich (NULL-Default)
+### Backward-Compat-Status
+- H1: ✓ Counts unverändert.
+- H2: ✓ Atom-Listing intakt.
+- Outline-Confirm bestehender Cases: weiter möglich (NULL-Defaults greifen automatisch).
 
 ---
 
-## Pflicht-Lektüre für Phase-1-Session
+## Nächster Schritt: Phase 2 — H1/H2/H3 als drei gleichrangige Optionen + UI-Reframing
+
+Plan-Übersicht: `docs/h3_implementation_plan.md`, Phase 2.
+
+### Was Phase 2 leistet
+- **UI-Reframing Pipeline-Run**: drei-Spuren-Auswahl H1 / H2 / H3 im Run-Setup. H3-Karte zeigt Voraussetzung "Outline-Funktionstypen zugewiesen" als Aktivierungs-Check.
+- **H2 aus Appendix-Position holen**: heutige `paragraph_synthetic`-Phase ist optionales Addendum; in Phase 2 wird sie zur sichtbar gleichrangigen Option im Run-Setup. Reader-Tab bekommt eine eigene H2-Spalte (statt Modal-Aufschlag).
+- **Brief-Library**: H2 als sichtbare Brief-Kategorie (Brief-Default-Flag analog zu `argumentation_graph` und `validity_check`), nicht nur Run-Option.
+- **Vokabular**: UI-Strings durchgängig auf "Heuristik" (nicht "Strategie"); Reader-Spalten, Pipeline-Setup-Modal, Brief-Library-Karten.
+- **H3-Voraussetzungs-Gate**: ein H3-Run kann nur starten, wenn `brief.h3_enabled === true` UND `>= 1 heading_classifications` einen `outline_function_type !== NULL` hat. Sonst Fehler-JSON analog zu `OUTLINE_NOT_CONFIRMED`.
+
+### Konkrete Schritte
+1. **Brief-Migration** für H2-Default-Flag (`include_synthetic_default`) opt-in mit Default false — analog zu `validity_check` (Mig 040).
+2. **Pipeline-Run-Setup-UI**: drei Heuristik-Karten H1/H2/H3 mit Aktivierungs-Toggles. Pre-flight-Anzeige zeigt jeweilige Atom-Counts.
+3. **Reader-Tabs**: H2-Memos bekommen eigenen Tab/Spalte im Reader.
+4. **Status-Endpoint**: Brief-DTO um `include_synthetic_default` erweitern.
+5. **`phasesForRun()`-Erweiterung**: H3-Phasen nur bei aktivem Flag + erfüllter Outline-Voraussetzung; sonst H3-still-stehen-lassen, H1/H2 normal weiter.
+6. **Regression-Check**: Counts auf den Test-Cases (nicht Benchmark!) müssen unverändert sein.
+
+### Pflicht-Lektüre für Phase-2-Session
 
 **Memory:**
-- `project_three_heuristics_architecture.md` — H3-Architektur, Konstrukte-Liste, Falltyp-Konfiguration
-- `project_critical_friend_identity.md` — Plattform-Identität, gated-c-Mechanismus
-- `project_pipeline_run_orchestrator.md` — Mig 038 Stand
-- `project_no_caseless_docs.md` — Anlege-Reihenfolge Project→Case→Doc
-- `feedback_no_hidden_setq.md` — keine versteckten Setzungen
-- `feedback_vocab_heuristik_not_strategie.md` — Vokabular
+- `project_three_heuristics_architecture.md` — drei-Heuristiken-Konzept
+- `project_critical_friend_identity.md` — Sprachregel "analysiert" / "Indikator"
+- `project_pipeline_run_orchestrator.md` — Mig 038 + Master-Run-UI-Stand
+- `feedback_vocab_heuristik_not_strategie.md` — Vokabular-Hygiene
+- `feedback_color_only_for_reviewer_signals.md` — Farben sind Reviewer-Signale
+- `feedback_commit_after_substantial_steps.md` — Commit-Rhythmus
+- `feedback_benchmark_cases_protected.md` — Test-Cases vs. Benchmark-Cases trennen
+
+**Test-Case** für Phase 2 (vom User angelegt 2026-05-03):
+- "BA H3 dev" — `case_id=c42e2d8f-1771-43bb-97c8-f57d7d10530a`, `central_document_id=d1993e8a-f25b-479c-9526-d527215969c6`, Brief "Bachelor-Arbeit – Standardvorlage". Nicht: BA Benchmark `e1a474a0-…`, Habil-Timm `161d41b4-…`.
 
 **Repo-Doku:**
 - `docs/h3_implementation_plan.md` — Phasen-Übersicht
-- Diese Datei — Phase-1-Spec
+- Diese Datei — Phase-2-Spec
 
-**Code-Files (Bestandsaufnahme aus Phase 0, mit Zeilen):**
-- `migrations/038_pipeline_runs.sql` — Pipeline-Runs-Schema
-- `src/lib/server/pipeline/orchestrator.ts` — `runPipelineLoop()`, `phasesForRun()` (Z.563), `executeStep()` (Z.482–559), `listParagraphAtoms()` (Z.301), `listSubchapterAtoms()` (Z.440), `listAtomsForPhase()` (Z.379–427)
-- `src/routes/api/cases/[caseId]/pipeline/run/+server.ts` — Run-Start (Z.81 outline-Gate, Z.99–104 Brief-Flag-Konsum)
-- `src/routes/api/cases/[caseId]/pipeline-status/+server.ts` — AG/Memo-Done-Counts (Z.150–167, Z.201–218)
-- `migrations/035_*.sql` — heading_classifications Schema + outline_status
-- `migrations/037_*.sql` — Briefs systemweit
-- `migrations/032_*.sql`, `migrations/033_*.sql` — argument_nodes, scaffolding_elements
-- `src/routes/projects/[projectId]/documents/[docId]/outline/+page.svelte` — Outline-Confirm-UI
+**Code-Files (Phase-2-Andockstellen):**
+- `src/lib/server/pipeline/orchestrator.ts` — `phasesForRun()`, Atom-Listing
+- `src/routes/api/cases/[caseId]/pipeline/run/+server.ts` — Run-Start
+- `src/routes/api/cases/[caseId]/pipeline-status/+server.ts` — Brief-DTO erweitern
+- `src/routes/api/briefs/[id]/+server.ts` und Brief-Library-UI — H2-Default-Flag
+- Reader-Komponenten (`ReaderModal.svelte` und benachbarte) — H2-Spalte
 
 ---
 
@@ -110,4 +107,9 @@ Die Maxime "H1/H2 dürfen nicht brechen" ist nicht "AG-/Memo-Pfade einfrieren", 
 
 ## Handover-Notes
 
-Nach Phase 1 — Folge-Session aktualisiert oben den "Aktueller Stand"-Block, fügt darunter Phase-2-Spec ein.
+Phase 1 abgeschlossen 2026-05-03. Folgende Commits:
+- `feat(h3): Phase-1-Datenmodell für funktionstyp-orchestrierte Heuristik` — Migrationen 043–047 + Doku-Anlage.
+- `feat(h3): Vor-Heuristik FUNKTIONSTYP_ZUWEISEN — Service + API` — Backend.
+- `feat(h3-ui): Outline-Page um Funktionstyp-Setter + Heuristik-Trigger` — UI + Smoke-Skripte.
+
+Nach Phase 2 — Folge-Session aktualisiert oben den "Aktueller Stand"-Block, fügt darunter Phase-3-Spec ein (H3-Pilot: H3:EXPOSITION mit FRAGESTELLUNG_PROBE + KONTEXTPROBE_RÜCKWÄRTS).
