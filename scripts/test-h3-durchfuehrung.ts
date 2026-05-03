@@ -1,16 +1,22 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Phase-3-Smoke-Test für H3:DURCHFÜHRUNG Schritt 1 (deterministisch).
-// Aufruf: npx tsx scripts/test-h3-durchfuehrung.ts <caseId>
+// Phase-3-Smoke-Test für H3:DURCHFÜHRUNG.
+// Aufruf:
+//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId>            # Step 1 (deterministisch)
+//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId> --step2    # Step 1 + Step 2 (H1 selektiv)
 
-import { runDurchfuehrungPassStep1 } from '../src/lib/server/ai/h3/durchfuehrung.js';
+import {
+	runDurchfuehrungPassStep1,
+	runDurchfuehrungPassStep2,
+} from '../src/lib/server/ai/h3/durchfuehrung.js';
 import { pool, query } from '../src/lib/server/db/index.js';
 
 async function main() {
 	const caseId = process.argv[2];
+	const runStep2 = process.argv.includes('--step2');
 	if (!caseId) {
-		console.error('Usage: npx tsx scripts/test-h3-durchfuehrung.ts <caseId>');
+		console.error('Usage: npx tsx scripts/test-h3-durchfuehrung.ts <caseId> [--step2]');
 		process.exit(1);
 	}
 
@@ -68,7 +74,46 @@ async function main() {
 		console.log(`    marker: ${c.marker_summary}`);
 	}
 
-	console.log(`\nLaufzeit: ${elapsedMs}ms (kein LLM in Schritt 1)`);
+	console.log(`\nLaufzeit Step 1: ${elapsedMs}ms (kein LLM)`);
+
+	if (runStep2) {
+		console.log(`\n> H3:DURCHFÜHRUNG Step 2 (selektive H1) für Case ${caseId}…`);
+		const start2 = Date.now();
+		const r2 = await runDurchfuehrungPassStep2(caseId);
+		const elapsed2 = Date.now() - start2;
+
+		console.log('\n--- Step-2-Aggregat ---');
+		console.log(`Hot-Spots:                ${r2.hotspotCount}`);
+		console.log(`Verarbeitet:              ${r2.processed}`);
+		console.log(`AG-Skips (idempotent):    ${r2.skippedAg}`);
+		console.log(`Validity-Skips:           ${r2.skippedValidity}`);
+		console.log(`Argumente neu gespeichert:${r2.totalArgumentsStored}`);
+		console.log(`Scaffolding gespeichert:  ${r2.totalScaffoldingStored}`);
+		console.log(`Argumente bewertet:       ${r2.totalArgumentsAssessed}`);
+		console.log(
+			`Tokens:                   in=${r2.tokens.input} out=${r2.tokens.output}` +
+			` cacheCreate=${r2.tokens.cacheCreation} cacheRead=${r2.tokens.cacheRead}` +
+			` total=${r2.tokens.total}`
+		);
+		console.log(`Fehler:                   ${r2.errors.length}`);
+		for (const e of r2.errors.slice(0, 5)) {
+			console.log(`  · [${e.stage}] ${e.paragraphId}: ${e.message.slice(0, 200)}`);
+		}
+
+		console.log('\n--- pro Hot-Spot ---');
+		for (const h of r2.hotspots) {
+			const agTag = h.ag.ranSkipped
+				? 'AG=skip'
+				: `AG=${h.ag.argumentsStored}args+${h.ag.scaffoldingStored}scaff`;
+			const vTag = h.validity.ranSkipped
+				? 'V=skip'
+				: `V=${h.validity.argumentsAssessed}assessed`;
+			const errTag = h.error ? `  ERR[${h.error.stage}]: ${h.error.message.slice(0, 80)}` : '';
+			console.log(`  · ${h.paragraphId.slice(0, 8)} [${h.markerNames.join('|')}]  ${agTag}  ${vTag}${errTag}`);
+		}
+
+		console.log(`\nLaufzeit Step 2: ${elapsed2}ms (selektive H1 auf ${r2.processed} ¶)`);
+	}
 
 	await pool.end();
 	process.exit(0);

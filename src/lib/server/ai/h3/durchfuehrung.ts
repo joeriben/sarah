@@ -27,6 +27,8 @@
 // virtual_container_id daran und gehen FK-SET-NULL bei Container-Löschung.
 
 import { query, queryOne } from '../../db/index.js';
+import { runArgumentationGraphPass } from '../hermeneutic/argumentation-graph.js';
+import { runArgumentValidityPass } from '../hermeneutic/argument-validity.js';
 
 // ── Closure-Marker für Befund-Stellen ─────────────────────────────
 //
@@ -323,5 +325,229 @@ export async function runDurchfuehrungPassStep1(
 		totalParagraphs,
 		totalHotspots,
 		hotspotRatio: totalParagraphs > 0 ? totalHotspots / totalParagraphs : 0,
+	};
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Schritt 2: Selektive H1-Anwendung auf Hotspots
+// ──────────────────────────────────────────────────────────────────
+//
+// Wiederverwendung des bestehenden H1-Tools (Argumentationsgraph +
+// Argument-Validity) — pro Hotspot-¶ aus Step 1, NICHT auf dem ganzen
+// Container. Das ist der Kern der Mother-Kostenoptimierung: nur dort
+// teures LLM-Begründetheits-Reasoning, wo der billige Closure-Marker-
+// Filter eine Befund-Verdichtung markiert hat.
+//
+// Idempotenz-Modell:
+//   - argumentation-graph.ts skipt automatisch, wenn argument_nodes oder
+//     scaffolding_elements für den ¶ schon existieren.
+//   - argument-validity.ts skipt automatisch, wenn alle argument_nodes
+//     des ¶ bereits ein validity_assessment haben.
+//   - Re-Run für nur einen ¶: DELETE FROM argument_nodes WHERE
+//     paragraph_element_id = '...'. (Wir greifen hier nicht aktiv ein,
+//     damit ein DURCHFÜHRUNG-Re-Run nicht stillschweigend H1-Outputs
+//     wegwirft, die andere Heuristiken evtl. weiterverwenden.)
+//
+// Persistenz erfolgt vollständig in den H1-Tabellen — KEIN
+// function_construct in Step 2. BEFUND-Konstrukte entstehen erst,
+// wenn Step 3 (stellenspezifische Regex-Rückwärtssuche) den
+// Verfahrens-/Gegenstandsbezug für die Begründungs-Beurteilung
+// ergänzt hat. Memory: feedback_constructs_are_extracts_not_telemetry.
+
+async function loadHotspotsFromContainers(
+	caseId: string,
+	documentId: string
+): Promise<{ paragraphId: string; charStart: number; charEnd: number; markerNames: string[] }[]> {
+	const rows = (await query<{
+		element_id: string;
+		start_seq: number;
+		end_seq: number;
+		marker_names: string[] | null;
+	}>(
+		`SELECT (r->>'element_id')::uuid AS element_id,
+		        (r->>'start_seq')::int  AS start_seq,
+		        (r->>'end_seq')::int    AS end_seq,
+		        ARRAY(
+		          SELECT jsonb_array_elements_text(r->'marker_names')
+		        )::text[] AS marker_names
+		 FROM virtual_function_containers vfc,
+		      jsonb_array_elements(vfc.source_anchor_ranges) r
+		 WHERE vfc.case_id = $1
+		   AND vfc.document_id = $2
+		   AND vfc.outline_function_type = 'DURCHFUEHRUNG'
+		 ORDER BY (r->>'start_seq')::int`,
+		[caseId, documentId]
+	)).rows;
+
+	return rows.map((r) => ({
+		paragraphId: r.element_id,
+		charStart: r.start_seq,
+		charEnd: r.end_seq,
+		markerNames: r.marker_names ?? [],
+	}));
+}
+
+export interface DurchfuehrungStep2HotspotResult {
+	paragraphId: string;
+	markerNames: string[];
+	ag: {
+		ranSkipped: boolean; // skipped weil bereits persistiert
+		argumentsStored: number;
+		scaffoldingStored: number;
+	};
+	validity: {
+		ranSkipped: boolean;
+		argumentsAssessed: number;
+	};
+	tokens: { input: number; output: number; cacheCreation: number; cacheRead: number };
+	error: { stage: 'ag' | 'validity'; message: string } | null;
+}
+
+export interface DurchfuehrungStep2Result {
+	caseId: string;
+	documentId: string;
+	hotspotCount: number;
+	processed: number;
+	skippedAg: number;
+	skippedValidity: number;
+	totalArgumentsStored: number;
+	totalScaffoldingStored: number;
+	totalArgumentsAssessed: number;
+	tokens: { input: number; output: number; cacheCreation: number; cacheRead: number; total: number };
+	errors: { paragraphId: string; stage: 'ag' | 'validity'; message: string }[];
+	hotspots: DurchfuehrungStep2HotspotResult[];
+}
+
+export async function runDurchfuehrungPassStep2(
+	caseId: string
+): Promise<DurchfuehrungStep2Result> {
+	const caseRow = await queryOne<{ central_document_id: string | null }>(
+		`SELECT central_document_id FROM cases WHERE id = $1`,
+		[caseId]
+	);
+	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
+	if (!caseRow.central_document_id) {
+		throw new Error(`Case ${caseId} has no central_document_id`);
+	}
+	const documentId = caseRow.central_document_id;
+
+	const hotspots = await loadHotspotsFromContainers(caseId, documentId);
+
+	const acc = {
+		input: 0,
+		output: 0,
+		cacheCreation: 0,
+		cacheRead: 0,
+		total: 0,
+	};
+	let processed = 0;
+	let skippedAg = 0;
+	let skippedValidity = 0;
+	let totalArgumentsStored = 0;
+	let totalScaffoldingStored = 0;
+	let totalArgumentsAssessed = 0;
+	const errors: { paragraphId: string; stage: 'ag' | 'validity'; message: string }[] = [];
+	const perHotspot: DurchfuehrungStep2HotspotResult[] = [];
+
+	for (const h of hotspots) {
+		const tokens = { input: 0, output: 0, cacheCreation: 0, cacheRead: 0 };
+		let agSkipped = false;
+		let validitySkipped = false;
+		let argumentsStored = 0;
+		let scaffoldingStored = 0;
+		let argumentsAssessed = 0;
+		let perError: { stage: 'ag' | 'validity'; message: string } | null = null;
+
+		// AG-Pass — sequenziell, weil ein Empirie-Hotspot oft seitenlange
+		// Folgehotspots im selben Container hat und parallele Calls kein
+		// echtes Throughput-Plus bringen, dafür aber Rate-Limit-Risiko.
+		try {
+			const ag = await runArgumentationGraphPass(caseId, h.paragraphId);
+			if (ag.skipped) {
+				agSkipped = true;
+				skippedAg += 1;
+			} else {
+				argumentsStored = ag.stored?.nodeIds.length ?? 0;
+				scaffoldingStored = ag.stored?.scaffoldingIds.length ?? 0;
+				totalArgumentsStored += argumentsStored;
+				totalScaffoldingStored += scaffoldingStored;
+				if (ag.tokens) {
+					tokens.input += ag.tokens.input;
+					tokens.output += ag.tokens.output;
+					tokens.cacheCreation += ag.tokens.cacheCreation;
+					tokens.cacheRead += ag.tokens.cacheRead;
+					acc.input += ag.tokens.input;
+					acc.output += ag.tokens.output;
+					acc.cacheCreation += ag.tokens.cacheCreation;
+					acc.cacheRead += ag.tokens.cacheRead;
+					acc.total += ag.tokens.total;
+				}
+			}
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : String(e);
+			perError = { stage: 'ag', message: msg };
+			errors.push({ paragraphId: h.paragraphId, stage: 'ag', message: msg });
+			perHotspot.push({
+				paragraphId: h.paragraphId,
+				markerNames: h.markerNames,
+				ag: { ranSkipped: false, argumentsStored: 0, scaffoldingStored: 0 },
+				validity: { ranSkipped: false, argumentsAssessed: 0 },
+				tokens,
+				error: perError,
+			});
+			continue;
+		}
+
+		// Validity-Pass — nur wenn AG erfolgreich war (egal ob skipped).
+		try {
+			const v = await runArgumentValidityPass(caseId, h.paragraphId);
+			if (v.skipped) {
+				validitySkipped = true;
+				skippedValidity += 1;
+			} else {
+				argumentsAssessed = v.updatedCount;
+				totalArgumentsAssessed += argumentsAssessed;
+				if (v.tokens) {
+					tokens.input += v.tokens.input;
+					tokens.output += v.tokens.output;
+					tokens.cacheCreation += v.tokens.cacheCreation;
+					tokens.cacheRead += v.tokens.cacheRead;
+					acc.input += v.tokens.input;
+					acc.output += v.tokens.output;
+					acc.cacheCreation += v.tokens.cacheCreation;
+					acc.cacheRead += v.tokens.cacheRead;
+					acc.total += v.tokens.total;
+				}
+			}
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : String(e);
+			perError = { stage: 'validity', message: msg };
+			errors.push({ paragraphId: h.paragraphId, stage: 'validity', message: msg });
+		}
+
+		processed += 1;
+		perHotspot.push({
+			paragraphId: h.paragraphId,
+			markerNames: h.markerNames,
+			ag: { ranSkipped: agSkipped, argumentsStored, scaffoldingStored },
+			validity: { ranSkipped: validitySkipped, argumentsAssessed },
+			tokens,
+			error: perError,
+		});
+	}
+
+	return {
+		caseId,
+		documentId,
+		hotspotCount: hotspots.length,
+		processed,
+		skippedAg,
+		skippedValidity,
+		totalArgumentsStored,
+		totalScaffoldingStored,
+		totalArgumentsAssessed,
+		tokens: acc,
+		errors,
+		hotspots: perHotspot,
 	};
 }

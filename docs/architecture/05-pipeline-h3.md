@@ -135,7 +135,14 @@ API: `POST /api/projects/:projectId/documents/:docId/outline/suggest-function-ty
 - **Kein** `function_constructs`-Schreiben in Step 1 — Memory `feedback_constructs_are_extracts_not_telemetry`: Hotspot-Listen sind Pre-Selektion, kein Extrakt. BEFUND-Konstrukte entstehen erst in Step 2 nach H1-Pass.
 - Validiert auf BA H3 dev (1 Container, 14 ¶, Quote 7%) und Habil H3 Test (2 Container, 114 ¶, Quote 27% — befundreiches Empirie-Material).
 
-**Step 2 (pending): Selektive H1-Anwendung auf Hotspots.** Wiederverwendung des bestehenden `runArgumentationGraphPass` + `runArgumentValidityPass` — nur auf den Hotspot-¶ aus Step 1, nicht auf dem ganzen Container. Ergebnis-Konstrukte: `BEFUND` mit Begründetheits-Beurteilung aus Validity-Pass.
+**Step 2 ✓ (Selektive H1-Anwendung auf Hotspots)** — implementiert via `runDurchfuehrungPassStep2(caseId)`:
+
+- Lädt Hotspot-¶ aus den `virtual_function_containers` (Step-1-Output).
+- Pro Hotspot-¶ sequenziell: `runArgumentationGraphPass` → `runArgumentValidityPass`. Wiederverwendung der bestehenden H1-Tools, kein eigener Prompt.
+- Idempotent durch H1-eigene Skip-Logik (argument_nodes/scaffolding_elements bereits da → AG skip; alle argument_nodes assessment ≠ NULL → Validity skip). Re-Run identisch ¶ erzeugt 0 Tokens.
+- Persistenz vollständig in den H1-Tabellen (`argument_nodes`, `scaffolding_elements`, `argument_nodes.validity_assessment`). **Kein** `function_constructs`-Schreiben in Step 2 — BEFUND-Extrakt entsteht erst in Schritt 4 (nach Grounding-Lookup), Memory `feedback_constructs_are_extracts_not_telemetry`.
+- Sequenziell, nicht parallel: Empirie-Container haben oft viele Folgehotspots, parallele Calls bringen kein echtes Throughput-Plus, dafür Rate-Limit-Risiko.
+- Validiert auf BA H3 dev: 1 Hotspot, AG → 6 Args + 3 Scaffolding, Validity → 6 Args bewertet, 14k Tokens, 28s. Re-Run 7ms / 0 Tokens.
 
 **Step 3 (pending): Stellenspezifische Regex-Rückwärtssuche** als Auxiliär-Tool für H1, wenn das referentielle Grounding (Methoden-/Gegenstandsbezug) im Hotspot-¶ fehlt: vom ¶ aus rückwärts bis Kapitelbeginn, **nicht stur alle Absätze, sondern per Regex mit Pattern der gerade untersuchten Stelle** (Mother-Setzung). Architekturprinzip: billige On-Demand-Suchtools statt großzügigem Pre-Loading des Kontextfensters.
 
