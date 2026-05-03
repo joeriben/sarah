@@ -172,11 +172,26 @@ Die folgenden Fehler haben in dieser Session zusammen ca. 250k Tokens und mehrer
 
 ### Konkrete nächste Schritte
 
-In dieser Reihenfolge:
+Keine erzwungene Reihenfolge — User priorisiert. Optionen, jeweils mit Vorab-Status:
 
-1. Qualitätsbeurteilung der Originalformulierung in `src/lib/server/ai/h3/exposition.ts` einbauen — Schema (`RekonstruktionSchema` + `FallbackSchema`) erweitern um `qualitaet: { rating: 'tragfaehig'|'schwach'|'verfehlt', begruendung: string }`, System-Prompt entsprechend ergänzen, im content der FRAGESTELLUNG-Persistenz mitführen. Re-Run gegen BA H3 dev, prüfen.
-2. Read-only Vergleichsläufe gegen weitere Werke (Habil-Timm) zum Robustheits-Check.
-3. H3:GRUNDLAGENTHEORIE als nächste H3-Heuristik gemäss `h3_implementation_plan.md`.
+**Wartet auf Parallel-Session (kein Aufwand jetzt):**
+- Re-Run von `test-h3-forschungsdesign.ts` gegen BA H3 dev, sobald die Parallel-Session GRUNDLAGENTHEORIE für dieses Werk gelaufen ist und FORSCHUNGSGEGENSTAND in `function_constructs` steht. Vergleich der drei METHODIK-Konstrukte mit/ohne Spezifizierung dokumentieren — erwarteter Effekt: schärfere Methodik-Beurteilung, weil das LLM die Methodenwahl gegen die spezifizierte Untersuchungsperspektive halten kann statt nur gegen die Klafki-Charakterisierung.
+
+**Eigenständige Implementations-Iterationen (jederzeit, in beliebiger Reihenfolge):**
+- **VALIDITY_FALLACY_PRÜFEN als Querschnitts-Modul** (`src/lib/server/ai/h3/validity_fallacy.ts`, NICHT in `forschungsdesign.ts` einbauen). Konnektor-Vorauswahl (`"im Unterschied zu" / "da" / "demgegenüber" / "wäre wünschenswert gewesen, jedoch"`), eigener LLM-Pass, Reviewer-Signal-Output, Persistenz als VALIDITY_FALLACY_BEFUND mit `outline_function_type`-Parameter (läuft laut Mother-Session in mind. GRUNDLAGENTHEORIE + FORSCHUNGSDESIGN, perspektivisch auch SYNTHESE/SCHLUSSREFLEXION).
+- **Habil-Test-Case anlegen** für Strategie-a-Verifikation (Outline-Container statt Fallback). Bestehende Habil-Cases sind Benchmark-geschützt (Memory `feedback_benchmark_cases_protected.md`); deshalb dedizierten Test-Case "Habil H3 dev" erstellen, dort FUNKTIONSTYP_ZUWEISEN inkl. FORSCHUNGSDESIGN-Outline-Markierung laufen lassen, dann Strategie-a verifizieren.
+- **Qualitätsindikator zur Original-Fragestellung** in H3:EXPOSITION — Form offen, vom User zu spezifizieren. Halluzinierte 3-stufige Skala (`tragfaehig/schwach/verfehlt`) ist NICHT autorisiert; siehe Memory `feedback_no_hallucinated_qskala.md`. Nicht eigenmächtig erfinden — beim User Form/Werte/Achsen abklären.
+- **Weitere H3-Heuristiken** gemäss `h3_implementation_plan.md` (DURCHFÜHRUNG, SYNTHESE, SCHLUSSREFLEXION, EXKURS, WERK_*).
+
+### Unversionierte Files im Repo (Parallel-Session)
+
+Eine zweite Session arbeitet parallel an H3:GRUNDLAGENTHEORIE. Folgende Files gehören dieser Parallel-Session und sind **nicht** von dieser Session anzufassen / committen / modifizieren:
+- `docs/h3_grundlagentheorie_parsing_strategy.md`
+- `migrations/048_bibliography_entries.sql`
+- `scripts/test-h3-grundlagentheorie.ts`
+- `src/lib/server/ai/h3/grundlagentheorie.ts`
+
+Sie erscheinen in `git status` als unversioniert — das ist der Stand der Parallel-Session, nicht versehentlich nicht-committeter Output dieser Session.
 
 ---
 
