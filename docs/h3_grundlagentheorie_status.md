@@ -78,13 +78,27 @@ LLM-Klassifikation pro ¶ als REPRODUKTIV oder DISKURSIV. Input: Container-Vollt
 
 **Klammer-zentrierte Citation-Heuristik** (User-Vorschlag, dokumentiert für nachhaltigen Refactor):
 
-> "enthält diese Klammer eine Jahreszahl und/oder aaO oder ebd.? Enthält sie eine Seitenzahl 'S. xyz', ', xyz'? Enthält sie überhaupt eine Zahl? wenn nicht ist sie kein Verweis."
+Architektonisch bessere Heuristik als das aktuelle Author-Pattern-Karneval: 5 Zeilen statt 200, robuster gegen Edge-Cases, weil das diagnostische Merkmal von Citations nicht der Author-Name ist (jeder Stil schreibt den anders), sondern die **Verweis-Struktur in der Klammer** (Jahreszahl + ggf. Seitenangabe + ggf. Verweis-Marker `aaO`/`ebd.`).
 
-Das ist eine architektonisch bessere Heuristik als das aktuelle Author-Pattern-Karneval: 5 Zeilen statt 200, robuster gegen Edge-Cases, weil das diagnostische Merkmal von Citations nicht der Author-Name ist (jeder Stil schreibt den anders), sondern die **Verweis-Struktur in der Klammer** (Jahreszahl + ggf. Seitenangabe + ggf. Verweis-Marker `aaO`/`ebd.`).
+Präzise vom User formuliert (verbatim):
+
+| Pattern in der Klammer | Klassifikation |
+|---|---|
+| (Buchstaben oder nicht) + vier Ziffern + Trenner (`,` / `:` / `S.` / `p.` / `;` o.ä.) + 1–4 arabische oder römische Ziffern | **Quelle mit Seitenangabe** |
+| Buchstaben + vier Ziffern (ohne Seitenangabe-Tail) | **Quelle ohne Seitenangabe** |
+| nur vier Ziffern in Klammern | **Jahresangabe** (Autor steht im Fließtext davor) |
+
+Plus: Verweis-Marker `aaO` / `a.a.O.` / `ebd.` als alternative Anker statt Jahreszahl.
+
+Was die Heuristik leistet (gegenüber dem aktuellen Author-Pattern-Ansatz):
+- Author-Name ist optional, nicht zwingend — `(2007)` als Jahres-Anhang am Fließtext-Author funktioniert
+- Mehrwort-Author-Komplikationen (Castro Varela, von Saldern, UNESCO, et al.) werden irrelevant — der Author-Teil wird nur als "Buchstaben oder nicht" gelesen
+- Stop-Liste-Wartung entfällt — eine Klammer ohne Vier-Ziffer-Year ist kein Verweis, fertig
+- Multi-Citation in einer Klammer wird trivial: pro `;`/`,`-getrennten Block die Heuristik anwenden
 
 Aktueller Pattern-Stand funktioniert empirisch (BA TM: 18 Citations, alle korrekt; Habil: 374 mit Coverage 81 %), aber jeder Edge-Case kostet einen weiteren Patch. Klammer-Heuristik wäre stabilerer Boden.
 
-**Soll als ERSTER Refactor in der Folge-Session passieren**, bevor Schritt 2 dazukommt. Der Schritt-1-Output (Verweisprofil) ist API-seitig stabil — Refactor des Detektors ändert nicht die Schnittstelle.
+**Soll als ERSTER Refactor in der Folge-Session passieren**, bevor Schritt 2 dazukommt. Der Schritt-1-Output (Verweisprofil) ist API-seitig stabil — Refactor des Detektors ändert nicht die Schnittstelle. Author-Familienname für Cross-Referenz auf Bibliografie wird weiterhin extrahiert, aber **als Sekundär-Schritt am identifizierten Verweis**, nicht als Primär-Detektor.
 
 ---
 
