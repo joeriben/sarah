@@ -2,7 +2,7 @@
 
 Eigenständige Status-Doku der GRUNDLAGENTHEORIE-Session (parallel zu `h3_implementation_status.md`, das die FORSCHUNGSDESIGN-Session pflegt).
 
-Letztes Update: 2026-05-03 (Schritt 1 abgeschlossen; Schritte 2–4 Architektur final: Routing + GTH-Spezial-Tools auf Block-Ebene + Container-End-Aggregation; Klammer-Heuristik-Refactor-Versuch verworfen).
+Letztes Update: 2026-05-03 abends (Schritt 1 + Schritt 2 + Schritt 3 reproduktiv + Schritt 3 diskursiv implementiert und gegen BA H3 dev am Material verifiziert; Schritt 4 + Container-Orchestrator offen; Klammer-Heuristik-Refactor-Versuch tagsüber verworfen).
 
 ---
 
@@ -10,11 +10,12 @@ Letztes Update: 2026-05-03 (Schritt 1 abgeschlossen; Schritte 2–4 Architektur 
 
 | Schritt | Tool | Kosten | Stand |
 |---|---|---|---|
-| 1 | VERWEIS_PROFIL_BAUEN (deterministisch, Author-Pattern-basiert) | quasi null | **abgeschlossen** (Klammer-Heuristik-Refactor-Versuch 2026-05-03 verworfen, siehe Sektion unten) |
-| 2 | **Routing**: WIEDERGABE_PRÜFEN auf Verdachts-Blöcken aus Verweisprofil (Block-LLM) | LLM × Verdachts-Blöcke | offen, Spec final |
-| 3 reproduktiv | H2 synthetische Block-Würdigung + **ECKPUNKT_CHECK** (a Kernbegriff, b Kontamination, c Provenienz) | 2 LLM × Wiedergabe-Block | offen, Spec final |
-| 3 diskursiv | H1 §-AG pro ¶ im Block + **DISKURSIV_BEZUG_PRÜFEN** auf Block-Ebene (gegen FRAGESTELLUNG) | H1×¶ + 1 LLM × Block | offen, Spec final |
+| 1 | VERWEIS_PROFIL_BAUEN (deterministisch, Author-Pattern-basiert) | quasi null | **implementiert** in `grundlagentheorie.ts` (Klammer-Heuristik-Refactor-Versuch 2026-05-03 verworfen, siehe Sektion unten) |
+| 2 | **Routing**: WIEDERGABE_PRÜFEN auf Verdachts-Blöcken aus Verweisprofil (Block-LLM) | LLM × Verdachts-Blöcke | **implementiert** in `grundlagentheorie_routing.ts` (Commit `bc5890f`) |
+| 3 reproduktiv | H2 synthetische Block-Würdigung + **ECKPUNKT_CHECK** (a Kernbegriff, b Kontamination, c Provenienz) | 2 LLM × Wiedergabe-Block | **implementiert** in `grundlagentheorie_reproductive.ts` (Commit `77806eb`) |
+| 3 diskursiv | DISKURSIV_BEZUG_PRÜFEN auf Block-Ebene (gegen FRAGESTELLUNG) — H1 §-AG-Wiederverwendung kommt im Container-Orchestrator | 1 LLM × Block | **implementiert** in `grundlagentheorie_discursive.ts` (Commit `a80bd3a`) |
 | 4 | **FORSCHUNGSGEGENSTAND_REKONSTRUIEREN** als Container-End-Aggregation | 1 LLM pro Container | offen, Spec final |
+| Orchestrator | Container-Pass, der alle Schichten koordiniert + bestehende H1-Pipeline auf diskursive ¶ anwendet | — | offen |
 
 Hypothese (Test nach Implementation): Pyramide spart deutlich gegenüber pauschalem H1 auf alle ¶ — reproduktive Strecken (laut Habil-Daten ≥30 % der ¶) entfallen aus dem teuren H1-Pass und werden durch Block-LLM-Calls ersetzt.
 
@@ -222,6 +223,46 @@ Memory-Pfad: `/Users/joerissen/.claude/projects/-Users-joerissen-ai-sarah/memory
 - `docs/h3_implementation_plan.md` — Phasen-Plan und Sub-Agent-Strategie.
 - `docs/h3_implementation_status.md` — pflegt die Forschungsdesign-Session; parallel zu dieser Datei.
 - `docs/h3_grundlagentheorie_parsing_strategy.md` — diese Session, vor User-Diskussion über Bibliografie-LLM und Klammer-Heuristik geschärft.
+
+## Implementations-Stand & nächste Schritte (2026-05-03 abends)
+
+### Implementiert (4 Tools + Test-Skripte, alle gegen BA H3 dev am Material verifiziert)
+
+| Tool | Modul | Test-Skript | Commit |
+|---|---|---|---|
+| Verweisprofil | `grundlagentheorie.ts` | `test-h3-grundlagentheorie.ts`, `…-streuung.ts` | (Schritt 1, früher) |
+| Routing (WIEDERGABE_PRÜFEN) | `grundlagentheorie_routing.ts` | `test-h3-routing.ts` | `bc5890f` |
+| H2 + ECKPUNKT_CHECK | `grundlagentheorie_reproductive.ts` | `test-h3-reproductive.ts` | `77806eb` |
+| DISKURSIV_BEZUG_PRÜFEN | `grundlagentheorie_discursive.ts` | `test-h3-discursive.ts` | `a80bd3a` |
+
+Persistenz-Konstrukte: `VERWEIS_PROFIL`, `BLOCK_ROUTING`, `BLOCK_WUERDIGUNG`, `ECKPUNKT_BEFUND`, `DISKURSIV_BEZUG_BEFUND` — alle mit `outline_function_type='GRUNDLAGENTHEORIE'`. Keine Idempotenz (experimentelle Phase).
+
+Default-Modell überall: `openrouter/anthropic/claude-sonnet-4.6` (überschreibt `ai-settings.json`-Opus-Default; spec-konform "billig"). Konfigurierbar via `modelOverride`.
+
+Anonymisierungs-Failsafe deaktiviert (Commit `d617098`, User-Setzung) — Hard-Block produzierte False-Positives auf bereits anonymisierten Werken.
+
+### BA H3 dev — verifizierte Befunde am Material
+
+- Routing: 3 Verdachts-Blöcke (1 citation_gap ¶25-29, 2 author_cluster ¶34-40 + ¶42-46), alle "wiedergabe high" — am Material korrekt (Klafki-Reproduktion).
+- Reproductive (3 Blöcke × 2 Calls): provenienz-Achse "red" für ¶25-29 (kein Beleg pro didaktischem Prinzip), Kontamination "lebenslanges Lernen" als nicht-Klafki-Begriff erkannt — am Material defensibel.
+- Discursive (4 standard_stretch-Blöcke): alle "implizit green" — Theorie-Kapitel arbeitet Klafki-Perspektive auf, GCED-Anwendungsfrage erst in DURCHFUEHRUNG. Klassifikator-Set `explizit/implizit/bezugslos` hat in diesem Werk noch keine Trennschärfe gezeigt; Härtetest mit gemischtem Bezugsverhalten steht aus.
+
+### Nächste Session — empfohlener Auftakt
+
+1. **Schritt 3 an einem Stück der Habil testen** (User-Setzung 2026-05-03 abends).
+   - Habil hat **keinen** GTH-Marker — vor Test entweder via UI oder SQL einen Heading mit `outline_function_type='GRUNDLAGENTHEORIE'` markieren, oder die Test-Skripte um einen `--container "<heading-substring>"`-Modus erweitern (analog `test-h3-grundlagentheorie-streuung.ts`).
+   - Zusätzlich: EXPOSITION-Pass auf Habil laufen lassen, sodass `FRAGESTELLUNG`-Konstrukt persistiert ist (sonst scheitert der diskursive Pass mit "EXPOSITION-Pass muss zuerst laufen").
+   - Erwartung: bei einem polyphonen Habil-Container mit hoher Bandbreite sollten DISKURSIV-Klassifikationen mehr Spannweite zeigen als bei BA H3 dev (mindestens "explizit"-Treffer wenn die Fragestellung explizit aufgenommen wird, und ggf. "bezugslos"-Treffer bei drumrum-Theorie).
+2. **Cost-Hypothese prüfen**: pro Container Gesamt-Token-Verbrauch alle vier Schichten messen, mit pauschalem H1-Aufwand vergleichen (= ¶-Anzahl × durchschnittliche H1-Tokens). Erwartung User: Pyramide spart deutlich gegenüber pauschalem H1.
+3. **Danach**: Schritt 4 (FORSCHUNGSGEGENSTAND_REKONSTRUIEREN) + Container-Orchestrator (verbindet die vier Schichten + bindet existierende H1-Pipeline auf diskursive ¶ ein). Dafür wahlweise weiterer Agent oder Handover (User-Entscheidung am Auftakt).
+
+### Open Setq-Defaults
+
+- `minClusterLen=4` / `minCitationGapLen=5` (Routing) — bisher nur gegen BA-Cases getestet
+- `minStandardStretchLen=1` (Discursive) — Single-¶-Blöcke. Bei Habil ggf. hochsetzen wenn noisy
+- `maxTokens` im Reproductive-Pass auf 1500 hochgesetzt (3 Achsen mit Rationale brauchen Budget); Routing/Discursive 800
+
+---
 
 ## Lehre für die Folge-Session
 
