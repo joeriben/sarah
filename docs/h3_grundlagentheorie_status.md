@@ -115,6 +115,31 @@ Alle ehemals unversioniert, in dieser Session committet:
 
 ---
 
+## Pflicht-Lektüre für Folge-Session
+
+Memory-Pfad: `/Users/joerissen/.claude/projects/-Users-joerissen-ai-sarah/memory/`.
+
+**Architektonische Setzungen (Mother-Session 4ca02b6d und Folge):**
+- `project_three_heuristics_architecture.md` — Mother-Session-Setzung: H1/H2/H3-Modell, Funktionstyp-Achse, Falltyp-Konfiguration, vollständige H3-Heuristiken-Liste. **Quelle der Pyramide-Spec für GRUNDLAGENTHEORIE.**
+- `project_critical_friend_identity.md` — SARAH analysiert, beurteilt nicht autonom. PASSAGE_KLASSIFIKATION ist deskriptiv, kein Urteil; Wertung erst auf Werk-Ebene durch WERK_GUTACHT.
+- `project_fragestellung_definition.md` — Fragestellung = Problemfeld + Perspektive. Wird in Schritt 3b (DISKURSIV_BEZUG_PRÜFEN) als Cross-Typ-Bezug eingelesen.
+- `project_falltyp_architecture.md` — Falltyp am Case, Stufe-3-Roadmap.
+
+**Verhaltens-Setzungen (besonders relevant für H3:GRUNDLAGENTHEORIE):**
+- `feedback_constructs_are_extracts_not_telemetry.md` — `function_constructs.content` enthält nur Substanz, keine Lauf-Metadaten. Negative Befunde nicht reifizieren.
+- `feedback_pattern_iteration_vs_simpler_heuristic.md` (NEU diese Session) — Pattern-Diagnostik vor Pattern-Vollständigkeit. Klammer-Heuristik vor Author-Pattern.
+- `feedback_strategic_decisions_need_consent_even_in_auto.md` (NEU diese Session) — high-level Setzungen brauchen User-Zustimmung auch unter AUTO mode.
+- `feedback_no_hallucinated_qskala.md` — keine ungebetenen Skalen erfinden (Parallel-Session-Lehre, gilt analog für PASSAGE_KLASSIFIKATION-Schema).
+- `feedback_no_hidden_setq.md` — keine Multi-Choice wenn die Setzung schon getroffen ist.
+- `feedback_benchmark_cases_protected.md` — Test-Cases sind `c42e2d8f-…` ("BA H3 dev") und `d9233156-…` ("Bachelorarbeit TM"). Habil-Cases sind Benchmarks, NICHT modifizieren.
+- `feedback_features_before_interface.md` — Substanz erst, Steuerungs-UI später.
+- `feedback_commit_after_substantial_steps.md` — pro logischer Einheit eigener Commit.
+
+**Repo-Doku:**
+- `docs/h3_implementation_plan.md` — Phasen-Plan und Sub-Agent-Strategie.
+- `docs/h3_implementation_status.md` — pflegt die Forschungsdesign-Session; parallel zu dieser Datei.
+- `docs/h3_grundlagentheorie_parsing_strategy.md` — diese Session, vor User-Diskussion über Bibliografie-LLM und Klammer-Heuristik geschärft.
+
 ## Lehre für die Folge-Session
 
-Eine **neue Lehre-Memory** wurde angelegt: `feedback_pattern_iteration_vs_simpler_heuristic.md` — bei akademischem Text-Pattern: einfachere Diagnostik (Klammer-zentriert) prüfen, **bevor** Author-Pattern-Vollständigkeit angegangen wird. Diese Session hat ca. 50 k Tokens auf iteratives Pattern-Patchen verbrannt, obwohl der User mit "enthält die Klammer eine Zahl?" eine 5-Zeilen-Heuristik vorschlug.
+`feedback_pattern_iteration_vs_simpler_heuristic.md` (neu): bei akademischem Text-Pattern erst Diagnostik-Granularität prüfen. Diese Session hat ca. 50 k Tokens auf iteratives Pattern-Patchen verbrannt, obwohl der User mit "enthält die Klammer eine Zahl?" eine 5-Zeilen-Heuristik vorschlug.
