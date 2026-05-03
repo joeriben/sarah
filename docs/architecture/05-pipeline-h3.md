@@ -123,11 +123,27 @@ API: `POST /api/projects/:projectId/documents/:docId/outline/suggest-function-ty
 
 **Steps 3a/3b/4: ECKPUNKT_CHECK, DISKURSIV_BEZUG_PRÜFEN, FORSCHUNGSGEGENSTAND_REKONSTRUIEREN — architektonisch unresolved.** Subkomponente vs. Querschnittsmodul vs. obsolet — User-Klärung nötig.
 
-### 4.4 DURCHFUEHRUNG, EXKURS, SYNTHESE, SCHLUSSREFLEXION, WERK_STRUKTUR — **nicht implementiert.**
+### 4.4 DURCHFUEHRUNG (`ai/h3/durchfuehrung.ts`) — **Step 1 ✓ (Hotspot-Detection), Steps 2–3 pending**
+
+**Mother-Setzung:** Empirieartikel sind sehr lang und enthalten zwar Schlüsse, aber wenig Argumentation. H1 auf das ganze Material wäre teuer und sinnlos. Daher: billige Regex-/Heuristik-Vorauswahl von **Befund-Hotspots**, dann selektive H1-Anwendung **nur dort**. Mother-Schätzung: 10–20% des DURCHFÜHRUNG-Materials werden tatsächlich per LLM analysiert.
+
+**Step 1: BEFUND-Hotspot-Detection (deterministisch, kein LLM)** — komplett:
+
+- Container-Resolution: alle Headings mit `outline_function_type='DURCHFUEHRUNG'` (kann mehrfach im Werk vorkommen — Empirie-Habilitationen haben oft mehrere DURCHFÜHRUNGS-Kapitel; LATERAL-Lookup, jeder ¶ geht an seinen nächstgelegenen DURCHFÜHRUNG-Heading).
+- Closure-Marker-Regex pro ¶: 17 Marker-Klassen (zeigt_sich, befund_lemma, ergibt_sich, feststellen, lassen_sich, hervorgehen, deutlich_werden, weist_hin, deutet_hin, macht_deutlich, dokumentiert_sich, rekonstruiert_sich, kommt_zum_ausdruck, tritt_hervor, zusammenfassend, material_referenz, wird_ersichtlich). Schmale Liste bewusst — Memory `feedback_pattern_iteration_vs_simpler_heuristic`: lieber kleine Diagnostik-Liste, dann iterieren, als großer Pattern-Katalog vorab.
+- Persistenz: ein `virtual_function_containers`-Eintrag pro DURCHFÜHRUNG-Outline-Container, `source_anchor_ranges` enthält nur die Hotspot-¶ (Sub-Set). Re-Run: clean-before-insert für `(case_id, document_id, outline_function_type='DURCHFUEHRUNG')`.
+- **Kein** `function_constructs`-Schreiben in Step 1 — Memory `feedback_constructs_are_extracts_not_telemetry`: Hotspot-Listen sind Pre-Selektion, kein Extrakt. BEFUND-Konstrukte entstehen erst in Step 2 nach H1-Pass.
+- Validiert auf BA H3 dev (1 Container, 14 ¶, Quote 7%) und Habil H3 Test (2 Container, 114 ¶, Quote 27% — befundreiches Empirie-Material).
+
+**Step 2 (pending): Selektive H1-Anwendung auf Hotspots.** Wiederverwendung des bestehenden `runArgumentationGraphPass` + `runArgumentValidityPass` — nur auf den Hotspot-¶ aus Step 1, nicht auf dem ganzen Container. Ergebnis-Konstrukte: `BEFUND` mit Begründetheits-Beurteilung aus Validity-Pass.
+
+**Step 3 (pending): Stellenspezifische Regex-Rückwärtssuche** als Auxiliär-Tool für H1, wenn das referentielle Grounding (Methoden-/Gegenstandsbezug) im Hotspot-¶ fehlt: vom ¶ aus rückwärts bis Kapitelbeginn, **nicht stur alle Absätze, sondern per Regex mit Pattern der gerade untersuchten Stelle** (Mother-Setzung). Architekturprinzip: billige On-Demand-Suchtools statt großzügigem Pre-Loading des Kontextfensters.
+
+### 4.5 EXKURS, SYNTHESE, SCHLUSSREFLEXION, WERK_STRUKTUR — **nicht implementiert.**
 
 Spec-Backlog. Heading-Marker-Regex erkennt SCHLUSSREFLEXION/SYNTHESE bereits (Pre-Heuristik), aber keine eigene Konstrukt-Extraktion.
 
-### 4.5 WERK_GUTACHT (a/b/c+d/e/f gated) — **nicht implementiert.**
+### 4.6 WERK_GUTACHT (a/b/c+d/e/f gated) — **nicht implementiert.**
 
 Spec: `WERK_GUTACHT-c` (Synthese-Komponente) ist gegated durch ein eigenes User-`review_draft` (`case_review_drafts.owner_kind='SELF'`). Critical-Friend-Identity (Memory `project_critical_friend_identity`).
 
