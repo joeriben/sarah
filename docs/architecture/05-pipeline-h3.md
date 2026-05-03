@@ -123,7 +123,7 @@ API: `POST /api/projects/:projectId/documents/:docId/outline/suggest-function-ty
 
 **Steps 3a/3b/4: ECKPUNKT_CHECK, DISKURSIV_BEZUG_PRÜFEN, FORSCHUNGSGEGENSTAND_REKONSTRUIEREN — architektonisch unresolved.** Subkomponente vs. Querschnittsmodul vs. obsolet — User-Klärung nötig.
 
-### 4.4 DURCHFUEHRUNG (`ai/h3/durchfuehrung.ts`) — **Step 1 ✓ (Hotspot-Detection), Steps 2–3 pending**
+### 4.4 DURCHFUEHRUNG (`ai/h3/durchfuehrung.ts`) — **Steps 1–3 ✓, Schritt 4 (BEFUND-Konsolidierung agentisch) pending**
 
 **Mother-Setzung:** Empirieartikel sind sehr lang und enthalten zwar Schlüsse, aber wenig Argumentation. H1 auf das ganze Material wäre teuer und sinnlos. Daher: billige Regex-/Heuristik-Vorauswahl von **Befund-Hotspots**, dann selektive H1-Anwendung **nur dort**. Mother-Schätzung: 10–20% des DURCHFÜHRUNG-Materials werden tatsächlich per LLM analysiert.
 
@@ -144,7 +144,15 @@ API: `POST /api/projects/:projectId/documents/:docId/outline/suggest-function-ty
 - Sequenziell, nicht parallel: Empirie-Container haben oft viele Folgehotspots, parallele Calls bringen kein echtes Throughput-Plus, dafür Rate-Limit-Risiko.
 - Validiert auf BA H3 dev: 1 Hotspot, AG → 6 Args + 3 Scaffolding, Validity → 6 Args bewertet, 14k Tokens, 28s. Re-Run 7ms / 0 Tokens.
 
-**Step 3 (pending): Stellenspezifische Regex-Rückwärtssuche** als Auxiliär-Tool für H1, wenn das referentielle Grounding (Methoden-/Gegenstandsbezug) im Hotspot-¶ fehlt: vom ¶ aus rückwärts bis Kapitelbeginn, **nicht stur alle Absätze, sondern per Regex mit Pattern der gerade untersuchten Stelle** (Mother-Setzung). Architekturprinzip: billige On-Demand-Suchtools statt großzügigem Pre-Loading des Kontextfensters.
+**Step 3 ✓ (Stellenspezifische Regex-Rückwärtssuche, deterministisches Such-Tool)** — implementiert via `runDurchfuehrungPassStep3(caseId)` und `lookupGroundingForHotspot(hotspot, container)`:
+
+- **Pattern-Quellen aus dem Hotspot-¶**:
+  1. Eigennamen / distinktive Großbuchstaben-Tokens (≥4 Zeichen) — fängt Personennamen, Akronyme (UNESCO, GCED), Empirie-Fall-IDs (Domino, Candy, Apfelkuchen) und Fachbegriffe (Vergleichshorizont, Transkriptausschnitt). Stop-Liste: deutsche Funktionswörter + akademische Container-Begriffe (Studie, Befund, Kapitel etc.).
+  2. Inline-Zitate (Author-Year) — wiederverwendet via `extractInlineCitations` aus `grundlagentheorie.ts`.
+- **Suchraum**: alle ¶ desselben DURCHFÜHRUNGS-Containers VOR dem Hotspot (`charStart < hotspot.charStart`). Nicht über Container-Grenzen hinaus — Mother-Setzung "bis zum Kapitelbeginn".
+- **Output pro Token**: alle Vorlauf-¶ mit Treffer (sortiert), nearest (letzter Treffer vor Hotspot), first (Erst-Einführung im Container). Tokens ohne Treffer landen in `unmatched` — wertvolles Signal, dass der Verweis-Anker nicht im selben Kapitel begründet ist.
+- Validiert auf BA H3 dev: 1 Hotspot, 62 Tokens, 21% Match-Quote (theoretischer Vergleich, viele neue Konzepte). Habil H3 Test: 31 Hotspots, 784 Tokens, 50% Match-Quote (Empirie mit reichlich Vorlauf-Querverweisen). Beide Läufe deterministisch, kein LLM.
+- **Agentische Verwendung folgt in Schritt 4** (BEFUND-Konsolidierung): ein LLM-Pass pro Hotspot kann das Such-Tool tool-use-mäßig aufrufen, wenn das H1-Argument einen anaphorischen Verweis enthält, dessen Grounding im Hotspot-¶ fehlt. Architekturprinzip: billige On-Demand-Suchtools statt großzügigem Pre-Loading des Kontextfensters. Das Tool selbst steht; die agentische Schicht ist das nächste Iterationsziel.
 
 ### 4.5 EXKURS, SYNTHESE, SCHLUSSREFLEXION, WERK_STRUKTUR — **nicht implementiert.**
 

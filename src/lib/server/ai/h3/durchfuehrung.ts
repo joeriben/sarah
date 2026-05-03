@@ -29,6 +29,7 @@
 import { query, queryOne } from '../../db/index.js';
 import { runArgumentationGraphPass } from '../hermeneutic/argumentation-graph.js';
 import { runArgumentValidityPass } from '../hermeneutic/argument-validity.js';
+import { extractInlineCitations } from './grundlagentheorie.js';
 
 // ── Closure-Marker für Befund-Stellen ─────────────────────────────
 //
@@ -549,5 +550,272 @@ export async function runDurchfuehrungPassStep2(
 		tokens: acc,
 		errors,
 		hotspots: perHotspot,
+	};
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Schritt 3: Stellenspezifische Regex-Rückwärtssuche (Grounding-Lookup)
+// ──────────────────────────────────────────────────────────────────
+//
+// Mother-Setzung (Z. 109 + Folgenachricht): "Dem H1-Tool wird ggf. das
+// referenzielle Grounding fehlen. Es muss daher nach oben suchen dürfen
+// bzw. dabei unterstützt werden — agentisches Such-Tool, das vom Argument
+// aus nach oben Regex sucht bis zum Kapitelbeginn. Nicht stur alle
+// Absätze, sondern per Regex mit Pattern der gerade untersuchten Stelle."
+//
+// Diese Stufe stellt das Such-Tool selbst bereit (deterministisch). Die
+// agentische Verwendung — LLM ruft das Tool tool-use-mäßig auf, um
+// Grounding zu rekonstruieren — ist Aufgabe eines folgenden BEFUND-
+// Konsolidierungs-Schritts und bewusst nicht hier kombiniert (Memory:
+// feedback_features_before_interface — Feature steht, Interface folgt).
+//
+// Pattern-Quellen aus dem Hotspot-¶:
+//   1. Eigennamen / distinktive Großbuchstaben-Tokens (Personen-/Orts-/
+//      Konzeptnamen, Fall-IDs wie "Domino", "Candy" in Empirie-Habils).
+//      Filter: ≥4 Zeichen, Stop-Liste deutscher Funktionswörter und
+//      Container-Begriffe — Memory `feedback_pattern_iteration_vs_simpler_heuristic`:
+//      schmal halten, später iterieren.
+//   2. Inline-Zitate (Author-Year) via extractInlineCitations aus
+//      grundlagentheorie.ts — wiederverwendet, kein eigener Parser.
+//
+// Suchraum: alle ¶ desselben DURCHFÜHRUNGS-Containers VOR dem Hotspot-¶
+// (charStart < hotspot.charStart). Nicht über Container-Grenzen hinaus —
+// Mother-Setzung "bis zum Kapitelbeginn".
+//
+// Output: pro Token die Liste der Treffer-¶ (sortiert: nächster zuerst),
+// plus first introduction (frühestes ¶ im Container, das den Token
+// enthält). Tokens ohne Treffer landen in `unmatched` — wertvolles Signal,
+// dass der Verweis-Anker nicht im selben Kapitel begründet ist.
+
+const PROPER_NOUN_STOP_WORDS = new Set<string>([
+	// Determinatoren / Pronomina (Satzanfang)
+	'Der', 'Die', 'Das', 'Den', 'Dem', 'Des',
+	'Ein', 'Eine', 'Einer', 'Eines', 'Einem', 'Einen',
+	'Diese', 'Dieser', 'Dieses', 'Diesen', 'Diesem',
+	'Jene', 'Jener', 'Jenes', 'Jenen', 'Jenem',
+	'Welcher', 'Welche', 'Welches',
+	// Häufige Satzanfangswörter
+	'Aber', 'Doch', 'Denn', 'Daher', 'Dabei', 'Dadurch', 'Damit', 'Daran',
+	'Darin', 'Darüber', 'Darum', 'Darauf', 'Davon', 'Demnach', 'Dennoch',
+	'Deshalb', 'Deswegen', 'Hierbei', 'Hierfür', 'Hierzu', 'Hingegen',
+	'Insgesamt', 'Ferner', 'Schließlich', 'Zudem', 'Zugleich',
+	// Präpositionen am Satzanfang
+	'Im', 'Am', 'Um', 'In', 'An', 'Auf', 'Über', 'Unter', 'Vor', 'Nach',
+	'Neben', 'Bei', 'Mit', 'Aus', 'Ohne', 'Durch', 'Für', 'Wegen',
+	'Beim', 'Vom', 'Zum', 'Zur', 'Ans', 'Aufs',
+	// Konjunktionen
+	'Und', 'Oder', 'Sowie', 'Wenn', 'Weil', 'Wobei', 'Während', 'Obwohl',
+	'Sodass', 'Dass',
+	// Akademische Container-Begriffe (zu generisch um distinktiv zu sein)
+	'Studie', 'Untersuchung', 'Forschung', 'Analyse', 'Befund', 'Befunde',
+	'Ergebnis', 'Ergebnisse', 'Beispiel', 'Beispiele', 'Kapitel',
+	'Abschnitt', 'Punkt', 'Teil', 'Tabelle', 'Abbildung', 'Diagramm',
+	'Daten', 'Material', 'Sample', 'Korpus', 'Fall', 'Falls', 'Fälle',
+	// Zeit-/Datums-Ausdrücke
+	'Anfang', 'Beginn', 'Ende', 'Mitte', 'Schluss', 'Stand',
+	'Jahr', 'Tag', 'Monat', 'Woche', 'Stunde',
+	'Phase', 'Stufe', 'Etappe', 'Periode', 'Zeitraum',
+	// Monate
+	'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli',
+	'August', 'September', 'Oktober', 'November', 'Dezember',
+	// Citation-Marker
+	'Vgl', 'Siehe', 'Ebd', 'Hrsg', 'Hg', 'Etc', 'Bzw',
+	// Sehr generisch
+	'Werk', 'Werke', 'Text', 'Texte', 'Aussage', 'Aussagen', 'Frage',
+	'Fragen', 'Antwort', 'Antworten', 'Begriff', 'Begriffe',
+	'Thema', 'Themen', 'Sache', 'Sachen', 'Form', 'Formen',
+	'Ebene', 'Ebenen', 'Aspekt', 'Aspekte', 'Punkt', 'Punkte',
+]);
+
+const PROPER_NOUN_RE = /\b([A-ZÄÖÜ][A-Za-zÄÖÜäöüß'-]{3,})\b/g;
+
+export interface ExtractedToken {
+	token: string;
+	kind: 'proper_noun' | 'citation';
+}
+
+export function extractDistinctiveTokens(
+	hotspot: BefundHotspot
+): ExtractedToken[] {
+	const out = new Map<string, ExtractedToken>();
+
+	// (1) Eigennamen / distinktive Großbuchstaben-Tokens.
+	PROPER_NOUN_RE.lastIndex = 0;
+	let m: RegExpExecArray | null;
+	while ((m = PROPER_NOUN_RE.exec(hotspot.text)) !== null) {
+		const token = m[1];
+		if (PROPER_NOUN_STOP_WORDS.has(token)) continue;
+		// Doppel-Großschreibung wie "GCED", "UNESCO" einlassen — sind oft
+		// distinktive Akronyme. Rein-numerische Tokens treten hier nicht auf
+		// (Pattern verlangt Anfangs-Großbuchstaben).
+		if (!out.has(token)) {
+			out.set(token, { token, kind: 'proper_noun' });
+		}
+	}
+
+	// (2) Inline-Zitate (Author-Year) — wiederverwendet aus
+	// grundlagentheorie.ts. Wir wickeln den Hotspot-¶ in die dortige
+	// GrundlagentheorieParagraph-Form ein (strukturell kompatibel).
+	const citations = extractInlineCitations({
+		paragraphId: hotspot.paragraphId,
+		charStart: hotspot.charStart,
+		charEnd: hotspot.charEnd,
+		text: hotspot.text,
+		indexInContainer: hotspot.indexInContainer,
+	});
+	for (const c of citations) {
+		// Erstautor-Familienname als suchbares Token. Familienname ist
+		// distinktiver als die volle "Author Year"-Form, die im Vorlauf
+		// nur selten 1:1 wiederholt wird.
+		const firstAuthor = c.authorsCanonical[0];
+		if (!firstAuthor) continue;
+		// Bei Mehrwort-Familiennamen ("Castro Varela") nur den letzten
+		// Bestandteil als Suchschlüssel — der ist üblicherweise das
+		// Zitations-Stem.
+		const stem = firstAuthor.split(/\s+/).pop() ?? firstAuthor;
+		if (PROPER_NOUN_STOP_WORDS.has(stem)) continue;
+		// Citation-Tokens überschreiben proper_noun-Klassifikation —
+		// die Author-Identifikation ist die spezifischere Quelle.
+		out.set(stem, { token: stem, kind: 'citation' });
+	}
+
+	return Array.from(out.values());
+}
+
+export interface GroundingMatch {
+	token: string;
+	kind: 'proper_noun' | 'citation';
+	matchedParagraphIds: string[];   // alle Vorlauf-¶ mit Treffer, sortiert nach char_start ASC
+	nearestParagraphId: string | null; // letztes Vorlauf-¶ vor Hotspot mit Treffer
+	firstParagraphId: string | null;   // erstes Vorlauf-¶ im Container mit Treffer
+}
+
+export interface GroundingLookupForHotspot {
+	hotspotParagraphId: string;
+	containerHeadingId: string;
+	extractedTokens: ExtractedToken[];
+	matches: GroundingMatch[];
+	unmatched: ExtractedToken[];
+}
+
+function buildTokenMatcher(token: string): RegExp {
+	// Wortgrenzen-Match, case-insensitive bewusst NICHT — Eigennamen sind
+	// typografisch markiert. RegExp-Sonderzeichen escapen (Familiennamen
+	// können Bindestriche enthalten, das ist aber kein Sonderzeichen).
+	const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	return new RegExp(`\\b${escaped}\\b`);
+}
+
+export function lookupGroundingForHotspot(
+	hotspot: BefundHotspot,
+	container: DurchfuehrungContainer
+): GroundingLookupForHotspot {
+	const tokens = extractDistinctiveTokens(hotspot);
+
+	// Suchraum: ¶ vor dem Hotspot im selben Container.
+	const priorParagraphs = container.paragraphs.filter(
+		(p) => p.charStart < hotspot.charStart
+	);
+
+	const matches: GroundingMatch[] = [];
+	const unmatched: ExtractedToken[] = [];
+
+	for (const t of tokens) {
+		const re = buildTokenMatcher(t.token);
+		const hits: string[] = [];
+		for (const p of priorParagraphs) {
+			if (re.test(p.text)) hits.push(p.paragraphId);
+		}
+		if (hits.length === 0) {
+			unmatched.push(t);
+			continue;
+		}
+		matches.push({
+			token: t.token,
+			kind: t.kind,
+			matchedParagraphIds: hits,
+			nearestParagraphId: hits[hits.length - 1] ?? null,
+			firstParagraphId: hits[0] ?? null,
+		});
+	}
+
+	return {
+		hotspotParagraphId: hotspot.paragraphId,
+		containerHeadingId: container.headingId,
+		extractedTokens: tokens,
+		matches,
+		unmatched,
+	};
+}
+
+export interface DurchfuehrungStep3HotspotResult {
+	hotspotParagraphId: string;
+	containerHeadingText: string;
+	extractedTokens: number;
+	matchedTokens: number;
+	unmatchedTokens: number;
+	lookup: GroundingLookupForHotspot;
+}
+
+export interface DurchfuehrungStep3Result {
+	caseId: string;
+	documentId: string;
+	hotspotCount: number;
+	totalExtractedTokens: number;
+	totalMatched: number;
+	totalUnmatched: number;
+	hotspots: DurchfuehrungStep3HotspotResult[];
+}
+
+export async function runDurchfuehrungPassStep3(
+	caseId: string
+): Promise<DurchfuehrungStep3Result> {
+	const caseRow = await queryOne<{ central_document_id: string | null }>(
+		`SELECT central_document_id FROM cases WHERE id = $1`,
+		[caseId]
+	);
+	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
+	if (!caseRow.central_document_id) {
+		throw new Error(`Case ${caseId} has no central_document_id`);
+	}
+	const documentId = caseRow.central_document_id;
+
+	// Container neu aufbauen (statt aus virtual_function_containers zu
+	// rekonstruieren, weil wir den vollständigen ¶-Vorlauf brauchen,
+	// nicht nur die Hotspots — die Rückwärtssuche läuft auf den
+	// nicht-Hotspot-¶, die in vfc nicht enthalten sind).
+	const containers = await loadDurchfuehrungContainers(documentId);
+
+	const hotspotResults: DurchfuehrungStep3HotspotResult[] = [];
+	let totalExtractedTokens = 0;
+	let totalMatched = 0;
+	let totalUnmatched = 0;
+
+	for (const container of containers) {
+		const hotspots = detectBefundHotspots(container);
+		for (const h of hotspots) {
+			const lookup = lookupGroundingForHotspot(h, container);
+			totalExtractedTokens += lookup.extractedTokens.length;
+			totalMatched += lookup.matches.length;
+			totalUnmatched += lookup.unmatched.length;
+			hotspotResults.push({
+				hotspotParagraphId: h.paragraphId,
+				containerHeadingText: container.headingText,
+				extractedTokens: lookup.extractedTokens.length,
+				matchedTokens: lookup.matches.length,
+				unmatchedTokens: lookup.unmatched.length,
+				lookup,
+			});
+		}
+	}
+
+	return {
+		caseId,
+		documentId,
+		hotspotCount: hotspotResults.length,
+		totalExtractedTokens,
+		totalMatched,
+		totalUnmatched,
+		hotspots: hotspotResults,
 	};
 }

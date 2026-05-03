@@ -3,20 +3,24 @@
 //
 // Phase-3-Smoke-Test für H3:DURCHFÜHRUNG.
 // Aufruf:
-//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId>            # Step 1 (deterministisch)
-//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId> --step2    # Step 1 + Step 2 (H1 selektiv)
+//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId>                 # Step 1 (deterministisch)
+//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId> --step2         # + Step 2 (H1 selektiv)
+//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId> --step3         # + Step 3 (Grounding-Lookup, deterministisch)
+//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId> --step2 --step3 # alle drei
 
 import {
 	runDurchfuehrungPassStep1,
 	runDurchfuehrungPassStep2,
+	runDurchfuehrungPassStep3,
 } from '../src/lib/server/ai/h3/durchfuehrung.js';
 import { pool, query } from '../src/lib/server/db/index.js';
 
 async function main() {
 	const caseId = process.argv[2];
 	const runStep2 = process.argv.includes('--step2');
+	const runStep3 = process.argv.includes('--step3');
 	if (!caseId) {
-		console.error('Usage: npx tsx scripts/test-h3-durchfuehrung.ts <caseId> [--step2]');
+		console.error('Usage: npx tsx scripts/test-h3-durchfuehrung.ts <caseId> [--step2] [--step3]');
 		process.exit(1);
 	}
 
@@ -113,6 +117,56 @@ async function main() {
 		}
 
 		console.log(`\nLaufzeit Step 2: ${elapsed2}ms (selektive H1 auf ${r2.processed} ¶)`);
+	}
+
+	if (runStep3) {
+		console.log(`\n> H3:DURCHFÜHRUNG Step 3 (Grounding-Lookup, deterministisch) für Case ${caseId}…`);
+		const start3 = Date.now();
+		const r3 = await runDurchfuehrungPassStep3(caseId);
+		const elapsed3 = Date.now() - start3;
+
+		console.log('\n--- Step-3-Aggregat ---');
+		console.log(`Hot-Spots:                       ${r3.hotspotCount}`);
+		console.log(`Tokens insgesamt:                ${r3.totalExtractedTokens}`);
+		console.log(`davon im Vorlauf gematcht:       ${r3.totalMatched}`);
+		console.log(`davon unmatched:                 ${r3.totalUnmatched}`);
+		const matchQuote =
+			r3.totalExtractedTokens > 0
+				? ((r3.totalMatched / r3.totalExtractedTokens) * 100).toFixed(1)
+				: '0.0';
+		console.log(`Match-Quote:                     ${matchQuote}%`);
+
+		console.log('\n--- pro Hot-Spot ---');
+		for (const h of r3.hotspots.slice(0, 6)) {
+			console.log(
+				`  · ${h.hotspotParagraphId.slice(0, 8)}` +
+					`  tokens=${h.extractedTokens}` +
+					`  matched=${h.matchedTokens}` +
+					`  unmatched=${h.unmatchedTokens}`
+			);
+			for (const m of h.lookup.matches.slice(0, 4)) {
+				console.log(
+					`      [${m.kind}] ${m.token}: ` +
+						`first=${m.firstParagraphId?.slice(0, 8)}, nearest=${m.nearestParagraphId?.slice(0, 8)} ` +
+						`(${m.matchedParagraphIds.length} hits)`
+				);
+			}
+			if (h.lookup.matches.length > 4) {
+				console.log(`      … (${h.lookup.matches.length - 4} weitere)`);
+			}
+			if (h.lookup.unmatched.length > 0) {
+				const sample = h.lookup.unmatched.slice(0, 6).map((u) => `${u.token}[${u.kind[0]}]`).join(', ');
+				console.log(
+					`      unmatched: ${sample}` +
+						(h.lookup.unmatched.length > 6 ? ` … (+${h.lookup.unmatched.length - 6})` : '')
+				);
+			}
+		}
+		if (r3.hotspots.length > 6) {
+			console.log(`  … (${r3.hotspots.length - 6} weitere Hot-Spots)`);
+		}
+
+		console.log(`\nLaufzeit Step 3: ${elapsed3}ms (kein LLM)`);
 	}
 
 	await pool.end();
