@@ -119,6 +119,7 @@ Die folgenden Fehler haben in dieser Session zusammen ca. 250k Tokens und mehrer
 7. **Naive Reproduktion einer selbstdeklarierten Forschungsfrage.** "Inwiefern fördert X das Y" ist meist Slop, nicht die echte Fragestellung. Aufgabe ist KRITISCHE REKONSTRUKTION (Memory `project_fragestellung_definition.md`).
 8. **Mehrfach redundante Bestandsaufnahmen.** Maximal eine Codebase-Sondierung pro Aufgabe.
 9. **Konzeptuelle Begriffe naiv-alltagssprachlich verstehen** ("Fragestellung" ≠ grammatische Frage). Bei Methodenbegriffen ggf. recherchieren oder fragen, **vor** der Implementation, nicht nach drei Iterationen.
+10. **Loscoden, bevor das Problem verstanden ist.** In dieser Session wurde H3:EXPOSITION drei Mal refactoriert, weil zentrale Domänenbegriffe (Konstrukt, Fragestellung, Heuristik-Routing) bei der ersten Implementierung nicht verstanden waren. Reihenfolge: erst Memory + Methodologie-Begriffe klären, dann skizzieren, dann coden — nicht umgekehrt.
 
 ### Konkrete nächste Schritte
 
