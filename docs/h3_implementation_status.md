@@ -84,7 +84,7 @@ Testlauf gegen "BA H3 dev" (`c42e2d8f-1771-43bb-97c8-f57d7d10530a`):
 
 ### Was offen ist (für Anschluss-Session)
 
-1. **Qualifizierung der selbstdeklarierten Original-Formulierung** — Spec abgenickt 2026-05-03 spät, Implementation steht aus. Heute Nachmittag wurde ein erster Versuch (FRAGESTELLUNGS_BEFUND als drittes EXPOSITION-Konstrukt mit prosaischem Befund über fünf Achsen) gestartet, validiert und vom User komplett verworfen — wegen Memory-Verstoß im Prompt (Slop-Wortlaut wörtlich aufgenommen), Vermischung von Wertung mit Darstellung, Datenverlust-Risiko durch Re-Run-Duplikat. Der Versuch ist über `git revert` rückgängig gemacht.
+1. **Qualifizierung der selbstdeklarierten Original-Formulierung** — Spec abgenickt 2026-05-03 spät, Implementation steht aus. Volle Vorgabe als eigenständiges Handover-Dokument: [`docs/handover_h3_exposition_qualifizierung.md`](./handover_h3_exposition_qualifizierung.md). Anschluss-Session: dort lesen, dann Pflicht-Lektüre, dann Spec-Diff vorlegen, dann erst Lauf. Heute Nachmittag wurde ein erster Versuch (FRAGESTELLUNGS_BEFUND als drittes EXPOSITION-Konstrukt mit prosaischem Befund über fünf Achsen) gestartet, validiert und vom User komplett verworfen — wegen Memory-Verstoß im Prompt (Slop-Wortlaut wörtlich aufgenommen), Vermischung von Wertung mit Darstellung, Datenverlust-Risiko durch Re-Run-Duplikat. Der Versuch ist über `git revert` rückgängig gemacht.
 
    **Architektur-Setzung (vom User abgenickt, strikt einzuhalten):**
    - Eigener, isolierter Lese-Schritt — drittes Lese-Resultat parallel zu FRAGESTELLUNG und MOTIVATION.
