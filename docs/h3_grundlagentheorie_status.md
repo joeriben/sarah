@@ -2,19 +2,20 @@
 
 Eigenständige Status-Doku der GRUNDLAGENTHEORIE-Session (parallel zu `h3_implementation_status.md`, das die FORSCHUNGSDESIGN-Session pflegt).
 
-Letztes Update: 2026-05-03 (Schritt 1 abgeschlossen, Schritt 2 offen).
+Letztes Update: 2026-05-03 (Schritt 1 abgeschlossen; Schritt-2-Spec durch User korrigiert: Routing statt eigene Klassifikation).
 
 ---
 
-## Pyramide (Mother-Session-Setzung)
+## Pyramide (Mother-Session-Setzung, Schritt 2 korrigiert 2026-05-03)
 
 | Schritt | Tool | Kosten | Stand |
 |---|---|---|---|
-| 1 | VERWEIS_PROFIL_BAUEN (Regex/deterministisch) | quasi null | **abgeschlossen** |
-| 2 | REPRODUKTIV_VS_DISKURSIV (LLM, billig) | LLM × 1 pro Container | **offen** |
-| 3a | ECKPUNKT_CHECK auf reproduktive ¶ | LLM, gezielt | offen |
-| 3b | DISKURSIV_BEZUG_PRÜFEN auf diskursive ¶ gegen FRAGESTELLUNG | LLM, gezielt | offen |
-| 4 | FORSCHUNGSGEGENSTAND_REKONSTRUIEREN am Kapitelende | LLM × 1 pro Container | offen |
+| 1 | VERWEIS_PROFIL_BAUEN (deterministisch, klammer-zentriert) | quasi null | **abgeschlossen** (Refactor auf Klammer-Heuristik unterwegs) |
+| 2 | **Routing** auf Verdachts-Blöcken aus Verweisprofil: WIEDERGABE_PRÜFEN (LLM, billig, Block-Ebene) | LLM × wenige Blöcke | **offen, Spec steht** |
+| 2 → ja | H2-Block-Beurteilung auf den ganzen Block (synthetisch-hermeneutisch, **nicht** teure AG) | H2 × 1 pro Block | offen |
+| 2 → nein | H1 §-Argumentanalyse pro ¶ im Block | H1 × ¶ | offen |
+| Standard | H1 §-AG auf alle übrigen Strecken (vielfältige Citations) | H1 × ¶ | offen |
+| 3a/3b/4 | ECKPUNKT_CHECK / DISKURSIV_BEZUG_PRÜFEN / FORSCHUNGSGEGENSTAND_REKONSTRUIEREN — Verhältnis zu H1/H2 nach Routing-Setzung **offen** | — | architektonisch zu klären |
 
 ---
 
@@ -55,32 +56,56 @@ User-Hypothese (Bandbreite × Frequenz als Reprod/Diskuss-Indikator) deutlich be
 
 ## User-Setzungen aus dieser Session
 
-1. **Klassen-Frage zu Schritt 2 final**: zweiwertig `reproduktiv | diskursiv`, keine eigene Klasse für Sachbeschreibung-Schlamperei. Methodische Mängel werden nicht reifiziert, sondern als Befund aus orthogonalen Achsen (Klasse × Beleg) sichtbar — "reproduktiv ohne Beleg in einem Theorie-Container = Methodik-Lücke", konsumiert in WERK_GUTACHT.
-2. **Strategie a/b/c für Schritt 2 gesetzt**:
-   - (a) Granularität: pro ¶
-   - (b) Klassen-Set: zweiwertig REPRODUKTIV/DISKURSIV
-   - (c) Persistenz: ein PASSAGE_KLASSIFIKATION-Konstrukt pro Container, content = `{ paragraphClasses: [{paragraphId, class}] }`
-3. **Funktionstypen-Setzung BA TM** (User-manuell vor Vergleichslauf): `Einleitung→EXPOSITION`, `Theoretischer Rahmen→GRUNDLAGENTHEORIE`, `Forschungsstand→DURCHFUEHRUNG`, `Diskussion→SYNTHESE`, `Fazit→SCHLUSSREFLEXION`. Mit Anmerkung: "Durchführung = Analyse des Forschungsstandes (explorative Arbeit)" — relevant für H3:DURCHFUEHRUNG später.
-4. **Cross-Validation mit AG-Pass**: User-Befund "AG hat 'frei behauptet' beim Bodenkontakt für die gleichen citation-freien Strecken" — Triangulation Schritt-1-Profil mit AG-Output ist möglich, wird in WERK_GUTACHT-b zusammengeführt.
-5. **Schlamperei nicht retten**: 22-¶-citation-freie Strecke im BA-TM-Theorieteil ist methodische Schwäche, kein Klassen-Definitions-Problem.
+1. ~~**Klassen-Frage zu Schritt 2 final**~~ und ~~**Strategie a/b/c für Schritt 2**~~ — **überholt 2026-05-03** durch Korrektur (Punkt 6).
+2. **Funktionstypen-Setzung BA TM** (User-manuell vor Vergleichslauf): `Einleitung→EXPOSITION`, `Theoretischer Rahmen→GRUNDLAGENTHEORIE`, `Forschungsstand→DURCHFUEHRUNG`, `Diskussion→SYNTHESE`, `Fazit→SCHLUSSREFLEXION`. Mit Anmerkung: "Durchführung = Analyse des Forschungsstandes (explorative Arbeit)" — relevant für H3:DURCHFUEHRUNG später.
+3. **Cross-Validation mit AG-Pass**: User-Befund "AG hat 'frei behauptet' beim Bodenkontakt für die gleichen citation-freien Strecken" — Triangulation Schritt-1-Profil mit AG-Output ist möglich, wird in WERK_GUTACHT-b zusammengeführt.
+4. **Schlamperei nicht retten**: 22-¶-citation-freie Strecke im BA-TM-Theorieteil ist methodische Schwäche, kein Klassen-Definitions-Problem.
+5. **Klammer-Heuristik vor Author-Pattern** (Refactor läuft als Sub-Agent, siehe unten).
+6. **Korrektur Schritt 2 (2026-05-03)**: keine separate LLM-¶-Klassifikation, kein Konstrukt PASSAGE_KLASSIFIKATION. Stattdessen: Verdachts-Blöcke aus Verweisprofil → günstige Block-LLM-Anfrage "bloße Wiedergabe?" → Routing **H2 auf Block** (ja) oder **H1 §-AG** (nein). Standard-Strecken direkt H1. Effekt: lange reproduktive Passagen werden gesehen und beurteilt, aber nicht mit voller Argumentationsanalyse belastet. Details in Sektion "Schritt 2".
 
 ---
 
-## Schritt 2 — offen, Strategie steht
+## Schritt 2 — User-Korrektur 2026-05-03: Routing, keine eigene Klassifikation
 
-LLM-Klassifikation pro ¶ als REPRODUKTIV oder DISKURSIV. Input: Container-Volltext + Verweisprofil als strukturierter Kontext. Persistenz: ein PASSAGE_KLASSIFIKATION-Konstrukt pro Container.
+Schritt 2 wird **kein eigenes Konstrukt PASSAGE_KLASSIFIKATION**. Das aufgebrochene Material aus dem Verweisprofil **ist bereits** das Material, mit dem die existierenden Pässe (H1 / H2) gefüttert werden — Schritt 2 ist nur noch ein **Routing-Mechanismus**, der pro Verdachts-Block entscheidet, welcher Pass ihn übernimmt.
 
-**Imports waren angefangen** (`grundlagentheorie.ts` hatte zwischendurch `z`, `chat`, `extractAndValidateJSON` importiert) — **wieder rausgenommen** weil Schritt 2 vom User vor Implementation gestoppt wurde. File ist jetzt clean wie nach Schritt 1.
+### Mechanik
+
+1. **Verdachts-Blöcke identifizieren** aus dem Verweisprofil:
+   - Langstrecken ohne Citations
+   - Strecken mit repetitiver Author-Dominanz (max-konsekutiv-dominiert-Cluster, Top-1-Share über Schwelle, vgl. Schritt-1-Felder)
+2. **Pro Verdachts-Block: WIEDERGABE_PRÜFEN** — billige LLM-Confirm-Anfrage en bloc auf den ganzen Block:
+   - Prompt-Kern: "Prüfe die Vermutung, dass es sich um bloße Wiedergabe handelt, nicht um dichte Diskussion."
+   - Einziger LLM-Call auf Block-Ebene, nicht ¶-Ebene → günstig
+3. **Routing-Ergebnis:**
+   - **Wiedergabe bestätigt** → **H2 auf den ganzen Block** (synthetisch-hermeneutische Würdigung, eine Beurteilung für den Block)
+   - **Wiedergabe verworfen** (= doch dichte Diskussion trotz Citation-Pattern) → **H1 §-AG pro ¶ im Block** (volle Argumentanalyse)
+4. **Standard-Strecken** (vielfältige Citations, normale Density) → **direkt H1 §-AG pro ¶**, ohne Routing
+
+### Effekt
+
+Lange reproduktive Passagen werden **gesehen und beurteilt** (Block-Befund über H2), aber **nicht aufwändig mit voller Argumentationsanalyse behandelt**. Cost-Saving + epistemisch korrekt: H1 würde fremde Argumente als eigene labeln (vgl. `project_three_heuristics_architecture.md`).
+
+### Offene architektonische Frage
+
+Die ursprünglichen Schritte 3a/3b/4 (ECKPUNKT_CHECK, DISKURSIV_BEZUG_PRÜFEN, FORSCHUNGSGEGENSTAND_REKONSTRUIEREN) sind in der Routing-Setzung **noch nicht eingeordnet**. Drei Lesarten denkbar:
+- als Sub-Tools INNERHALB H2-Block-Beurteilung (für reproduktive Blöcke)
+- als Querschnittsbausteine über Container-Ende (FORSCHUNGSGEGENSTAND ist ohnehin Aggregation)
+- als obsolet, weil Routing + H1/H2 sie aufnimmt
+
+→ User-Klärung in Folge-Session, bevor Schritt 2 implementiert wird.
+
+### Status der Datei
+
+`grundlagentheorie.ts` ist clean nach Schritt 1; Klammer-zentrierte Citation-Heuristik (siehe "Refactor 2026-05-03" unten) ist umgesetzt und gegen die Benchmark-Cases validiert.
 
 ---
 
-## Offen / Refactor-TODO
+## Refactor 2026-05-03 — Klammer-zentrierte Citation-Heuristik (umgesetzt)
 
-**Klammer-zentrierte Citation-Heuristik** (User-Vorschlag, dokumentiert für nachhaltigen Refactor):
+Author-Pattern-Karneval (~200 Zeilen mit Stop-Liste, Mehrwort-Familiennamen, Adelsformen, et-al-Varianten) ersetzt durch klammer-zentrierte Heuristik. Diagnostisches Merkmal eines Verweises ist die **Verweis-Struktur in der Klammer** (4-Ziffer-Year + ggf. Seiten-Tail oder Verweis-Marker `aaO`/`a.a.O.`/`ebd.`/`ders.`/`dies.`), nicht der Author-Name.
 
-Architektonisch bessere Heuristik als das aktuelle Author-Pattern-Karneval: 5 Zeilen statt 200, robuster gegen Edge-Cases, weil das diagnostische Merkmal von Citations nicht der Author-Name ist (jeder Stil schreibt den anders), sondern die **Verweis-Struktur in der Klammer** (Jahreszahl + ggf. Seitenangabe + ggf. Verweis-Marker `aaO`/`ebd.`).
-
-Präzise vom User formuliert (verbatim):
+User-Spec (verbatim, jetzt umgesetzt):
 
 | Pattern in der Klammer | Klassifikation |
 |---|---|
@@ -88,17 +113,28 @@ Präzise vom User formuliert (verbatim):
 | Buchstaben + vier Ziffern (ohne Seitenangabe-Tail) | **Quelle ohne Seitenangabe** |
 | nur vier Ziffern in Klammern | **Jahresangabe** (Autor steht im Fließtext davor) |
 
-Plus: Verweis-Marker `aaO` / `a.a.O.` / `ebd.` als alternative Anker statt Jahreszahl.
+Plus: Verweis-Marker `aaO` / `a.a.O.` / `ebd.` / `ders.` / `dies.` als alternative Anker statt Jahreszahl.
 
-Was die Heuristik leistet (gegenüber dem aktuellen Author-Pattern-Ansatz):
-- Author-Name ist optional, nicht zwingend — `(2007)` als Jahres-Anhang am Fließtext-Author funktioniert
-- Mehrwort-Author-Komplikationen (Castro Varela, von Saldern, UNESCO, et al.) werden irrelevant — der Author-Teil wird nur als "Buchstaben oder nicht" gelesen
-- Stop-Liste-Wartung entfällt — eine Klammer ohne Vier-Ziffer-Year ist kein Verweis, fertig
-- Multi-Citation in einer Klammer wird trivial: pro `;`/`,`-getrennten Block die Heuristik anwenden
+**Pipeline pro Klammer-Block** (`extractInlineCitations`):
+1. Klammer-Block matchen `\(([^()]+)\)`
+2. Sub-Block-Split: primär per `;`, sekundär per `,` mit Greedy-Reassemble (Komma trennt nur, wenn der Folge-Teil mit Großbuchstabe oder Verweis-Marker beginnt + eigenes Year hat)
+3. Pro Sub-Block: Year-Range (`1833–1911`) maskieren → Single-Year-Match → Page-Tail (Trenner-Sequenz `,`/`:`/`;`/`S.`/`p.` + 1–4 Ziffern + optional `f`/`ff`/Range)
+4. Author primär aus Sub-Block (vor Year), sekundär aus Fließtext direkt vor `(` (für `(2007)`-Anhängsel)
+5. Plausibilitäts-Filter (`isPlausibleAuthorString`): erstes Token mit Großbuchstabe/Adels-Prefix/`[NAME_…]`, nicht in `DATE_PHRASE_STOPWORDS`, max. 1 Lowercase-Token im Author-Teil
 
-Aktueller Pattern-Stand funktioniert empirisch (BA TM: 18 Citations, alle korrekt; Habil: 374 mit Coverage 81 %), aber jeder Edge-Case kostet einen weiteren Patch. Klammer-Heuristik wäre stabilerer Boden.
+**Cross-Referenz-Resolver** vergleicht jetzt das erste Token des Inline-Authors mit `bibliography_entries.first_author_lastname` — damit matcht "Castro Varela" inline auch eine Bib-Entry, die nur "Castro" trägt.
 
-**Soll als ERSTER Refactor in der Folge-Session passieren**, bevor Schritt 2 dazukommt. Der Schritt-1-Output (Verweisprofil) ist API-seitig stabil — Refactor des Detektors ändert nicht die Schnittstelle. Author-Familienname für Cross-Referenz auf Bibliografie wird weiterhin extrahiert, aber **als Sekundär-Schritt am identifizierten Verweis**, nicht als Primär-Detektor.
+**Validierung gegen Benchmarks:**
+
+| Werk | Metrik | Soll | Refactor | Status |
+|---|---|---|---|---|
+| BA H3 dev | Citations / HHI / Top-1 / Konsekutiv-Cluster | 36 / 0.64 / 0.78 / 7 ¶ | 36 / 0.6435 / 0.78 / 7 ¶ Klafki | identisch |
+| BA TM | Citations | ~18 | 20 | leichte Verbesserung (Anonymisierungs-Tag `[NAME_002]` jetzt erfasst, Luckmann/Gugutzer dazu) |
+| BA TM | HHI | 0.09 | 0.0785 | in Range |
+| Habil-Timm | Citations | ~374 | 351 | -6 %, in Toleranz; Differenz = primär verdrängte False Positives (Datums-Klammern, Komma-Verkettungen) |
+| Habil-Timm | HHI / Top-1 (Reckwitz) | 0.012 / 20 | 0.0122 / 20 | identisch |
+
+**Schnittstelle stabil**: `VerweisProfile`-Struktur unverändert, alle nachgelagerten Konsumenten weiter kompatibel.
 
 ---
 

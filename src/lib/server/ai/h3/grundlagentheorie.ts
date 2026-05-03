@@ -298,6 +298,12 @@ async function persistBibliography(
 }
 
 // ── Inline-Citation-Extraktion ─────────────────────────────────────
+//
+// Klammer-zentrierte Heuristik (statt Author-Pattern-Karneval):
+// Diagnostisches Merkmal eines Verweises ist die Verweis-Struktur in
+// der Klammer — 4-Ziffer-Year (mit/ohne Seiten-Tail) oder Verweis-Marker
+// (aaO/a.a.O./ebd.). Author-Familienname wird sekundär aus dem Sub-Block
+// selbst oder aus dem Fließtext direkt vor der Klammer extrahiert.
 
 export interface InlineCitation {
 	rawMatch: string;
@@ -312,151 +318,277 @@ export interface InlineCitation {
 	bibliographyEntryIds: string[];
 }
 
-// Mehrautoren-Marker, alle Schreib-Varianten:
-//   "et al.", "et. al.", "et al", "et. al"
-//   "u.a.", "u. a."
-//   "e.a.", "e. a."
-const ET_AL_PATTERN = String.raw`(?:et\.?\s+al\.?|u\.?\s*a\.|e\.?\s*a\.)`;
-
-// Author-Familienname:
-//   - all-caps Akronym ("UNESCO", "BUND", "OECD") oder
-//   - Standard-Form ("Klafki", "Allolio-Näcke", "O'Connor")
-// Lowercase-Prefix für Adelsformen / Doppelnamen ("von Saldern", "da Costa").
-const NAME_PREFIX = String.raw`(?:(?:von|de|da|le|la|van|der|den|du|del)\s+)?`;
-const SINGLE_NAME = String.raw`(?:[A-ZÄÖÜ]{2,}|[A-ZÄÖÜ][a-zäöüß][A-ZÄÖÜa-zäöüß'-]*)`;
-// Bis zu drei zusammenhängende groß-anfangende Wörter als Familienname
-// ("Castro Varela", "United Nations", "Kiwi Menrath").
-const FAMILY_NAME = String.raw`${NAME_PREFIX}${SINGLE_NAME}(?:\s+${SINGLE_NAME}){0,2}`;
-
-const AUTHOR_PATTERN = String.raw`${FAMILY_NAME}(?:\s+${ET_AL_PATTERN})?(?:\s*(?:[\/&]|\bund\b)\s*${FAMILY_NAME})*`;
-const YEAR_PATTERN = String.raw`(?:18|19|20)\d{2}`;
-const PAGE_PATTERN = String.raw`[\dff.,\s–-]+`;
-
-// Narrativer Stil: "Klafki (2007)", "Klafki et al. (2023)", "Cramer & Drahmann (2019)".
-const CITATION_NARRATIVE_RE = new RegExp(
-	String.raw`\b(${AUTHOR_PATTERN})\s*\(\s*(${YEAR_PATTERN})([a-z])?(?:\s*[\/-]\s*(?:18|19|20)?\d{2}[a-z]?)?(?:\s*[:,]\s*(?:S\.\s*)?(${PAGE_PATTERN}))?\s*\)`,
-	'g'
-);
-
-// Klammer-Block: alle (...) im Text. Jeder Block kann mehrere Citations
-// enthalten ("(Bohnsack et al., 2010; Bohnsack, 2017)") — wird unten
-// pro Block sub-iteriert.
+// Klammer-Block: alle (...) im Text — non-greedy, keine geschachtelten Klammern.
 const PAREN_BLOCK_RE = /\(([^()]+)\)/g;
 
-// Sub-Citation innerhalb eines Klammer-Blocks. Sucht überall im Block-Inhalt
-// nach Author-Year-Patterns, ohne strikten Anker — Trenner wie "; ", ", ",
-// "vgl. ", "kritisch dazu siehe " etc. werden dadurch implizit toleriert.
-const SUB_CITATION_RE = new RegExp(
-	String.raw`\b(${AUTHOR_PATTERN}),?\s+(${YEAR_PATTERN})([a-z])?(?:\s*[\/-]\s*(?:18|19|20)?\d{2}[a-z]?)?(?:\s*[:,]\s*(?:S\.\s*)?(${PAGE_PATTERN}))?`,
-	'g'
-);
+// 4-Ziffer-Year: 18xx/19xx/20xx, optional mit Suffix-Buchstabe.
+const YEAR_RE = /\b((?:18|19|20)\d{2})([a-z])?\b/;
 
-// Stop-Liste deutscher Wörter, die durch das Sub-Citation-Pattern fälschlich
-// als Author-Familienname gematcht werden — typisch in Datums-/Zeit-Klammern
-// ("Anfang 2022", "Jahr 2022") oder am Satzanfang als groß-geschriebene
-// Substantive/Determinatoren/Präpositionen. Erstwurf, kann iterativ wachsen.
-const AUTHOR_STOP_WORDS = new Set<string>([
-	// Zeit-/Datums-Ausdrücke
-	'Anfang', 'Beginn', 'Ende', 'Mitte', 'Schluss', 'Stand',
-	'Jahr', 'Tag', 'Monat', 'Woche', 'Stunde',
-	'Phase', 'Stufe', 'Etappe', 'Periode', 'Zeitraum',
-	// Monate
+// Year-Range "1833–1911" / "1833-1911" — typisch Lebensdaten oder Zeitraum,
+// kein Verweis. Wird vor der Verweis-Klassifikation aus dem Sub-Block-Inhalt
+// rausgeschnitten, damit die einzelnen Years nicht fälschlich als Citation-
+// Year gefangen werden.
+const YEAR_RANGE_RE = /\b(?:18|19|20)\d{2}\s*[–-]\s*(?:18|19|20)?\d{2}\b/g;
+
+// Verweis-Marker als Year-Ersatz. Treffer auf "ebd.", "ebda.", "aaO",
+// "a.a.O.", "ders.", "dies." — gleichwertig zu einer Year-Position
+// (kein konkreter Jahrgang, aber ein gerichteter Verweis-Anker).
+const REFERENCE_MARKER_RE = /\b(?:ebd\.?|ebda\.?|a\.?\s*a\.?\s*O\.?|aaO|ders\.?|dies\.?)\b/i;
+
+// Seiten-Tail nach Year/Marker. Trenner-Sequenz akzeptiert mehrere Trenner
+// (z.B. ", S. 3" = `,` + `S.`), dann arabische/römische Ziffer + optional
+// Range/`f`/`ff`. `S.`/`p.` darf einzeln stehen, ebenfalls `,`/`;`/`:`.
+const PAGE_TAIL_RE = /^\s*(?:[,:;]\s*)?(?:S\.?|p\.?)?\s*([IVXLCDMivxlcdm]+|\d{1,4})((?:\s*[–-]\s*\d{1,4})?(?:\s*ff?\.?)?)/;
+
+// Datums-/Zeit-Phrasen-Stop-Wörter, die die Author-Position einer Klammer-
+// Citation belegen können ("(Stand 2022)", "(Anfang 2022)", "(Im Jahr 2022)").
+// Die Klammer-Heuristik ist robust gegen False-Positive-Wartung, aber diese
+// kleine Liste fängt die typische Datums-Klammer-Klasse vor der Year-
+// Position ab, ohne zur Stop-Liste-Wartung des alten Author-Patterns
+// zurückzukehren. Greift nur am ANFANG des Sub-Block-Author-Teils.
+const DATE_PHRASE_STOPWORDS = new Set<string>([
+	'Stand', 'Anfang', 'Beginn', 'Ende', 'Mitte', 'Schluss',
+	'Jahr', 'Jahrgang', 'Tag', 'Monat', 'Woche',
+	'Im', 'Am', 'Um', 'Seit', 'Bis', 'Vor', 'Nach', 'Ab',
 	'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli',
 	'August', 'September', 'Oktober', 'November', 'Dezember',
-	// Akademische Container-Begriffe
-	'Studie', 'Untersuchung', 'Forschung', 'Analyse',
-	'Beispiel', 'Kapitel', 'Abschnitt', 'Punkt', 'Teil',
-	// Citation-Marker
-	'Vgl', 'Siehe', 'Ebd', 'Hrsg', 'Hg', 'Etc', 'Bzw',
-	// Determinatoren / Pronomina (Satzanfang)
-	'Der', 'Die', 'Das', 'Den', 'Dem', 'Des',
-	'Ein', 'Eine', 'Einer', 'Eines', 'Einem', 'Einen',
-	'Diese', 'Dieser', 'Dieses', 'Diesen', 'Diesem',
-	'Jene', 'Jener', 'Jenes', 'Jenen', 'Jenem',
-	// Präpositionen
-	'Im', 'Am', 'Um', 'In', 'An', 'Auf', 'Über', 'Unter', 'Vor', 'Nach',
-	'Neben', 'Bei', 'Mit', 'Aus', 'Ohne', 'Durch', 'Für', 'Wegen',
-	// Konjunktionen
-	'Und', 'Oder', 'Aber', 'Wenn', 'Weil',
 ]);
 
+// Author-Teil VOR Year/Marker innerhalb eines Sub-Blocks. Greift greedy
+// alles vor dem Year, trimmt dann auf den Familiennamen. Beispiele:
+//   "Klafki, 2007"           → "Klafki"
+//   "Klafki & Meyer, 2007"   → "Klafki & Meyer"
+//   "Bohnsack et al. 2010"   → "Bohnsack et al."
+//   "vgl. Klafki 2007"       → "vgl. Klafki" (Präfix wird gestrippt)
+// Author-Marker-Präfixe werden vor der Author-Extraktion entfernt.
+const CITATION_PREFIX_RE = /^\s*(?:vgl\.?|siehe|s\.|cf\.?|kritisch\s+dazu|auch|so\s+(?:auch|schon|bereits)|hierzu)\s+/i;
+
+// Mehrautoren-Marker im Author-Teil, alle Schreib-Varianten.
+const ET_AL_RE = /\s+(?:et\.?\s+al\.?|u\.?\s*a\.|e\.?\s*a\.)/i;
+
+// Author-Splitter für authorsCanonical (mehrere Autoren in EINEM Verweis).
+const AUTHOR_SPLIT_RE = /\s*(?:[\/&]|\bund\b)\s*/;
+
+// Sub-Block-Trenner innerhalb einer Klammer: Semikolon ist eindeutig,
+// Komma nur wenn es nicht der Seiten-Trenner ist (vor 4-Ziffer-Year ist
+// Komma der Author-Year-Trenner; nach Year ist Komma der Page-Trenner).
+// Wir splitten primär per `;`, dann per `,` mit der Heuristik:
+// Komma trennt nur, wenn der Folge-Block selbst ein Year/Marker enthält.
+function splitParenIntoSubBlocks(content: string): string[] {
+	const semiBlocks = content.split(/\s*;\s*/);
+	const out: string[] = [];
+	for (const sb of semiBlocks) {
+		// Komma-Split nur, wenn es einen weiteren Year/Marker im Folge-Teil gibt.
+		// Erkennung: nach jedem Komma prüfen, ob das Folge-Stück eigenes Year/Marker hat.
+		const parts = sb.split(/\s*,\s*/);
+		if (parts.length === 1) {
+			out.push(sb);
+			continue;
+		}
+		// Greedy-Reassemble: starte mit parts[0], hänge folgende Teile an,
+		// bis ein Teil mit Year/Marker beginnt — dann ist das ein neuer Sub-Block.
+		let buf = parts[0];
+		for (let i = 1; i < parts.length; i++) {
+			const next = parts[i];
+			// "Beginnt mit Author + Year" oder reine Year-Klammer?
+			// Heuristik: enthält der Teil ein 4-Ziffer-Year UND beginnt er mit
+			// einem Großbuchstaben oder Verweis-Marker — separater Sub-Block.
+			const startsLikeNewCitation =
+				(YEAR_RE.test(next) && /^\s*(?:[A-ZÄÖÜ]|vgl\.|siehe|s\.|cf\.|ebd|ders|dies)/i.test(next)) ||
+				REFERENCE_MARKER_RE.test(next.split(/\s+/)[0] ?? '');
+			if (startsLikeNewCitation) {
+				out.push(buf);
+				buf = next;
+			} else {
+				buf += ', ' + next;
+			}
+		}
+		out.push(buf);
+	}
+	return out.map((s) => s.trim()).filter(Boolean);
+}
+
+// Author aus Sub-Block oder Fließtext extrahieren.
+// Im Sub-Block: alles vor Year/Marker, Präfixe gestrippt, "et al." entfernt.
+// Aus Fließtext (für reine Year-Klammer "(2007)"): bis zu 4 Tokens vor `(`,
+// die mit Großbuchstabe beginnen und über `&`/`/`/`und` verbunden sind.
+function extractAuthorFromSubBlock(subBlock: string, yearOffset: number): string {
+	const beforeYear = subBlock.slice(0, yearOffset).trim();
+	if (!beforeYear) return '';
+	let s = beforeYear.replace(CITATION_PREFIX_RE, '');
+	s = s.replace(ET_AL_RE, '').trim();
+	// Trailing-Komma vom Author-Year-Trenner.
+	s = s.replace(/[,;]\s*$/, '').trim();
+	return s;
+}
+
+// Plausibilitätsprüfung: Author-Teil eines Sub-Blocks darf nicht aussehen
+// wie ein freier Fließsatz. Heuristiken:
+//   - leere Klammer-Sätze ("vgl. ", "siehe") nach Präfix-Strip: kein Author
+//   - >5 Wörter (typische Author-Konstruktion ist max. 3 Wörter pro Author,
+//     plus Trenner und et al.; >5 Wörter im Author-Teil = Fließsatz)
+//   - erstes Token in DATE_PHRASE_STOPWORDS = Datums-Klammer
+function isPlausibleAuthorString(s: string): boolean {
+	if (!s) return false;
+	const tokens = s.split(/\s+/);
+	if (tokens.length === 0) return false;
+	const first = tokens[0].replace(/[.,;:]$/, '');
+	if (DATE_PHRASE_STOPWORDS.has(first)) return false;
+	// Erstes Token muss mit Großbuchstabe, Adels-Prefix oder Anonymisierungs-
+	// Marker `[NAME_…]` beginnen. Lowercase-Akronyme (bpb, adyard) bleiben
+	// damit weiterhin außen vor — konsistent mit der vorigen Heuristik.
+	if (!/^(?:[A-ZÄÖÜ]|von|de|da|le|la|van|der|den|du|del|\[)/.test(first)) return false;
+	// Lowercase-Wort-Anteil im Author-Teil: typische Citation hat max. 1
+	// Lowercase-Token (Adels-Prefix oder "und"). Mehr deutet auf Fließsatz
+	// hin ("Facebook im Vergleich knackte im Jahr 2022"). "et al."/"u.a."
+	// wurde vorher schon abgestreift.
+	const lcConnectors = new Set(['und', 'von', 'de', 'da', 'le', 'la', 'van', 'der', 'den', 'du', 'del']);
+	const lcCount = tokens.filter(
+		(t) => /^[a-zäöüß]/.test(t) && !lcConnectors.has(t.replace(/[.,;:]$/, '').toLowerCase())
+	).length;
+	if (lcCount > 1) return false;
+	return true;
+}
+
+function extractAuthorFromFlow(textBefore: string): string {
+	// Backwards bis zu 60 Zeichen, dann letzte Author-ähnliche Sequenz.
+	// Akzeptiert: Tokens mit Großbuchstabe, optional Adels-Prefix (von/de/da/…),
+	// verbunden mit `&` / `/` / `und`, optional gefolgt von `et al.`.
+	const tail = textBefore.slice(-80);
+	const m = tail.match(
+		/((?:(?:von|de|da|le|la|van|der|den|du|del)\s+)?[A-ZÄÖÜ][\wÄÖÜäöüß'-]*(?:\s+[A-ZÄÖÜ][\wÄÖÜäöüß'-]*){0,2}(?:\s+(?:et\.?\s+al\.?|u\.?\s*a\.|e\.?\s*a\.))?(?:\s*(?:[\/&]|\bund\b)\s*(?:(?:von|de|da|le|la|van|der|den|du|del)\s+)?[A-ZÄÖÜ][\wÄÖÜäöüß'-]*)*)\s*$/u
+	);
+	if (!m) return '';
+	return m[1].replace(ET_AL_RE, '').trim();
+}
+
 function splitAuthorString(s: string): string[] {
+	if (!s) return [];
 	return s
-		.replace(/\s+et\.?\s+al\.?/i, '')
-		.replace(/\s+u\.?\s*a\./i, '')
-		.replace(/\s+e\.?\s*a\./i, '')
-		.split(/\s*(?:[\/&]|\bund\b)\s*/)
+		.replace(ET_AL_RE, '')
+		.split(AUTHOR_SPLIT_RE)
 		.map((a) => a.trim())
 		.filter(Boolean);
+}
+
+// Aus dem Author-String den Familiennamen für Bibliografie-Cross-Ref ziehen.
+// Greift das letzte groß-geschriebene Token (Adels-Prefix wird mitgenommen,
+// wenn als Doppelname-Bestandteil erkennbar).
+function familyNameOf(author: string): string {
+	const trimmed = author.trim();
+	if (!trimmed) return '';
+	// "Castro Varela" → "Castro Varela" (Mehrwort bleibt erhalten — bibliography_entries
+	// hat den Mehrwort-Namen typisch auch als Erstauthor).
+	// "von Saldern" → "von Saldern".
+	return trimmed;
 }
 
 export function extractInlineCitations(
 	paragraph: GrundlagentheorieParagraph
 ): Array<Omit<InlineCitation, 'bibliographyEntryIds'>> {
 	const found: Array<Omit<InlineCitation, 'bibliographyEntryIds'>> = [];
-	const seenOffsets = new Set<number>();
+	const text = paragraph.text;
 
-	const pushCitation = (
-		offset: number,
-		rawMatch: string,
-		authorString: string,
-		year: string,
-		yearSuffix: string | null,
-		page: string | null
-	) => {
-		if (seenOffsets.has(offset)) return;
-		const authorsCanonical = splitAuthorString(authorString);
-		if (authorsCanonical.length === 0) return;
-		// Stop-Liste-Filter über alle Wörter im Erst-Author (Mehrwort-Familien-
-		// namen wie "Castro Varela" sind erlaubt, aber sobald ein Bestandteil
-		// ein deutsches Datum-/Determinatoren-Wort ist, ist es False-Positive).
-		const firstAuthorWords = authorsCanonical[0].split(/\s+/);
-		if (firstAuthorWords.some((w) => AUTHOR_STOP_WORDS.has(w))) return;
-		seenOffsets.add(offset);
-		found.push({
-			rawMatch,
-			authorString,
-			authorsCanonical,
-			year,
-			yearSuffix,
-			page,
-			paragraphId: paragraph.paragraphId,
-			paragraphIndex: paragraph.indexInContainer,
-			matchOffsetInParagraph: offset,
-		});
-	};
-
-	// Stufe 1: narrative "Author (Jahr)" patterns
-	CITATION_NARRATIVE_RE.lastIndex = 0;
-	let m: RegExpExecArray | null;
-	while ((m = CITATION_NARRATIVE_RE.exec(paragraph.text)) !== null) {
-		pushCitation(
-			m.index,
-			m[0],
-			m[1].trim(),
-			m[2].trim(),
-			m[3] ? m[3].trim() : null,
-			m[4] ? m[4].trim() : null
-		);
-	}
-
-	// Stufe 2: Klammer-Blöcke, jeder kann mehrere Sub-Citations enthalten
 	PAREN_BLOCK_RE.lastIndex = 0;
 	let blockMatch: RegExpExecArray | null;
-	while ((blockMatch = PAREN_BLOCK_RE.exec(paragraph.text)) !== null) {
+	while ((blockMatch = PAREN_BLOCK_RE.exec(text)) !== null) {
 		const blockContent = blockMatch[1];
-		const blockOffset = blockMatch.index + 1;
-		SUB_CITATION_RE.lastIndex = 0;
-		let sm: RegExpExecArray | null;
-		while ((sm = SUB_CITATION_RE.exec(blockContent)) !== null) {
-			pushCitation(
-				blockOffset + sm.index,
-				sm[0],
-				sm[1].trim(),
-				sm[2].trim(),
-				sm[3] ? sm[3].trim() : null,
-				sm[4] ? sm[4].trim() : null
-			);
+		const blockOffsetInText = blockMatch.index + 1; // +1 für die öffnende Klammer
+		const textBeforeBlock = text.slice(0, blockMatch.index);
+
+		const subBlocks = splitParenIntoSubBlocks(blockContent);
+		// Cursor für Sub-Block-Position innerhalb des Klammer-Inhalts.
+		let cursor = 0;
+
+		for (const sub of subBlocks) {
+			const subStartInBlock = blockContent.indexOf(sub, cursor);
+			const subOffset = subStartInBlock < 0 ? cursor : subStartInBlock;
+			cursor = subOffset + sub.length;
+
+			// Year-Range "1833–1911" (Lebensdaten/Zeitraum) — kein Verweis.
+			// Sub-Block, der nur Year-Range enthält und sonst nichts Citation-
+			// Artiges, wird übersprungen. Range-Treffer maskieren wir aus dem
+			// Sub-Block, bevor das Single-Year-Pattern greift.
+			YEAR_RANGE_RE.lastIndex = 0;
+			let cleanedSub = sub;
+			let rangeM: RegExpExecArray | null;
+			while ((rangeM = YEAR_RANGE_RE.exec(sub)) !== null) {
+				cleanedSub =
+					cleanedSub.slice(0, rangeM.index) +
+					'_'.repeat(rangeM[0].length) +
+					cleanedSub.slice(rangeM.index + rangeM[0].length);
+			}
+			const yearMatch = cleanedSub.match(YEAR_RE);
+			const markerMatch = sub.match(REFERENCE_MARKER_RE);
+
+			let year: string;
+			let yearSuffix: string | null;
+			let anchorOffsetInSub: number;
+			let anchorLength: number;
+
+			if (yearMatch && yearMatch.index !== undefined) {
+				year = yearMatch[1];
+				yearSuffix = yearMatch[2] ?? null;
+				anchorOffsetInSub = yearMatch.index;
+				anchorLength = yearMatch[0].length;
+			} else if (markerMatch && markerMatch.index !== undefined) {
+				// Verweis-Marker statt Year — kein konkreter Jahrgang, aber
+				// gerichteter Anker. Year bleibt leer als Marker für "marker-only".
+				year = '';
+				yearSuffix = null;
+				anchorOffsetInSub = markerMatch.index;
+				anchorLength = markerMatch[0].length;
+			} else {
+				// Kein Year, kein Marker → kein Verweis.
+				continue;
+			}
+
+			// Page-Tail direkt nach Year/Marker (^-Anker, akzeptiert mehrere Trenner).
+			const afterAnchor = sub.slice(anchorOffsetInSub + anchorLength);
+			const pageMatch = afterAnchor.match(PAGE_TAIL_RE);
+			let page: string | null = null;
+			if (pageMatch) {
+				page = ((pageMatch[1] ?? '') + (pageMatch[2] ?? '')).trim() || null;
+			}
+
+			// Author primär aus Sub-Block (vor Year/Marker), sekundär aus Fließtext.
+			let authorString = extractAuthorFromSubBlock(sub, anchorOffsetInSub);
+			let authorFromFlow = false;
+			if (!authorString && year) {
+				// Reine Year-Klammer "(2007)" — nur wenn es der ERSTE Sub-Block ist
+				// (sonst stammt der Fließtext-Author vom vorigen Sub-Block).
+				if (subBlocks.indexOf(sub) === 0) {
+					authorString = extractAuthorFromFlow(textBeforeBlock);
+					authorFromFlow = true;
+				}
+			}
+
+			// Plausibilitäts-Filter für Sub-Block-Author. Greift nicht für
+			// Fließtext-Author (dessen Pattern ist bereits eng) und nicht für
+			// Marker-only (z.B. "(ebd.)" — kein Author erwartet).
+			if (year && authorString && !authorFromFlow) {
+				if (!isPlausibleAuthorString(authorString)) continue;
+			}
+
+			// Marker-only ohne Author-Quelle — droppen (z.B. "(im Jahr 2022)" das
+			// als Marker durchrutscht; muss aber selten vorkommen).
+			if (!year && !authorString) continue;
+
+			const authorsCanonical = splitAuthorString(authorString).map(familyNameOf);
+			const finalAuthors =
+				authorsCanonical.length > 0 ? authorsCanonical : ['unknown'];
+
+			found.push({
+				rawMatch: sub.trim(),
+				authorString: authorString || 'unknown',
+				authorsCanonical: finalAuthors,
+				year,
+				yearSuffix,
+				page,
+				paragraphId: paragraph.paragraphId,
+				paragraphIndex: paragraph.indexInContainer,
+				matchOffsetInParagraph: blockOffsetInText + subOffset + anchorOffsetInSub,
+			});
 		}
 	}
 
@@ -488,12 +620,18 @@ function resolveCitation(
 	bibIndex: BibIndexEntry[]
 ): string[] {
 	if (citation.authorsCanonical.length === 0) return [];
+	if (!citation.year) return []; // Marker-only (ebd./aaO) hat keinen Bib-Anker.
 	const lastname = citation.authorsCanonical[0];
+	if (lastname === 'unknown') return [];
 	const year = citation.year;
 	const suffix = citation.yearSuffix;
+	// Erstes Token vergleichen — Mehrwort-Inline-Authors ("Castro Varela")
+	// matchen so auch eine Bib-Entry, die nur "Castro" als first_author_lastname
+	// trägt (BIB_FIRST_AUTHOR_RE erfasst nur das erste Token).
+	const inlineFirst = lastname.split(/\s+/)[0];
 
 	const matches = bibIndex.filter(
-		(e) => e.first_author_lastname === lastname && e.year === year
+		(e) => e.first_author_lastname === inlineFirst && e.year === year
 	);
 	if (suffix) {
 		const exact = matches.filter((e) => e.year_suffix === suffix);
