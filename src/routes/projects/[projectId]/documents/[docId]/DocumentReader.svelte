@@ -281,15 +281,13 @@
 		)
 	);
 
-	const positionInSubchapter = $derived.by(() => {
+	const positionInDocument = $derived.by(() => {
 		const map = new Map<string, number>();
-		let posInSection = 0;
+		let pos = 0;
 		for (const el of documentElements) {
-			if (el.element_type === 'heading') {
-				posInSection = 0;
-			} else if (el.element_type === 'paragraph') {
-				posInSection += 1;
-				map.set(el.id, posInSection);
+			if (el.element_type === 'paragraph') {
+				pos += 1;
+				map.set(el.id, pos);
 			}
 		}
 		return map;
@@ -355,7 +353,7 @@
 			{@const analysis = analysisFor(el.id)}
 			{@const showAnalysis = hasAnyAnalysis(analysis)}
 			{@const hasRightPane = !!interpr || !!formul || codes.length > 0 || showAnalysis}
-			{@const pos = positionInSubchapter.get(el.id)}
+			{@const pos = positionInDocument.get(el.id)}
 			<article class="doc-paragraph" class:no-memo={!hasRightPane} id="para-{el.id}">
 				<div class="para-text">
 					{#if pos != null}
