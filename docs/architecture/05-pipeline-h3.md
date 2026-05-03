@@ -233,11 +233,26 @@ Idempotent (delete-before-insert pro Werk). Kein version_stack-Wachstum jenseits
 
 Validierung 2026-05-04 gegen BA H3 dev (2 SYNTHESE-Container, 9 ¶, 1 BEFUND): GESAMTERGEBNIS und FRAGESTELLUNGS-ANTWORT deskriptiv-präzise, FRAGESTELLUNGS-ANTWORT mit Critical-Friend-Diagnose ("affirmativ-harmonisierend statt kritisch-differenzierend"); ERKENNTNIS-INTEGRATION mit coverage=0% und konkretem Hinweis, welcher BEFUND nicht adressiert ist. 4.8k in / 843 out Tokens, 18s. Idempotenz verifiziert (zweiter Lauf ersetzt prior).
 
-### 4.7 SCHLUSSREFLEXION, WERK_STRUKTUR — **nicht implementiert.**
+### 4.7 SCHLUSSREFLEXION (`ai/h3/schlussreflexion.ts`) — **implementiert, validiert (BA H3 dev)**
 
-Spec-Backlog. Heading-Marker-Regex erkennt SCHLUSSREFLEXION bereits (Pre-Heuristik), aber keine eigene Konstrukt-Extraktion.
+Architektur (User-Setzung 2026-05-04, analog SYNTHESE): ein Konstrukt `construct_kind='GELTUNGSANSPRUCH'` mit reichem content (`geltungsanspruchText`, `grenzenText`, `anschlussforschungText`). Werk-Aggregat (anchor = alle ¶ aller SR-Container).
 
-### 4.8 WERK_GUTACHT (a/b/c+d/e/f gated) — **nicht implementiert.**
+Pipeline (1 LLM-Call pro Werk, Sonnet 4.6, max 1500 Tokens):
+- Cross-Typ-Reads (Pflicht): FRAGESTELLUNG, FORSCHUNGSGEGENSTAND, GESAMTERGEBNIS + FRAGESTELLUNGS-ANTWORT
+- Optional: METHODEN + BASIS (FORSCHUNGSDESIGN) für Methoden-/Sample-Grenzen-Reflektion (Mother-Lücke geschlossen — Mother nannte nur GESAMTERGEBNIS+FRAGESTELLUNG)
+- LLM-Aufgabe in drei Teilen: deskriptive Texte für Geltungsanspruch, Grenzen, Anschlussforschung. Bei impliziten/fehlenden Komponenten: deskriptiv benennen ("Werk reflektiert keine Methoden-Grenzen explizit"), nicht weglassen.
+
+Idempotent (delete-before-insert pro Werk). Kein version_stack-Wachstum (SR ist letzter werk-strukturierter Pass vor WERK_*).
+
+Schlüsselwort-Vorauswahl (Mother-Idee) heute nicht als Pre-Filter implementiert — Vollkontext-Pass läuft pragmatisch auf BA H3 dev ohne Probleme. Pre-Filter als Optimierung deferred.
+
+Validierung 2026-05-04 gegen BA H3 dev (1 SR-Container "Kritische Reflexion", 2 ¶, alle Cross-Typ-Reads vorhanden inkl. METHODEN/BASIS): GELTUNGSANSPRUCH benennt explizit den deklarierten Anspruch und seine Reichweiten-Limits, GRENZEN diagnostiziert präzise *"Das Werk benennt keine methodischen oder korpusbezogenen Grenzen explizit"* und identifiziert den deklarierten-aber-nicht-ausgearbeiteten Vergleich als methodische Schwäche, ANSCHLUSSFORSCHUNG extrahiert implizite Anschlussrichtungen. 4.1k in / 688 out Tokens, 16.7s. Idempotenz verifiziert.
+
+### 4.8 WERK_STRUKTUR — **nicht implementiert.**
+
+Spec-Backlog. Werk-Ebene-Konstrukt (kein Heading-Container).
+
+### 4.9 WERK_GUTACHT (a/b/c+d/e/f gated) — **nicht implementiert.**
 
 Spec: `WERK_GUTACHT-c` (Synthese-Komponente) ist gegated durch ein eigenes User-`review_draft` (`case_review_drafts.owner_kind='SELF'`). Critical-Friend-Identity (Memory `project_critical_friend_identity`).
 
