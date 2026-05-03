@@ -104,9 +104,11 @@ API: `POST /api/projects/:projectId/documents/:docId/outline/suggest-function-ty
 
 **Offen:** VALIDITY_FALLACY_PRÜFEN-Querschnittsmodul (laut Mother-Session, in dieser Iteration nicht enthalten); Scaffolding-Querschnittsmodul (deferred).
 
-### 4.3 GRUNDLAGENTHEORIE (`ai/h3/grundlagentheorie.ts`) — **Step 1 ✓, Step 2 spec-ready, Steps 3–4 unresolved**
+### 4.3 GRUNDLAGENTHEORIE (`ai/h3/grundlagentheorie.ts` + 4 Submodule) — **Steps 1–4 ✓**
 
-**Step 1: VERWEIS_PROFIL (deterministisch, kein LLM)** — komplett:
+Pyramide aus deterministischer Analyse + selektivem LLM, alle vier Schichten am Material auf BA H3 dev und Habil Timm verifiziert (2026-05-03 spätabends). Detail in `docs/h3_grundlagentheorie_status.md`.
+
+**Step 1: VERWEIS_PROFIL (deterministisch, kein LLM)** — `grundlagentheorie.ts`:
 
 - Container-Resolution via `outline_function_type='GRUNDLAGENTHEORIE'`.
 - Bibliographie-Extraktion (Werk-Ende, Fallback Heading-Match) → `bibliography_entries` (Mig 048).
@@ -115,13 +117,44 @@ API: `POST /api/projects/:projectId/documents/:docId/outline/suggest-function-ty
 - Aggregation: `byAuthor`, `byParagraph` (density / dominant / consecutive), HHI, Top-1-Share, consecutive-cluster, coverage (resolved/orphan).
 - Persistenz: `function_constructs` VERWEIS_PROFIL pro Container.
 
-**Validierung 2026-05-03**: 3 Test-Cases. BA H3 dev: HHI=0.64 (mono-reprod). BA TM: HHI=0.09 (mixed). Habil: HHI=0.012 (dispersed).
+**Validierung**: BA H3 dev HHI=0.64 (mono-reproduktiv), BA TM HHI=0.09 (mixed), Habil-Timm HHI=0.012–0.018 (dispersed).
 
 **Refactor-Versuch 2026-05-03 (Klammer-zentrierte Citation-Heuristik) — verworfen.** Bracket-Pattern-Konzept war valide, aber Sub-Block-Split zu lose; verlor 28 wahre Citations im Habil-Test (Net-Recall schlechter). Author-Pattern-Heuristik wiederhergestellt. Detail in `docs/h3_grundlagentheorie_status.md`.
 
-**Step 2: ROUTING — spec ready, nicht implementiert.** Verdachts-Blöcke (lange citation-freie Strecken, repetitive Author-Dominanz) → `WIEDERGABE_PRÜFEN` (cheap block-level LLM-confirm) → Routing zu H2 (Wiedergabe bestätigt) oder H1 §-AG (dichte Diskussion).
+**Step 2: ROUTING (WIEDERGABE_PRÜFEN, block-LLM)** — `grundlagentheorie_routing.ts`:
 
-**Steps 3a/3b/4: ECKPUNKT_CHECK, DISKURSIV_BEZUG_PRÜFEN, FORSCHUNGSGEGENSTAND_REKONSTRUIEREN — architektonisch unresolved.** Subkomponente vs. Querschnittsmodul vs. obsolet — User-Klärung nötig.
+- Verdachts-Blöcke aus VERWEIS_PROFIL (Author-Cluster ≥ `minClusterLen`, Citation-Gap ≥ `minCitationGapLen`).
+- Pro Verdachts-Block 1 LLM-Call: classification ∈ {wiedergabe, diskussion}, confidence ∈ {high, medium, low}.
+- Persistenz: `BLOCK_ROUTING` pro Container — auch bei 0 Verdachts-Blöcken (für polyphone Habil-Container; Bug-Fix `c2b7054`), damit Reproduktiv und Diskursiv anschlussfähig sind.
+- Defaults `cluster=4 gap=5` sind BA-mono-reproduktiv-kalibriert; polyphone Habil-Container brauchen `cluster=2 gap=3`.
+
+**Step 3 reproduktiv: BLOCK_WUERDIGUNG (H2) + ECKPUNKT_CHECK** — `grundlagentheorie_reproductive.ts`:
+
+- Pro `wiedergabe`-Block 2 LLM-Calls.
+- BLOCK_WUERDIGUNG: synthetisch-hermeneutische 2–4-Sätze-Würdigung "Was wird gesagt?".
+- ECKPUNKT_CHECK: Reviewer-Indikatoren auf 3 Achsen (`kernbegriff`, `kontamination`, `provenienz`) ∈ {green, yellow, red}.
+- Persistenz: `BLOCK_WUERDIGUNG` + `ECKPUNKT_BEFUND` pro Container.
+
+**Step 3 diskursiv: DISKURSIV_BEZUG_PRÜFEN** — `grundlagentheorie_discursive.ts`:
+
+- Pro Block (`routing_diskussion` aus Step 2 + `standard_stretch` der dazwischen liegenden ¶-Sequenzen) 1 LLM-Call.
+- Cross-Typ-Bezug: liest FRAGESTELLUNG aus EXPOSITION-Pass.
+- Output: `bezug` ∈ {explizit, implizit, bezugslos}, `signal` ∈ {green, yellow, red} + Rationale + Anchor-¶-IDs.
+- Persistenz: `DISKURSIV_BEZUG_BEFUND` pro Container.
+
+**Step 4: FORSCHUNGSGEGENSTAND_REKONSTRUIEREN (Werk-Aggregat)** — `grundlagentheorie_forschungsgegenstand.ts`:
+
+- 1 LLM-Call pro Werk (nicht pro Container) — User-Setzung 2026-05-03 spätabends: aggregiertes Konstrukt vor FORSCHUNGSDESIGN-Pass nötig.
+- Inputs: FRAGESTELLUNG (EXPOSITION) + pro GRUNDLAGENTHEORIE-Container kondensierte Übersicht (VERWEIS_PROFIL Top-Autoren + HHI, BLOCK_WUERDIGUNG-Summaries, ECKPUNKT-Signale, DISKURSIV-Block-Klassifikationen — letztere drei optional).
+- Output: deskriptiver Forschungsgegenstand (3–5 Sätze) + 3–7 Subject-Keywords + optional Salient-Container-Indices.
+- Persistenz: `FORSCHUNGSGEGENSTAND` mit `anchor_element_ids` = alle ¶ aller GTH-Container des Werks.
+- Validiert auf Habil (2 Container, Hyperkultur/Kulturessentialismus + Schulkultur/Professionalisierung, 1 Call / 3k tokens / ~3 ct) und BA H3 dev (1 Container, Klafki/GCED-Spannung, 1 Call / 1.1k tokens / ~3 ct).
+
+**Specification-Kette validiert**: FORSCHUNGSDESIGN-Pass (4.6) liest FRAGESTELLUNG + FORSCHUNGSGEGENSTAND als Bezugsrahmen; BASIS-Output auf Habil enthält kontextuelle Sample-Kritik mit explizitem FORSCHUNGSGEGENSTAND-Bezug. Architektur trägt am Material.
+
+**Cost-Hypothese bestätigt**: Habil-Pyramide alle 4 Schritte mit gesenkten Schwellen 18 LLM-Calls / ~44k Tokens / ~25–30 ct OpenRouter für 53 ¶ in 2 Containern; pauschales H1 wäre ~250–400k Tokens (~6–9x).
+
+**Offen**: Container-Orchestrator (verbindet alle 4 Schichten + bindet bestehende H1-Pipeline auf diskursive ¶ ein); Schwellen-Konfigurierbarkeit im Falltyp-System; Sub-Block-Bildung an Sub-Headings für feinere Diskursiv-Granularität.
 
 ### 4.4 DURCHFUEHRUNG (`ai/h3/durchfuehrung.ts`) — **Steps 1–4 ✓**
 
