@@ -30,11 +30,6 @@ async function main() {
 		console.log(`  Anchors: ${result.fragestellungAnchorParagraphIds.length} ¶ (${result.fragestellungAnchorParagraphIds.join(', ')})`);
 	}
 
-	console.log(`\nFRAGESTELLUNGS_BEFUND-Konstrukt: ${result.fragestellungsBefundConstructId ?? '(keines)'}`);
-	if (result.fragestellungsBefundText) {
-		console.log(`  Text: ${result.fragestellungsBefundText}`);
-	}
-
 	console.log(`\nMOTIVATION-Konstrukt:     ${result.motivationConstructId ?? '(keines)'}`);
 	if (result.motivationText) {
 		console.log(`  Text:    ${result.motivationText}`);

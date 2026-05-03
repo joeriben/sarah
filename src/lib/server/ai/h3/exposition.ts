@@ -1,25 +1,17 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// H3:EXPOSITION — extrahiert FRAGESTELLUNG (rekonstruiert), FRAGESTELLUNGS_BEFUND
-// (Lese-Befund entlang fünf Achsen) und MOTIVATION (kurz zusammengefasst) aus
-// dem Einleitungs-Bereich eines Werkes.
+// H3:EXPOSITION — extrahiert FRAGESTELLUNG (rekonstruiert) und MOTIVATION
+// (kurz zusammengefasst) aus dem Einleitungs-Bereich eines Werkes.
 //
-// Vier Schritte:
+// Drei Schritte:
 //   1. Parser (deterministisch, regex-basiert): identifiziert im EXPOSITION-
 //      Container rückwärts den Fragestellungs-Block (¶ mit Frage-Markern,
 //      gecluster) und die Motivations-¶ (alle ¶ vor dem Block).
 //   2. LLM rekonstruiert die Forschungsfragestellung aus den
 //      Fragestellungs-¶ als kompakte Frage (trennt Frage von
 //      Methodenrahmen, der oft im selben Quote-Block steht).
-//   3. LLM erstellt FRAGESTELLUNGS_BEFUND — freier Text entlang fünf Achsen
-//      (sachliche Konsistenz, logische Konsistenz, sprachliche Präzision,
-//      Etablierung eines Klärungsbedarfs, Synthesis-Leistung). Bezugspunkt:
-//      selbstdeklarierte Original-Formulierung im Quell-¶-Material UND die
-//      rekonstruierte tatsächliche Fragestellung UND der Spalt zwischen
-//      beiden. Keine geschlossene Skala — Wertung kommt separat in
-//      H3:WERK_GUTACHT-b. Memory `feedback_no_hallucinated_qskala.md`.
-//   4. LLM fasst die Motivations-¶ in 1–3 Sätzen zusammen.
+//   3. LLM fasst die Motivations-¶ in 1–3 Sätzen zusammen.
 //
 // Fallback: wenn der Parser im Container nichts findet, geht ein einziger
 // LLM-Call über den ganzen Container und macht Identifikation +
@@ -235,80 +227,7 @@ async function rekonstruiereFragestellung(
 	};
 }
 
-// ── Stufe 3: LLM-Befund zur Fragestellung (fünf Achsen) ────────────
-
-const FragestellungsBefundSchema = z.object({
-	befund: z.string().min(1),
-});
-type FragestellungsBefundResult = z.infer<typeof FragestellungsBefundSchema>;
-
-async function erstelleFragestellungsBefund(
-	candidateParagraphs: ExpositionParagraph[],
-	rekonstruierteFragestellung: string,
-	containerLabel: string,
-	documentId: string
-): Promise<{ result: FragestellungsBefundResult; tokens: { input: number; output: number } }> {
-	const system = [
-		'Du bist ein analytisches Werkzeug, das einen Lese-Befund zur Fragestellung einer wissenschaftlichen Arbeit erstellt.',
-		'',
-		'Setzung: Die Fragestellung ist das EINZIGE, woran eine Arbeit beurteilt werden kann. Sie muss die komplette Arbeit motivieren — jeder Absatz, jedes Unterkapitel muss sich daraufhin befragen lassen, was er mittel- oder unmittelbar zur Klärung der Fragestellung beiträgt. Das macht die Fragestellung zum Anker des gesamten Werks.',
-		'',
-		'Fünf Achsen für den Befund:',
-		'  (a) SACHLICHE KONSISTENZ — was die Fragestellung benennt, hängt sachlich zusammen.',
-		'  (b) LOGISCHE KONSISTENZ — die Frage selbst geht in sich auf, kein interner Widerspruch.',
-		'  (c) SPRACHLICHE PRÄZISION — Begriffe sind so gefasst, dass sie geklärt werden KÖNNEN, nicht nur gesammelt.',
-		'  (d) ETABLIERUNG EINES KLÄRUNGSBEDARFS — eine Spannung / ein Verhältnis ist gesetzt; eine bloße Themenangabe (Beispiel: "Leben und Werk von Maria Montessori") fällt auf dieser Achse durch, weil nichts zu klären übrig bleibt. Achse (d) ist das Killer-Kriterium: ohne sie ist es schlicht keine Fragestellung. "Werk von Montessori versus Leben" ist demgegenüber wenigstens eine Fragestellung im Ansatz, weil sie ein Verhältnis setzt.',
-		'  (e) SYNTHESIS-LEISTUNG — heterogene Elemente werden zusammengeführt, nicht nur nebeneinandergestellt.',
-		'',
-		'Bezugspunkt der Beurteilung sind drei Dinge zugleich:',
-		'  1. die SELBSTDEKLARIERTE Fragestellung im Quell-¶-Material (typisch eingeleitet mit "Die Forschungsfrage lautet:", "Inwiefern fördert X das Y" etc.) — der Original-Wortlaut der Autorin,',
-		'  2. die REKONSTRUIERTE tatsächliche Fragestellung (siehe unten),',
-		'  3. der SPALT zwischen beiden. Wenn die selbstdeklarierte naive Wirkungsfrage und die De-Facto-Anlage auseinanderfallen (z.B.: "Inwiefern fördert UNESCO-GCED globales Bewusstsein" als Selbstdeklaration vs. de-facto: theoretisch-vergleichende Befragung von GCED an Klafkis Schlüsselproblem-Theorie), ist genau dieser Spalt selbst der zentrale Befund.',
-		'',
-		'Aufgabe: einen kompakten, prosaischen Befund-Text schreiben, der die fünf Achsen entlang abklappert. Nicht alle Achsen müssen separat benannt werden — wenn der Befund integriert formulierbar ist, integrieren. Wenn eine Achse (z.B. logische Konsistenz) im Material schlicht keine sichtbare Auffälligkeit hergibt, nicht künstlich Inhalt erzwingen. Das Killer-Kriterium (d) und der Spalt (3) bekommen aber immer einen klaren Satz.',
-		'',
-		'Was du NICHT tust:',
-		'  - Keine geschlossene Skala / Stufenbewertung. Kein "tragfähig"/"schwach"/"verfehlt", kein "rot/gelb/grün". Die Wertungs-Achse läuft separat in einem späteren Pass.',
-		'  - Keine Generalbewertung "die Fragestellung ist gut/schlecht". Beobachten, nicht urteilen.',
-		'  - Keine pauschalen Methoden-Hinweise (Methodenkritik gehört zu FORSCHUNGSDESIGN, nicht hier).',
-		'',
-		'Antworte ausschließlich als JSON nach diesem Schema:',
-		'{',
-		'  "befund": "<prosaischer Befund-Text, typisch 4–8 Sätze>"',
-		'}',
-	].join('\n');
-
-	const userMessage = [
-		`Container (Heading): ${containerLabel}`,
-		'',
-		'Quell-¶ (enthalten u.a. die selbstdeklarierte Fragestellung der Autorin):',
-		...candidateParagraphs.map((p, i) => `[${i}] ${p.text}`),
-		'',
-		`REKONSTRUIERTE tatsächliche Fragestellung: ${rekonstruierteFragestellung}`,
-	].join('\n\n');
-
-	const response = await chat({
-		system,
-		messages: [{ role: 'user', content: userMessage }],
-		maxTokens: 1200,
-		responseFormat: 'json',
-		documentIds: [documentId],
-	});
-
-	const parsed = extractAndValidateJSON(response.text, FragestellungsBefundSchema);
-	if (!parsed.ok) {
-		throw new Error(
-			`FRAGESTELLUNGS_BEFUND-Tool: Antwort nicht parsbar (stage=${parsed.stage}): ${parsed.error}\n` +
-			`Raw: ${response.text.slice(0, 500)}`
-		);
-	}
-	return {
-		result: parsed.value,
-		tokens: { input: response.inputTokens, output: response.outputTokens },
-	};
-}
-
-// ── Stufe 4: LLM-Zusammenfassung der Motivation ────────────────────
+// ── Stufe 3: LLM-Zusammenfassung der Motivation ────────────────────
 
 const MotivationSchema = z.object({
 	zusammenfassung: z.string().min(1),
@@ -447,7 +366,7 @@ async function llmFallbackVollerContainer(
 async function persistConstruct(
 	caseId: string,
 	documentId: string,
-	constructKind: 'FRAGESTELLUNG' | 'FRAGESTELLUNGS_BEFUND' | 'MOTIVATION',
+	constructKind: 'FRAGESTELLUNG' | 'MOTIVATION',
 	anchorElementIds: string[],
 	content: { text: string }
 ): Promise<string> {
@@ -488,8 +407,6 @@ export interface ExpositionPassResult {
 	fragestellungConstructId: string | null;
 	fragestellungText: string | null;
 	fragestellungAnchorParagraphIds: string[];
-	fragestellungsBefundConstructId: string | null;
-	fragestellungsBefundText: string | null;
 	motivationConstructId: string | null;
 	motivationText: string | null;
 	motivationAnchorParagraphIds: string[];
@@ -584,22 +501,7 @@ export async function runExpositionPass(caseId: string): Promise<ExpositionPassR
 		}
 	}
 
-	let fragestellungsBefundText: string | null = null;
-	if (fragestellungText && fragestellungParagraphs.length > 0) {
-		const befund = await erstelleFragestellungsBefund(
-			fragestellungParagraphs,
-			fragestellungText,
-			containerLabel,
-			documentId
-		);
-		llmCalls += 1;
-		totalInput += befund.tokens.input;
-		totalOutput += befund.tokens.output;
-		fragestellungsBefundText = befund.result.befund;
-	}
-
 	let fragestellungConstructId: string | null = null;
-	let fragestellungsBefundConstructId: string | null = null;
 	let motivationConstructId: string | null = null;
 
 	if (fragestellungText && fragestellungParagraphs.length > 0) {
@@ -609,16 +511,6 @@ export async function runExpositionPass(caseId: string): Promise<ExpositionPassR
 			'FRAGESTELLUNG',
 			fragestellungParagraphs.map((p) => p.paragraphId),
 			{ text: fragestellungText }
-		);
-	}
-
-	if (fragestellungsBefundText && fragestellungParagraphs.length > 0) {
-		fragestellungsBefundConstructId = await persistConstruct(
-			caseId,
-			documentId,
-			'FRAGESTELLUNGS_BEFUND',
-			fragestellungParagraphs.map((p) => p.paragraphId),
-			{ text: fragestellungsBefundText }
 		);
 	}
 
@@ -641,8 +533,6 @@ export async function runExpositionPass(caseId: string): Promise<ExpositionPassR
 		fragestellungConstructId,
 		fragestellungText,
 		fragestellungAnchorParagraphIds: fragestellungParagraphs.map((p) => p.paragraphId),
-		fragestellungsBefundConstructId,
-		fragestellungsBefundText,
 		motivationConstructId,
 		motivationText,
 		motivationAnchorParagraphIds: motivationParagraphs.map((p) => p.paragraphId),
