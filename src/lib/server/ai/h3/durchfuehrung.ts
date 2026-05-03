@@ -26,7 +26,10 @@
 // neuen INSERT. Spätere BEFUND-Konstrukte (Schritt 2) hängen über
 // virtual_container_id daran und gehen FK-SET-NULL bei Container-Löschung.
 
+import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
+import { chat, getModel, getProvider } from '../client.js';
+import { extractAndValidateJSON } from '../json-extract.js';
 import { runArgumentationGraphPass } from '../hermeneutic/argumentation-graph.js';
 import { runArgumentValidityPass } from '../hermeneutic/argument-validity.js';
 import { extractInlineCitations } from './grundlagentheorie.js';
@@ -817,5 +820,390 @@ export async function runDurchfuehrungPassStep3(
 		totalMatched,
 		totalUnmatched,
 		hotspots: hotspotResults,
+	};
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Schritt 4: BEFUND-Konsolidierung (1 LLM-Call pro Hotspot)
+// ──────────────────────────────────────────────────────────────────
+//
+// Mother-Setzung: "Helper-Voreinschätzung über Plausibilität mithilfe der
+// Tools in der Tabelle". Hier konkretisiert: ein einziger LLM-Pass pro
+// Hotspot, der die vorgelagerten Pipeline-Outputs (H1-Argumente +
+// Grounding-Lookup) als Input bekommt und daraus den eigentlichen
+// BEFUND extrahiert — oder null, wenn der Hotspot keine substanzielle
+// empirische/theoretische Aussage trägt (Roadmap, Methodik-Hinweis,
+// Rückverweis ohne Inhalt).
+//
+// Persistenz-Schema (Memory: feedback_constructs_are_extracts_not_telemetry):
+//   construct_kind = 'BEFUND'
+//   anchor_element_ids = [hotspot_paragraph_id]
+//   virtual_container_id = step1_container_id
+//   content = {
+//     text: string | null,
+//     support_argument_ids: UUID[],   // LLM-Auswahl aus den vorhandenen H1-Args
+//     grounding_paragraph_ids: UUID[] // LLM-Auswahl aus den Step-3-Matches
+//   }
+//
+// text=null behält den Audit-Trail: das BEFUND-Konstrukt zeigt, welcher
+// Hotspot vom LLM geprüft wurde, mit welchen H1-/Grounding-Quellen, und
+// das LLM hat sich gegen einen Befund-Extrakt entschieden. KEIN Klassifikator-
+// Score, keine Rationale — die Plausibilitäts-Signale sind in den vor-
+// gelagerten Daten (validity_assessment, grounding-Match-Profil) abrufbar.
+
+interface ArgumentNodeRow {
+	id: string;
+	arg_local_id: string;
+	claim: string;
+	premises: { type: 'stated' | 'carried' | 'background'; text: string }[];
+	validity_assessment: {
+		carries: boolean;
+		rationale: string;
+		fallacy?: { type: string; target_premise: string } | null;
+	} | null;
+}
+
+async function loadArgumentsForParagraph(
+	paragraphId: string
+): Promise<ArgumentNodeRow[]> {
+	const rows = (await query<ArgumentNodeRow>(
+		`SELECT id, arg_local_id, claim, premises, validity_assessment
+		 FROM argument_nodes
+		 WHERE paragraph_element_id = $1
+		 ORDER BY position_in_paragraph ASC`,
+		[paragraphId]
+	)).rows;
+	return rows;
+}
+
+interface ParagraphSnippetRow {
+	id: string;
+	text: string;
+}
+
+async function loadParagraphSnippets(
+	paragraphIds: string[]
+): Promise<Map<string, string>> {
+	if (paragraphIds.length === 0) return new Map();
+	const rows = (await query<ParagraphSnippetRow>(
+		`SELECT p.id,
+		        SUBSTRING(dc.full_text FROM p.char_start + 1
+		                              FOR p.char_end - p.char_start) AS text
+		 FROM document_elements p
+		 JOIN document_content dc ON dc.naming_id = p.document_id
+		 WHERE p.id = ANY($1::uuid[])`,
+		[paragraphIds]
+	)).rows;
+	return new Map(rows.map((r) => [r.id, r.text.trim()]));
+}
+
+async function loadHotspotToContainerMap(
+	caseId: string,
+	documentId: string
+): Promise<Map<string, string>> {
+	const rows = (await query<{ container_id: string; element_id: string }>(
+		`SELECT vfc.id AS container_id,
+		        (r->>'element_id')::uuid AS element_id
+		 FROM virtual_function_containers vfc,
+		      jsonb_array_elements(vfc.source_anchor_ranges) r
+		 WHERE vfc.case_id = $1
+		   AND vfc.document_id = $2
+		   AND vfc.outline_function_type = 'DURCHFUEHRUNG'`,
+		[caseId, documentId]
+	)).rows;
+	const out = new Map<string, string>();
+	for (const r of rows) out.set(r.element_id, r.container_id);
+	return out;
+}
+
+async function clearExistingBefundConstructs(
+	caseId: string,
+	documentId: string
+): Promise<void> {
+	// Alle BEFUND-Konstrukte für DURCHFUEHRUNG-Container dieses Werks
+	// löschen — kein partial keep, weil Step 4 als Ganzes neu läuft.
+	await query(
+		`DELETE FROM function_constructs
+		 WHERE case_id = $1
+		   AND document_id = $2
+		   AND outline_function_type = 'DURCHFUEHRUNG'
+		   AND construct_kind = 'BEFUND'`,
+		[caseId, documentId]
+	);
+}
+
+const BefundExtractSchema = z.object({
+	text: z.string().nullable(),
+	support_argument_local_ids: z.array(z.string()),
+	grounding_handles: z.array(z.string()),
+});
+type BefundExtractResult = z.infer<typeof BefundExtractSchema>;
+
+function buildBefundSystemPrompt(): string {
+	return [
+		'Du bist ein analytisches Werkzeug, das aus einem Befund-verdächtigen Absatz einer DURCHFÜHRUNG den eigentlichen BEFUND extrahiert.',
+		'',
+		'BEFUND meint hier: das tatsächliche empirische oder theoretische Ergebnis, das die Arbeit an dieser Stelle aus ihrer Analyse zieht. Nicht: methodische Roadmap-Bemerkungen, neutrale Beschreibungen des Materials, Rückverweise ohne neuen Inhalt, Vorbemerkungen zur Ergebnisdarstellung.',
+		'',
+		'Vorgelegte Inputs:',
+		'  (1) Hotspot-Absatz — der Befund-verdächtige Absatz im Werk.',
+		'  (2) H1-Argumente, die die Argumentationslogik-Pipeline aus diesem Absatz extrahiert hat. Pro Argument: Claim, ggf. begründende Tragfähigkeits-Bewertung (carries true/false). Diese sind die Pipeline-Vorarbeit zur argumentativen Plausibilität — du kannst sie als Referenz nutzen, du musst sie nicht reproduzieren.',
+		'  (3) Grounding-Treffer — Tokens aus dem Hotspot-Absatz, die im Container-Vorlauf bereits eingeführt wurden. Pro Treffer ein Snippet aus dem nächstgelegenen Vorlauf-Absatz. Diese sind die Pipeline-Vorarbeit zur referentiellen Plausibilität (woran der Befund anknüpft).',
+		'',
+		'Deine Aufgabe:',
+		'  - text: ein kompakter, kondensierter BEFUND-Text (typisch 1–3 Sätze), der das eigentliche Ergebnis dieses Hotspots wiedergibt. Keine Methodik-Beschreibung, keine Materialbeschreibung, keine Vorrede. Wenn der Hotspot keine substanzielle Befund-Aussage enthält (z.B. Roadmap, reine Vorbemerkung, Methodik-Hinweis), gib null zurück.',
+		'  - support_argument_local_ids: Liste der A-IDs der H1-Argumente, die den Befund tatsächlich tragen. Auswahl aus den vorgelegten — nichts erfinden, keine Zusammenfassung. Wenn text=null, leere Liste.',
+		'  - grounding_handles: Liste der G-Handles der Grounding-Treffer, die für den Befund inhaltlich relevant sind (worauf der Befund inhaltlich aufbaut). Auswahl aus den vorgelegten — nichts erfinden. Wenn text=null, leere Liste.',
+		'',
+		'Antworte ausschließlich als JSON nach diesem Schema:',
+		'{',
+		'  "text": "<extrahierter BEFUND-Text, 1–3 Sätze>" | null,',
+		'  "support_argument_local_ids": ["A1", "A3", ...],',
+		'  "grounding_handles": ["G2", "G5", ...]',
+		'}',
+	].join('\n');
+}
+
+function buildBefundUserMessage(
+	containerHeading: string,
+	hotspotText: string,
+	args: ArgumentNodeRow[],
+	groundingItems: { handle: string; token: string; kind: string; snippet: string }[]
+): string {
+	const argLines: string[] = [];
+	if (args.length === 0) {
+		argLines.push('(keine H1-Argumente für diesen Hotspot persistiert — Step 2 nicht gelaufen oder kein argumentativer Inhalt erkannt)');
+	} else {
+		for (const a of args) {
+			const carries =
+				a.validity_assessment == null
+					? '(keine Tragfähigkeits-Beurteilung)'
+					: a.validity_assessment.carries
+						? 'tragfähig'
+						: `nicht tragfähig${a.validity_assessment.fallacy ? ` (${a.validity_assessment.fallacy.type})` : ''}`;
+			argLines.push(`  ${a.arg_local_id}: ${a.claim}  [${carries}]`);
+		}
+	}
+
+	const groundingLines: string[] = [];
+	if (groundingItems.length === 0) {
+		groundingLines.push('(keine Grounding-Treffer im Container-Vorlauf — alle distinktiven Tokens des Hotspots sind hier neu)');
+	} else {
+		for (const g of groundingItems) {
+			const snippet = g.snippet.length > 240 ? g.snippet.slice(0, 240) + '…' : g.snippet;
+			groundingLines.push(`  ${g.handle}: "${g.token}" [${g.kind}] — Vorlauf-Snippet: ${snippet}`);
+		}
+	}
+
+	return [
+		`Container-Heading: ${containerHeading}`,
+		'',
+		'Hotspot-Absatz:',
+		hotspotText,
+		'',
+		'H1-Argumente aus diesem Absatz:',
+		...argLines,
+		'',
+		'Grounding-Treffer (Tokens aus dem Hotspot, die im Vorlauf bereits eingeführt wurden):',
+		...groundingLines,
+	].join('\n');
+}
+
+export interface DurchfuehrungStep4HotspotResult {
+	hotspotParagraphId: string;
+	containerHeadingText: string;
+	virtualContainerId: string | null;
+	befundConstructId: string | null;
+	befundText: string | null;
+	supportArgumentCount: number;
+	groundingParagraphCount: number;
+	tokens: { input: number; output: number };
+	error: string | null;
+}
+
+export interface DurchfuehrungStep4Result {
+	caseId: string;
+	documentId: string;
+	hotspotCount: number;
+	befundsExtracted: number;
+	nullResults: number;
+	tokens: { input: number; output: number };
+	model: string;
+	provider: string;
+	hotspots: DurchfuehrungStep4HotspotResult[];
+	errors: { paragraphId: string; message: string }[];
+}
+
+export async function runDurchfuehrungPassStep4(
+	caseId: string
+): Promise<DurchfuehrungStep4Result> {
+	const caseRow = await queryOne<{ central_document_id: string | null }>(
+		`SELECT central_document_id FROM cases WHERE id = $1`,
+		[caseId]
+	);
+	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
+	if (!caseRow.central_document_id) {
+		throw new Error(`Case ${caseId} has no central_document_id`);
+	}
+	const documentId = caseRow.central_document_id;
+
+	const containers = await loadDurchfuehrungContainers(documentId);
+	const hotspotToContainer = await loadHotspotToContainerMap(caseId, documentId);
+
+	await clearExistingBefundConstructs(caseId, documentId);
+
+	const accTokens = { input: 0, output: 0 };
+	const hotspotResults: DurchfuehrungStep4HotspotResult[] = [];
+	const errors: { paragraphId: string; message: string }[] = [];
+	let befundsExtracted = 0;
+	let nullResults = 0;
+
+	for (const container of containers) {
+		const hotspots = detectBefundHotspots(container);
+		for (const h of hotspots) {
+			const args = await loadArgumentsForParagraph(h.paragraphId);
+			const lookup = lookupGroundingForHotspot(h, container);
+
+			// Grounding-Items mit Snippet aus dem nearest-Vorlauf-¶ aufbauen.
+			const nearestIds = lookup.matches
+				.map((m) => m.nearestParagraphId)
+				.filter((x): x is string => x != null);
+			const snippetMap = await loadParagraphSnippets(nearestIds);
+
+			const groundingItems = lookup.matches.map((m, i) => {
+				const snippet = m.nearestParagraphId
+					? snippetMap.get(m.nearestParagraphId) ?? ''
+					: '';
+				return {
+					handle: `G${i + 1}`,
+					handleParagraphId: m.nearestParagraphId, // mapping zurück
+					token: m.token,
+					kind: m.kind,
+					snippet,
+				};
+			});
+
+			let befundText: string | null = null;
+			let supportArgIds: string[] = [];
+			let groundingParaIds: string[] = [];
+			let tokIn = 0;
+			let tokOut = 0;
+			let perError: string | null = null;
+
+			try {
+				const system = buildBefundSystemPrompt();
+				const user = buildBefundUserMessage(
+					container.headingText,
+					h.text,
+					args,
+					groundingItems.map((g) => ({
+						handle: g.handle,
+						token: g.token,
+						kind: g.kind,
+						snippet: g.snippet,
+					}))
+				);
+				const response = await chat({
+					system,
+					messages: [{ role: 'user', content: user }],
+					maxTokens: 1200,
+					responseFormat: 'json',
+					documentIds: [documentId],
+				});
+				tokIn = response.inputTokens;
+				tokOut = response.outputTokens;
+				accTokens.input += tokIn;
+				accTokens.output += tokOut;
+
+				const parsed = extractAndValidateJSON(response.text, BefundExtractSchema);
+				if (!parsed.ok) {
+					throw new Error(
+						`BEFUND-Extract: Antwort nicht parsbar (stage=${parsed.stage}): ${parsed.error}\n` +
+						`Raw: ${response.text.slice(0, 400)}`
+					);
+				}
+				const ex: BefundExtractResult = parsed.value;
+
+				// Mapping arg_local_id → UUID. Unbekannte IDs verwerfen, nicht crashen.
+				const argLocalToId = new Map(args.map((a) => [a.arg_local_id, a.id]));
+				supportArgIds = ex.support_argument_local_ids
+					.map((lid) => argLocalToId.get(lid))
+					.filter((x): x is string => x != null);
+
+				// Mapping G-Handle → ¶-UUID.
+				const handleToParaId = new Map(
+					groundingItems.map((g) => [g.handle, g.handleParagraphId])
+				);
+				groundingParaIds = ex.grounding_handles
+					.map((h2) => handleToParaId.get(h2))
+					.filter((x): x is string => x != null);
+
+				befundText = ex.text;
+			} catch (e) {
+				perError = e instanceof Error ? e.message : String(e);
+				errors.push({ paragraphId: h.paragraphId, message: perError });
+			}
+
+			const virtualContainerId = hotspotToContainer.get(h.paragraphId) ?? null;
+
+			let befundConstructId: string | null = null;
+			if (perError == null) {
+				const content = {
+					text: befundText,
+					support_argument_ids: supportArgIds,
+					grounding_paragraph_ids: groundingParaIds,
+				};
+				const stackEntry = {
+					kind: 'origin' as const,
+					at: new Date().toISOString(),
+					by_user_id: null,
+					source_run_id: null,
+					content_snapshot: content,
+				};
+				const row = await queryOne<{ id: string }>(
+					`INSERT INTO function_constructs
+					   (case_id, document_id, outline_function_type, construct_kind,
+					    anchor_element_ids, content, version_stack, virtual_container_id)
+					 VALUES ($1, $2, 'DURCHFUEHRUNG', 'BEFUND', $3, $4, $5, $6)
+					 RETURNING id`,
+					[
+						caseId,
+						documentId,
+						[h.paragraphId],
+						JSON.stringify(content),
+						JSON.stringify([stackEntry]),
+						virtualContainerId,
+					]
+				);
+				befundConstructId = row?.id ?? null;
+				if (befundText != null) befundsExtracted += 1;
+				else nullResults += 1;
+			}
+
+			hotspotResults.push({
+				hotspotParagraphId: h.paragraphId,
+				containerHeadingText: container.headingText,
+				virtualContainerId,
+				befundConstructId,
+				befundText,
+				supportArgumentCount: supportArgIds.length,
+				groundingParagraphCount: groundingParaIds.length,
+				tokens: { input: tokIn, output: tokOut },
+				error: perError,
+			});
+		}
+	}
+
+	return {
+		caseId,
+		documentId,
+		hotspotCount: hotspotResults.length,
+		befundsExtracted,
+		nullResults,
+		tokens: accTokens,
+		model: getModel(),
+		provider: getProvider(),
+		hotspots: hotspotResults,
+		errors,
 	};
 }

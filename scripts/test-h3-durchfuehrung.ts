@@ -3,15 +3,17 @@
 //
 // Phase-3-Smoke-Test für H3:DURCHFÜHRUNG.
 // Aufruf:
-//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId>                 # Step 1 (deterministisch)
-//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId> --step2         # + Step 2 (H1 selektiv)
-//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId> --step3         # + Step 3 (Grounding-Lookup, deterministisch)
-//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId> --step2 --step3 # alle drei
+//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId>                          # Step 1 (deterministisch)
+//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId> --step2                  # + Step 2 (H1 selektiv)
+//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId> --step3                  # + Step 3 (Grounding-Lookup)
+//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId> --step4                  # + Step 4 (BEFUND-Konsolidierung, LLM)
+//   npx tsx scripts/test-h3-durchfuehrung.ts <caseId> --step2 --step3 --step4  # alle vier
 
 import {
 	runDurchfuehrungPassStep1,
 	runDurchfuehrungPassStep2,
 	runDurchfuehrungPassStep3,
+	runDurchfuehrungPassStep4,
 } from '../src/lib/server/ai/h3/durchfuehrung.js';
 import { pool, query } from '../src/lib/server/db/index.js';
 
@@ -19,8 +21,9 @@ async function main() {
 	const caseId = process.argv[2];
 	const runStep2 = process.argv.includes('--step2');
 	const runStep3 = process.argv.includes('--step3');
+	const runStep4 = process.argv.includes('--step4');
 	if (!caseId) {
-		console.error('Usage: npx tsx scripts/test-h3-durchfuehrung.ts <caseId> [--step2] [--step3]');
+		console.error('Usage: npx tsx scripts/test-h3-durchfuehrung.ts <caseId> [--step2] [--step3] [--step4]');
 		process.exit(1);
 	}
 
@@ -167,6 +170,70 @@ async function main() {
 		}
 
 		console.log(`\nLaufzeit Step 3: ${elapsed3}ms (kein LLM)`);
+	}
+
+	if (runStep4) {
+		console.log(`\n> H3:DURCHFÜHRUNG Step 4 (BEFUND-Konsolidierung, LLM) für Case ${caseId}…`);
+		const start4 = Date.now();
+		const r4 = await runDurchfuehrungPassStep4(caseId);
+		const elapsed4 = Date.now() - start4;
+
+		console.log('\n--- Step-4-Aggregat ---');
+		console.log(`Hot-Spots:                  ${r4.hotspotCount}`);
+		console.log(`BEFUND extrahiert (text):   ${r4.befundsExtracted}`);
+		console.log(`text=null (kein Befund):    ${r4.nullResults}`);
+		console.log(`Tokens:                     in=${r4.tokens.input} out=${r4.tokens.output}`);
+		console.log(`Modell:                     ${r4.provider}/${r4.model}`);
+		console.log(`Fehler:                     ${r4.errors.length}`);
+		for (const e of r4.errors.slice(0, 3)) {
+			console.log(`  · ${e.paragraphId.slice(0, 8)}: ${e.message.slice(0, 200)}`);
+		}
+
+		console.log('\n--- pro Hot-Spot ---');
+		for (const h of r4.hotspots) {
+			const status = h.error
+				? `ERR: ${h.error.slice(0, 80)}`
+				: h.befundText == null
+					? '(text=null — kein Befund)'
+					: `support=${h.supportArgumentCount}args grounding=${h.groundingParagraphCount}¶`;
+			console.log(`  · ${h.hotspotParagraphId.slice(0, 8)}  [${status}]`);
+			if (h.befundText) {
+				const preview = h.befundText.length > 280 ? h.befundText.slice(0, 280) + '…' : h.befundText;
+				console.log(`      text: ${preview}`);
+			}
+		}
+
+		console.log('\n--- function_constructs (BEFUND) für DURCHFUEHRUNG (Case) ---');
+		const constructs = (await query<{
+			id: string;
+			anchor_count: number;
+			virtual_container_id: string | null;
+			content: { text: string | null; support_argument_ids: string[]; grounding_paragraph_ids: string[] };
+		}>(
+			`SELECT id,
+			        cardinality(anchor_element_ids)::int AS anchor_count,
+			        virtual_container_id,
+			        content
+			 FROM function_constructs
+			 WHERE case_id = $1
+			   AND outline_function_type = 'DURCHFUEHRUNG'
+			   AND construct_kind = 'BEFUND'
+			 ORDER BY created_at DESC`,
+			[caseId]
+		)).rows;
+		console.log(`Anzahl persistiert: ${constructs.length}`);
+		for (const c of constructs.slice(0, 3)) {
+			console.log(
+				`  [${c.id.slice(0, 8)}] anchors=${c.anchor_count} container=${c.virtual_container_id?.slice(0, 8) ?? 'none'}`
+			);
+			console.log(`    text: ${c.content.text == null ? '(null)' : c.content.text.slice(0, 200)}`);
+			console.log(
+				`    support_argument_ids: ${c.content.support_argument_ids.length}` +
+					`, grounding_paragraph_ids: ${c.content.grounding_paragraph_ids.length}`
+			);
+		}
+
+		console.log(`\nLaufzeit Step 4: ${elapsed4}ms (1 LLM-Call pro Hotspot)`);
 	}
 
 	await pool.end();

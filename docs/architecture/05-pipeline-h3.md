@@ -123,7 +123,7 @@ API: `POST /api/projects/:projectId/documents/:docId/outline/suggest-function-ty
 
 **Steps 3a/3b/4: ECKPUNKT_CHECK, DISKURSIV_BEZUG_PRÜFEN, FORSCHUNGSGEGENSTAND_REKONSTRUIEREN — architektonisch unresolved.** Subkomponente vs. Querschnittsmodul vs. obsolet — User-Klärung nötig.
 
-### 4.4 DURCHFUEHRUNG (`ai/h3/durchfuehrung.ts`) — **Steps 1–3 ✓, Schritt 4 (BEFUND-Konsolidierung agentisch) pending**
+### 4.4 DURCHFUEHRUNG (`ai/h3/durchfuehrung.ts`) — **Steps 1–4 ✓**
 
 **Mother-Setzung:** Empirieartikel sind sehr lang und enthalten zwar Schlüsse, aber wenig Argumentation. H1 auf das ganze Material wäre teuer und sinnlos. Daher: billige Regex-/Heuristik-Vorauswahl von **Befund-Hotspots**, dann selektive H1-Anwendung **nur dort**. Mother-Schätzung: 10–20% des DURCHFÜHRUNG-Materials werden tatsächlich per LLM analysiert.
 
@@ -152,7 +152,16 @@ API: `POST /api/projects/:projectId/documents/:docId/outline/suggest-function-ty
 - **Suchraum**: alle ¶ desselben DURCHFÜHRUNGS-Containers VOR dem Hotspot (`charStart < hotspot.charStart`). Nicht über Container-Grenzen hinaus — Mother-Setzung "bis zum Kapitelbeginn".
 - **Output pro Token**: alle Vorlauf-¶ mit Treffer (sortiert), nearest (letzter Treffer vor Hotspot), first (Erst-Einführung im Container). Tokens ohne Treffer landen in `unmatched` — wertvolles Signal, dass der Verweis-Anker nicht im selben Kapitel begründet ist.
 - Validiert auf BA H3 dev: 1 Hotspot, 62 Tokens, 21% Match-Quote (theoretischer Vergleich, viele neue Konzepte). Habil H3 Test: 31 Hotspots, 784 Tokens, 50% Match-Quote (Empirie mit reichlich Vorlauf-Querverweisen). Beide Läufe deterministisch, kein LLM.
-- **Agentische Verwendung folgt in Schritt 4** (BEFUND-Konsolidierung): ein LLM-Pass pro Hotspot kann das Such-Tool tool-use-mäßig aufrufen, wenn das H1-Argument einen anaphorischen Verweis enthält, dessen Grounding im Hotspot-¶ fehlt. Architekturprinzip: billige On-Demand-Suchtools statt großzügigem Pre-Loading des Kontextfensters. Das Tool selbst steht; die agentische Schicht ist das nächste Iterationsziel.
+- **Agentische Verwendung folgt in Schritt 4** (BEFUND-Konsolidierung): ein LLM-Pass pro Hotspot kann das Such-Tool tool-use-mäßig aufrufen, wenn das H1-Argument einen anaphorischen Verweis enthält, dessen Grounding im Hotspot-¶ fehlt. Architekturprinzip: billige On-Demand-Suchtools statt großzügigem Pre-Loading des Kontextfensters.
+
+**Step 4 ✓ (BEFUND-Konsolidierung, 1 LLM-Call pro Hotspot)** — implementiert via `runDurchfuehrungPassStep4(caseId)`:
+
+- Pro Hotspot ein einzelner LLM-Call. Inputs: Hotspot-¶-Text, H1-Argumente aus Step 2 (Claim + `validity_assessment.carries`), Grounding-Lookup-Treffer aus Step 3 (Token + Snippet aus dem nearest-Vorlauf-¶).
+- LLM-Output (JSON-Schema): `text: string | null`, `support_argument_local_ids: string[]`, `grounding_handles: string[]`.
+- Persistenz: `function_constructs.construct_kind = 'BEFUND'`, `anchor_element_ids = [hotspot_paragraph_id]`, `virtual_container_id = step1_container_id`, `content = { text, support_argument_ids: UUID[], grounding_paragraph_ids: UUID[] }`. Memory `feedback_constructs_are_extracts_not_telemetry`: nur Extrakt-Text + Bezugs-IDs (LLM-Auswahl aus existierenden Pipeline-Daten), **kein** Plausibilitäts-Score, **keine** Rationale-Felder.
+- **`text: null` ist erlaubt und semantisch tragend**: das Konstrukt wird trotzdem persistiert, mit leeren `support_argument_ids` / `grounding_paragraph_ids`. So bleibt der Audit-Trail erhalten — der Reviewer sieht "Hotspot wurde geprüft, kein Befund extrahiert" statt eines stillen Verschwindens. Memory `project_critical_friend_identity`.
+- Idempotent via clear-before-insert auf `(case_id, document_id, outline_function_type='DURCHFUEHRUNG', construct_kind='BEFUND')`.
+- Validiert auf BA H3 dev: 1 Hotspot, BEFUND extrahiert (5 support_args, 6 grounding_¶), 4.5k in / 340 out Tokens, 4s. Re-Run idempotent.
 
 ### 4.5 EXKURS, SYNTHESE, SCHLUSSREFLEXION, WERK_STRUKTUR — **nicht implementiert.**
 
