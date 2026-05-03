@@ -88,7 +88,7 @@ API: `POST /api/projects/:projectId/documents/:docId/outline/suggest-function-ty
 
 ### 4.2 FORSCHUNGSDESIGN (`ai/h3/forschungsdesign.ts`) — **begonnen, validiert (METHODIK_EXTRAHIEREN)**
 
-**Konstrukte:** METHODOLOGIE, METHODEN, BASIS.
+**Konstrukte:** METHODOLOGIE, METHODEN, BASIS. BASIS umfasst nicht nur "was untersucht wird" (Sample/Korpus), sondern auch dessen **Begründung in Bezug auf die Fragestellung**; fehlende Begründung wird im BASIS-Text als Lücke benannt, nicht still überbrückt (Mother-Session-Setzung Z. 92).
 
 **Pipeline:**
 

@@ -395,7 +395,7 @@ async function methodikExtrahieren(
 		'Begriffe (Erziehungswissenschaft / qualitative Sozialforschung):',
 		'  - METHODOLOGIE: die epistemische Grundhaltung der Untersuchung — welcher Forschungslogik folgt die Arbeit (qualitativ-rekonstruktiv, hermeneutisch, diskursanalytisch, theoretisch-vergleichend, etc.)? Welche Erkenntnisweise wird beansprucht?',
 		'  - METHODEN: die konkreten Verfahren, mit denen die Arbeit ihre Daten/Texte bearbeitet (Sequenzanalyse, qualitative Inhaltsanalyse, theoretischer Vergleich, etc.). Auf der Ebene des konkreten Vorgehens.',
-		'  - BASIS: was untersucht wird — bei empirischen Arbeiten die Erhebung (Sample, Feldzugang, Interviewpartner, Beobachtungssetting); bei theoretischen Arbeiten der Korpus (welche Texte/Dokumente/Programme werden mit welcher Auswahllogik bearbeitet).',
+		'  - BASIS: was untersucht wird UND die Begründung in Bezug auf die Fragestellung. Bei empirischen Arbeiten die Erhebung (Sample, Feldzugang, Interviewpartner, Beobachtungssetting) plus deren Begründung; bei theoretischen Arbeiten der Korpus (welche Texte/Dokumente/Programme) plus dessen Auswahllogik. Beides ist nur dann tragfähig, wenn nachvollziehbar wird, wieso GERADE diese Basis zur Beantwortung GERADE dieser Fragestellung geeignet ist. Wo die Quelle nur das "was" benennt, ohne das "wieso passt es zur Frage" zu adressieren, das im BASIS-Text als Lücke benennen, nicht still überbrücken.',
 		'',
 		'Die drei Konstrukte sind ANALYTISCH zu trennen, auch wenn sie im Quelltext verwoben formuliert sind.',
 		'',
