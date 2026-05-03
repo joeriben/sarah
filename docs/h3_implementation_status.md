@@ -2,7 +2,7 @@
 
 Lebendes Status-Dokument der H3-Implementierung. Plan-Übersicht: [`h3_implementation_plan.md`](./h3_implementation_plan.md).
 
-Letztes Update: 2026-05-03 (Phase-3-Beginn).
+Letztes Update: 2026-05-03 (H3:FORSCHUNGSDESIGN ergänzt).
 
 ---
 
@@ -14,7 +14,8 @@ Letztes Update: 2026-05-03 (Phase-3-Beginn).
 | Phase 1 (Datenmodell + Vor-Heuristik FUNKTIONSTYP_ZUWEISEN) | ✓ |
 | Phase 2 (UI-Reframing H1/H2/H3 als drei gleichrangige Optionen) | **verworfen** — siehe unten |
 | Phase 3 (H3:EXPOSITION) | **begonnen** — FRAGESTELLUNG-Rekonstruktion implementiert + validiert |
-| Phase 4+ | offen |
+| Phase 4 (H3:FORSCHUNGSDESIGN) | **begonnen** — METHODIK_EXTRAHIEREN (METHODOLOGIE/METHODEN/BASIS) implementiert + validiert |
+| Phase 4+ Rest | offen |
 
 ---
 
@@ -83,9 +84,57 @@ Testlauf gegen "BA H3 dev" (`c42e2d8f-1771-43bb-97c8-f57d7d10530a`):
 
 ### Was offen ist (für Anschluss-Session)
 
-1. **Qualitätsbeurteilung der Originalformulierung** — User-Anforderung am Session-Ende: das LLM soll zusätzlich die selbstdeklarierte Forschungsfrage der Autorin auf einer dreistufigen Skala (`tragfaehig` / `schwach` / `verfehlt`) bewerten plus knappe Begründung. Zweck: nachfolgende Module (WERK_GUTACHT, andere H3-Heuristiken) müssen Slop-Originalformulierungen erkennen können, sonst werden sie verwirrt. Persistierung im FRAGESTELLUNG-content (nicht als Klassifikator-Telemetrie, sondern als substanzielles Reviewer-Signal über die Quelle).
+1. **Qualitätsindikator zur Original-Fragestellung** — offen, **Form noch nicht festgelegt**. Der Indikator soll auch ausweisen können, ob die in der Exposition formulierte Fragestellung bereits hart theoretisch / studienseitig erhärtet ist (≈ Spezifizierung schon in der Exposition erreicht) oder nur eine cue-basierte Charakterisierung darstellt — die Spezifizierung entsteht regulär erst durch GRUNDLAGENTHEORIE/FORSCHUNGSGEGENSTAND. Eine vorige Session hatte hier eine konkrete dreistufige Skala vorgeschlagen — diese ist NICHT autorisiert (siehe Memory `feedback_no_hallucinated_qskala.md`); Format und Werte sind beim User. Nicht eigenmächtig erfinden.
 2. **Test gegen weitere Werke** — z.B. read-only Lauf gegen Habil-Timm (`161d41b4-…`) zum Vergleich. Benchmark-Cases NICHT modifizieren, nur runExpositionPass laufen lassen und Resultat anschauen.
-3. **Nächste H3-Heuristik gemäss Phasen-Plan**: H3:GRUNDLAGENTHEORIE (siehe `h3_implementation_plan.md`).
+3. **Nächste H3-Heuristik gemäss Phasen-Plan**: H3:GRUNDLAGENTHEORIE (siehe `h3_implementation_plan.md`). H3:FORSCHUNGSDESIGN ist parallel ergänzt (siehe Sektion unten).
+
+---
+
+## Phase 4 — begonnen: H3:FORSCHUNGSDESIGN
+
+Zweite H3-Heuristik. Extrahiert aus dem methodischen Material eines Werkes drei Konstrukte: **METHODOLOGIE** (Forschungslogik / epistemische Grundhaltung), **METHODEN** (konkrete Verfahren), **BASIS** (Korpus bei theoretisch / Erhebung bei empirisch). Persistiert als `function_constructs.outline_function_type='FORSCHUNGSDESIGN'` mit `construct_kind` ∈ {METHODOLOGIE, METHODEN, BASIS}.
+
+### Architektur
+
+`src/lib/server/ai/h3/forschungsdesign.ts`:
+
+1. **¶-Sammlung kaskadierend** (Provenienz pro ¶ getrackt):
+   - **a)** Outline-Container `outline_function_type='FORSCHUNGSDESIGN'` (KAPITEL/UNTERKAPITEL gleichermaßen — der LATERAL-Lookup ordnet ¶ dem nächstgelegenen FORSCHUNGSDESIGN-Heading zu).
+   - **b)** Falls leer: EXPOSITION-Container, ¶-Filter über Methoden-Marker-Regex (`methodisch`, `Vorgehen`, `qualitativ`/`quantitativ`, `Korpus`, `Stichprobe`, `Inhaltsanalyse`, …).
+   - **c)** Falls leer: Volltext-Scan über alle main-¶, derselbe Methoden-Marker-Filter.
+   Stop bei erstem Treffer-Set.
+
+2. **Persistenter virtueller Container** (`virtual_function_containers`) für `(doc_id, FORSCHUNGSDESIGN)`. `source_anchor_ranges` enthält pro gesammeltem ¶ ein Element mit `provenance` ∈ `{outline_container, exposition_fallback, fulltext_regex}`. Re-Run löscht alten Container + zugehörige FORSCHUNGSDESIGN-Konstrukte (clean-vor-insert; Container ist Quasi-Singleton).
+
+3. **Bezugsrahmen laden** aus `function_constructs`:
+   - FRAGESTELLUNG (EXPOSITION) — Charakterisierung, Pflicht-Eingabe sobald H3:EXPOSITION lief.
+   - FORSCHUNGSGEGENSTAND (GRUNDLAGENTHEORIE) — Spezifizierung; **kann fehlen**, wenn H3:GRUNDLAGENTHEORIE noch nicht für das Werk gelaufen ist (Parallel-Session). Prompt vermerkt das ausdrücklich und mahnt zu Zurückhaltung in der methodischen Beurteilung, weil ohne Spezifizierung nur gegen die Charakterisierung gehalten werden kann.
+
+4. **METHODIK_EXTRAHIEREN** — ein LLM-Call mit JSON-Schema `{methodologie, methoden, basis}`, Felder einzeln nullable. Pro non-null Feld → ein function_construct mit gemeinsamen ¶-Ankern und gemeinsamer `virtual_container_id`. Null-Felder → kein Konstrukt persistiert (Memory: Abwesenheit ist Befund).
+
+VALIDITY_FALLACY_PRÜFEN und scaffolding-Querschnittsbaustein (laut Mother-Session ebenfalls Teil von H3:FORSCHUNGSDESIGN) sind in dieser Iteration bewusst weggelassen — Substanz erst, Querschnitt später als eigene Mini-Phase.
+
+### Trigger
+
+CLI: `npx tsx scripts/test-h3-forschungsdesign.ts <caseId>`. Kein UI, kein API-Endpoint.
+
+### Validierung
+
+Testlauf gegen "BA H3 dev" (`c42e2d8f-1771-43bb-97c8-f57d7d10530a`):
+- Strategie: `exposition_fallback` (BA hat kein eigenes FORSCHUNGSDESIGN-Kapitel — methodische Begründung läuft in der Einleitung mit)
+- 2 ¶ aus EXPOSITION-Container nach Methoden-Marker-Filter
+- Bezugsrahmen unvollständig (FORSCHUNGSGEGENSTAND fehlt — Parallel-Session)
+- 1 LLM-Call · 3607 in / 916 out tokens · 9.8 sec · `openrouter/anthropic/claude-opus-4.7`
+- Drei Konstrukte persistiert:
+  - **METHODOLOGIE**: theoretisch-vergleichend / bildungstheoretisch (Klafki als Maßstab an UNESCO-GCED), explizit benannt dass methodologische Selbst-Verortung fehlt
+  - **METHODEN**: deklarierter theoriegeleiteter Vergleich, Schlüsselprobleme als analytischer Raster, Konkretisierung des Vorgehens fehlt
+  - **BASIS**: Korpus aus Klafki-Texten + UNESCO-Dokumenten, ohne breite Sekundärliteratur, konkrete Auswahl nicht spezifiziert
+
+### Was offen ist (FORSCHUNGSDESIGN-spezifisch)
+
+1. **VALIDITY_FALLACY_PRÜFEN** — Querschnittsbaustein laut Mother-Session und Memory `project_three_heuristics_architecture.md`. Operiert auf Begründungspassagen mit Konnektoren ("im Unterschied zu", "da", "demgegenüber"). Eigener Pass nach METHODIK_EXTRAHIEREN; kann eine Methodik-Komponente per Reviewer-Signal kippen.
+2. **Bezugsrahmen-Vollständigkeit** — Re-Run nach H3:GRUNDLAGENTHEORIE-Lauf, sobald FORSCHUNGSGEGENSTAND vorliegt. Vergleich der LLM-Ausgaben mit/ohne Spezifizierung dokumentieren.
+3. **Test gegen weitere Werke** — Habil mit eigenständigem Methodenkapitel als Test für Strategie a) (Outline-Container statt Fallback).
 
 ---
 
