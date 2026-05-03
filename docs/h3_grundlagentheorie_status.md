@@ -2,20 +2,21 @@
 
 Eigenständige Status-Doku der GRUNDLAGENTHEORIE-Session (parallel zu `h3_implementation_status.md`, das die FORSCHUNGSDESIGN-Session pflegt).
 
-Letztes Update: 2026-05-03 (Schritt 1 abgeschlossen; Schritt-2-Spec durch User korrigiert: Routing statt eigene Klassifikation; Klammer-Heuristik-Refactor-Versuch nach Diff-Diagnose verworfen, Original-Heuristik wiederhergestellt).
+Letztes Update: 2026-05-03 (Schritt 1 abgeschlossen; Schritte 2–4 Architektur final: Routing + GTH-Spezial-Tools auf Block-Ebene + Container-End-Aggregation; Klammer-Heuristik-Refactor-Versuch verworfen).
 
 ---
 
-## Pyramide (Mother-Session-Setzung, Schritt 2 korrigiert 2026-05-03)
+## Pyramide (Mother-Session-Setzung, Schritte 2–4 final 2026-05-03)
 
 | Schritt | Tool | Kosten | Stand |
 |---|---|---|---|
 | 1 | VERWEIS_PROFIL_BAUEN (deterministisch, Author-Pattern-basiert) | quasi null | **abgeschlossen** (Klammer-Heuristik-Refactor-Versuch 2026-05-03 verworfen, siehe Sektion unten) |
-| 2 | **Routing** auf Verdachts-Blöcken aus Verweisprofil: WIEDERGABE_PRÜFEN (LLM, billig, Block-Ebene) | LLM × wenige Blöcke | **offen, Spec steht** |
-| 2 → ja | H2-Block-Beurteilung auf den ganzen Block (synthetisch-hermeneutisch, **nicht** teure AG) | H2 × 1 pro Block | offen |
-| 2 → nein | H1 §-Argumentanalyse pro ¶ im Block | H1 × ¶ | offen |
-| Standard | H1 §-AG auf alle übrigen Strecken (vielfältige Citations) | H1 × ¶ | offen |
-| 3a/3b/4 | ECKPUNKT_CHECK / DISKURSIV_BEZUG_PRÜFEN / FORSCHUNGSGEGENSTAND_REKONSTRUIEREN — Verhältnis zu H1/H2 nach Routing-Setzung **offen** | — | architektonisch zu klären |
+| 2 | **Routing**: WIEDERGABE_PRÜFEN auf Verdachts-Blöcken aus Verweisprofil (Block-LLM) | LLM × Verdachts-Blöcke | offen, Spec final |
+| 3 reproduktiv | H2 synthetische Block-Würdigung + **ECKPUNKT_CHECK** (a Kernbegriff, b Kontamination, c Provenienz) | 2 LLM × Wiedergabe-Block | offen, Spec final |
+| 3 diskursiv | H1 §-AG pro ¶ im Block + **DISKURSIV_BEZUG_PRÜFEN** auf Block-Ebene (gegen FRAGESTELLUNG) | H1×¶ + 1 LLM × Block | offen, Spec final |
+| 4 | **FORSCHUNGSGEGENSTAND_REKONSTRUIEREN** als Container-End-Aggregation | 1 LLM pro Container | offen, Spec final |
+
+Hypothese (Test nach Implementation): Pyramide spart deutlich gegenüber pauschalem H1 auf alle ¶ — reproduktive Strecken (laut Habil-Daten ≥30 % der ¶) entfallen aus dem teuren H1-Pass und werden durch Block-LLM-Calls ersetzt.
 
 ---
 
@@ -62,43 +63,74 @@ User-Hypothese (Bandbreite × Frequenz als Reprod/Diskuss-Indikator) deutlich be
 3. **Cross-Validation mit AG-Pass**: User-Befund "AG hat 'frei behauptet' beim Bodenkontakt für die gleichen citation-freien Strecken" — Triangulation Schritt-1-Profil mit AG-Output ist möglich, wird in WERK_GUTACHT-b zusammengeführt.
 4. **Schlamperei nicht retten**: 22-¶-citation-freie Strecke im BA-TM-Theorieteil ist methodische Schwäche, kein Klassen-Definitions-Problem.
 5. **Klammer-Heuristik vor Author-Pattern** als Refactor-Idee — Versuch 2026-05-03 (Commit `a5d4551`) nach Diff-Diagnose am Material verworfen, Original-Heuristik wiederhergestellt. Befund + Lehre in Sektion "Refactor-Versuch 2026-05-03" unten.
-6. **Korrektur Schritt 2 (2026-05-03)**: keine separate LLM-¶-Klassifikation, kein Konstrukt PASSAGE_KLASSIFIKATION. Stattdessen: Verdachts-Blöcke aus Verweisprofil → günstige Block-LLM-Anfrage "bloße Wiedergabe?" → Routing **H2 auf Block** (ja) oder **H1 §-AG** (nein). Standard-Strecken direkt H1. Effekt: lange reproduktive Passagen werden gesehen und beurteilt, aber nicht mit voller Argumentationsanalyse belastet. Details in Sektion "Schritt 2".
+6. **Schritte 2–4 final (2026-05-03)**: keine separate LLM-¶-Klassifikation, kein Konstrukt PASSAGE_KLASSIFIKATION. Architektur: Routing (Block-LLM) → entweder H2+ECKPUNKT_CHECK auf reproduktive Blöcke oder H1+DISKURSIV_BEZUG_PRÜFEN auf diskursive Blöcke + Standard-Strecken; FORSCHUNGSGEGENSTAND_REKONSTRUIEREN am Container-Ende. ECKPUNKT_CHECK + DISKURSIV_BEZUG_PRÜFEN beide auf **Block-Ebene** (symmetrisch, granular). Details in Sektion "Schritte 2–4".
 
 ---
 
-## Schritt 2 — User-Korrektur 2026-05-03: Routing, keine eigene Klassifikation
+## Schritte 2–4 — Architektur final 2026-05-03
 
-Schritt 2 wird **kein eigenes Konstrukt PASSAGE_KLASSIFIKATION**. Das aufgebrochene Material aus dem Verweisprofil **ist bereits** das Material, mit dem die existierenden Pässe (H1 / H2) gefüttert werden — Schritt 2 ist nur noch ein **Routing-Mechanismus**, der pro Verdachts-Block entscheidet, welcher Pass ihn übernimmt.
+Kein eigenes Konstrukt PASSAGE_KLASSIFIKATION. Das aufgebrochene Material aus dem Verweisprofil **ist bereits** das Material, mit dem die existierenden Pässe (H1/H2) gefüttert werden — Schritt 2 ist ein **Routing-Mechanismus** zwischen den Pässen, Schritt 3 sind die Pässe + GTH-Spezial-Tools, Schritt 4 ist Container-End-Aggregation.
 
-### Mechanik
+### Pipeline pro GTH-Container
 
-1. **Verdachts-Blöcke identifizieren** aus dem Verweisprofil:
-   - Langstrecken ohne Citations
-   - Strecken mit repetitiver Author-Dominanz (max-konsekutiv-dominiert-Cluster, Top-1-Share über Schwelle, vgl. Schritt-1-Felder)
-2. **Pro Verdachts-Block: WIEDERGABE_PRÜFEN** — billige LLM-Confirm-Anfrage en bloc auf den ganzen Block:
-   - Prompt-Kern: "Prüfe die Vermutung, dass es sich um bloße Wiedergabe handelt, nicht um dichte Diskussion."
-   - Einziger LLM-Call auf Block-Ebene, nicht ¶-Ebene → günstig
-3. **Routing-Ergebnis:**
-   - **Wiedergabe bestätigt** → **H2 auf den ganzen Block** (synthetisch-hermeneutische Würdigung, eine Beurteilung für den Block)
-   - **Wiedergabe verworfen** (= doch dichte Diskussion trotz Citation-Pattern) → **H1 §-AG pro ¶ im Block** (volle Argumentanalyse)
-4. **Standard-Strecken** (vielfältige Citations, normale Density) → **direkt H1 §-AG pro ¶**, ohne Routing
+```
+pro Verdachts-Block aus Verweisprofil:
+  Routing (WIEDERGABE_PRÜFEN, Block-LLM, billig)
+    → ja  →  H2 (synthetische Block-Würdigung)  +  ECKPUNKT_CHECK
+    → nein →  H1 §-AG pro ¶                    +  DISKURSIV_BEZUG_PRÜFEN (Block)
+
+pro Standard-Strecke (vielfältige Citations, kein Verdacht):
+  H1 §-AG pro ¶  +  DISKURSIV_BEZUG_PRÜFEN (Block)
+
+am Container-Ende:
+  FORSCHUNGSGEGENSTAND_REKONSTRUIEREN (Aggregation)
+```
+
+### Schritt 2 — Routing (WIEDERGABE_PRÜFEN)
+
+**Verdachts-Blöcke** aus Verweisprofil identifizieren:
+- Langstrecken ohne Citations
+- Strecken mit repetitiver Author-Dominanz (`maxConsecutiveParagraphsDominatedByAuthor` über Schwelle, hohe Top-1-Share)
+
+**Pro Verdachts-Block: ein billiger Block-LLM-Call** mit Prompt-Kern: "Prüfe die Vermutung, dass es sich um bloße Wiedergabe handelt, nicht um dichte Diskussion." Output binär: bestätigt/verworfen.
+
+### Schritt 3 reproduktiv (H2 + ECKPUNKT_CHECK)
+
+Bei `Routing → ja`: zwei LLM-Calls auf demselben Block.
+
+- **H2** macht die generische synthetisch-hermeneutische Würdigung des Blocks ("Was wird hier gesagt?")
+- **ECKPUNKT_CHECK** macht die GTH-spezifische Qualitätsprüfung der Wiedergabe in einem Pass über drei Achsen:
+  - **(a) Kernbegriff korrekt** wiedergegeben (z.B. "kategoriale Bildung" bei Klafki im Sinn formal/material-Verschränkung, nicht verkürzt)
+  - **(b) Kontamination** — werden Drittkonzepte ohne Markierung eingeschoben (Klafki-Wiedergabe + plötzlich "Resilienz" ohne Verbindungs-Begründung)
+  - **(c) Provenienz** — Behauptungen, die einer Quelle bedürfen, aber ohne Beleg dastehen
+
+Output: Reviewer-Indikator pro Achse (grün/gelb/rot) + ¶-Anker für problematische Stellen. **Deskriptiv, nicht beurteilend** (Critical-Friend-Identität).
+
+### Schritt 3 diskursiv (H1 + DISKURSIV_BEZUG_PRÜFEN)
+
+Bei `Routing → nein` (= dichte Diskussion trotz Citation-Pattern) und auf allen Standard-Strecken:
+
+- **H1** läuft als volle §-Argumentanalyse pro ¶
+- **DISKURSIV_BEZUG_PRÜFEN** läuft als ein Block-LLM-Call (nicht ¶-weise) und prüft den Bezug des Blocks zur **FRAGESTELLUNG** der Arbeit:
+  - **explizit** ("mit Blick auf die hier gestellte Frage…")
+  - **implizit** (Stichworte/Begriffe der Fragestellung tauchen auf)
+  - **bezugslos** (drumrum-Theorie, fachlich nicht falsch aber zur Frage lose)
+
+Cross-Ref: liest `FRAGESTELLUNG`-Konstrukt aus EXPOSITION-Pass.
+
+Output: Indikator pro Block + Aggregat "Anteil bezugsloser diskursiver Blöcke im Container".
+
+### Schritt 4 — FORSCHUNGSGEGENSTAND_REKONSTRUIEREN
+
+Container-End-Aggregation: ein LLM-Call pro Container, nachdem alle Block-Pässe (H1/H2/ECKPUNKT/DISKURSIV) durch sind. Input: alle bisherigen Konstrukte + Outline + FRAGESTELLUNG. Output: rekonstruierter Forschungsgegenstand des Kapitels (in BA/Habil oft implizit, selten explizit benannt).
 
 ### Effekt
 
-Lange reproduktive Passagen werden **gesehen und beurteilt** (Block-Befund über H2), aber **nicht aufwändig mit voller Argumentationsanalyse behandelt**. Cost-Saving + epistemisch korrekt: H1 würde fremde Argumente als eigene labeln (vgl. `project_three_heuristics_architecture.md`).
-
-### Offene architektonische Frage
-
-Die ursprünglichen Schritte 3a/3b/4 (ECKPUNKT_CHECK, DISKURSIV_BEZUG_PRÜFEN, FORSCHUNGSGEGENSTAND_REKONSTRUIEREN) sind in der Routing-Setzung **noch nicht eingeordnet**. Drei Lesarten denkbar:
-- als Sub-Tools INNERHALB H2-Block-Beurteilung (für reproduktive Blöcke)
-- als Querschnittsbausteine über Container-Ende (FORSCHUNGSGEGENSTAND ist ohnehin Aggregation)
-- als obsolet, weil Routing + H1/H2 sie aufnimmt
-
-→ User-Klärung in Folge-Session, bevor Schritt 2 implementiert wird.
+Lange reproduktive Passagen werden gesehen, gewürdigt und auf Wiedergabe-Qualität geprüft (H2+ECKPUNKT auf Block-Ebene), aber **nicht ¶-weise mit voller Argumentationsanalyse belastet**. Cost-Saving + epistemisch korrekt — H1 würde fremde Argumente sonst als eigene labeln (vgl. `project_three_heuristics_architecture.md`).
 
 ### Status der Datei
 
-`grundlagentheorie.ts` ist auf Schritt-1-Stand (Author-Pattern-Heuristik). Der zwischenzeitliche Klammer-Heuristik-Refactor wurde nach Diff-Diagnose am Material verworfen.
+`grundlagentheorie.ts` ist auf Schritt-1-Stand (Author-Pattern-Heuristik). Der zwischenzeitliche Klammer-Heuristik-Refactor wurde nach Diff-Diagnose am Material verworfen. Schritte 2–4 sind spec-fertig, Implementation offen.
 
 ---
 
