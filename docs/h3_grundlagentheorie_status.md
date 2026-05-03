@@ -2,7 +2,7 @@
 
 Eigenständige Status-Doku der GRUNDLAGENTHEORIE-Session (parallel zu `h3_implementation_status.md`, das die FORSCHUNGSDESIGN-Session pflegt).
 
-Letztes Update: 2026-05-03 spätabends (Pyramide vollständig auf Habil Timm `2635e73c…` durchgelaufen — beide Container "explizit green", 4 LLM-Calls / ~20 ct OpenRouter; Bug-Fix in `grundlagentheorie_routing.ts:457` für leere BLOCK_ROUTING-Konstrukte; Schritt 4 + Container-Orchestrator offen).
+Letztes Update: 2026-05-03 spätabends (Pyramide vollständig auf Habil Timm `2635e73c…`; Default-Lauf "explizit green" + Vergleichslauf gesenkte Schwellen mit Reckwitz-Wiedergabe-Block kontamination yellow + Hörning ¶9-10 yellow — Klassifikator-Trennschärfe demonstriert; Bug-Fix `grundlagentheorie_routing.ts:457` für leere BLOCK_ROUTING; Schritt 4 + Container-Orchestrator offen).
 
 ---
 
@@ -270,15 +270,36 @@ Pyramide vollständig durch (4 Schritte) auf 2 GTH-Containern der Habilitation T
 
 **Bug-Fix**: `grundlagentheorie_routing.ts:457` — `containerResultBlocks.length > 0`-Filter entfernt. Routing persistiert jetzt auch leere BLOCK_ROUTING-Konstrukte, sodass Reproduktiv und Diskursiv für polyphone Container anschlussfähig sind. Vorher: harter Fehler "BLOCK_ROUTING fehlt".
 
-**Klassifikator-Trennschärfe weiterhin offen**: BA "implizit green", Habil "explizit green" — `bezugslos` ist in beiden Werken nicht aufgetreten. Status-Doku-Hypothese ("Härtetest steht aus") gilt weiter.
+**Klassifikator-Trennschärfe (Default-Lauf) weiterhin offen**: BA "implizit green", Habil bei Defaults "explizit green" — `bezugslos` ist in beiden Werken nicht aufgetreten. Default-Schwellen produzieren bei Habil zu wenig Granularität, um die Bandbreite zu zeigen.
 
 **Granularitäts-Beobachtung**: Diskursiv läuft auf je einem Standard-Stretch über 26-27 ¶ als Ganzes. Sub-Heading-bewusste Sub-Block-Bildung (Container A wechselt von "Kultur und Kulturalität" zu "Globalität") könnte innere Bandbreite sichtbar machen — Idee für Container-Orchestrator.
 
+#### Vergleichslauf gesenkte Schwellen (`--cluster=2 --gap=3`) auf Habil
+
+| Schritt | Calls | Tokens (in/out) | Befund |
+|---|---|---|---|
+| Routing gesenkt | 5 | 5.989 / 980 | 5 Verdachts-Blöcke (4 in A, 1 in B) |
+| Reproduktiv | 2 | 2.645 / 842 | 1 wiedergabe-Block aktiviert |
+| Diskursiv | 10 | 32.047 / 2.495 | 10 Blöcke insgesamt mit Klassifikations-Bandbreite |
+| **Vergleichslauf gesamt** | **17** | **40.681 / 4.317** | |
+
+**Routing-Befund (gesenkt)**:
+- Container A: ¶4-6 citation_gap → diskussion (high), ¶9-10 Hörning → diskussion (medium), **¶11-12 Reckwitz → wiedergabe (high)**, ¶15-16 Forster → diskussion (medium)
+- Container B: ¶6-9 citation_gap → diskussion (high)
+
+**Reproduktiv-Befund** auf ¶11-12 Reckwitz (wiedergabe): kernbegriff **green**, kontamination **yellow** ("In ¶11 ohne explizite Abgrenzungsmarkierung Konzepte"), provenienz **green** — erster gelber Befund am Habil-Material, konkreter Reviewer-Hinweis.
+
+**Diskursiv-Befund** Container A (7 Blöcke): explizit green an ¶0-3, ¶13-14, ¶17-26 (FRAGESTELLUNG namentlich genannt); implizit green an ¶4-6, ¶7-8, ¶15-16 (Forster); **implizit yellow an ¶9-10 (Hörning)** — zweiter gelber Befund. Container B (3 Blöcke): implizit green und explizit green durchmischt.
+
+**Klassifikator-Trennschärfe nun demonstriert** (explizit / implizit / yellow im selben Werk). `bezugslos` weiterhin nicht aufgetreten — am Habil-Material defensibel: das Theoriekapitel ist konsistent fragestellungsrelevant.
+
+**Lehre für Schwellen**: Default `cluster=4 gap=5` ist auf BA-mono-reproduktive Werke kalibriert. Bei polyphonen Habil-artigen Werken liefern niedrigere Schwellen (`cluster=2 gap=3`) wertvolle granulare Befunde, ohne Cost-Hypothese zu sprengen (17 Calls bleiben deutlich unter pauschalem H1).
+
 ### Nächste Session — empfohlener Auftakt
 
-1. **Vergleichslauf mit gesenkten Schwellen** (`--cluster=2 --gap=3`) auf Habil-Case `2635e73c…` — würde zeigen, was der Reproduktiv-Pass auf knappen Habil-Clustern findet (¶8 mit 17 Citations Mecheril, ¶15 mit 11 Forster — Single-¶-Hotspots aber kein Cluster).
-2. **Schritt 4 implementieren** (FORSCHUNGSGEGENSTAND_REKONSTRUIEREN) — Container-End-Aggregation. 1 LLM-Call pro Container, Input: alle Konstrukte + Outline + FRAGESTELLUNG. Spec ist final laut Pyramide-Tabelle.
-3. **Danach Container-Orchestrator** (verbindet alle vier Schichten + bindet existierende H1-Pipeline auf diskursive ¶ ein, falls Brief-Flag gesetzt). Sub-Block-Bildung an Sub-Headings als Erweiterung.
+1. **Schritt 4 implementieren** (FORSCHUNGSGEGENSTAND_REKONSTRUIEREN) — Container-End-Aggregation. 1 LLM-Call pro Container, Input: alle Konstrukte + Outline + FRAGESTELLUNG. Spec ist final laut Pyramide-Tabelle.
+2. **Danach Container-Orchestrator** (verbindet alle vier Schichten + bindet existierende H1-Pipeline auf diskursive ¶ ein, falls Brief-Flag gesetzt). Sub-Block-Bildung an Sub-Headings als Erweiterung.
+3. **Schwellen-Konfigurierbarkeit** im Falltyp-System verankern: Habil-artige (polyphon) → niedrigere Defaults; BA-artige (mono-reproduktiv) → strenge Defaults. Heute pro Lauf via CLI-Flag, später Falltyp-Konfiguration.
 
 ### Open Setq-Defaults
 
