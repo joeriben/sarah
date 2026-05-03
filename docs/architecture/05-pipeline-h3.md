@@ -150,7 +150,7 @@ Pyramide aus deterministischer Analyse + selektivem LLM, alle vier Schichten am 
 - Persistenz: `FORSCHUNGSGEGENSTAND` mit `anchor_element_ids` = alle ¶ aller GTH-Container des Werks.
 - Validiert auf Habil (2 Container, Hyperkultur/Kulturessentialismus + Schulkultur/Professionalisierung, 1 Call / 3k tokens / ~3 ct) und BA H3 dev (1 Container, Klafki/GCED-Spannung, 1 Call / 1.1k tokens / ~3 ct).
 
-**Specification-Kette validiert**: FORSCHUNGSDESIGN-Pass (4.6) liest FRAGESTELLUNG + FORSCHUNGSGEGENSTAND als Bezugsrahmen; BASIS-Output auf Habil enthält kontextuelle Sample-Kritik mit explizitem FORSCHUNGSGEGENSTAND-Bezug. Architektur trägt am Material.
+**Specification-Kette validiert**: FORSCHUNGSDESIGN-Pass (§4.2) liest FRAGESTELLUNG + FORSCHUNGSGEGENSTAND als Bezugsrahmen; BASIS-Output auf Habil enthält kontextuelle Sample-Kritik mit explizitem FORSCHUNGSGEGENSTAND-Bezug. Architektur trägt am Material.
 
 **Cost-Hypothese bestätigt**: Habil-Pyramide alle 4 Schritte mit gesenkten Schwellen 18 LLM-Calls / ~44k Tokens / ~25–30 ct OpenRouter für 53 ¶ in 2 Containern; pauschales H1 wäre ~250–400k Tokens (~6–9x).
 
