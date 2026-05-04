@@ -90,10 +90,11 @@
 	const chapterFlow = $derived(data.chapterFlow as ChapterFlow | null);
 	const analysisByElement = $derived(data.analysisByElement as Record<string, ParagraphAnalysis>);
 
-	type View = 'pipeline' | 'dokument' | 'outline' | 'companions';
-	const VIEWS: View[] = ['pipeline', 'dokument', 'outline', 'companions'];
+	type View = 'pipeline' | 'werkanalyse' | 'dokument' | 'outline' | 'companions';
+	const VIEWS: View[] = ['pipeline', 'werkanalyse', 'dokument', 'outline', 'companions'];
 	const VIEW_LABEL: Record<View, string> = {
 		pipeline: 'Pipeline',
+		werkanalyse: 'Werk-Analyse',
 		dokument: 'Dokument',
 		outline: 'Outline',
 		companions: 'Begleitdocs',
@@ -290,6 +291,122 @@
 	let pipelineLoading = $state(false);
 	let pipelineError = $state<string | null>(null);
 
+	// Werk-Analyse: vollständige H3-Konstrukt-Inhalte (function_constructs.content).
+	type H3ConstructDto = {
+		id: string;
+		outline_function_type: string;
+		construct_kind: string;
+		content: Record<string, unknown>;
+		anchor_element_ids: string[];
+		version_stack: unknown[];
+		virtual_container_id: string | null;
+		source_run_id: string | null;
+		created_at: string;
+		updated_at: string;
+	};
+	let werkConstructs = $state<H3ConstructDto[] | null>(null);
+	let werkLoading = $state(false);
+	let werkError = $state<string | null>(null);
+
+	type WerkSectionKey =
+		| 'EXPOSITION'
+		| 'GRUNDLAGENTHEORIE'
+		| 'FORSCHUNGSDESIGN'
+		| 'DURCHFUEHRUNG'
+		| 'SYNTHESE'
+		| 'SCHLUSSREFLEXION'
+		| 'WERK_DESKRIPTION'
+		| 'WERK_GUTACHT'
+		| 'EXKURS';
+
+	const WERK_SECTION_ORDER: WerkSectionKey[] = [
+		'EXPOSITION',
+		'GRUNDLAGENTHEORIE',
+		'FORSCHUNGSDESIGN',
+		'DURCHFUEHRUNG',
+		'SYNTHESE',
+		'SCHLUSSREFLEXION',
+		'WERK_DESKRIPTION',
+		'WERK_GUTACHT',
+		'EXKURS',
+	];
+
+	const WERK_SECTION_LABEL: Record<WerkSectionKey, string> = {
+		EXPOSITION: 'Bezugsrahmen',
+		GRUNDLAGENTHEORIE: 'Theoretische Verortung',
+		FORSCHUNGSDESIGN: 'Forschungsdesign',
+		DURCHFUEHRUNG: 'Durchführung',
+		SYNTHESE: 'Synthese',
+		SCHLUSSREFLEXION: 'Schlussreflexion',
+		WERK_DESKRIPTION: 'Werk-Deskription',
+		WERK_GUTACHT: 'Werk-Gutacht',
+		EXKURS: 'Exkurs',
+	};
+
+	const WERK_SECTION_DESC: Record<WerkSectionKey, string> = {
+		EXPOSITION: 'Fragestellung und Motivation aus der Einleitung.',
+		GRUNDLAGENTHEORIE: 'Verweis-Profil, diskursive Bezüge und der spezifizierte Forschungsgegenstand pro GTH-Container.',
+		FORSCHUNGSDESIGN: 'Methodologie, Methoden und Basis — oder Aufbau-Skizze, falls kein eigenständiges Methodenkapitel vorliegt.',
+		DURCHFUEHRUNG: 'Konsolidierte Befunde aus der Hotspot-fokussierten Argument-Analyse.',
+		SYNTHESE: 'Gesamtergebnis mit Bezug zur Fragestellung.',
+		SCHLUSSREFLEXION: 'Geltungsanspruch, Grenzen und Anschlussforschung.',
+		WERK_DESKRIPTION: 'Neutrale, deskriptive Werk-Beschreibung — Grundlage für das Gutachten.',
+		WERK_GUTACHT: 'Kritische Würdigung. Teil c (Fazit) ist gated durch eigenen Review-Draft des Users — heute zur Test-Phase deaktiviert.',
+		EXKURS: 'Re-Spezifikation des Forschungsgegenstandes durch Exkurs-Container (version_stack-Append).',
+	};
+
+	const CONSTRUCT_KIND_LABEL: Record<string, string> = {
+		FRAGESTELLUNG: 'Fragestellung',
+		MOTIVATION: 'Motivation',
+		VERWEIS_PROFIL: 'Verweis-Profil',
+		BLOCK_ROUTING: 'Block-Routing',
+		DISKURSIV_BEZUG_BEFUND: 'Diskursive Bezüge',
+		FORSCHUNGSGEGENSTAND: 'Forschungsgegenstand',
+		METHODOLOGIE: 'Methodologie',
+		METHODEN: 'Methoden',
+		BASIS: 'Basis (Korpus / Sample)',
+		AUFBAU_SKIZZE: 'Aufbau-Skizze',
+		BEFUND: 'Befund',
+		GESAMTERGEBNIS: 'Gesamtergebnis',
+		GELTUNGSANSPRUCH: 'Geltungsanspruch',
+		WERK_BESCHREIBUNG: 'Werk-Beschreibung',
+		WERK_GUTACHT: 'Werk-Gutacht',
+	};
+
+	function constructKindLabel(k: string): string {
+		return CONSTRUCT_KIND_LABEL[k] ?? k;
+	}
+
+	function werkConstructsByType(
+		constructs: H3ConstructDto[] | null
+	): Record<WerkSectionKey, H3ConstructDto[]> {
+		const groups: Record<WerkSectionKey, H3ConstructDto[]> = {
+			EXPOSITION: [],
+			GRUNDLAGENTHEORIE: [],
+			FORSCHUNGSDESIGN: [],
+			DURCHFUEHRUNG: [],
+			SYNTHESE: [],
+			SCHLUSSREFLEXION: [],
+			WERK_DESKRIPTION: [],
+			WERK_GUTACHT: [],
+			EXKURS: [],
+		};
+		if (!constructs) return groups;
+		for (const c of constructs) {
+			const key = c.outline_function_type as WerkSectionKey;
+			if (key in groups) groups[key].push(c);
+		}
+		return groups;
+	}
+
+	function pickText(c: H3ConstructDto, ...keys: string[]): string | null {
+		for (const k of keys) {
+			const v = (c.content as Record<string, unknown>)[k];
+			if (typeof v === 'string' && v.trim().length > 0) return v;
+		}
+		return null;
+	}
+
 	// Run-Steuerung. H1, H2, H3 sind exklusive Heuristik-Pfade pro Run
 	// (Memory `project_three_heuristics_architecture.md`). 'auto' = Server
 	// nutzt den Brief-Default (h3 wenn briefH3Enabled, sonst h1); explizite
@@ -382,6 +499,22 @@
 			pipelineError = (e as Error).message;
 		} finally {
 			pipelineLoading = false;
+		}
+	}
+
+	async function loadWerkConstructs() {
+		if (!caseInfo) return;
+		werkLoading = true;
+		werkError = null;
+		try {
+			const r = await fetch(`/api/cases/${caseInfo.id}/h3-constructs`);
+			if (!r.ok) throw new Error(`HTTP ${r.status}`);
+			const j = await r.json();
+			werkConstructs = j.constructs ?? [];
+		} catch (e) {
+			werkError = (e as Error).message;
+		} finally {
+			werkLoading = false;
 		}
 	}
 
@@ -569,6 +702,7 @@
 		const v = params.get('view') as View | null;
 		if (v && VIEWS.includes(v)) view = v;
 		loadPipelineStatus();
+		loadWerkConstructs();
 	});
 
 	function passState(p: PassStatus): 'pending' | 'partial' | 'done' {
@@ -1126,6 +1260,135 @@
 </script>
 
 <svelte:window onclick={handleDocClick} />
+
+{#snippet werkConstructBody(c: H3ConstructDto)}
+	{#if c.construct_kind === 'GESAMTERGEBNIS'}
+		{@const gesamt = pickText(c, 'gesamtergebnisText', 'text')}
+		{@const antwort = pickText(c, 'fragestellungsAntwortText')}
+		{@const integration = (c.content as { erkenntnisIntegration?: unknown[] }).erkenntnisIntegration}
+		{#if gesamt}
+			<p class="werk-paragraph">{gesamt}</p>
+		{/if}
+		{#if antwort}
+			<div class="werk-subblock">
+				<h5>Antwort auf die Fragestellung</h5>
+				<p class="werk-paragraph">{antwort}</p>
+			</div>
+		{/if}
+		{#if Array.isArray(integration) && integration.length > 0}
+			<div class="werk-subblock">
+				<h5>Erkenntnis-Integration</h5>
+				<ul class="werk-list">
+					{#each integration as item}
+						<li>{typeof item === 'string' ? item : JSON.stringify(item)}</li>
+					{/each}
+				</ul>
+			</div>
+		{/if}
+	{:else if c.construct_kind === 'GELTUNGSANSPRUCH'}
+		{@const geltung = pickText(c, 'geltungsanspruchText', 'text')}
+		{@const grenzen = pickText(c, 'grenzenText')}
+		{@const anschluss = pickText(c, 'anschlussforschungText')}
+		{#if geltung}
+			<div class="werk-subblock">
+				<h5>Geltungsanspruch</h5>
+				<p class="werk-paragraph">{geltung}</p>
+			</div>
+		{/if}
+		{#if grenzen}
+			<div class="werk-subblock">
+				<h5>Grenzen</h5>
+				<p class="werk-paragraph">{grenzen}</p>
+			</div>
+		{/if}
+		{#if anschluss}
+			<div class="werk-subblock">
+				<h5>Anschlussforschung</h5>
+				<p class="werk-paragraph">{anschluss}</p>
+			</div>
+		{/if}
+	{:else if c.construct_kind === 'WERK_BESCHREIBUNG'}
+		{@const wText = pickText(c, 'werkBeschreibungText', 'text')}
+		{#if wText}
+			<p class="werk-paragraph">{wText}</p>
+		{/if}
+	{:else if c.construct_kind === 'WERK_GUTACHT'}
+		{@const aText = pickText(c, 'aText')}
+		{@const bText = pickText(c, 'bText')}
+		{@const cText = pickText(c, 'cText')}
+		{@const gatingDisabled = (c.content as { gatingDisabled?: boolean }).gatingDisabled === true}
+		{#if aText}
+			<div class="werk-subblock">
+				<h5>a · Werk im Lichte der Fragestellung</h5>
+				<p class="werk-paragraph">{aText}</p>
+			</div>
+		{/if}
+		{#if bText}
+			<div class="werk-subblock">
+				<h5>b · Hotspot-Würdigung</h5>
+				<p class="werk-paragraph">{bText}</p>
+			</div>
+		{/if}
+		{#if cText}
+			<div class="werk-subblock">
+				<h5>c · Fazit{gatingDisabled ? ' (Gating zur Test-Phase deaktiviert)' : ''}</h5>
+				<p class="werk-paragraph">{cText}</p>
+			</div>
+		{/if}
+	{:else if c.construct_kind === 'DISKURSIV_BEZUG_BEFUND'}
+		{@const blocks = (c.content as { blocks?: Array<Record<string, unknown>> }).blocks ?? []}
+		{#if blocks.length === 0}
+			<p class="werk-empty">Keine Bezugs-Blöcke detektiert.</p>
+		{:else}
+			<ul class="werk-list">
+				{#each blocks as block}
+					{@const signal = String(block.signal ?? '')}
+					{@const bezug = String(block.bezug ?? '')}
+					{@const rationale = String(block.rationale ?? '')}
+					<li class="werk-bezug-item">
+						<span class="werk-signal werk-signal-{signal}">{bezug}</span>
+						<span class="werk-rationale">{rationale}</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	{:else if c.construct_kind === 'VERWEIS_PROFIL'}
+		{@const density = (c.content as { density?: Record<string, number> }).density ?? {}}
+		<dl class="werk-stats">
+			{#if density.paragraphsWithCitation != null}
+				<dt>Absätze mit Verweis</dt>
+				<dd>{density.paragraphsWithCitation}{density.paragraphsWithoutCitation != null ? ` von ${(density.paragraphsWithCitation as number) + (density.paragraphsWithoutCitation as number)}` : ''}</dd>
+			{/if}
+			{#if density.meanCitationsPerParagraph != null}
+				<dt>Verweise pro Absatz (∅)</dt>
+				<dd>{(density.meanCitationsPerParagraph as number).toFixed(2)}</dd>
+			{/if}
+			{#if density.topAuthorShare != null}
+				<dt>Top-Autor-Anteil</dt>
+				<dd>{((density.topAuthorShare as number) * 100).toFixed(1)} %</dd>
+			{/if}
+			{#if density.top3AuthorShare != null}
+				<dt>Top-3-Autoren-Anteil</dt>
+				<dd>{((density.top3AuthorShare as number) * 100).toFixed(1)} %</dd>
+			{/if}
+		</dl>
+	{:else if c.construct_kind === 'BLOCK_ROUTING'}
+		{@const blocks = (c.content as { blocks?: unknown[] }).blocks ?? []}
+		<p class="werk-meta">
+			{blocks.length === 0 ? 'Keine Verdachts-Blöcke geroutet.' : `${blocks.length} Verdachts-Block(s) zur Würdigung geroutet.`}
+		</p>
+	{:else}
+		{@const text = pickText(c, 'text', 'gesamtergebnisText', 'werkBeschreibungText')}
+		{#if text}
+			<p class="werk-paragraph">{text}</p>
+		{:else}
+			<details class="werk-fallback">
+				<summary>Roh-Inhalt anzeigen</summary>
+				<pre>{JSON.stringify(c.content, null, 2)}</pre>
+			</details>
+		{/if}
+	{/if}
+{/snippet}
 
 <div class="page">
 	<header class="doc-head">
@@ -1751,6 +2014,103 @@
 						</section>
 					{:else if !pipelineLoading}
 						<p class="empty">Noch keine Statusdaten geladen.</p>
+					{/if}
+				{/if}
+			</section>
+		{:else if view === 'werkanalyse'}
+			<section class="tab-content werkanalyse-tab">
+				{#if !caseInfo}
+					<div class="placeholder">
+						<h2>Werk-Analyse</h2>
+						<p>
+							Strukturierte Sicht auf die H3-Konstrukte des Werks
+							(Bezugsrahmen, theoretische Verortung, Methodik, Befunde,
+							Synthese, Schlussreflexion, Werk-Gutacht). Voraussetzung: ein
+							Case mit zentralem Dokument.
+						</p>
+					</div>
+				{:else}
+					{@const groups = werkConstructsByType(werkConstructs)}
+					{@const hasAny = (werkConstructs?.length ?? 0) > 0}
+					<header class="werk-head">
+						<div>
+							<h2>Werk-Analyse</h2>
+							<p class="werk-sub">
+								Werk-aggregierte H3-Konstrukte aus dem zentralen Dokument, in
+								der Cross-Typ-Reihenfolge gelesen. Zeigt den jeweils aktuellen
+								Stand der DB — unabhängig vom Brief-Pfad. Lauf-Metadaten werden
+								ausgeblendet, nur die rekonstruierten Inhalte sind sichtbar.
+							</p>
+						</div>
+						<button
+							class="refresh-btn"
+							onclick={loadWerkConstructs}
+							disabled={werkLoading}
+						>
+							{werkLoading ? 'Lade…' : 'Neu laden'}
+						</button>
+					</header>
+
+					{#if werkError}
+						<div class="error-box">Inhalte konnten nicht geladen werden: {werkError}</div>
+					{:else if !hasAny && !werkLoading}
+						<div class="placeholder">
+							<h2>Noch keine Werk-Konstrukte</h2>
+							<p>
+								Für dieses Werk wurden noch keine H3-Konstrukte extrahiert.
+								Wechsle zum
+								<button class="link-btn" onclick={() => selectView('pipeline')}>Pipeline-Tab</button>
+								und starte einen Analyselauf mit Heuristik-Pfad H3.
+							</p>
+						</div>
+					{:else if hasAny}
+						<div class="werk-sections">
+							{#each WERK_SECTION_ORDER as outlineType (outlineType)}
+								{@const constructs = groups[outlineType] ?? []}
+								{#if constructs.length > 0 || outlineType === 'EXKURS'}
+									<section class="werk-section">
+										<header>
+											<h3>{WERK_SECTION_LABEL[outlineType]}</h3>
+											<p class="werk-section-sub">{WERK_SECTION_DESC[outlineType]}</p>
+										</header>
+										{#if constructs.length === 0}
+											{#if outlineType === 'EXKURS'}
+												{@const fgWithRespec = (groups.GRUNDLAGENTHEORIE ?? [])
+													.filter((c) => c.construct_kind === 'FORSCHUNGSGEGENSTAND')
+													.find((c) => Array.isArray(c.version_stack)
+														&& c.version_stack.some((v) => (v as { kind?: string })?.kind === 're_spec'))}
+												{#if fgWithRespec}
+													<article class="werk-construct">
+														<h4>Re-Spezifikation des Forschungsgegenstandes</h4>
+														<p class="werk-meta">
+															Der EXKURS hat den FORSCHUNGSGEGENSTAND
+															iterativ verändert. Stack-Tiefe:
+															{(fgWithRespec.version_stack as unknown[]).length}.
+														</p>
+													</article>
+												{:else}
+													<p class="werk-empty">Kein Exkurs-Re-Spec im Werk.</p>
+												{/if}
+											{:else}
+												<p class="werk-empty">Noch keine Konstrukte für diesen Funktionstyp.</p>
+											{/if}
+										{:else}
+											{#each constructs as construct (construct.id)}
+												<article class="werk-construct">
+													<header class="werk-construct-head">
+														<h4>{constructKindLabel(construct.construct_kind)}</h4>
+														<span class="werk-meta">
+															{formatLastRun(construct.updated_at)}
+														</span>
+													</header>
+													{@render werkConstructBody(construct)}
+												</article>
+											{/each}
+										{/if}
+									</section>
+								{/if}
+							{/each}
+						</div>
 					{/if}
 				{/if}
 			</section>
@@ -2979,5 +3339,149 @@
 	.precondition-block a {
 		color: #a5b4fc;
 		margin-left: 0.3em;
+	}
+
+	.werkanalyse-tab { padding-top: 0.5rem; }
+	.werk-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: 1rem;
+		margin-bottom: 1.2rem;
+	}
+	.werk-head h2 { margin: 0 0 0.4rem; }
+	.werk-sub {
+		margin: 0;
+		color: #8b8fa3;
+		font-size: 0.85rem;
+		line-height: 1.5;
+		max-width: 78ch;
+	}
+	.werk-sections {
+		display: flex;
+		flex-direction: column;
+		gap: 1.6rem;
+	}
+	.werk-section {
+		border: 1px solid #2a2d3a;
+		border-radius: 6px;
+		padding: 1rem 1.2rem;
+		background: rgba(255, 255, 255, 0.015);
+	}
+	.werk-section header {
+		margin-bottom: 0.8rem;
+		padding-bottom: 0.5rem;
+		border-bottom: 1px dashed #2a2d3a;
+	}
+	.werk-section header h3 {
+		margin: 0 0 0.25rem;
+		font-size: 1rem;
+		color: #e1e4e8;
+	}
+	.werk-section-sub {
+		margin: 0;
+		font-size: 0.78rem;
+		color: #8b8fa3;
+	}
+	.werk-construct {
+		padding: 0.7rem 0;
+		border-top: 1px dashed #1f2230;
+	}
+	.werk-construct:first-of-type { border-top: none; padding-top: 0; }
+	.werk-construct-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 0.8rem;
+		margin-bottom: 0.4rem;
+	}
+	.werk-construct h4 {
+		margin: 0;
+		font-size: 0.88rem;
+		color: #c7d2fe;
+		font-weight: 600;
+	}
+	.werk-meta {
+		font-size: 0.72rem;
+		color: #6b7280;
+	}
+	.werk-paragraph {
+		margin: 0.3rem 0;
+		font-size: 0.92rem;
+		color: #d6d8e0;
+		line-height: 1.55;
+	}
+	.werk-subblock {
+		margin-top: 0.7rem;
+	}
+	.werk-subblock h5 {
+		margin: 0 0 0.2rem;
+		font-size: 0.78rem;
+		color: #9ca3af;
+		font-weight: 500;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+	.werk-list {
+		margin: 0.3rem 0;
+		padding-left: 1.2rem;
+		font-size: 0.86rem;
+		color: #d6d8e0;
+		line-height: 1.5;
+	}
+	.werk-list li { margin: 0.15rem 0; }
+	.werk-empty {
+		color: #6b7280;
+		font-size: 0.82rem;
+		font-style: italic;
+		margin: 0.3rem 0;
+	}
+	.werk-bezug-item {
+		display: flex;
+		gap: 0.5rem;
+		align-items: baseline;
+	}
+	.werk-signal {
+		display: inline-block;
+		min-width: 5em;
+		padding: 0.05em 0.4em;
+		border-radius: 3px;
+		font-size: 0.75rem;
+		text-align: center;
+	}
+	.werk-signal-green {
+		background: rgba(110, 231, 183, 0.10);
+		color: #6ee7b7;
+		border: 1px solid rgba(110, 231, 183, 0.3);
+	}
+	.werk-signal-yellow {
+		background: rgba(251, 191, 36, 0.10);
+		color: #fbbf24;
+		border: 1px solid rgba(251, 191, 36, 0.3);
+	}
+	.werk-signal-red {
+		background: rgba(239, 68, 68, 0.10);
+		color: #ef4444;
+		border: 1px solid rgba(239, 68, 68, 0.3);
+	}
+	.werk-rationale { font-size: 0.84rem; color: #c5c8d3; }
+	.werk-stats {
+		display: grid;
+		grid-template-columns: max-content 1fr;
+		gap: 0.2rem 1rem;
+		margin: 0;
+		font-size: 0.84rem;
+	}
+	.werk-stats dt { color: #9ca3af; }
+	.werk-stats dd { margin: 0; color: #d6d8e0; font-variant-numeric: tabular-nums; }
+	.werk-fallback summary { cursor: pointer; font-size: 0.8rem; color: #9ca3af; }
+	.werk-fallback pre {
+		font-size: 0.74rem;
+		color: #c5c8d3;
+		background: rgba(255,255,255,0.02);
+		padding: 0.5rem;
+		border-radius: 4px;
+		overflow-x: auto;
+		margin-top: 0.4rem;
 	}
 </style>
