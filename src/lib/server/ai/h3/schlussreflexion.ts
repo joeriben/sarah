@@ -706,20 +706,25 @@ export async function runSchlussreflexionPass(
 	}
 
 	if (!fsRes.text) {
-		throw new Error(
-			`Werk ${documentId}: FRAGESTELLUNG fehlt. Erst H3:EXPOSITION laufen.`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'SCHLUSSREFLEXION',
+			missing: 'FRAGESTELLUNG',
+			diagnostic: `Werk ${documentId}: FRAGESTELLUNG fehlt. Erst H3:EXPOSITION laufen.`,
+		});
 	}
 	if (!fgRes.fg) {
-		throw new Error(
-			`Werk ${documentId}: FORSCHUNGSGEGENSTAND fehlt. Erst H3:GRUNDLAGENTHEORIE Schritt 4 laufen.`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'SCHLUSSREFLEXION',
+			missing: 'FORSCHUNGSGEGENSTAND',
+			diagnostic: `Werk ${documentId}: FORSCHUNGSGEGENSTAND fehlt. Erst H3:GRUNDLAGENTHEORIE Schritt 4 laufen.`,
+		});
 	}
 	if (!geRes.ge) {
-		throw new Error(
-			`Werk ${documentId}: GESAMTERGEBNIS fehlt. Erst H3:SYNTHESE laufen ` +
-				`(scripts/test-h3-synthese.ts <caseId> --persist).`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'SCHLUSSREFLEXION',
+			missing: 'GESAMTERGEBNIS',
+			diagnostic: `Werk ${documentId}: GESAMTERGEBNIS fehlt. Erst H3:SYNTHESE laufen.`,
+		});
 	}
 
 	const methodenBasis = await loadMethodenAndBasis(caseId, documentId);

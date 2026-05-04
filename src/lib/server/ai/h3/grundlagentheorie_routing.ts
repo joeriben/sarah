@@ -27,6 +27,7 @@ import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, getModel, getProvider, type Provider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
+import { PreconditionFailedError } from './precondition.js';
 import {
 	loadGrundlagentheorieContainers,
 	extractInlineCitations,
@@ -400,10 +401,13 @@ export async function runRoutingPass(
 
 	const containers = await loadGrundlagentheorieContainers(documentId);
 	if (containers.length === 0) {
-		throw new Error(
-			`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
-				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'GRUNDLAGENTHEORIE',
+			missing: 'GRUNDLAGENTHEORIE-Container',
+			diagnostic:
+				`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
+				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
+		});
 	}
 
 	const thresholds = { minClusterLen, minCitationGapLen };

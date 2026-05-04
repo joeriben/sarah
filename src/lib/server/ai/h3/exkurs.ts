@@ -54,6 +54,7 @@ import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
 import { extractAndValidateJSON, type ExtractResult } from '../json-extract.js';
+import { PreconditionFailedError } from './precondition.js';
 
 // ── Container-Loading ─────────────────────────────────────────────
 
@@ -682,17 +683,22 @@ export async function runExkursPass(
 	}
 
 	if (!fsRes.text) {
-		throw new Error(
-			`Werk ${documentId}: FRAGESTELLUNG fehlt. ` +
-				`Erst H3:EXPOSITION laufen (scripts/test-h3-exposition.ts <caseId>).`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'EXKURS',
+			missing: 'FRAGESTELLUNG',
+			diagnostic:
+				`Werk ${documentId}: FRAGESTELLUNG fehlt. ` +
+				`Erst H3:EXPOSITION laufen.`,
+		});
 	}
 	if (!fgRes.fg) {
-		throw new Error(
-			`Werk ${documentId}: FORSCHUNGSGEGENSTAND fehlt. ` +
-				`Erst H3:GRUNDLAGENTHEORIE Schritt 4 ` +
-				`(scripts/test-h3-forschungsgegenstand.ts <caseId>) laufen.`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'EXKURS',
+			missing: 'FORSCHUNGSGEGENSTAND',
+			diagnostic:
+				`Werk ${documentId}: FORSCHUNGSGEGENSTAND fehlt. ` +
+				`Erst H3:GRUNDLAGENTHEORIE Schritt 4 laufen.`,
+		});
 	}
 	const fragestellung = fsRes.text;
 	let fg = fgRes.fg;

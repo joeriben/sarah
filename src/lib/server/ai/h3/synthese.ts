@@ -604,17 +604,22 @@ export async function runSynthesePass(
 	}
 
 	if (!fsRes.text) {
-		throw new Error(
-			`Werk ${documentId}: FRAGESTELLUNG fehlt. ` +
-				`Erst H3:EXPOSITION laufen (scripts/test-h3-exposition.ts <caseId>).`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'SYNTHESE',
+			missing: 'FRAGESTELLUNG',
+			diagnostic:
+				`Werk ${documentId}: FRAGESTELLUNG fehlt. ` +
+				`Erst H3:EXPOSITION laufen.`,
+		});
 	}
 	if (!fgRes.fg) {
-		throw new Error(
-			`Werk ${documentId}: FORSCHUNGSGEGENSTAND fehlt. ` +
-				`Erst H3:GRUNDLAGENTHEORIE Schritt 4 ` +
-				`(scripts/test-h3-forschungsgegenstand.ts <caseId>) laufen.`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'SYNTHESE',
+			missing: 'FORSCHUNGSGEGENSTAND',
+			diagnostic:
+				`Werk ${documentId}: FORSCHUNGSGEGENSTAND fehlt. ` +
+				`Erst H3:GRUNDLAGENTHEORIE Schritt 4 laufen.`,
+		});
 	}
 
 	const befunds = await loadBefundsWithText(caseId, documentId);

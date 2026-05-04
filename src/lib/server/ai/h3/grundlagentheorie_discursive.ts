@@ -39,6 +39,7 @@ import { z } from 'zod';
 import { queryOne } from '../../db/index.js';
 import { chat, getModel, getProvider, type Provider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
+import { PreconditionFailedError } from './precondition.js';
 import {
 	loadGrundlagentheorieContainers,
 	type GrundlagentheorieContainer,
@@ -104,10 +105,12 @@ async function loadFragestellung(
 		[caseId, documentId]
 	);
 	if (!row) {
-		throw new Error(
-			`FRAGESTELLUNG fehlt — EXPOSITION-Pass mit FRAGESTELLUNG muss zuerst laufen ` +
-				`(siehe runExpositionPass / scripts/test-h3-exposition.ts <caseId> --persist).`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'GRUNDLAGENTHEORIE',
+			missing: 'FRAGESTELLUNG',
+			diagnostic:
+				`FRAGESTELLUNG fehlt — EXPOSITION-Pass mit FRAGESTELLUNG muss zuerst laufen.`,
+		});
 	}
 	if (!row.content?.text || typeof row.content.text !== 'string') {
 		throw new Error(
@@ -481,10 +484,13 @@ export async function runDiskursivBezugPass(
 
 	const containers = await loadGrundlagentheorieContainers(documentId);
 	if (containers.length === 0) {
-		throw new Error(
-			`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
-				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'GRUNDLAGENTHEORIE',
+			missing: 'GRUNDLAGENTHEORIE-Container',
+			diagnostic:
+				`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
+				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
+		});
 	}
 
 	// FRAGESTELLUNG einmal laden — gilt für alle Container des Werks.

@@ -30,6 +30,7 @@
 // keine primär/sekundär-Sub-Klassifikation, keine Reviewer-Signale.
 
 import { query, queryOne } from '../../db/index.js';
+import { PreconditionFailedError } from './precondition.js';
 
 // ── Container-Auflösung GRUNDLAGENTHEORIE ─────────────────────────
 
@@ -795,10 +796,13 @@ export async function runGrundlagentheoriePass(
 
 	const containers = await loadGrundlagentheorieContainers(documentId);
 	if (containers.length === 0) {
-		throw new Error(
-			`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
-			`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'GRUNDLAGENTHEORIE',
+			missing: 'GRUNDLAGENTHEORIE-Container',
+			diagnostic:
+				`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
+				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
+		});
 	}
 
 	// Idempotenz-Schicht für die gesamte GTH-Pyramide: alte Konstrukte aus

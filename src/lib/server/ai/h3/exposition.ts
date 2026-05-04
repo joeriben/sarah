@@ -32,6 +32,7 @@ import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, getModel, getProvider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
+import { PreconditionFailedError } from './precondition.js';
 
 // ── Container-Auflösung ───────────────────────────────────────────
 
@@ -535,10 +536,13 @@ export async function runBeurteilungOnly(caseId: string): Promise<BeurteilungPas
 
 	const paragraphs = await loadExpositionParagraphs(documentId);
 	if (paragraphs.length === 0) {
-		throw new Error(
-			`Werk ${documentId} hat keinen EXPOSITION-Container — ` +
-			`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'EXPOSITION',
+			missing: 'EXPOSITION-Container',
+			diagnostic:
+				`Werk ${documentId} hat keinen EXPOSITION-Container — ` +
+				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
+		});
 	}
 	const containerLabel = paragraphs[0].containerHeadingText;
 
@@ -633,10 +637,13 @@ export async function runExpositionPass(caseId: string): Promise<ExpositionPassR
 
 	const paragraphs = await loadExpositionParagraphs(documentId);
 	if (paragraphs.length === 0) {
-		throw new Error(
-			`Werk ${documentId} hat keinen EXPOSITION-Container — ` +
-			`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'EXPOSITION',
+			missing: 'EXPOSITION-Container',
+			diagnostic:
+				`Werk ${documentId} hat keinen EXPOSITION-Container — ` +
+				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
+		});
 	}
 	const containerLabel = paragraphs[0].containerHeadingText;
 

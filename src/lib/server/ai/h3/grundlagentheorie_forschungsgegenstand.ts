@@ -36,6 +36,7 @@ import { z } from 'zod';
 import { queryOne } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
+import { PreconditionFailedError } from './precondition.js';
 import {
 	loadGrundlagentheorieContainers,
 	type GrundlagentheorieContainer,
@@ -211,10 +212,11 @@ async function loadFragestellung(caseId: string, documentId: string): Promise<st
 		[caseId, documentId]
 	);
 	if (!row || !row.content?.text) {
-		throw new Error(
-			`FRAGESTELLUNG fehlt — EXPOSITION-Pass muss zuerst laufen ` +
-				`(scripts/test-h3-exposition.ts <caseId>).`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'GRUNDLAGENTHEORIE',
+			missing: 'FRAGESTELLUNG',
+			diagnostic: `FRAGESTELLUNG fehlt — EXPOSITION-Pass muss zuerst laufen.`,
+		});
 	}
 	return row.content.text;
 }
@@ -498,10 +500,13 @@ export async function runForschungsgegenstandPass(
 
 	const containers = await loadGrundlagentheorieContainers(documentId);
 	if (containers.length === 0) {
-		throw new Error(
-			`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
-				`erst FUNKTIONSTYP_ZUWEISEN oder Outline-UI manuell setzen.`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'GRUNDLAGENTHEORIE',
+			missing: 'GRUNDLAGENTHEORIE-Container',
+			diagnostic:
+				`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
+				`erst FUNKTIONSTYP_ZUWEISEN oder Outline-UI manuell setzen.`,
+		});
 	}
 
 	const fragestellung = await loadFragestellung(caseId, documentId);
@@ -598,9 +603,11 @@ export async function runForschungsgegenstandPass(
 	}
 
 	if (overviews.length === 0) {
-		throw new Error(
-			`Werk ${documentId} hat keine GTH-Container mit ¶ — kein FORSCHUNGSGEGENSTAND möglich.`
-		);
+		throw new PreconditionFailedError({
+			heuristic: 'GRUNDLAGENTHEORIE',
+			missing: 'GRUNDLAGENTHEORIE-Container mit ¶',
+			diagnostic: `Werk ${documentId} hat keine GTH-Container mit ¶ — kein FORSCHUNGSGEGENSTAND möglich.`,
+		});
 	}
 
 	// 1 LLM-Call pro Werk.
