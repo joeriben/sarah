@@ -2005,7 +2005,7 @@
 					{#if workSynthesis}
 						<article class="work-verdict">
 							<header class="work-verdict-head">
-								<span class="work-tag">Gesamtverdikt</span>
+								<span class="work-tag">H1 · Gesamtverdikt</span>
 								<h2>Werk-Synthese</h2>
 							</header>
 							<div class="work-content">{workSynthesis.content}</div>
@@ -2014,12 +2014,58 @@
 					{#if chapterFlow}
 						<article class="work-verdict chapter-flow">
 							<header class="work-verdict-head">
-								<span class="work-tag flow-tag">Kapitelverlauf</span>
+								<span class="work-tag flow-tag">H1 · Kapitelverlauf</span>
 								<h2>Argumentations­bewegung über die Kapitelfolge</h2>
 							</header>
 							<div class="work-content">{chapterFlow.content}</div>
 						</article>
 					{/if}
+					{#each (werkConstructs ?? []).filter((c) => c.outline_function_type === 'WERK_DESKRIPTION') as c (c.id)}
+						{@const text = pickText(c, 'werkBeschreibungText', 'text')}
+						{#if text}
+							<article class="work-verdict">
+								<header class="work-verdict-head">
+									<span class="work-tag">H3 · Beschreibung</span>
+									<h2>Werk-Beschreibung</h2>
+								</header>
+								<div class="work-content">{text}</div>
+							</article>
+						{/if}
+					{/each}
+					{#each (werkConstructs ?? []).filter((c) => c.outline_function_type === 'WERK_GUTACHT') as c (c.id)}
+						{@const aText = pickText(c, 'aText')}
+						{@const bText = pickText(c, 'bText')}
+						{@const cText = pickText(c, 'cText')}
+						{@const gatingDisabled = (c.content as { gatingDisabled?: boolean }).gatingDisabled === true}
+						{#if aText || bText || cText}
+							<article class="work-verdict">
+								<header class="work-verdict-head">
+									<span class="work-tag">H3 · Würdigung (Critical Friend)</span>
+									<h2>Werk-Gutachten</h2>
+								</header>
+								<div class="work-content">
+									{#if aText}
+										<div class="werk-subblock">
+											<h5>a · Werk im Lichte der Fragestellung</h5>
+											<p class="werk-paragraph">{aText}</p>
+										</div>
+									{/if}
+									{#if bText}
+										<div class="werk-subblock">
+											<h5>b · Hotspot-Würdigung</h5>
+											<p class="werk-paragraph">{bText}</p>
+										</div>
+									{/if}
+									{#if cText}
+										<div class="werk-subblock">
+											<h5>c · Fazit{gatingDisabled ? ' (Gating zur Test-Phase deaktiviert — eigentlich gegated durch eigenen Review-Draft)' : ''}</h5>
+											<p class="werk-paragraph">{cText}</p>
+										</div>
+									{/if}
+								</div>
+							</article>
+						{/if}
+					{/each}
 					<p class="outline-intro">
 						Hierarchische Synthesen-Navigation. Klick auf §X:AY-Anker in
 						einer Synthese öffnet den Reader-Modal an der entsprechenden
