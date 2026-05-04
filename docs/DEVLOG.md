@@ -446,3 +446,51 @@ Core principle: the fundamental unit is the event (naming/relating act), not the
 | Commit | Description |
 |--------|-------------|
 | `4c33c74` | Fix phase assignment in canvas mode: clicking nodes now assigns to active phase |
+
+---
+
+## H3-Heuristiken Schluss-Trio — 2026-05-04
+
+**Focus**: Implementation der drei letzten kapitel-strukturierten H3-Heuristiken aus der Mother-Liste — EXKURS, SYNTHESE, SCHLUSSREFLEXION. Damit sind alle 7 Funktionstyp-Heuristiken implementiert; offen bleiben Werk-Ebene (WERK_DESKRIPTION, WERK_GUTACHT) und Container-Orchestrator.
+
+(DEVLOG-Lücke seit Session 18: der gesamte SARAH-Sprint EXPOSITION → FORSCHUNGSDESIGN → GRUNDLAGENTHEORIE-Pyramide → DURCHFÜHRUNG ist nicht hier nachgetragen, sondern in den per-Heuristik-Status-Dokus `docs/h3_*_status.md` und `docs/architecture/05-pipeline-h3.md` dokumentiert. Dieser Eintrag setzt den Faden ab dem aktuellen Stand fort.)
+
+### Architektonische Pivots dieser Session
+
+**EXKURS — Persistenz-Modell zweimal gedacht.**
+
+Erster Wurf (Variante C, vormittags): RE_SPEC_AKT als eigenständiges Konstrukt mit eigenem origin-Stack, FORSCHUNGSGEGENSTAND-Konstrukt unverändert. Aggregator-Read am FG-Loader sollte später die RE_SPEC_AKTE einlesen. *Verworfen* nach User-Beobachtung: ohne Aggregator wirkt EXKURS auf nichts; die Implementation würde alle FG-Konsumenten zu Aggregator-Reads zwingen — zu umständlich, weit weg von der epistemischen Bewegung.
+
+Zweiter Wurf (umgesetzt, mittags): EXKURS modifiziert das vorhandene FORSCHUNGSGEGENSTAND-Konstrukt destruktiv. Der LLM produziert eine vollständige neue FG-Version (Text + ggf. ergänzte subjectKeywords); `content` wird ersetzt, `version_stack` bekommt einen `re_spec`-Eintrag mit Source-Anchors + Imported/Affected/ReSpecText + content_snapshot. Konsumenten lesen FG ganz normal per SELECT und bekommen den re-spezifizierten Stand. V.3.0-Roadmap: intelligenterer Stack mit LLM-detektabler transformatorischer Emergenz (Stack-Diff als Erkenntnisfortschritt/Regression-Indikator) — heute deferred, materialisiert aber nicht instrumentiert.
+
+**SYNTHESE / SCHLUSSREFLEXION — Konstrukt-Plural als Felder-Plural gelesen.**
+
+Mother spezifiziert `Konstrukte: GESAMTERGEBNIS, FRAGESTELLUNGS_ANTWORT` für SYNTHESE und `GELTUNGSANSPRUCH, GRENZEN, ANSCHLUSSFORSCHUNG` für SR. Implementation: jeweils **ein** Konstrukt mit reichem content (`construct_kind='GESAMTERGEBNIS'` bzw. `'GELTUNGSANSPRUCH'`), Felder als JSON-Properties. Begründung: zwei/drei Konstrukte am gleichen Anker mit überlappendem Inhalt wären redundant; Werk-Aggregat-Pattern (anchor = alle ¶ aller Container) ist sauberer.
+
+**SR Cross-Typ-Reads über Mother-Minimum erweitert.** Mother nannte nur `GESAMTERGEBNIS + FRAGESTELLUNG`. Erweitert um `FORSCHUNGSGEGENSTAND` (für Bezug zur Theoriearbeit) und optional `METHODEN + BASIS` (für Methoden-/Sample-Grenzen-Reflektion — Mother-Lücke "SR zu Methoden-Grenzen" geschlossen). Habil-Validierung trägt: der LLM erkennt im FORSCHUNGSDESIGN-BASIS eine reflektierte Sample-Grenze und macht transparent, dass die SR sie nicht aufgreift.
+
+**ERKENNTNIS_INTEGRATION (SYNTHESE).** Pro DURCHFÜHRUNGS-BEFUND mit text!=null: binärer `integriert`-Flag + optional anchor-¶ in der SYNTHESE + optional Critical-Friend-`hinweis`. coverageRatio server-seitig berechnet. Echter Wert beim BA-H3-dev-Lauf demonstriert: 0% coverage bei 1 BEFUND, weil der spezifische BEFUND zur frühkindlichen Bildung in der SYNTHESE nicht adressiert ist — präzise als Critical-Friend-Hinweis benannt.
+
+### Validierung am Material
+
+| | BA H3 dev | Habil (Stichprobe) |
+|---|-----------|---------------------|
+| EXKURS | temp-Markierung "Theoretischer Rahmen": LLM erkennt korrekt `noRespec=true` (Klafki ist Erstexposition, kein Re-Spec). Stack-Tiefe 1→1, FG-content unverändert. Auto-Cleanup im Test-Skript. | — (kein EXKURS-Container) |
+| SYNTHESE | 2 Container, 9 ¶, 1 BEFUND. Coverage=0%. FRAGESTELLUNGS-ANTWORT-Diagnose "affirmativ-harmonisierend statt kritisch-differenzierend" trifft Kern der Arbeit. | 2 Container, 112 ¶, 0 BEFUNDE. GESAMTERGEBNIS substantiell (Leitkonzept "kulturbezogene Reflexivität"). FRAGESTELLUNGS-ANTWORT mit "partiell programmatisch"-Diagnose. 45k in / 605 out Tokens, 16.3s. |
+| SCHLUSSREFLEXION | 1 Container, 2 ¶. GRENZEN-Diagnose "Werk benennt keine methodischen oder korpusbezogenen Grenzen explizit". | 1 Container, 2 ¶, METHODEN/BASIS-Cross-Read aktiv. GRENZEN-Diagnose: LLM erkennt im FORSCHUNGSDESIGN-BASIS eine reflektierte Sample-Grenze, die in SR nicht aufgegriffen wird — Architektur-Erweiterung trägt am Material. |
+
+Alle drei: idempotent, Werk-Aggregat, Critical-Friend-Identität (deskriptiv, kein Urteil; Hinweise zu Lücken transparent benannt, nicht weggeschoben).
+
+### Handover
+
+`docs/h3_handover_2026-05-04.md` für Folge-Session. Reihenfolge: (b) Container-Orchestrator (Master-Pipeline-Skript, das die H3-Heuristiken in Cross-Typ-Reihenfolge laufen lässt) → (a) WERK-Ebene (WERK_DESKRIPTION + WERK_GUTACHT mit gated-c und Dialog-Block d/e/f).
+
+### Commits
+
+| Commit | Description |
+|--------|-------------|
+| `9ddb349` | feat(h3): EXKURS — RE_SPEC_AKT (Variante C — verworfen, in history für Lehre erhalten) |
+| `9d612b6` | refactor(h3): EXKURS — destruktive FG-Modifikation statt eigenes Konstrukt |
+| `dcb01b6` | feat(h3): SYNTHESE — GESAMTERGEBNIS mit Erkenntnis-Integration-Map |
+| `e6189d8` | feat(h3): SCHLUSSREFLEXION — GELTUNGSANSPRUCH + GRENZEN + ANSCHLUSSFORSCHUNG |
+| `be9b89a` | docs(h3): Stichproben-Validierung Habil + Handover für Folge-Session |

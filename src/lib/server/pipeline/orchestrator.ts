@@ -32,6 +32,7 @@ import { runArgumentValidityPass } from '../ai/hermeneutic/argument-validity.js'
 import { runGraphCollapse } from '../ai/hermeneutic/section-collapse-from-graph.js';
 import { runChapterCollapse } from '../ai/hermeneutic/chapter-collapse.js';
 import { runDocumentCollapse } from '../ai/hermeneutic/document-collapse.js';
+import { runH3Phase, isH3PhaseDoneForDocument } from './h3-phases.js';
 
 export type Phase =
 	| 'argumentation_graph'
@@ -39,7 +40,20 @@ export type Phase =
 	| 'section_collapse'
 	| 'chapter_collapse'
 	| 'document_collapse'
-	| 'paragraph_synthetic';
+	| 'paragraph_synthetic'
+	// H3 — kontextadaptive funktionstyp-orchestrierte Phasen
+	// Reihenfolge: docs/h3_orchestrator_spec.md (EXPOSITION → GTH →
+	// FORSCHUNGSDESIGN → DURCHFÜHRUNG → SYNTHESE → SCHLUSSREFLEXION →
+	// EXKURS → WERK_DESKRIPTION → WERK_GUTACHT)
+	| 'h3_exposition'
+	| 'h3_grundlagentheorie'
+	| 'h3_forschungsdesign'
+	| 'h3_durchfuehrung'
+	| 'h3_synthese'
+	| 'h3_schlussreflexion'
+	| 'h3_exkurs'
+	| 'h3_werk_deskription'
+	| 'h3_werk_gutacht';
 
 // Hauptlinie ohne argument_validity — diese Phase ist opt-in und wird per
 // phasesForRun() bei aktivem RunOptions.include_validity zwischen
@@ -58,11 +72,37 @@ export const PHASE_LABEL: Record<Phase, string> = {
 	chapter_collapse: 'Hauptkapitel-Synthesen',
 	document_collapse: 'Werk-Synthese',
 	paragraph_synthetic: 'Per-Absatz-Hermeneutik (synthetisch)',
+	h3_exposition: 'H3 · Exposition (Fragestellung & Motivation)',
+	h3_grundlagentheorie: 'H3 · Grundlagentheorie (Verweisprofil → Forschungsgegenstand)',
+	h3_forschungsdesign: 'H3 · Forschungsdesign (Methodik)',
+	h3_durchfuehrung: 'H3 · Durchführung',
+	h3_synthese: 'H3 · Synthese (Gesamtergebnis)',
+	h3_schlussreflexion: 'H3 · Schlussreflexion (Geltungsanspruch)',
+	h3_exkurs: 'H3 · Exkurs',
+	h3_werk_deskription: 'H3 · Werk-Deskription',
+	h3_werk_gutacht: 'H3 · Werk-Gutacht (a + b)',
 };
+
+// H3-Phase-Reihenfolge gemäß docs/h3_orchestrator_spec.md (Bedingungsgefüge
+// determiniert Reihenfolge; harte Vorbedingungen werden in den Pass-Funktionen
+// geprüft und führen bei Verletzung zu PreconditionFailedError → Run-State
+// `failed`).
+const H3_PHASE_ORDER: Phase[] = [
+	'h3_exposition',
+	'h3_grundlagentheorie',
+	'h3_forschungsdesign',
+	'h3_durchfuehrung',
+	'h3_synthese',
+	'h3_schlussreflexion',
+	'h3_exkurs',
+	'h3_werk_deskription',
+	'h3_werk_gutacht',
+];
 
 export interface RunOptions {
 	include_synthetic?: boolean;
 	include_validity?: boolean;
+	include_h3?: boolean;
 	cost_cap_usd?: number | null;
 }
 
@@ -425,6 +465,27 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 			);
 			return { all, pending: done ? [] : all };
 		}
+		// H3-Phasen: jede ist werk-aggregiert (1 Atom = das Werk). Done-Check
+		// pro Phase liegt in h3-phases.ts (z.B. EXKURS prüft re_spec im
+		// version_stack; nicht-implementierte WERK-Phasen sind als done
+		// markiert, damit der Orchestrator sie nicht in Endlosschleife läuft).
+		// caseId ist hier nicht greifbar — done-check geht über documentId
+		// direkt, ohne case_id-Filter, was für H3 ausreicht weil H3-Konstrukte
+		// ohnehin pro (case, document) eindeutig sind und die UI immer im
+		// Case-Kontext steht.
+		case 'h3_exposition':
+		case 'h3_grundlagentheorie':
+		case 'h3_forschungsdesign':
+		case 'h3_durchfuehrung':
+		case 'h3_synthese':
+		case 'h3_schlussreflexion':
+		case 'h3_exkurs':
+		case 'h3_werk_deskription':
+		case 'h3_werk_gutacht': {
+			const all: AtomRef[] = [{ id: documentId, label: PHASE_LABEL[phase] }];
+			const done = await isH3PhaseDoneForDocument(phase, documentId);
+			return { all, pending: done ? [] : all };
+		}
 	}
 }
 
@@ -555,6 +616,19 @@ async function executeStep(
 				memoId: r.stored?.memoId ?? r.existingMemoId,
 			};
 		}
+		// H3-Phasen: alle werk-aggregiert, atom.id == documentId. Dispatch
+		// liegt in src/lib/server/pipeline/h3-phases.ts (Validierungs-Schutz,
+		// Heuristik-Aufruf, Token-Aggregation für Multi-Step-Phasen).
+		case 'h3_exposition':
+		case 'h3_grundlagentheorie':
+		case 'h3_forschungsdesign':
+		case 'h3_durchfuehrung':
+		case 'h3_synthese':
+		case 'h3_schlussreflexion':
+		case 'h3_exkurs':
+		case 'h3_werk_deskription':
+		case 'h3_werk_gutacht':
+			return runH3Phase(phase, caseId, atom.id);
 	}
 }
 
@@ -570,6 +644,12 @@ function phasesForRun(options: RunOptions): Phase[] {
 	}
 	if (options.include_synthetic) {
 		phases.push('paragraph_synthetic');
+	}
+	if (options.include_h3) {
+		// H3 läuft nach H1/H2 als zusätzliche kontextadaptive Spur. Die
+		// Phasen-Reihenfolge folgt dem Bedingungsgefüge (siehe Spec); harte
+		// Vorbedingungen werden in den jeweiligen Pass-Funktionen geprüft.
+		phases.push(...H3_PHASE_ORDER);
 	}
 	return phases;
 }
