@@ -152,6 +152,13 @@ Opus-Stack + Mistral+Sonnet-Stack):
   als Sonnet, ~10× günstiger als Opus). **Tragfähiger Validity-Kandidat**
   für beide Stacks; Parser-Hardening für Markdown-Headers ist bereits
   eingespielt (argument-validity.ts:198).
+- **Document-Collapse (Werk-L0)**: nicht separat getestet — durch
+  Chapter-Collapse (opus-grade, Auffälligkeits-Plus über Opus) + Section-
+  Collapse (substanziell stärker als Sonnet/Opus auf 1.1.1) hinreichend
+  belegt. Document-Collapse folgt derselben Operationslogik (Synthese +
+  Auffälligkeiten über aggregierte Inputs), kein Anlass zur separaten
+  Re-Validierung. **Tragfähiger Document-Collapse-Kandidat** für beide
+  Stacks.
 - **EXPOSITION-Klasse Konstrukte**: Test war hier nicht diskriminierend.
 
 ## Headline cost / latency
