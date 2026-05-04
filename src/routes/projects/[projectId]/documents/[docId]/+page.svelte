@@ -90,11 +90,10 @@
 	const chapterFlow = $derived(data.chapterFlow as ChapterFlow | null);
 	const analysisByElement = $derived(data.analysisByElement as Record<string, ParagraphAnalysis>);
 
-	type View = 'pipeline' | 'werkanalyse' | 'dokument' | 'outline' | 'companions';
-	const VIEWS: View[] = ['pipeline', 'werkanalyse', 'dokument', 'outline', 'companions'];
+	type View = 'pipeline' | 'dokument' | 'outline' | 'companions';
+	const VIEWS: View[] = ['pipeline', 'dokument', 'outline', 'companions'];
 	const VIEW_LABEL: Record<View, string> = {
 		pipeline: 'Pipeline',
-		werkanalyse: 'Werk-Analyse',
 		dokument: 'Dokument',
 		outline: 'Outline',
 		companions: 'Begleitdocs',
@@ -310,53 +309,6 @@
 	let werkLoading = $state(false);
 	let werkError = $state<string | null>(null);
 
-	type WerkSectionKey =
-		| 'EXPOSITION'
-		| 'GRUNDLAGENTHEORIE'
-		| 'FORSCHUNGSDESIGN'
-		| 'DURCHFUEHRUNG'
-		| 'SYNTHESE'
-		| 'SCHLUSSREFLEXION'
-		| 'WERK_DESKRIPTION'
-		| 'WERK_GUTACHT'
-		| 'EXKURS';
-
-	const WERK_SECTION_ORDER: WerkSectionKey[] = [
-		'EXPOSITION',
-		'GRUNDLAGENTHEORIE',
-		'FORSCHUNGSDESIGN',
-		'DURCHFUEHRUNG',
-		'SYNTHESE',
-		'SCHLUSSREFLEXION',
-		'WERK_DESKRIPTION',
-		'WERK_GUTACHT',
-		'EXKURS',
-	];
-
-	const WERK_SECTION_LABEL: Record<WerkSectionKey, string> = {
-		EXPOSITION: 'Bezugsrahmen',
-		GRUNDLAGENTHEORIE: 'Theoretische Verortung',
-		FORSCHUNGSDESIGN: 'Forschungsdesign',
-		DURCHFUEHRUNG: 'Durchführung',
-		SYNTHESE: 'Synthese',
-		SCHLUSSREFLEXION: 'Schlussreflexion',
-		WERK_DESKRIPTION: 'Werk-Deskription',
-		WERK_GUTACHT: 'Werk-Gutacht',
-		EXKURS: 'Exkurs',
-	};
-
-	const WERK_SECTION_DESC: Record<WerkSectionKey, string> = {
-		EXPOSITION: 'Fragestellung und Motivation aus der Einleitung.',
-		GRUNDLAGENTHEORIE: 'Verweis-Profil, diskursive Bezüge und der spezifizierte Forschungsgegenstand pro GTH-Container.',
-		FORSCHUNGSDESIGN: 'Methodologie, Methoden und Basis — oder Aufbau-Skizze, falls kein eigenständiges Methodenkapitel vorliegt.',
-		DURCHFUEHRUNG: 'Konsolidierte Befunde aus der Hotspot-fokussierten Argument-Analyse.',
-		SYNTHESE: 'Gesamtergebnis mit Bezug zur Fragestellung.',
-		SCHLUSSREFLEXION: 'Geltungsanspruch, Grenzen und Anschlussforschung.',
-		WERK_DESKRIPTION: 'Neutrale, deskriptive Werk-Beschreibung — Grundlage für das Gutachten.',
-		WERK_GUTACHT: 'Kritische Würdigung. Teil c (Fazit) ist gated durch eigenen Review-Draft des Users — heute zur Test-Phase deaktiviert.',
-		EXKURS: 'Re-Spezifikation des Forschungsgegenstandes durch Exkurs-Container (version_stack-Append).',
-	};
-
 	const CONSTRUCT_KIND_LABEL: Record<string, string> = {
 		FRAGESTELLUNG: 'Fragestellung',
 		MOTIVATION: 'Motivation',
@@ -377,28 +329,6 @@
 
 	function constructKindLabel(k: string): string {
 		return CONSTRUCT_KIND_LABEL[k] ?? k;
-	}
-
-	function werkConstructsByType(
-		constructs: H3ConstructDto[] | null
-	): Record<WerkSectionKey, H3ConstructDto[]> {
-		const groups: Record<WerkSectionKey, H3ConstructDto[]> = {
-			EXPOSITION: [],
-			GRUNDLAGENTHEORIE: [],
-			FORSCHUNGSDESIGN: [],
-			DURCHFUEHRUNG: [],
-			SYNTHESE: [],
-			SCHLUSSREFLEXION: [],
-			WERK_DESKRIPTION: [],
-			WERK_GUTACHT: [],
-			EXKURS: [],
-		};
-		if (!constructs) return groups;
-		for (const c of constructs) {
-			const key = c.outline_function_type as WerkSectionKey;
-			if (key in groups) groups[key].push(c);
-		}
-		return groups;
 	}
 
 	function pickText(c: H3ConstructDto, ...keys: string[]): string | null {
@@ -2019,103 +1949,6 @@
 					{/if}
 				{/if}
 			</section>
-		{:else if view === 'werkanalyse'}
-			<section class="tab-content werkanalyse-tab">
-				{#if !caseInfo}
-					<div class="placeholder">
-						<h2>Werk-Analyse</h2>
-						<p>
-							Strukturierte Sicht auf die H3-Konstrukte des Werks
-							(Bezugsrahmen, theoretische Verortung, Methodik, Befunde,
-							Synthese, Schlussreflexion, Werk-Gutacht). Voraussetzung: ein
-							Case mit zentralem Dokument.
-						</p>
-					</div>
-				{:else}
-					{@const groups = werkConstructsByType(werkConstructs)}
-					{@const hasAny = (werkConstructs?.length ?? 0) > 0}
-					<header class="werk-head">
-						<div>
-							<h2>Werk-Analyse</h2>
-							<p class="werk-sub">
-								Werk-aggregierte H3-Konstrukte aus dem zentralen Dokument, in
-								der Cross-Typ-Reihenfolge gelesen. Zeigt den jeweils aktuellen
-								Stand der DB — unabhängig vom Brief-Pfad. Lauf-Metadaten werden
-								ausgeblendet, nur die rekonstruierten Inhalte sind sichtbar.
-							</p>
-						</div>
-						<button
-							class="refresh-btn"
-							onclick={loadWerkConstructs}
-							disabled={werkLoading}
-						>
-							{werkLoading ? 'Lade…' : 'Neu laden'}
-						</button>
-					</header>
-
-					{#if werkError}
-						<div class="error-box">Inhalte konnten nicht geladen werden: {werkError}</div>
-					{:else if !hasAny && !werkLoading}
-						<div class="placeholder">
-							<h2>Noch keine Werk-Konstrukte</h2>
-							<p>
-								Für dieses Werk wurden noch keine H3-Konstrukte extrahiert.
-								Wechsle zum
-								<button class="link-btn" onclick={() => selectView('pipeline')}>Pipeline-Tab</button>
-								und starte einen Analyselauf mit Heuristik-Pfad H3.
-							</p>
-						</div>
-					{:else if hasAny}
-						<div class="werk-sections">
-							{#each WERK_SECTION_ORDER as outlineType (outlineType)}
-								{@const constructs = groups[outlineType] ?? []}
-								{#if constructs.length > 0 || outlineType === 'EXKURS'}
-									<section class="werk-section">
-										<header>
-											<h3>{WERK_SECTION_LABEL[outlineType]}</h3>
-											<p class="werk-section-sub">{WERK_SECTION_DESC[outlineType]}</p>
-										</header>
-										{#if constructs.length === 0}
-											{#if outlineType === 'EXKURS'}
-												{@const fgWithRespec = (groups.GRUNDLAGENTHEORIE ?? [])
-													.filter((c) => c.construct_kind === 'FORSCHUNGSGEGENSTAND')
-													.find((c) => Array.isArray(c.version_stack)
-														&& c.version_stack.some((v) => (v as { kind?: string })?.kind === 're_spec'))}
-												{#if fgWithRespec}
-													<article class="werk-construct">
-														<h4>Re-Spezifikation des Forschungsgegenstandes</h4>
-														<p class="werk-meta">
-															Der EXKURS hat den FORSCHUNGSGEGENSTAND
-															iterativ verändert. Stack-Tiefe:
-															{(fgWithRespec.version_stack as unknown[]).length}.
-														</p>
-													</article>
-												{:else}
-													<p class="werk-empty">Kein Exkurs-Re-Spec im Werk.</p>
-												{/if}
-											{:else}
-												<p class="werk-empty">Noch keine Konstrukte für diesen Funktionstyp.</p>
-											{/if}
-										{:else}
-											{#each constructs as construct (construct.id)}
-												<article class="werk-construct">
-													<header class="werk-construct-head">
-														<h4>{constructKindLabel(construct.construct_kind)}</h4>
-														<span class="werk-meta">
-															{formatLastRun(construct.updated_at)}
-														</span>
-													</header>
-													{@render werkConstructBody(construct)}
-												</article>
-											{/each}
-										{/if}
-									</section>
-								{/if}
-							{/each}
-						</div>
-					{/if}
-				{/if}
-			</section>
 		{:else if view === 'dokument'}
 			<section class="tab-content dokument-tab">
 				{#if !caseInfo}
@@ -3343,48 +3176,6 @@
 		margin-left: 0.3em;
 	}
 
-	.werkanalyse-tab { padding-top: 0.5rem; }
-	.werk-head {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		gap: 1rem;
-		margin-bottom: 1.2rem;
-	}
-	.werk-head h2 { margin: 0 0 0.4rem; }
-	.werk-sub {
-		margin: 0;
-		color: #8b8fa3;
-		font-size: 0.85rem;
-		line-height: 1.5;
-		max-width: 78ch;
-	}
-	.werk-sections {
-		display: flex;
-		flex-direction: column;
-		gap: 1.6rem;
-	}
-	.werk-section {
-		border: 1px solid #2a2d3a;
-		border-radius: 6px;
-		padding: 1rem 1.2rem;
-		background: rgba(255, 255, 255, 0.015);
-	}
-	.werk-section header {
-		margin-bottom: 0.8rem;
-		padding-bottom: 0.5rem;
-		border-bottom: 1px dashed #2a2d3a;
-	}
-	.werk-section header h3 {
-		margin: 0 0 0.25rem;
-		font-size: 1rem;
-		color: #e1e4e8;
-	}
-	.werk-section-sub {
-		margin: 0;
-		font-size: 0.78rem;
-		color: #8b8fa3;
-	}
 	.werk-construct {
 		padding: 0.7rem 0;
 		border-top: 1px dashed #1f2230;
