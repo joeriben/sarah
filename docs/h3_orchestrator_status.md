@@ -21,6 +21,8 @@ Letztes Update: 2026-05-04 — Interface-Session-Ergänzungen: SR-Recovery-Heuri
 | Outline-Numbering-Counter-as-Master (Server + Frontend, Parser-Mismatch via `hasNumberingMismatch`-Flag) | ✓ Interface-Session 2026-05-04 |
 | WERK_DESKRIPTION-Heuristik (Mig 050, Aggregat aus allen H3-Konstrukten + optional H1/H2-memo_content) | ✓ Interface-Session 2026-05-04 |
 | WERK_GUTACHT-Heuristik a/b/c (Stage-c-Gating für Testung deaktiviert; d/e/f bleibt deferred bis review_draft-Upload) | ✓ Interface-Session 2026-05-04 |
+| Heuristik-Pfad-Wahl-Radio H1/H2/H3 + 'auto' (Brief-Default) im Doc-Page Run-Setup | ✓ Interface-Session 2026-05-04 |
+| Pre-Run-Validation der H3-Pflicht-Funktionstypen (`H3_REQUIRED_FUNCTION_TYPES` in h3-vocabulary.ts gegen Outline-Coverage) — Block-Banner + disabled Run-Button | ✓ Interface-Session 2026-05-04 |
 | Frischer End-to-end-Lauf (neuer Case mit `h3_enabled=true`) | offen |
 
 ---

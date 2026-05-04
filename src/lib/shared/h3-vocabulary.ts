@@ -62,3 +62,56 @@ export function isOutlineFunctionType(v: unknown): v is OutlineFunctionType {
 export function isGranularityLevel(v: unknown): v is GranularityLevel {
 	return typeof v === 'string' && (GRANULARITY_LEVELS as readonly string[]).includes(v);
 }
+
+// ── Heuristik-Pflicht-Funktionstypen ──────────────────────────────
+//
+// Pre-Run-Validation: welche Outline-Funktionstypen müssen mind. 1× im
+// Outline vergeben sein, damit eine Heuristik laufen kann?
+//
+// H1, H2: strukturblind (analytische Hauptlinie / synthetisches Per-¶-Memo) —
+// keine Pflicht-Funktionstypen.
+//
+// H3: funktionstyp-orchestriert. Pflicht sind die Funktionstypen, deren
+// Konstrukt direkt von späteren H3-Phasen als Cross-Read verlangt wird:
+//   - EXPOSITION → liefert FRAGESTELLUNG (Cross-Read überall)
+//   - GRUNDLAGENTHEORIE → liefert FORSCHUNGSGEGENSTAND (Cross-Read von
+//     FORSCHUNGSDESIGN/DURCHFUEHRUNG/SCHLUSSREFLEXION)
+//   - DURCHFUEHRUNG → liefert BEFUNDE (Cross-Read von SYNTHESE)
+//   - SYNTHESE → liefert GESAMTERGEBNIS (Cross-Read von SCHLUSSREFLEXION/
+//     WERK_GUTACHT)
+//
+// Optional (mit Recovery-Heuristik): FORSCHUNGSDESIGN (AUFBAU_SKIZZE-
+// Pyramide), SCHLUSSREFLEXION (letztes-Drittel-Recovery). EXKURS und
+// WERK_STRUKTUR sind ohnehin optional.
+
+export const H3_REQUIRED_FUNCTION_TYPES: readonly OutlineFunctionType[] = [
+	'EXPOSITION',
+	'GRUNDLAGENTHEORIE',
+	'DURCHFUEHRUNG',
+	'SYNTHESE',
+] as const;
+
+export const H3_OPTIONAL_FUNCTION_TYPES: readonly OutlineFunctionType[] = [
+	'FORSCHUNGSDESIGN',
+	'SCHLUSSREFLEXION',
+	'EXKURS',
+	'WERK_STRUKTUR',
+] as const;
+
+export type HeuristicPath = 'h1' | 'h2' | 'h3';
+
+/**
+ * Berechnet die fehlenden Pflicht-Funktionstypen für eine Heuristik gegen
+ * die tatsächliche Outline-Coverage. coverage: Map outline_function_type →
+ * Anzahl Headings im Werk. Werte >= 1 zählen als "vergeben".
+ *
+ * Returns die Liste der fehlenden Pflicht-Typen — leer = alles OK.
+ * Für H1/H2 immer leer (strukturblind).
+ */
+export function missingRequiredFunctionTypes(
+	heuristic: HeuristicPath,
+	coverage: Record<string, number>
+): OutlineFunctionType[] {
+	if (heuristic !== 'h3') return [];
+	return H3_REQUIRED_FUNCTION_TYPES.filter((t) => (coverage[t] ?? 0) === 0);
+}

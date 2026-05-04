@@ -13,6 +13,11 @@
 	import { replaceState, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
 	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, WorkSynthesis, ChapterFlow, CaseInfo, OutlineEntry, BriefOption, ParagraphAnalysis } from './+page.server.js';
+	import {
+		missingRequiredFunctionTypes,
+		OUTLINE_FUNCTION_TYPE_LABELS,
+		type HeuristicPath,
+	} from '$lib/shared/h3-vocabulary.js';
 	import ReaderModal from './ReaderModal.svelte';
 	import DocumentReader from './DocumentReader.svelte';
 	import ArgumentPopover from './ArgumentPopover.svelte';
@@ -184,17 +189,32 @@
 	let pipelineError = $state<string | null>(null);
 
 	// Run-Steuerung. H1, H2, H3 sind exklusive Heuristik-Pfade pro Run
-	// (Memory `project_three_heuristics_architecture.md`); der Toggle hier
-	// erzwingt H2 statt des Brief-Defaults. Eine vollständige Pfad-Wahl-UI
-	// (Radio H1/H2/H3 mit Brief-Default-Hinweis) gehört zur Interface-Phase
-	// und ist hier bewusst minimal.
+	// (Memory `project_three_heuristics_architecture.md`). 'auto' = Server
+	// nutzt den Brief-Default (h3 wenn briefH3Enabled, sonst h1); explizite
+	// Wahl überschreibt. Pre-Run-Validation prüft H3-Pflicht-Funktionstypen
+	// gegen die Outline-Coverage und blockiert den Run bei fehlenden Typen.
+	type HeuristicChoice = 'auto' | HeuristicPath;
 	let runActive = $state(false);
-	let runOptions = $state<{ pickH2: boolean }>({ pickH2: false });
+	let runOptions = $state<{ heuristic: HeuristicChoice }>({ heuristic: 'auto' });
 	let runEvents = $state<string[]>([]);
 	let runError = $state<string | null>(null);
 	let runEventSource: AbortController | null = null;
 	let cancellingRun = $state(false);
 	let atomErrorsThisRun = $state(0);
+
+	// Brief-Default und effektive Heuristik. h3_enabled=true im Brief →
+	// Server würde 'h3' wählen, wenn der Run-Body kein heuristic-Feld setzt.
+	const briefDefaultHeuristic = $derived<HeuristicPath>(
+		caseInfo?.briefH3Enabled ? 'h3' : 'h1'
+	);
+	const effectiveHeuristic = $derived<HeuristicPath>(
+		runOptions.heuristic === 'auto' ? briefDefaultHeuristic : runOptions.heuristic
+	);
+	const outlineCoverage = $derived(data.outlineFunctionTypeCoverage ?? {});
+	const missingRequiredTypes = $derived(
+		missingRequiredFunctionTypes(effectiveHeuristic, outlineCoverage)
+	);
+	const preRunValidationBlocks = $derived(missingRequiredTypes.length > 0);
 
 	// error_message ist seit fail-tolerant entweder plain string (catastrophic
 	// Run-Failure, e.g. Stuck-Guard) oder JSON mit { atom_errors:[…] } (einzelne
@@ -240,7 +260,9 @@
 			const r = await fetch(`/api/cases/${caseInfo.id}/pipeline/run`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-				body: JSON.stringify(runOptions.pickH2 ? { heuristic: 'h2' } : {}),
+				body: JSON.stringify(
+					runOptions.heuristic === 'auto' ? {} : { heuristic: runOptions.heuristic }
+				),
 				signal: ac.signal,
 			});
 			if (!r.ok || !r.body) {
@@ -1182,18 +1204,64 @@
 												die Charity-Pass-Phase (Argument-Validität) zwischen AG und Synthesen.
 											</p>
 										{/if}
-										<label class="opt-toggle">
-											<input
-												type="checkbox"
-												bind:checked={runOptions.pickH2}
-												disabled={!agEnabled}
-											/>
-											<span>H2-Pfad (synthetisches Per-¶-Memo) statt H1</span>
-										</label>
+										<fieldset class="heuristic-radio">
+											<legend>Heuristik-Pfad</legend>
+											<label>
+												<input
+													type="radio"
+													name="heuristic"
+													value="auto"
+													bind:group={runOptions.heuristic}
+													disabled={!agEnabled}
+												/>
+												<span>Auto · Brief-Default ({briefDefaultHeuristic.toUpperCase()})</span>
+											</label>
+											<label>
+												<input
+													type="radio"
+													name="heuristic"
+													value="h1"
+													bind:group={runOptions.heuristic}
+													disabled={!agEnabled}
+												/>
+												<span>H1 · Argumentanalyse (AG → Subkapitel/Kapitel/Werk-Synthese)</span>
+											</label>
+											<label>
+												<input
+													type="radio"
+													name="heuristic"
+													value="h2"
+													bind:group={runOptions.heuristic}
+													disabled={!agEnabled}
+												/>
+												<span>H2 · Synthetisches Per-¶-Memo</span>
+											</label>
+											<label>
+												<input
+													type="radio"
+													name="heuristic"
+													value="h3"
+													bind:group={runOptions.heuristic}
+													disabled={!agEnabled}
+												/>
+												<span>H3 · Funktionstyp-orchestriert</span>
+											</label>
+										</fieldset>
+										{#if preRunValidationBlocks}
+											<div class="prerun-block">
+												<strong>Outline unvollständig für H3</strong> — folgende Pflicht-Funktionstypen sind im Outline noch nicht vergeben:
+												<ul>
+													{#each missingRequiredTypes as t (t)}
+														<li><code>{t}</code> ({OUTLINE_FUNCTION_TYPE_LABELS[t]})</li>
+													{/each}
+												</ul>
+												<a class="prerun-link" href="/projects/{projectId}/documents/{docId}/outline">→ Outline öffnen und Funktionstypen zuweisen</a>
+											</div>
+										{/if}
 										<button
 											class="run-btn start"
 											onclick={startOrResumeRun}
-											disabled={!agEnabled}
+											disabled={!agEnabled || preRunValidationBlocks}
 										>
 											{canResume ? '▶ Fortsetzen' : run?.status === 'completed' ? '↻ Neu durchlaufen' : '▶ Analyselauf starten'}
 										</button>
@@ -2281,6 +2349,61 @@
 	}
 	.opt-toggle input { cursor: pointer; }
 	.opt-toggle input:disabled { cursor: not-allowed; }
+	.heuristic-radio {
+		flex-basis: 100%;
+		display: flex; flex-direction: column; gap: 0.35rem;
+		margin: 0 0 0.5rem;
+		padding: 0.55rem 0.75rem;
+		border: 1px solid rgba(255,255,255,0.08);
+		border-radius: 4px;
+		background: rgba(255,255,255,0.02);
+	}
+	.heuristic-radio legend {
+		font-size: 0.72rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: #9aa0aa;
+		padding: 0 0.3rem;
+	}
+	.heuristic-radio label {
+		display: inline-flex; align-items: center; gap: 0.4rem;
+		font-size: 0.82rem; color: #c9cdd5;
+		cursor: pointer;
+	}
+	.heuristic-radio input[type='radio'] { cursor: pointer; }
+	.heuristic-radio input[type='radio']:disabled { cursor: not-allowed; }
+	.prerun-block {
+		flex-basis: 100%;
+		margin: 0 0 0.5rem;
+		padding: 0.55rem 0.75rem;
+		background: rgba(248, 113, 113, 0.08);
+		border-left: 2px solid rgba(248, 113, 113, 0.6);
+		border-radius: 0 4px 4px 0;
+		font-size: 0.82rem;
+		color: #fca5a5;
+		line-height: 1.45;
+	}
+	.prerun-block strong {
+		color: #fecaca;
+	}
+	.prerun-block ul {
+		margin: 0.3rem 0 0.4rem 1rem;
+		padding: 0;
+	}
+	.prerun-block code {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.74rem;
+		color: #fecaca;
+		background: rgba(248, 113, 113, 0.12);
+		padding: 1px 4px;
+		border-radius: 3px;
+	}
+	.prerun-link {
+		color: #fbbf24;
+		text-decoration: underline;
+		font-size: 0.78rem;
+	}
+	.prerun-link:hover { color: #fcd34d; }
 	.run-validity-note {
 		flex-basis: 100%;
 		margin: 0 0 0.4rem;

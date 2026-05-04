@@ -126,6 +126,7 @@ export interface CaseInfo {
 	briefName: string | null;
 	briefWorkType: string | null;
 	includeFormulierend: boolean;
+	briefH3Enabled: boolean;
 }
 
 export interface BriefOption {
@@ -195,9 +196,11 @@ export const load: PageServerLoad = async ({ params }) => {
 		brief_name: string | null;
 		work_type: string | null;
 		include_formulierend: boolean | null;
+		h3_enabled: boolean | null;
 	}>(
 		`SELECT c.id, c.name, c.assessment_brief_id AS brief_id,
-		        b.name AS brief_name, b.work_type, b.include_formulierend
+		        b.name AS brief_name, b.work_type, b.include_formulierend,
+		        b.h3_enabled
 		 FROM cases c
 		 LEFT JOIN assessment_briefs b ON b.id = c.assessment_brief_id
 		 WHERE c.central_document_id = $1`,
@@ -212,6 +215,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			briefName: caseRow.brief_name,
 			briefWorkType: caseRow.work_type,
 			includeFormulierend: caseRow.include_formulierend ?? false,
+			briefH3Enabled: caseRow.h3_enabled ?? false,
 		}
 		: null;
 
@@ -601,6 +605,18 @@ export const load: PageServerLoad = async ({ params }) => {
 		excluded: h.excluded,
 	}));
 
+	// Pre-Run-Validation-Datenbasis: outline_function_type-Coverage. Map
+	// jedes vergebenen Funktionstyps auf die Anzahl der Headings, die ihn
+	// tragen (nicht-excluded). H3-Pflicht-Check vergleicht gegen
+	// H3_REQUIRED_FUNCTION_TYPES aus h3-vocabulary.
+	const outlineFunctionTypeCoverage: Record<string, number> = {};
+	for (const h of effectiveOutline?.headings ?? []) {
+		if (h.excluded) continue;
+		if (!h.outlineFunctionType) continue;
+		outlineFunctionTypeCoverage[h.outlineFunctionType] =
+			(outlineFunctionTypeCoverage[h.outlineFunctionType] ?? 0) + 1;
+	}
+
 	return {
 		document: doc,
 		anonymization: {
@@ -616,6 +632,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		codesByElement,
 		synthesesByHeading,
 		outlineEntries,
+		outlineFunctionTypeCoverage,
 		briefOptions,
 		paragraphHasAg,
 		aggregationLevelByL1,
