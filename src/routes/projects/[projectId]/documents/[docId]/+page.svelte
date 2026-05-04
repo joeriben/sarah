@@ -246,15 +246,17 @@
 		'h3_exkurs',
 	];
 
-	// Erforderliche outline_function_types pro H3-Phase: ohne den Container
-	// im Outline kann die Heuristik nichts extrahieren.
+	// Outline-Funktionstypen die HARTE Pflicht für eine H3-Phase sind: ohne
+	// Container im Outline kann die Heuristik nichts extrahieren UND es gibt
+	// keine Recovery-Pyramide. FORSCHUNGSDESIGN, SCHLUSSREFLEXION und EXKURS
+	// fehlen hier bewusst — die zugehörigen Heuristiken haben Recovery-
+	// Mechanismen (AUFBAU_SKIZZE-Pyramide bei FD, Letztes-Drittel bei SR;
+	// EXKURS ist sowieso optional). Quelle: H3_REQUIRED_FUNCTION_TYPES in
+	// h3-vocabulary.ts.
 	const H3_REQUIRED_OUTLINE_TYPE: Partial<Record<H3PhaseKey, string>> = {
 		h3_exposition: 'EXPOSITION',
 		h3_grundlagentheorie: 'GRUNDLAGENTHEORIE',
-		h3_forschungsdesign: 'FORSCHUNGSDESIGN',
 		h3_durchfuehrung: 'DURCHFUEHRUNG',
-		h3_schlussreflexion: 'SCHLUSSREFLEXION',
-		h3_exkurs: 'EXKURS',
 	};
 
 	// Vorgelagerte H3-Phasen, deren Output als Bezugsrahmen einer Phase
