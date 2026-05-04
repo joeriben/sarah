@@ -19,14 +19,16 @@
 //      bei Re-Run wird der alte Container + zugehörige FORSCHUNGSDESIGN-
 //      Konstrukte gelöscht. Provenienz-Marker pro Range im Container.
 //   3. Bezugsrahmen laden: FRAGESTELLUNG (EXPOSITION, Charakterisierung)
-//      und FORSCHUNGSGEGENSTAND (GRUNDLAGENTHEORIE, Spezifizierung — falls
-//      vorhanden). CCS-Logik: cue → characterization → specification.
+//      und FORSCHUNGSGEGENSTAND (GRUNDLAGENTHEORIE, Spezifizierung).
+//      CCS-Logik: cue → characterization → specification.
 //      Die FRAGESTELLUNG aus der Exposition ist allenfalls characterisiert
 //      (außer sie ist bereits in der Einleitung hart theoretisch belegt);
 //      erst FORSCHUNGSGEGENSTAND liefert die Spezifizierung. Die methodisch
 //      relevante "spezifizierte Fragestellung" ist beides zusammen.
-//      FORSCHUNGSGEGENSTAND kann zur Laufzeit fehlen (Parallel-Session) —
-//      Prompt vermerkt das ausdrücklich.
+//      Beide sind HARTE Vorbedingungen — fehlt einer, wird die Heuristik
+//      nicht ausgeführt (PreconditionFailedError). Konsequenz aus
+//      docs/h3_orchestrator_spec.md #2: kein analytischer Lauf ohne
+//      vollständigen Analysehorizont.
 //   4. METHODIK_EXTRAHIEREN: ein LLM-Call, drei Felder ein Pass.
 //      Pro Feld mit non-null Inhalt → ein function_construct mit
 //      construct_kind METHODOLOGIE / METHODEN / BASIS.
@@ -39,6 +41,7 @@ import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, getModel, getProvider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
+import { PreconditionFailedError } from './precondition.js';
 
 // ── Marker-Set für Methoden-Sätze ─────────────────────────────────
 
@@ -268,13 +271,23 @@ async function collectParagraphs(documentId: string): Promise<{
 }
 
 // ── Bezugsrahmen: FRAGESTELLUNG + FORSCHUNGSGEGENSTAND ───────────
+//
+// Beide sind HARTE Vorbedingungen. Der `loadBezugsrahmen`-Aufrufer ist
+// für die Vorbedingungs-Prüfung verantwortlich. Diese Loader-Funktion
+// gibt nullable zurück, damit die Prüfung am Aufrufer (mit klarer
+// Diagnostik) stattfindet.
 
 interface Bezugsrahmen {
+	fragestellungText: string;
+	forschungsgegenstandText: string;
+}
+
+interface BezugsrahmenLoadResult {
 	fragestellungText: string | null;
 	forschungsgegenstandText: string | null;
 }
 
-async function loadBezugsrahmen(documentId: string): Promise<Bezugsrahmen> {
+async function loadBezugsrahmen(documentId: string): Promise<BezugsrahmenLoadResult> {
 	const fragestellung = await queryOne<{ content: { text?: string } }>(
 		`SELECT content
 		 FROM function_constructs
@@ -371,12 +384,8 @@ async function methodikExtrahieren(
 	strategy: Provenance,
 	documentId: string
 ): Promise<{ result: MethodikResult; tokens: { input: number; output: number } }> {
-	const fragestellung = bezugsrahmen.fragestellungText
-		? bezugsrahmen.fragestellungText
-		: '(noch nicht rekonstruiert — H3:EXPOSITION wurde für dieses Werk noch nicht gelaufen)';
-	const forschungsgegenstand = bezugsrahmen.forschungsgegenstandText
-		? bezugsrahmen.forschungsgegenstandText
-		: '(noch nicht spezifiziert — H3:GRUNDLAGENTHEORIE für dieses Werk läuft parallel und ist noch nicht abgeschlossen. WICHTIG: ohne Spezifizierung durch die Theoriearbeit hat die FRAGESTELLUNG aus der Exposition nur Charakterisierungs-Status. Die Methodenwahl kann hier vorläufig nur gegen die CHARAKTERISIERTE, nicht gegen die SPEZIFIZIERTE Fragestellung gehalten werden — entsprechend zurückhaltend formulieren, wo sich diese Lücke auf eine methodische Beurteilung auswirken würde.)';
+	const fragestellung = bezugsrahmen.fragestellungText;
+	const forschungsgegenstand = bezugsrahmen.forschungsgegenstandText;
 
 	const sourceHint = (() => {
 		switch (strategy) {
@@ -495,9 +504,6 @@ export interface ForschungsdesignPassResult {
 	containerLabel: string | null;        // Heading-Text, falls aus Outline/EXPOSITION
 	collectedParagraphCount: number;
 	virtualContainerId: string | null;
-	bezugsrahmenComplete: boolean;        // FRAGESTELLUNG UND FORSCHUNGSGEGENSTAND da
-	hadFragestellung: boolean;
-	hadForschungsgegenstand: boolean;
 	methodologie: { constructId: string; text: string } | null;
 	methoden: { constructId: string; text: string } | null;
 	basis: { constructId: string; text: string } | null;
@@ -520,9 +526,36 @@ export async function runForschungsdesignPass(
 	}
 	const documentId = caseRow.central_document_id;
 
+	// HARTE Vorbedingungen prüfen, bevor Sammel- oder LLM-Arbeit anläuft.
+	// Spec: docs/h3_orchestrator_spec.md #2.
+	const loaded = await loadBezugsrahmen(documentId);
+	if (!loaded.fragestellungText) {
+		throw new PreconditionFailedError({
+			heuristic: 'FORSCHUNGSDESIGN',
+			missing: 'FRAGESTELLUNG',
+			diagnostic:
+				'H3:EXPOSITION muss vor FORSCHUNGSDESIGN für dieses Werk gelaufen sein. Methodische Angemessenheit braucht die rekonstruierte Fragestellung als Bezugspunkt.',
+		});
+	}
+	if (!loaded.forschungsgegenstandText) {
+		throw new PreconditionFailedError({
+			heuristic: 'FORSCHUNGSDESIGN',
+			missing: 'FORSCHUNGSGEGENSTAND',
+			diagnostic:
+				'H3:GRUNDLAGENTHEORIE muss vor FORSCHUNGSDESIGN für dieses Werk gelaufen sein. Methodische Angemessenheit braucht den spezifizierten Forschungsgegenstand als Maßstab — ohne ihn gibt es keinen Analysehorizont.',
+		});
+	}
+	const bezugsrahmen: Bezugsrahmen = {
+		fragestellungText: loaded.fragestellungText,
+		forschungsgegenstandText: loaded.forschungsgegenstandText,
+	};
+
 	const collected = await collectParagraphs(documentId);
 
 	if (collected.paragraphs.length === 0 || collected.strategy === null) {
+		// Strukturelle Abwesenheit: das Werk hat keine FORSCHUNGSDESIGN-relevanten
+		// ¶. Vorbedingungen sind erfüllt, also kein STOP — der Orchestrator wird
+		// das später als legitimen SKIP behandeln.
 		return {
 			caseId,
 			documentId,
@@ -530,9 +563,6 @@ export async function runForschungsdesignPass(
 			containerLabel: null,
 			collectedParagraphCount: 0,
 			virtualContainerId: null,
-			bezugsrahmenComplete: false,
-			hadFragestellung: false,
-			hadForschungsgegenstand: false,
 			methodologie: null,
 			methoden: null,
 			basis: null,
@@ -542,8 +572,6 @@ export async function runForschungsdesignPass(
 			provider: getProvider(),
 		};
 	}
-
-	const bezugsrahmen = await loadBezugsrahmen(documentId);
 
 	await clearExistingForschungsdesign(caseId, documentId);
 
@@ -609,11 +637,6 @@ export async function runForschungsdesignPass(
 		containerLabel: collected.containerLabel,
 		collectedParagraphCount: collected.paragraphs.length,
 		virtualContainerId,
-		bezugsrahmenComplete:
-			bezugsrahmen.fragestellungText !== null &&
-			bezugsrahmen.forschungsgegenstandText !== null,
-		hadFragestellung: bezugsrahmen.fragestellungText !== null,
-		hadForschungsgegenstand: bezugsrahmen.forschungsgegenstandText !== null,
 		methodologie,
 		methoden,
 		basis,

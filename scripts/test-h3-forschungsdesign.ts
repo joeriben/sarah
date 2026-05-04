@@ -3,8 +3,13 @@
 //
 // Phase-3-Smoke-Test für H3:FORSCHUNGSDESIGN.
 // Aufruf: npx tsx scripts/test-h3-forschungsdesign.ts <caseId>
+//
+// Vorbedingungen sind HART (docs/h3_orchestrator_spec.md #2): FRAGESTELLUNG
+// und FORSCHUNGSGEGENSTAND müssen vor diesem Lauf vorliegen, sonst wirft
+// die Heuristik PreconditionFailedError und der Lauf bricht klar ab.
 
 import { runForschungsdesignPass } from '../src/lib/server/ai/h3/forschungsdesign.js';
+import { PreconditionFailedError } from '../src/lib/server/ai/h3/precondition.js';
 import { pool, query } from '../src/lib/server/db/index.js';
 
 async function main() {
@@ -24,11 +29,6 @@ async function main() {
 	console.log(`Container-Heading:        ${result.containerLabel ?? '(n/a)'}`);
 	console.log(`Gesammelte ¶:             ${result.collectedParagraphCount}`);
 	console.log(`Virtueller Container:     ${result.virtualContainerId ?? '(keiner)'}`);
-
-	console.log('\n--- Bezugsrahmen ---');
-	console.log(`FRAGESTELLUNG vorhanden:        ${result.hadFragestellung}`);
-	console.log(`FORSCHUNGSGEGENSTAND vorhanden: ${result.hadForschungsgegenstand}`);
-	console.log(`Bezugsrahmen vollständig:       ${result.bezugsrahmenComplete}`);
 
 	console.log('\n--- METHODOLOGIE ---');
 	if (result.methodologie) {
@@ -110,6 +110,12 @@ async function main() {
 }
 
 main().catch((e) => {
-	console.error('\n>>> FAILED:', e instanceof Error ? e.stack : e);
-	pool.end().finally(() => process.exit(1));
+	if (e instanceof PreconditionFailedError) {
+		console.error(`\n>>> VORBEDINGUNG VERLETZT (${e.heuristic}): ${e.missing}`);
+		console.error(`    ${e.diagnostic}`);
+		pool.end().finally(() => process.exit(2));
+	} else {
+		console.error('\n>>> FAILED:', e instanceof Error ? e.stack : e);
+		pool.end().finally(() => process.exit(1));
+	}
 });
