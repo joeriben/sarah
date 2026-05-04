@@ -18,9 +18,15 @@
 // dump, or surface the error.
 
 import { jsonrepair } from 'jsonrepair';
-import type { ZodType } from 'zod';
+import type { ZodType, ZodTypeDef } from 'zod';
 import { chat, getModel, getProvider, type Provider } from './client.js';
 import { logPipelineCall } from './pipeline-call-log.js';
+
+// Schemas with `.default()` etc have Input ≠ Output; using `ZodType<T>` would
+// force T to be the more-restrictive input type and lose the post-parse fields.
+// Allowing the Input parameter to be `unknown` lets T infer to the output type
+// (what `safeParse(...).data` actually returns).
+type AnyInputZodType<T> = ZodType<T, ZodTypeDef, unknown>;
 
 export interface ExtractSuccess<T> {
 	ok: true;
@@ -45,7 +51,7 @@ export type ExtractResult<T> = ExtractSuccess<T> | ExtractFailure;
  */
 export function extractAndValidateJSON<T>(
 	rawText: string,
-	schema: ZodType<T>
+	schema: AnyInputZodType<T>
 ): ExtractResult<T> {
 	const stages: string[] = [];
 
@@ -120,7 +126,7 @@ export function extractAndValidateJSON<T>(
 interface ParseSuccess<T> { ok: true; value: T; }
 interface ParseFailure { ok: false; stage: 'JSON.parse' | 'zod'; error: string; }
 
-function tryParseAndValidate<T>(jsonText: string, schema: ZodType<T>): ParseSuccess<T> | ParseFailure {
+function tryParseAndValidate<T>(jsonText: string, schema: AnyInputZodType<T>): ParseSuccess<T> | ParseFailure {
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(jsonText);
@@ -193,6 +199,8 @@ export interface RepairCallResult<T> {
 	retries: number;               // 0 = first call succeeded
 	attempts: number;              // = retries + 1
 	stagesPerAttempt: string[][];  // diagnostic: what each attempt went through
+	model: string;                 // resolved model key (from override or settings)
+	provider: Provider;            // resolved provider (from override or settings)
 }
 
 export class RepairCallExhaustedError extends Error {
@@ -213,7 +221,7 @@ export class RepairCallExhaustedError extends Error {
 export interface JsonRepairCallOpts<T> {
 	system?: string;
 	user: string;
-	schema: ZodType<T>;
+	schema: AnyInputZodType<T>;
 	label: string;                 // module identifier for telemetry
 	modelOverride?: { provider: Provider; model: string };
 	maxTokens: number;
@@ -290,6 +298,8 @@ export async function runJsonCallWithRepair<T>(opts: JsonRepairCallOpts<T>): Pro
 				retries: attempt,
 				attempts: attempt + 1,
 				stagesPerAttempt,
+				model: modelKey,
+				provider,
 			};
 		}
 

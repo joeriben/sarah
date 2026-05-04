@@ -18,7 +18,8 @@
 
 import { z } from 'zod';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { chat, type Provider } from '../client.js';
+import { type Provider } from '../client.js';
+import { runJsonCallWithRepair, RepairCallExhaustedError } from '../json-extract.js';
 
 // ── Output schema ─────────────────────────────────────────────────
 
@@ -396,17 +397,6 @@ ${successor}
 Erzeuge das JSON für den AKTUELLEN ABSATZ.`;
 }
 
-// ── Output extraction ─────────────────────────────────────────────
-
-function extractJSON(text: string): string {
-	const start = text.indexOf('{');
-	const end = text.lastIndexOf('}');
-	if (start === -1 || end === -1 || end < start) {
-		throw new Error('No JSON object found in LLM response');
-	}
-	return text.slice(start, end + 1);
-}
-
 // ── Storage ───────────────────────────────────────────────────────
 
 interface StoreResult {
@@ -557,42 +547,47 @@ export async function runParagraphPass(
 	const system = buildSystemSuffix(paraCtx, caseCtx);
 	const user = buildUserMessage(paraCtx);
 
-	const response = await chat({
-		cacheableSystemPrefix,
-		system,
-		messages: [{ role: 'user', content: user }],
-		maxTokens: opts.maxTokens ?? 2000,
-		modelOverride: opts.modelOverride,
-	});
-
-	let parsed: ParagraphPassResult;
+	let repairResult;
 	try {
-		const json = extractJSON(response.text);
-		parsed = ParagraphPassResultSchema.parse(JSON.parse(json));
+		repairResult = await runJsonCallWithRepair({
+			cacheableSystemPrefix,
+			system,
+			user,
+			schema: ParagraphPassResultSchema,
+			label: 'per-paragraph',
+			maxTokens: opts.maxTokens ?? 2000,
+			modelOverride: opts.modelOverride,
+			caseId,
+			paragraphId,
+		});
 	} catch (err) {
-		const dumpPath = `/tmp/per-paragraph-failure-${paragraphId}.txt`;
-		const fs = await import('node:fs/promises');
-		await fs.writeFile(
-			dumpPath,
-			`paragraph_id: ${paragraphId}\nmodel: ${response.model}\nprovider: ${response.provider}\noutput_tokens: ${response.outputTokens}\nstop_reason: ${response.stopReason}\n\n--- RAW RESPONSE ---\n${response.text}\n`,
-			'utf8'
-		);
-		console.error(`     dumped raw response to ${dumpPath}`);
+		if (err instanceof RepairCallExhaustedError) {
+			const dumpPath = `/tmp/per-paragraph-failure-${paragraphId}.txt`;
+			const fs = await import('node:fs/promises');
+			await fs.writeFile(
+				dumpPath,
+				`paragraph_id: ${paragraphId}\nattempts: ${err.attempts}\nlast_stage: ${err.lastStage}\nlast_error: ${err.lastError}\n\n--- STAGES PER ATTEMPT ---\n${err.stagesPerAttempt.map((s, i) => `attempt ${i}: ${s.join(' -> ')}`).join('\n')}\n\n--- LAST RAW RESPONSE ---\n${err.lastRawText}\n`,
+				'utf8'
+			);
+			console.error(`     dumped raw response to ${dumpPath}`);
+		}
 		throw err;
 	}
+
+	const parsed = repairResult.value;
 	const stored = await storeResult(caseCtx, paraCtx, parsed, userId);
 
 	return {
 		result: parsed,
 		stored,
 		tokens: {
-			input: response.inputTokens,
-			output: response.outputTokens,
-			cacheCreation: response.cacheCreationTokens,
-			cacheRead: response.cacheReadTokens,
-			total: response.tokensUsed,
+			input: repairResult.tokens.input,
+			output: repairResult.tokens.output,
+			cacheCreation: repairResult.tokens.cacheCreation,
+			cacheRead: repairResult.tokens.cacheRead,
+			total: repairResult.tokens.total,
 		},
-		model: response.model,
-		provider: response.provider,
+		model: repairResult.model,
+		provider: repairResult.provider,
 	};
 }

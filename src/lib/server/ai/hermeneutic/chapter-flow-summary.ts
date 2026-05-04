@@ -28,7 +28,7 @@
 import { z } from 'zod';
 import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { chat } from '../client.js';
+import { runJsonCallWithRepair, RepairCallExhaustedError } from '../json-extract.js';
 import { loadChapterUnits, type ChapterUnit } from './heading-hierarchy.js';
 
 // ── Output schema ─────────────────────────────────────────────────
@@ -303,17 +303,6 @@ ${blocks}
 Schreibe jetzt den narrativ-referierenden Kapitelverlauf-Absatz, kalibriert in Länge und Detailtiefe am Werktyp.`;
 }
 
-// ── Output extraction ─────────────────────────────────────────────
-
-function extractJSON(text: string): string {
-	const start = text.indexOf('{');
-	const end = text.lastIndexOf('}');
-	if (start === -1 || end === -1 || end < start) {
-		throw new Error('No JSON object found in LLM response');
-	}
-	return text.slice(start, end + 1);
-}
-
 // ── Storage ───────────────────────────────────────────────────────
 
 async function storeFlowMemo(
@@ -473,31 +462,35 @@ export async function runChapterFlowSummary(
 	const system = buildSystemPrompt(ctx);
 	const user = buildUserMessage(ctx);
 
-	const response = await chat({
-		system,
-		cacheSystem: true,
-		messages: [{ role: 'user', content: user }],
-		// Output ist ein knapper Fließtext (1–3 Absätze); 2000 Tokens
-		// reichen auch für Habil-Variante mit ~600 Wörtern.
-		maxTokens: 2000,
-		modelOverride: opts.modelOverride,
-	});
-
-	const json = extractJSON(response.text);
-	let parsed: ChapterFlowResult;
+	let repairResult;
 	try {
-		parsed = ChapterFlowResultSchema.parse(JSON.parse(json));
+		repairResult = await runJsonCallWithRepair({
+			system,
+			cacheSystem: true,
+			user,
+			schema: ChapterFlowResultSchema,
+			label: 'chapter-flow-summary',
+			// Output ist ein knapper Fließtext (1–3 Absätze); 2000 Tokens
+			// reichen auch für Habil-Variante mit ~600 Wörtern.
+			maxTokens: 2000,
+			modelOverride: opts.modelOverride,
+			caseId,
+		});
 	} catch (err) {
-		const dumpPath = `/tmp/chapter-flow-failure-${caseRow.central_document_id}.txt`;
-		const fs = await import('node:fs/promises');
-		await fs.writeFile(
-			dumpPath,
-			`document_id: ${caseRow.central_document_id}\noutput_tokens: ${response.outputTokens}\n\n--- RAW RESPONSE ---\n${response.text}\n\n--- EXTRACTED JSON ---\n${json}\n`,
-			'utf8'
-		);
-		console.error(`     dumped raw response to ${dumpPath}`);
+		if (err instanceof RepairCallExhaustedError) {
+			const dumpPath = `/tmp/chapter-flow-failure-${caseRow.central_document_id}.txt`;
+			const fs = await import('node:fs/promises');
+			await fs.writeFile(
+				dumpPath,
+				`document_id: ${caseRow.central_document_id}\nattempts: ${err.attempts}\nlast_stage: ${err.lastStage}\nlast_error: ${err.lastError}\n\n--- STAGES PER ATTEMPT ---\n${err.stagesPerAttempt.map((s, i) => `attempt ${i}: ${s.join(' -> ')}`).join('\n')}\n\n--- LAST RAW RESPONSE ---\n${err.lastRawText}\n`,
+				'utf8'
+			);
+			console.error(`     dumped raw response to ${dumpPath}`);
+		}
 		throw err;
 	}
+
+	const parsed = repairResult.value;
 	const stored = await storeFlowMemo(ctx, parsed, userId);
 
 	return {
@@ -506,14 +499,14 @@ export async function runChapterFlowSummary(
 		result: parsed,
 		stored,
 		tokens: {
-			input: response.inputTokens,
-			output: response.outputTokens,
-			cacheCreation: response.cacheCreationTokens,
-			cacheRead: response.cacheReadTokens,
-			total: response.tokensUsed,
+			input: repairResult.tokens.input,
+			output: repairResult.tokens.output,
+			cacheCreation: repairResult.tokens.cacheCreation,
+			cacheRead: repairResult.tokens.cacheRead,
+			total: repairResult.tokens.total,
 		},
-		model: response.model,
-		provider: response.provider,
+		model: repairResult.model,
+		provider: repairResult.provider,
 		chapterCount: ctx.chapterMemos.length,
 	};
 }

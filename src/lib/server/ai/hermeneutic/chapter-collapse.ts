@@ -40,7 +40,7 @@
 import { z } from 'zod';
 import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { chat } from '../client.js';
+import { runJsonCallWithRepair, RepairCallExhaustedError } from '../json-extract.js';
 import {
 	loadChapterUnits,
 	chooseSubchapterLevel,
@@ -641,17 +641,6 @@ function formatParagraphGraphBlock(p: ParagraphGraph): string {
 	return `## §${p.positionInChapter}${enclosing}\n${argLines}${interLines}${priorLines}${scLines}`;
 }
 
-// ── Output extraction ─────────────────────────────────────────────
-
-function extractJSON(text: string): string {
-	const start = text.indexOf('{');
-	const end = text.lastIndexOf('}');
-	if (start === -1 || end === -1 || end < start) {
-		throw new Error('No JSON object found in LLM response');
-	}
-	return text.slice(start, end + 1);
-}
-
 // ── Storage ───────────────────────────────────────────────────────
 
 async function storeChapterMemo(
@@ -769,32 +758,36 @@ export async function runChapterCollapse(
 	const system = buildSystemPrompt(ctx);
 	const user = buildUserMessage(ctx);
 
-	const response = await chat({
-		system,
-		cacheSystem: true,
-		messages: [{ role: 'user', content: user }],
-		// 6000: chapter output is dual (synthese + argumentationswiedergabe +
-		// auffaelligkeiten); the argumentationswiedergabe alone can run 1-3
-		// substantial paragraphs.
-		maxTokens: 6000,
-		modelOverride: opts.modelOverride,
-	});
-
-	const json = extractJSON(response.text);
-	let parsed: ChapterCollapseResult;
+	let repairResult;
 	try {
-		parsed = ChapterCollapseResultSchema.parse(JSON.parse(json));
+		repairResult = await runJsonCallWithRepair({
+			system,
+			cacheSystem: true,
+			user,
+			schema: ChapterCollapseResultSchema,
+			label: 'chapter-collapse',
+			// 6000: chapter output is dual (synthese + argumentationswiedergabe +
+			// auffaelligkeiten); the argumentationswiedergabe alone can run 1-3
+			// substantial paragraphs.
+			maxTokens: 6000,
+			modelOverride: opts.modelOverride,
+			caseId,
+		});
 	} catch (err) {
-		const dumpPath = `/tmp/chapter-collapse-failure-${l1HeadingId}.txt`;
-		const fs = await import('node:fs/promises');
-		await fs.writeFile(
-			dumpPath,
-			`l1_heading_id: ${l1HeadingId}\noutput_tokens: ${response.outputTokens}\n\n--- RAW RESPONSE ---\n${response.text}\n\n--- EXTRACTED JSON ---\n${json}\n`,
-			'utf8'
-		);
-		console.error(`     dumped raw response to ${dumpPath}`);
+		if (err instanceof RepairCallExhaustedError) {
+			const dumpPath = `/tmp/chapter-collapse-failure-${l1HeadingId}.txt`;
+			const fs = await import('node:fs/promises');
+			await fs.writeFile(
+				dumpPath,
+				`l1_heading_id: ${l1HeadingId}\nattempts: ${err.attempts}\nlast_stage: ${err.lastStage}\nlast_error: ${err.lastError}\n\n--- STAGES PER ATTEMPT ---\n${err.stagesPerAttempt.map((s, i) => `attempt ${i}: ${s.join(' -> ')}`).join('\n')}\n\n--- LAST RAW RESPONSE ---\n${err.lastRawText}\n`,
+				'utf8'
+			);
+			console.error(`     dumped raw response to ${dumpPath}`);
+		}
 		throw err;
 	}
+
+	const parsed = repairResult.value;
 	const stored = await storeChapterMemo(ctx, parsed, userId);
 
 	const inputCount = ctx.mode === 'paragraphs'
@@ -807,14 +800,14 @@ export async function runChapterCollapse(
 		result: parsed,
 		stored,
 		tokens: {
-			input: response.inputTokens,
-			output: response.outputTokens,
-			cacheCreation: response.cacheCreationTokens,
-			cacheRead: response.cacheReadTokens,
-			total: response.tokensUsed,
+			input: repairResult.tokens.input,
+			output: repairResult.tokens.output,
+			cacheCreation: repairResult.tokens.cacheCreation,
+			cacheRead: repairResult.tokens.cacheRead,
+			total: repairResult.tokens.total,
 		},
-		model: response.model,
-		provider: response.provider,
+		model: repairResult.model,
+		provider: repairResult.provider,
 		aggregationLevel: ctx.aggregationLevel,
 		inputMode: ctx.mode,
 		inputCount,

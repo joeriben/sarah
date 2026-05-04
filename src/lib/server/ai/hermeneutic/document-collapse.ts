@@ -31,7 +31,7 @@
 import { z } from 'zod';
 import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { chat } from '../client.js';
+import { runJsonCallWithRepair, RepairCallExhaustedError } from '../json-extract.js';
 import { loadChapterUnits, type ChapterUnit } from './heading-hierarchy.js';
 
 // ── Output schema ─────────────────────────────────────────────────
@@ -266,17 +266,6 @@ ${blocks}
 Synthetisiere jetzt das kontextualisierende Werk-Memo (Synthese + Auffälligkeiten) als abschließende Begutachtungsdiagnose, kalibriert am Werktyp.`;
 }
 
-// ── Output extraction ─────────────────────────────────────────────
-
-function extractJSON(text: string): string {
-	const start = text.indexOf('{');
-	const end = text.lastIndexOf('}');
-	if (start === -1 || end === -1 || end < start) {
-		throw new Error('No JSON object found in LLM response');
-	}
-	return text.slice(start, end + 1);
-}
-
 // ── Storage ───────────────────────────────────────────────────────
 
 async function storeDocumentMemo(
@@ -398,31 +387,35 @@ export async function runDocumentCollapse(
 	const system = buildSystemPrompt(ctx);
 	const user = buildUserMessage(ctx);
 
-	const response = await chat({
-		system,
-		cacheSystem: true,
-		messages: [{ role: 'user', content: user }],
-		// 5000: work output is single (synthese + auffaelligkeiten); the
-		// synthese can run 10-18 sentences with substantial Pflichtbestandteile.
-		maxTokens: opts.maxTokens ?? 5000,
-		modelOverride: opts.modelOverride,
-	});
-
-	const json = extractJSON(response.text);
-	let parsed: DocumentCollapseResult;
+	let repairResult;
 	try {
-		parsed = DocumentCollapseResultSchema.parse(JSON.parse(json));
+		repairResult = await runJsonCallWithRepair({
+			system,
+			cacheSystem: true,
+			user,
+			schema: DocumentCollapseResultSchema,
+			label: 'document-collapse',
+			// 5000: work output is single (synthese + auffaelligkeiten); the
+			// synthese can run 10-18 sentences with substantial Pflichtbestandteile.
+			maxTokens: opts.maxTokens ?? 5000,
+			modelOverride: opts.modelOverride,
+			caseId,
+		});
 	} catch (err) {
-		const dumpPath = `/tmp/document-collapse-failure-${caseRow.central_document_id}.txt`;
-		const fs = await import('node:fs/promises');
-		await fs.writeFile(
-			dumpPath,
-			`document_id: ${caseRow.central_document_id}\noutput_tokens: ${response.outputTokens}\n\n--- RAW RESPONSE ---\n${response.text}\n\n--- EXTRACTED JSON ---\n${json}\n`,
-			'utf8'
-		);
-		console.error(`     dumped raw response to ${dumpPath}`);
+		if (err instanceof RepairCallExhaustedError) {
+			const dumpPath = `/tmp/document-collapse-failure-${caseRow.central_document_id}.txt`;
+			const fs = await import('node:fs/promises');
+			await fs.writeFile(
+				dumpPath,
+				`document_id: ${caseRow.central_document_id}\nattempts: ${err.attempts}\nlast_stage: ${err.lastStage}\nlast_error: ${err.lastError}\n\n--- STAGES PER ATTEMPT ---\n${err.stagesPerAttempt.map((s, i) => `attempt ${i}: ${s.join(' -> ')}`).join('\n')}\n\n--- LAST RAW RESPONSE ---\n${err.lastRawText}\n`,
+				'utf8'
+			);
+			console.error(`     dumped raw response to ${dumpPath}`);
+		}
 		throw err;
 	}
+
+	const parsed = repairResult.value;
 	const stored = await storeDocumentMemo(ctx, parsed, userId);
 
 	return {
@@ -431,14 +424,14 @@ export async function runDocumentCollapse(
 		result: parsed,
 		stored,
 		tokens: {
-			input: response.inputTokens,
-			output: response.outputTokens,
-			cacheCreation: response.cacheCreationTokens,
-			cacheRead: response.cacheReadTokens,
-			total: response.tokensUsed,
+			input: repairResult.tokens.input,
+			output: repairResult.tokens.output,
+			cacheCreation: repairResult.tokens.cacheCreation,
+			cacheRead: repairResult.tokens.cacheRead,
+			total: repairResult.tokens.total,
 		},
-		model: response.model,
-		provider: response.provider,
+		model: repairResult.model,
+		provider: repairResult.provider,
 		chapterCount: ctx.chapterMemos.length,
 	};
 }

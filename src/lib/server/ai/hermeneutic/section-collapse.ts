@@ -17,7 +17,7 @@
 
 import { z } from 'zod';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { chat } from '../client.js';
+import { runJsonCallWithRepair, RepairCallExhaustedError } from '../json-extract.js';
 
 // ── Output schema ─────────────────────────────────────────────────
 
@@ -259,17 +259,6 @@ ${memoBlock}
 Synthetisiere jetzt das kontextualisierende Memo für dieses Subkapitel.`;
 }
 
-// ── Output extraction ─────────────────────────────────────────────
-
-function extractJSON(text: string): string {
-	const start = text.indexOf('{');
-	const end = text.lastIndexOf('}');
-	if (start === -1 || end === -1 || end < start) {
-		throw new Error('No JSON object found in LLM response');
-	}
-	return text.slice(start, end + 1);
-}
-
 // ── Storage ───────────────────────────────────────────────────────
 
 async function storeCollapseMemo(
@@ -365,29 +354,46 @@ export async function runSubchapterCollapse(
 	const system = buildSystemPrompt(ctx);
 	const user = buildUserMessage(ctx);
 
-	const response = await chat({
-		system,
-		cacheSystem: true,
-		messages: [{ role: 'user', content: user }],
-		maxTokens: 1500,
-	});
+	let repairResult;
+	try {
+		repairResult = await runJsonCallWithRepair({
+			system,
+			cacheSystem: true,
+			user,
+			schema: SubchapterCollapseResultSchema,
+			label: 'section-collapse',
+			maxTokens: 1500,
+			caseId,
+		});
+	} catch (err) {
+		if (err instanceof RepairCallExhaustedError) {
+			const dumpPath = `/tmp/section-collapse-failure-${subchapterHeadingId}.txt`;
+			const fs = await import('node:fs/promises');
+			await fs.writeFile(
+				dumpPath,
+				`subchapter_heading_id: ${subchapterHeadingId}\nattempts: ${err.attempts}\nlast_stage: ${err.lastStage}\nlast_error: ${err.lastError}\n\n--- STAGES PER ATTEMPT ---\n${err.stagesPerAttempt.map((s, i) => `attempt ${i}: ${s.join(' -> ')}`).join('\n')}\n\n--- LAST RAW RESPONSE ---\n${err.lastRawText}\n`,
+				'utf8'
+			);
+			console.error(`     dumped raw response to ${dumpPath}`);
+		}
+		throw err;
+	}
 
-	const json = extractJSON(response.text);
-	const parsed = SubchapterCollapseResultSchema.parse(JSON.parse(json));
+	const parsed = repairResult.value;
 	const stored = await storeCollapseMemo(ctx, parsed, userId);
 
 	return {
 		result: parsed,
 		stored,
 		tokens: {
-			input: response.inputTokens,
-			output: response.outputTokens,
-			cacheCreation: response.cacheCreationTokens,
-			cacheRead: response.cacheReadTokens,
-			total: response.tokensUsed,
+			input: repairResult.tokens.input,
+			output: repairResult.tokens.output,
+			cacheCreation: repairResult.tokens.cacheCreation,
+			cacheRead: repairResult.tokens.cacheRead,
+			total: repairResult.tokens.total,
 		},
-		model: response.model,
-		provider: response.provider,
+		model: repairResult.model,
+		provider: repairResult.provider,
 		paragraphsSynthesized: ctx.paragraphs.length,
 	};
 }

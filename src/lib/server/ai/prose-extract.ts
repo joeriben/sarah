@@ -19,10 +19,15 @@
 // + lists may interleave) but position-sensitive within sections.
 // Empty lists: omit the section entirely → parser defaults to [].
 
-import type { ZodType } from 'zod';
+import type { ZodType, ZodTypeDef } from 'zod';
 import { chat, getModel, getProvider, type Provider } from './client.js';
 import { type TokenUsage, type RepairCallResult, RepairCallExhaustedError } from './json-extract.js';
 import { logPipelineCall } from './pipeline-call-log.js';
+
+// Same relaxation as in json-extract: schemas with `.default()` have Input ≠
+// Output. `ZodType<T>` would force T to the input shape and lose post-parse
+// fields. Letting the Input parameter be `unknown` lets T infer to the output.
+type AnyInputZodType<T> = ZodType<T, ZodTypeDef, unknown>;
 
 // ── Section spec ──────────────────────────────────────────────────
 
@@ -219,7 +224,7 @@ export interface ProseRepairCallOpts<T> {
 	system?: string;
 	user: string;
 	spec: SectionSpec;
-	schema: ZodType<T>;            // final validation after parse
+	schema: AnyInputZodType<T>;    // final validation after parse
 	label: string;                 // module identifier for telemetry
 	modelOverride?: { provider: Provider; model: string };
 	maxTokens: number;
@@ -310,6 +315,8 @@ export async function runProseCallWithRepair<T>(opts: ProseRepairCallOpts<T>): P
 				retries: attempt,
 				attempts: attempt + 1,
 				stagesPerAttempt,
+				model: modelKey,
+				provider,
 			};
 		}
 

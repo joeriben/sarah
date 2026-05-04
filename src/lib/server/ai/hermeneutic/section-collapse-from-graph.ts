@@ -30,7 +30,7 @@
 import { z } from 'zod';
 import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { chat } from '../client.js';
+import { runJsonCallWithRepair, RepairCallExhaustedError } from '../json-extract.js';
 import { loadResolvedOutline } from './heading-hierarchy.js';
 import { extractFallacy, formatFallacyLine, FALLACY_AWARENESS_REGEL } from './validity-helpers.js';
 
@@ -466,17 +466,6 @@ ${block}
 Synthetisiere jetzt das kontextualisierende Memo (Synthese + Auffälligkeiten) ausschließlich aus dieser Graph-Struktur.`;
 }
 
-// ── Output extraction ─────────────────────────────────────────────
-
-function extractJSON(text: string): string {
-	const start = text.indexOf('{');
-	const end = text.lastIndexOf('}');
-	if (start === -1 || end === -1 || end < start) {
-		throw new Error('No JSON object found in LLM response');
-	}
-	return text.slice(start, end + 1);
-}
-
 // ── Storage ───────────────────────────────────────────────────────
 
 async function storeGraphCollapseMemo(
@@ -619,32 +608,36 @@ export async function runGraphCollapse(
 	const system = buildSystemSuffix(ctx);
 	const user = buildUserMessage(ctx);
 
-	const response = await chat({
-		cacheableSystemPrefix,
-		system,
-		messages: [{ role: 'user', content: user }],
-		// 4000 (was 2000): subchapters with > ~25 arguments + > ~30 scaffolding
-		// produce a synthesis that, with the four Pflichtbestandteile, reaches
-		// the 2000-cap. Methodologische Grundlegung came in at exactly 1999.
-		maxTokens: opts.maxTokens ?? 4000,
-		modelOverride: opts.modelOverride,
-	});
-
-	const json = extractJSON(response.text);
-	let parsed: GraphCollapseResult;
+	let repairResult;
 	try {
-		parsed = GraphCollapseResultSchema.parse(JSON.parse(json));
+		repairResult = await runJsonCallWithRepair({
+			cacheableSystemPrefix,
+			system,
+			user,
+			schema: GraphCollapseResultSchema,
+			label: 'section-collapse-from-graph',
+			// 4000 (was 2000): subchapters with > ~25 arguments + > ~30 scaffolding
+			// produce a synthesis that, with the four Pflichtbestandteile, reaches
+			// the 2000-cap. Methodologische Grundlegung came in at exactly 1999.
+			maxTokens: opts.maxTokens ?? 4000,
+			modelOverride: opts.modelOverride,
+			caseId,
+		});
 	} catch (err) {
-		const dumpPath = `/tmp/graph-collapse-failure-${subchapterHeadingId}.txt`;
-		const fs = await import('node:fs/promises');
-		await fs.writeFile(
-			dumpPath,
-			`subchapter_heading_id: ${subchapterHeadingId}\noutput_tokens: ${response.outputTokens}\n\n--- RAW RESPONSE ---\n${response.text}\n\n--- EXTRACTED JSON ---\n${json}\n`,
-			'utf8'
-		);
-		console.error(`     dumped raw response to ${dumpPath}`);
+		if (err instanceof RepairCallExhaustedError) {
+			const dumpPath = `/tmp/graph-collapse-failure-${subchapterHeadingId}.txt`;
+			const fs = await import('node:fs/promises');
+			await fs.writeFile(
+				dumpPath,
+				`subchapter_heading_id: ${subchapterHeadingId}\nattempts: ${err.attempts}\nlast_stage: ${err.lastStage}\nlast_error: ${err.lastError}\n\n--- STAGES PER ATTEMPT ---\n${err.stagesPerAttempt.map((s, i) => `attempt ${i}: ${s.join(' -> ')}`).join('\n')}\n\n--- LAST RAW RESPONSE ---\n${err.lastRawText}\n`,
+				'utf8'
+			);
+			console.error(`     dumped raw response to ${dumpPath}`);
+		}
 		throw err;
 	}
+
+	const parsed = repairResult.value;
 	const stored = await storeGraphCollapseMemo(ctx, parsed, userId);
 
 	return {
@@ -653,14 +646,14 @@ export async function runGraphCollapse(
 		result: parsed,
 		stored,
 		tokens: {
-			input: response.inputTokens,
-			output: response.outputTokens,
-			cacheCreation: response.cacheCreationTokens,
-			cacheRead: response.cacheReadTokens,
-			total: response.tokensUsed,
+			input: repairResult.tokens.input,
+			output: repairResult.tokens.output,
+			cacheCreation: repairResult.tokens.cacheCreation,
+			cacheRead: repairResult.tokens.cacheRead,
+			total: repairResult.tokens.total,
 		},
-		model: response.model,
-		provider: response.provider,
+		model: repairResult.model,
+		provider: repairResult.provider,
 		paragraphsSynthesized: ctx.paragraphs.length,
 		totalArguments,
 		totalScaffolding,
