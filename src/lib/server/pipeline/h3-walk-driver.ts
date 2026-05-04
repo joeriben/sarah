@@ -110,19 +110,38 @@ export function walkStepLabel(step: H3WalkStep): string {
  * Baut die Walk-Sequenz aus der geladenen Komplex-Liste auf. Werk-
  * Aggregationen werden positional eingewoben:
  *
- *   - FG-Aggregation läuft unmittelbar vor dem ersten FORSCHUNGSDESIGN-Komplex.
- *     Wenn kein FORSCHUNGSDESIGN-Container existiert, wird FG-Aggregation am
- *     Ende vor WERK_DESKRIPTION emittiert (damit Synthese/Werk-Gutacht
- *     eine FG-Quelle haben).
+ *   - FG-Aggregation läuft unmittelbar VOR dem ersten FG-Konsumenten im
+ *     Walk. FG-Konsumenten sind EXKURS (modifiziert FG destruktiv via
+ *     re_spec, siehe ai/h3/exkurs.ts) und werk_forschungsdesign (liest
+ *     FG als Bezugsrahmen). Stehen mehrere Konsumenten im Walk, läuft die
+ *     Aggregation einmal vor dem ersten — die folgenden lesen den
+ *     bestehenden Stand.
+ *   - werk_forschungsdesign wird IMMER als Werk-Step emittiert, unabhängig
+ *     vom Vorhandensein eines FORSCHUNGSDESIGN-Containers in der Outline:
+ *     der Pass hat eine eigene Material-Sammel-Kaskade
+ *     (Outline-Container → EXPOSITION-Methoden-Marker → Volltext-Scan,
+ *     siehe ai/h3/forschungsdesign.ts:collectParagraphs) und einen
+ *     AUFBAU_SKIZZE-Fallback für Werke ohne jegliches Methoden-Material.
+ *     Position: VOR dem ersten DURCHFÜHRUNG-Komplex (DURCH braucht FD als
+ *     Bezugsmaßstab — Mother-Session Zeile 17: "Die DURCHFÜHRUNG setzt das
+ *     damit artikulierte FORSCHUNGSDESIGN konkret und programmatisch um").
+ *     Falls der Walk vorher schon einen FORSCHUNGSDESIGN-Komplex enthält,
+ *     ziehen wir den Werk-Step an dieser Stelle ein. Sonst wird FD spätestens
+ *     vor dem ersten DURCH-Komplex sichergestellt — auch wenn FD im Werk
+ *     strukturell NO SHOW ist, MUSS der Pass gelaufen sein, damit DURCH
+ *     den dokumentierten Befund "kein Methodenmaterial" als Ausgangspunkt
+ *     hat (User-Setzung 2026-05-05).
  *   - SYNTHESE / SCHLUSSREFLEXION ersetzen ihre Container-Komplexe durch je
- *     einen Werk-Step beim ersten Auftreten des Funktionstyps.
- *   - EXPOSITION / GRUNDLAGENTHEORIE / DURCHFÜHRUNG / EXKURS bleiben als
- *     Komplex-Steps an ihrer Dokument-Position.
- *   - Komplexe mit functionType WERK_DESKRIPTION/WERK_GUTACHT (Outline-
- *     Default-Fall) werden ignoriert — die zugehörigen Tools sind werk-
- *     skopiert und laufen am Ende.
- *   - WERK_DESKRIPTION + WERK_GUTACHT werden immer als finale Werk-Steps
- *     angehängt (auch wenn keine entsprechenden Outline-Container existieren).
+ *     einen Werk-Step beim ersten Auftreten des Funktionstyps. Vor Synthese
+ *     wird sichergestellt, dass werk_forschungsdesign bereits gelaufen ist.
+ *   - EXPOSITION / GRUNDLAGENTHEORIE bleiben als Komplex-Steps an ihrer
+ *     Dokument-Position. DURCHFÜHRUNG triggert bei seinem ersten Auftreten
+ *     ensureForschungsdesign() vor sich selbst.
+ *   - EXKURS-Komplexe sitzen positional an ihrer Dokument-Stelle. Der erste
+ *     EXKURS triggert die FG-Aggregation, falls noch nicht gelaufen.
+ *   - WERK_STRUKTUR-Komplexe (Outline-Skelett-Marker) werden übersprungen —
+ *     kein zugeordnetes Tool. WERK_DESKRIPTION + WERK_GUTACHT laufen werk-
+ *     skopiert immer am Ende.
  */
 export function buildH3WalkSteps(walk: H3Complex[]): H3WalkStep[] {
 	const steps: H3WalkStep[] = [];
@@ -131,31 +150,58 @@ export function buildH3WalkSteps(walk: H3Complex[]): H3WalkStep[] {
 	let syntheseEmitted = false;
 	let schlussreflexionEmitted = false;
 
+	const ensureFgAggregation = () => {
+		if (!fgAggregationEmitted) {
+			steps.push({ kind: 'werk_fg_aggregation' });
+			fgAggregationEmitted = true;
+		}
+	};
+	const ensureForschungsdesign = () => {
+		ensureFgAggregation();
+		if (!fdEmitted) {
+			steps.push({ kind: 'werk_forschungsdesign' });
+			fdEmitted = true;
+		}
+	};
+
 	for (const complex of walk) {
 		switch (complex.functionType) {
 			case 'EXPOSITION':
 			case 'GRUNDLAGENTHEORIE':
+				steps.push({ kind: 'complex', complex });
+				break;
 			case 'DURCHFUEHRUNG':
+				// User-Setzung 2026-05-05 + Mother-Session Zeile 17:
+				// "Die DURCHFÜHRUNG setzt das damit artikulierte FORSCHUNGSDESIGN
+				// konkret und programmatisch um." DURCH darf nicht ohne
+				// gelaufenes FORSCHUNGSDESIGN stattfinden — der DURCH-Pass
+				// braucht FD als Bezugsmaßstab. Auch wenn FD im Werk strukturell
+				// NO SHOW ist (kein Methodenkapitel, keine Aufbau-Skizze), muss
+				// der FD-Walk-Step gelaufen sein, damit DURCH den Befund
+				// als Ausgangspunkt hat.
+				ensureForschungsdesign();
+				steps.push({ kind: 'complex', complex });
+				break;
 			case 'EXKURS':
+				// FG-Konsument: aggregiert FG vor Erst-EXKURS, falls noch nicht.
+				ensureFgAggregation();
 				steps.push({ kind: 'complex', complex });
 				break;
 			case 'FORSCHUNGSDESIGN':
-				if (!fdEmitted) {
-					if (!fgAggregationEmitted) {
-						steps.push({ kind: 'werk_fg_aggregation' });
-						fgAggregationEmitted = true;
-					}
-					steps.push({ kind: 'werk_forschungsdesign' });
-					fdEmitted = true;
-				}
+				ensureForschungsdesign();
 				break;
 			case 'SYNTHESE':
+				// SYNTHESE liest u.a. METHODEN/BASIS aus FORSCHUNGSDESIGN.
+				// Der FD-Pass ist der Material-Sammler — wir stellen sicher,
+				// dass er vor SYNTHESE läuft, auch ohne Outline-Container.
+				ensureForschungsdesign();
 				if (!syntheseEmitted) {
 					steps.push({ kind: 'werk_synthese' });
 					syntheseEmitted = true;
 				}
 				break;
 			case 'SCHLUSSREFLEXION':
+				ensureForschungsdesign();
 				if (!schlussreflexionEmitted) {
 					steps.push({ kind: 'werk_schlussreflexion' });
 					schlussreflexionEmitted = true;
@@ -168,13 +214,10 @@ export function buildH3WalkSteps(walk: H3Complex[]): H3WalkStep[] {
 		}
 	}
 
-	// FG-Aggregation muss laufen, auch wenn kein FORSCHUNGSDESIGN-Container
-	// existierte (Synthese/Werk-Gutacht/Werk-Deskription brauchen das FG-
-	// Konstrukt). In dem Fall vor WERK_DESKRIPTION einschieben.
-	if (!fgAggregationEmitted) {
-		steps.push({ kind: 'werk_fg_aggregation' });
-		fgAggregationEmitted = true;
-	}
+	// Post-Loop: stelle sicher, dass FG-Aggregation und FORSCHUNGSDESIGN
+	// gelaufen sind, bevor WERK_DESKRIPTION + WERK_GUTACHT folgen. Beide
+	// Werk-Pässe brauchen das volle Bezugs-Set.
+	ensureForschungsdesign();
 
 	steps.push({ kind: 'werk_deskription' });
 	steps.push({ kind: 'werk_gutacht' });
