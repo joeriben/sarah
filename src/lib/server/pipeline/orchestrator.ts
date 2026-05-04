@@ -24,7 +24,14 @@
 //      Konsumiert nichts vom Graph; pures Lese-Addendum für den Reader.
 //
 // H3 — kontextadaptiv (funktionstyp-orchestriert):
-//   siehe H3_PHASE_ORDER unten und docs/h3_orchestrator_spec.md.
+//   1. h3_walk              — linearer direktionaler Walk über Absatz-
+//                             Komplexe in Dokument-Reihenfolge. Werk-
+//                             Aggregationen (FG, FORSCHUNGSDESIGN,
+//                             SYNTHESE, SR, WERK_*) sind virtuelle
+//                             Walk-Knoten an logischen Übergängen
+//                             (User-Setzung 2026-05-04, Memory
+//                             feedback_no_phase_layer_orchestrator).
+//                             Implementation: ./h3-walk-driver.ts.
 
 import { query, queryOne } from '../db/index.js';
 import {
@@ -40,8 +47,14 @@ import { runArgumentValidityPass } from '../ai/hermeneutic/argument-validity.js'
 import { runGraphCollapse } from '../ai/hermeneutic/section-collapse-from-graph.js';
 import { runChapterCollapse } from '../ai/hermeneutic/chapter-collapse.js';
 import { runDocumentCollapse } from '../ai/hermeneutic/document-collapse.js';
-import { runH3Phase, isH3PhaseDoneForDocument, isWerkPhase } from './h3-phases.js';
-import type { H3Phase } from './h3-phases.js';
+import {
+	listH3WalkSteps,
+	walkStepId,
+	walkStepLabel,
+	isH3WalkStepDone,
+	runH3WalkStep,
+	type H3WalkStep,
+} from './h3-walk-driver.js';
 import { PreconditionFailedError } from '../ai/h3/precondition.js';
 
 export type Phase =
@@ -51,19 +64,10 @@ export type Phase =
 	| 'chapter_collapse'
 	| 'document_collapse'
 	| 'paragraph_synthetic'
-	// H3 — kontextadaptive funktionstyp-orchestrierte Phasen
-	// Reihenfolge: docs/h3_orchestrator_spec.md (EXPOSITION → GTH →
-	// FORSCHUNGSDESIGN → DURCHFÜHRUNG → SYNTHESE → SCHLUSSREFLEXION →
-	// EXKURS → WERK_DESKRIPTION → WERK_GUTACHT)
-	| 'h3_exposition'
-	| 'h3_grundlagentheorie'
-	| 'h3_forschungsdesign'
-	| 'h3_durchfuehrung'
-	| 'h3_synthese'
-	| 'h3_schlussreflexion'
-	| 'h3_exkurs'
-	| 'h3_werk_deskription'
-	| 'h3_werk_gutacht';
+	// H3 — linearer Walk über Absatz-Komplexe + Werk-Aggregationen
+	// (User-Setzung 2026-05-04: kein Phase-Layer, ein Walk pro H3-Run).
+	// Atom-Liste pro Walk siehe h3-walk-driver.ts:listH3WalkSteps.
+	| 'h3_walk';
 
 // Hauptlinie ohne argument_validity — diese Phase ist opt-in und wird per
 // phasesForRun() bei aktivem RunOptions.include_validity zwischen
@@ -82,32 +86,8 @@ export const PHASE_LABEL: Record<Phase, string> = {
 	chapter_collapse: 'Hauptkapitel-Synthesen',
 	document_collapse: 'Werk-Synthese',
 	paragraph_synthetic: 'Per-Absatz-Hermeneutik (synthetisch)',
-	h3_exposition: 'H3 · Exposition (Fragestellung & Motivation)',
-	h3_grundlagentheorie: 'H3 · Grundlagentheorie (Verweisprofil → Forschungsgegenstand)',
-	h3_forschungsdesign: 'H3 · Forschungsdesign (Methodik)',
-	h3_durchfuehrung: 'H3 · Durchführung',
-	h3_synthese: 'H3 · Synthese (Gesamtergebnis)',
-	h3_schlussreflexion: 'H3 · Schlussreflexion (Geltungsanspruch)',
-	h3_exkurs: 'H3 · Exkurs',
-	h3_werk_deskription: 'H3 · Werk-Deskription',
-	h3_werk_gutacht: 'H3 · Werk-Gutacht (a + b + c, c-Gating für Test deaktiviert)',
+	h3_walk: 'H3 · Walk (Absatz-Komplexe + Werk-Aggregationen)',
 };
-
-// H3-Phase-Reihenfolge gemäß docs/h3_orchestrator_spec.md (Bedingungsgefüge
-// determiniert Reihenfolge; harte Vorbedingungen werden in den Pass-Funktionen
-// geprüft und führen bei Verletzung zu PreconditionFailedError → Run-State
-// `failed`).
-const H3_PHASE_ORDER: Phase[] = [
-	'h3_exposition',
-	'h3_grundlagentheorie',
-	'h3_forschungsdesign',
-	'h3_durchfuehrung',
-	'h3_synthese',
-	'h3_schlussreflexion',
-	'h3_exkurs',
-	'h3_werk_deskription',
-	'h3_werk_gutacht',
-];
 
 export interface RunOptions {
 	// Pfad-Wahl: H1, H2 und H3 sind drei eigenständige, exklusive Heuristik-
@@ -482,22 +462,13 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 			);
 			return { all, pending: done ? [] : all };
 		}
-		// H3-Phasen werden NICHT durch die Atom-Schleife geführt — sie sind
-		// werk-aggregierte Tool-Aufrufe (kein Iterations-Atom). Der Orchestrator
-		// ruft sie direkt über runWerkPhaseStep auf. Wenn diese Funktion mit
-		// einer H3-Phase aufgerufen wird, ist das ein Programmierfehler im
-		// Aufrufer.
-		case 'h3_exposition':
-		case 'h3_grundlagentheorie':
-		case 'h3_forschungsdesign':
-		case 'h3_durchfuehrung':
-		case 'h3_synthese':
-		case 'h3_schlussreflexion':
-		case 'h3_exkurs':
-		case 'h3_werk_deskription':
-		case 'h3_werk_gutacht':
+		// H3-Walk wird NICHT durch die generische Atom-Schleife geführt — er
+		// hat einen eigenen Loop runH3Walk mit walk-step-spezifischer Done-/
+		// Validation-Prüfung und fail-fast-Semantik. Wenn diese Funktion mit
+		// 'h3_walk' aufgerufen wird, ist das ein Programmierfehler im Aufrufer.
+		case 'h3_walk':
 			throw new Error(
-				`listAtomsForPhase: H3-Phase ${phase} darf nicht durch die Atom-Schleife laufen.`
+				`listAtomsForPhase: 'h3_walk' darf nicht durch die generische Atom-Schleife laufen.`
 			);
 	}
 }
@@ -629,28 +600,19 @@ async function executeStep(
 				memoId: r.stored?.memoId ?? r.existingMemoId,
 			};
 		}
-		// H3-Phasen werden NICHT durch executeStep geführt — sie sind werk-
-		// aggregierte Tool-Aufrufe und laufen direkt über runWerkPhaseStep,
-		// nicht durch die Atom-Schleife. Wenn executeStep mit einer H3-Phase
-		// aufgerufen wird, ist das ein Programmierfehler im Aufrufer.
-		case 'h3_exposition':
-		case 'h3_grundlagentheorie':
-		case 'h3_forschungsdesign':
-		case 'h3_durchfuehrung':
-		case 'h3_synthese':
-		case 'h3_schlussreflexion':
-		case 'h3_exkurs':
-		case 'h3_werk_deskription':
-		case 'h3_werk_gutacht':
+		// H3-Walk hat einen eigenen Loop (runH3Walk) mit walk-step-spezifischer
+		// Dispatch-Logik. Hier ist h3_walk unerreichbar (siehe runPipelineLoop
+		// Branch).
+		case 'h3_walk':
 			throw new Error(
-				`executeStep: H3-Phase ${phase} darf nicht durch die Atom-Schleife laufen.`
+				`executeStep: 'h3_walk' darf nicht durch die generische Atom-Schleife laufen.`
 			);
 	}
 }
 
 // ── Loop ──────────────────────────────────────────────────────────────────
 
-function phasesForRun(options: RunOptions): Phase[] {
+export function phasesForRun(options: RunOptions): Phase[] {
 	// Heuristik-Pfade sind exklusiv pro Run (Memory
 	// `project_three_heuristics_architecture.md`): genau einer von H1, H2,
 	// H3 läuft je Run-Trigger. Default 'h1'. Wer mehrere Pfade auf dem-
@@ -660,7 +622,7 @@ function phasesForRun(options: RunOptions): Phase[] {
 
 	switch (heuristic) {
 		case 'h3':
-			return [...H3_PHASE_ORDER];
+			return ['h3_walk'];
 		case 'h2':
 			return ['paragraph_synthetic'];
 		case 'h1': {
@@ -749,18 +711,19 @@ export async function runPipelineLoop(
 			return;
 		}
 
-		const ok = isWerkPhase(phase)
-			? await runWerkPhaseStep(runId, phase, caseId, documentId, sendEvent)
-			: await runIterativePhase(
-					runId,
-					phase,
-					caseId,
-					documentId,
-					userId,
-					sendEvent,
-					erroredAtomIds,
-					recordAtomError
-				);
+		const ok =
+			phase === 'h3_walk'
+				? await runH3Walk(runId, caseId, documentId, sendEvent)
+				: await runIterativePhase(
+						runId,
+						phase,
+						caseId,
+						documentId,
+						userId,
+						sendEvent,
+						erroredAtomIds,
+						recordAtomError
+					);
 		if (!ok) return; // markFailed/markPaused wurde drinnen schon gesendet
 	}
 
@@ -899,98 +862,115 @@ async function runIterativePhase(
 }
 
 /**
- * Eine Werk-Phase (H3): direkter Tool-Aufruf auf das ganze Werk, kein
- * Atom-Wrapper, kein Stuck-Guard. Voraussetzung ist, dass das Tool selbst
- * intrinsisch failsafe ist:
- *   - Idempotenz: Re-Run produziert keinen Duplikat-Stand (clearExisting).
+ * H3-Walk-Loop: arbeitet die Walk-Step-Sequenz (Absatz-Komplexe + Werk-
+ * Aggregationen, in Dokument-Reihenfolge) sequentiell ab. Kein Stuck-
+ * Guard und kein fail-tolerant pro Step — jeder Walk-Step-Fehler ist
+ * entweder Vorbedingungs-Verletzung (Reviewer-Eingriff nötig) oder Tool-
+ * Defekt (Code-Fix nötig); markFailed sorgt dafür, dass das Problem nicht
+ * stillschweigend hinter weiteren Steps verschwindet.
+ *
+ * Voraussetzungen pro Tool:
+ *   - Idempotenz: Re-Run produziert keinen Duplikat-Stand (clearExisting
+ *     komplex- bzw. werk-skopiert).
  *   - Klare Vorbedingungen: PreconditionFailedError für inhaltliche
  *     Vorbedingungs-Verletzungen, generic Error nur für interne Bugs.
  *   - Klarer Empty-Path: kein Material → { skipped: true }, kein Fehler.
  *
- * Returnt true bei sauber abgeschlossener Phase, false wenn der Run
- * abgebrochen wurde.
+ * Returnt true bei sauber abgeschlossenem Walk, false wenn der Run
+ * abgebrochen wurde (markFailed/markPaused bereits aufgerufen, Event
+ * versendet).
  */
-async function runWerkPhaseStep(
+async function runH3Walk(
 	runId: string,
-	phase: H3Phase,
 	caseId: string,
 	documentId: string,
 	sendEvent: (e: PipelineEvent) => void
 ): Promise<boolean> {
-	const run = await getRun(runId);
-	if (!run) {
-		safeSend(sendEvent, { type: 'failed', message: 'run vanished from DB' });
-		return false;
-	}
-	if (run.cancel_requested) {
-		await markPaused(runId);
-		safeSend(sendEvent, { type: 'paused' });
-		return false;
+	const phase: Phase = 'h3_walk';
+	const steps = await listH3WalkSteps(documentId);
+
+	safeSend(sendEvent, { type: 'phase-start', phase, total: steps.length });
+
+	for (let i = 0; i < steps.length; i++) {
+		const run = await getRun(runId);
+		if (!run) {
+			safeSend(sendEvent, { type: 'failed', message: 'run vanished from DB' });
+			return false;
+		}
+		if (run.cancel_requested) {
+			await markPaused(runId);
+			safeSend(sendEvent, { type: 'paused' });
+			return false;
+		}
+
+		const step = steps[i];
+		const atom: AtomRef = { id: walkStepId(step), label: walkStepLabel(step) };
+		const stepIndex = i + 1;
+		const total = steps.length;
+
+		safeSend(sendEvent, { type: 'step-start', phase, atom, index: i, total });
+
+		// Done-Check: Walk-Step schon abgeschlossen → skippen (Idempotenz auf
+		// Pass-Ebene; Resume eines Runs läuft hier durch). Validation-Check
+		// (User-Schutz) erfolgt zusätzlich in runH3WalkStep.
+		const isDone = await isH3WalkStepDone(step, caseId, documentId);
+		if (isDone) {
+			await updateProgress(runId, phase, stepIndex, total, atom.label, {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+			});
+			const updated = await getRun(runId);
+			safeSend(sendEvent, {
+				type: 'step-done',
+				phase,
+				atom,
+				index: stepIndex,
+				total,
+				skipped: true,
+				tokens: { input: 0, output: 0, cacheRead: 0 },
+				cumulative: {
+					input: updated?.accumulated_input_tokens ?? 0,
+					output: updated?.accumulated_output_tokens ?? 0,
+					cacheRead: updated?.accumulated_cache_read_tokens ?? 0,
+				},
+			});
+			continue;
+		}
+
+		try {
+			const r = await runH3WalkStep(step, caseId, documentId);
+			await updateProgress(runId, phase, stepIndex, total, atom.label, r.tokens);
+			const updated = await getRun(runId);
+			safeSend(sendEvent, {
+				type: 'step-done',
+				phase,
+				atom,
+				index: stepIndex,
+				total,
+				skipped: r.skipped,
+				tokens: r.tokens,
+				cumulative: {
+					input: updated?.accumulated_input_tokens ?? 0,
+					output: updated?.accumulated_output_tokens ?? 0,
+					cacheRead: updated?.accumulated_cache_read_tokens ?? 0,
+				},
+			});
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			safeSend(sendEvent, { type: 'step-error', phase, atom, message });
+			await markFailed(runId, message);
+			safeSend(sendEvent, { type: 'failed', message });
+			return false;
+		}
 	}
 
-	const atom: AtomRef = { id: documentId, label: PHASE_LABEL[phase] };
-
-	safeSend(sendEvent, { type: 'phase-start', phase, total: 1 });
-	safeSend(sendEvent, { type: 'step-start', phase, atom, index: 0, total: 1 });
-
-	// Done-Check: Phase schon abgeschlossen → skippen (Idempotenz auf
-	// Pass-Ebene; Resume eines Runs läuft hier durch).
-	const isDone = await isH3PhaseDoneForDocument(phase, documentId);
-	if (isDone) {
-		await updateProgress(runId, phase, 1, 1, atom.label, {
-			input: 0,
-			output: 0,
-			cacheRead: 0,
-		});
-		const updated = await getRun(runId);
-		safeSend(sendEvent, {
-			type: 'step-done',
-			phase,
-			atom,
-			index: 1,
-			total: 1,
-			skipped: true,
-			tokens: { input: 0, output: 0, cacheRead: 0 },
-			cumulative: {
-				input: updated?.accumulated_input_tokens ?? 0,
-				output: updated?.accumulated_output_tokens ?? 0,
-				cacheRead: updated?.accumulated_cache_read_tokens ?? 0,
-			},
-		});
-		return true;
-	}
-
-	try {
-		const r = await runH3Phase(phase, caseId, documentId);
-		await updateProgress(runId, phase, 1, 1, atom.label, r.tokens);
-		const updated = await getRun(runId);
-		safeSend(sendEvent, {
-			type: 'step-done',
-			phase,
-			atom,
-			index: 1,
-			total: 1,
-			skipped: r.skipped,
-			tokens: r.tokens,
-			cumulative: {
-				input: updated?.accumulated_input_tokens ?? 0,
-				output: updated?.accumulated_output_tokens ?? 0,
-				cacheRead: updated?.accumulated_cache_read_tokens ?? 0,
-			},
-		});
-		return true;
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		safeSend(sendEvent, { type: 'step-error', phase, atom, message });
-		// Werk-Phase: kein fail-tolerant. Jeder Fehler heißt entweder
-		// Vorbedingungs-Verletzung (Reviewer-Eingriff nötig) oder Tool-Defekt
-		// (Code-Fix nötig) — beides braucht markFailed, damit das Problem
-		// nicht stillschweigend hinter weiteren Phasen verschwindet.
-		await markFailed(runId, message);
-		safeSend(sendEvent, { type: 'failed', message });
-		return false;
-	}
+	return true;
 }
+
+// Importiert von H3WalkStep — Type-Re-Export für Konsumenten, die ohne
+// h3-walk-driver.js direkt mit dem Orchestrator arbeiten (z.B. Tests).
+export type { H3WalkStep };
 
 function safeSend(sendEvent: (e: PipelineEvent) => void, e: PipelineEvent) {
 	try {
@@ -1026,15 +1006,28 @@ export async function computePreflight(
 	});
 	const result: PhasePreflightStatus[] = [];
 	for (const phase of phases) {
-		if (isWerkPhase(phase)) {
-			// Werk-Phase: 1 Tool-Aufruf pro Phase auf das ganze Werk. Done iff
-			// das primäre Output-Konstrukt persistiert ist.
-			const isDone = await isH3PhaseDoneForDocument(phase, documentId);
+		if (phase === 'h3_walk') {
+			// H3-Walk: total = Anzahl Walk-Steps (Komplexe + Werk-Knoten),
+			// done = Anzahl Steps mit existierendem Output-Konstrukt.
+			// caseId ist hier nicht im Scope — wir nutzen documentId-basierte
+			// Done-Checks (caseless docs sind unmöglich, Memory
+			// project_no_caseless_docs).
+			const caseRow = await queryOne<{ id: string }>(
+				`SELECT id FROM cases WHERE central_document_id = $1 LIMIT 1`,
+				[documentId]
+			);
+			const steps = await listH3WalkSteps(documentId);
+			let done = 0;
+			if (caseRow) {
+				for (const step of steps) {
+					if (await isH3WalkStepDone(step, caseRow.id, documentId)) done += 1;
+				}
+			}
 			result.push({
 				phase,
-				total: 1,
-				done: isDone ? 1 : 0,
-				pending: isDone ? 0 : 1,
+				total: steps.length,
+				done,
+				pending: steps.length - done,
 			});
 		} else {
 			const list = await listAtomsForPhase(phase, documentId);

@@ -1,11 +1,87 @@
 # H3-Orchestrator-Spec
 
-Spec der Pipeline-Run-Orchestrator-Schicht für H3, **vor Implementation**. Sechs Entscheidungspunkte, jeder einzeln User-abzunicken (Memory `feedback_strategic_decisions_need_consent_even_in_auto.md` — AUTO mode legitimiert keine high-level Setzungen).
+> **REVISION 2026-05-04 — Walk-Modell ersetzt Phase-Layer.** Der gesamte 9-Phasen-Aufbau dieses Dokuments ist überholt. Der H3-Run läuft seit User-Setzung 2026-05-04 als **linearer direktionaler Walk** über Absatz-Komplexe und virtuelle Werk-Knoten, nicht als Phasen-Sequenz (Memory `feedback_no_phase_layer_orchestrator.md`). Die folgenden Abschnitte ab "## #1 — Phasen-Granularität" beschreiben den historischen Zwischenstand und gelten **nicht mehr** für Implementation oder Code-Reviews. Aktuell ist der Abschnitt ["## Walk-Modell (aktueller Stand)"](#walk-modell-aktueller-stand) unten.
 
 Konzeptionelle Grundlage:
 - Mother-Session-Setzungen (`project_three_heuristics_architecture.md`)
 - Status-Stand: [`h3_implementation_status.md`](./h3_implementation_status.md), [`h3_grundlagentheorie_status.md`](./h3_grundlagentheorie_status.md)
 - Heutiger Pipeline-Orchestrator: Memory `project_pipeline_run_orchestrator.md` (Mig 038)
+- User-Setzung Walk-Modell: Memory `feedback_no_phase_layer_orchestrator.md`
+
+## Walk-Modell (aktueller Stand)
+
+User-Setzung 2026-05-04 (verbatim):
+
+> "Es ist nichts anderes als der Aufbau eines sehr einfachen linearen direktionalen Graphen. Jeder Text ist eine Folge von Absätzen. FORSCHUNGSGEGENSTAND-Aggregation läuft unmittelbar vor Forschungsdesign. EXKURS sitzt da wo er im Dokument sitzt."
+
+### Atom-Achse: Absatz-Komplex
+
+Granularität ist der Absatz, nicht das Heading. Jeder Absatz erbt seinen Funktionstyp aus dem nächst-vorhergehenden Heading mit gesetztem `outline_function_type`. Aufeinanderfolgende Absätze unter demselben direkten Container-Heading werden zu einem **Komplex** zusammengefasst — ein Komplex bricht an jedem Heading-Wechsel (auch wenn der vererbte Funktionstyp gleich bliebe), weil Kapitel- und Unterkapitel-Grenzen trennen. Loader: [`loadH3ComplexWalk(documentId)`](../src/lib/server/pipeline/h3-complex-walk.ts).
+
+### Walk-Step-Modell
+
+Ein Walk-Step ist entweder ein **Komplex-Step** (kind: `complex`) für die per-Komplex-Tools, oder ein **Werk-Step** (kind: `werk_*`) als virtueller Knoten für werk-aggregierte Tools. Implementation: [`h3-walk-driver.ts`](../src/lib/server/pipeline/h3-walk-driver.ts).
+
+| Step-Kind | Tool-Aufruf | Quelle |
+|---|---|---|
+| `complex` (EXPOSITION) | `runExpositionForComplex` | Komplex an seiner Dokument-Position |
+| `complex` (GRUNDLAGENTHEORIE) | `runGrundlagentheorieStep1ForComplex` → `runRoutingForComplex` → `runReproductiveBlockForComplex` → `runDiskursivBezugForComplex` (eine Step-Einheit, intern Sub-Tool-Kette) | Komplex an seiner Position |
+| `complex` (DURCHFUEHRUNG) | `runDurchfuehrungStep1ForComplex` … `Step4ForComplex` (eine Step-Einheit) | Komplex an seiner Position |
+| `complex` (EXKURS) | `runExkursForComplex` | Komplex an seiner Position — kein Sammeln am Ende |
+| `werk_fg_aggregation` | `runForschungsgegenstandPass` | virtuell, unmittelbar vor `werk_forschungsdesign` (User-Setzung) |
+| `werk_forschungsdesign` | `runForschungsdesignPass` | virtuell, am ersten FORSCHUNGSDESIGN-Komplex |
+| `werk_synthese` | `runSynthesePass` | virtuell, am ersten SYNTHESE-Komplex |
+| `werk_schlussreflexion` | `runSchlussreflexionPass` | virtuell, am ersten SCHLUSSREFLEXION-Komplex |
+| `werk_deskription` | `runWerkDeskriptionPass` | virtuell, am Ende des Walks |
+| `werk_gutacht` | `runWerkGutachtPass` (c-Gating heute deaktiviert) | virtuell, am Ende des Walks |
+
+### Walk-Konstruktions-Regeln (`buildH3WalkSteps`)
+
+1. Iteriere die Komplex-Liste in Dokument-Reihenfolge (`char_start ASC`).
+2. Komplex `EXPOSITION` / `GRUNDLAGENTHEORIE` / `DURCHFUEHRUNG` / `EXKURS` → emittiere `complex`-Step an dieser Position.
+3. Erster Komplex `FORSCHUNGSDESIGN` → emittiere zuerst `werk_fg_aggregation` (FG-Aggregation läuft unmittelbar vor FORSCHUNGSDESIGN), dann `werk_forschungsdesign`. Folge-FORSCHUNGSDESIGN-Komplexe werden absorbiert (das werk-skopierte Tool sammelt alle FD-Container intern).
+4. Erster Komplex `SYNTHESE` → emittiere `werk_synthese`, absorbiere folgende SYNTHESE-Komplexe.
+5. Erster Komplex `SCHLUSSREFLEXION` → emittiere `werk_schlussreflexion`, absorbiere folgende.
+6. Komplex mit `WERK_STRUKTUR`-Funktionstyp (Outline-Skelett-Marker) → kein Walk-Step (kein Tool zugeordnet).
+7. Nach der Iteration: wenn FG-Aggregation noch nicht emittiert (z.B. Werk ohne FORSCHUNGSDESIGN-Container), emittiere sie vor Schritt 8 — Synthese und Werk-Gutacht brauchen das FG-Konstrukt.
+8. Hänge `werk_deskription` und `werk_gutacht` als finale Werk-Steps an.
+
+### Orchestrator-Anschluss
+
+Eine Phase: `h3_walk`. `phasesForRun({ heuristic: 'h3' })` → `['h3_walk']`. Der Orchestrator-Loop dispatched über `phase === 'h3_walk' ? runH3Walk : runIterativePhase` — kein Phase-Layer mehr. SSE-Events: ein `phase-start` mit `total = steps.length`, je Walk-Step ein `step-start`/`step-done`-Paar mit `atom.label = walkStepLabel(step)`.
+
+### Done-Check und Validation
+
+Pro Walk-Step prüft der Orchestrator zwei Dinge vor dem Tool-Aufruf:
+- **Done-Check** ([`isH3WalkStepDone`](../src/lib/server/pipeline/h3-walk-driver.ts)): primäres Output-Konstrukt existiert (Komplex-Steps mit Anchor-Overlap zu `complex.paragraphIds`, Werk-Steps doc-weit). Bei done → SSE skip-Event, kein Tool-Aufruf.
+- **Validation-Check** ([`isH3WalkStepValidated`](../src/lib/server/pipeline/h3-walk-driver.ts)): Konstrukt mit `construct_validations`-Eintrag existiert (Mig 049). Bei validated → Tool-Aufruf wird im `runH3WalkStep` skipped (User-Schutz).
+
+Beide Checks sind best-effort. Die per-Komplex- und werk-Tools sind selbst idempotent (clearExisting komplex-skopiert), daher ist der Done-Check nur Vor-Optimierung.
+
+### Fail-Modus
+
+Kein fail-tolerant pro Walk-Step. Jeder Tool-Fehler ist entweder Vorbedingungs-Verletzung (Reviewer-Eingriff nötig, `PreconditionFailedError`) oder Tool-Defekt (Code-Fix nötig, generic `Error`); beides führt zu `markFailed` + SSE `failed`-Event, der Walk stoppt. Damit ist gewährleistet, dass kein systemischer Defekt stillschweigend hinter weiteren Steps verschwindet.
+
+### Vorbedingungs-Tabelle (gilt unverändert)
+
+Die [Vorbedingungstabelle weiter unten](#2--reihenfolge-erzwingung--cross-typ-konstrukt-vorbedingungen-user-entschieden) bleibt **inhaltlich gültig** — sie beschreibt, was jedes werk-aggregierte Tool an Vorbedingungen sehen muss. Im Walk-Modell wird sie pro Walk-Step geprüft (in den Tools selbst, `PreconditionFailedError` propagiert ungefangen aus `runH3WalkStep`).
+
+### Was wegfällt
+
+- **Phase-Liste mit 9 H3-Phasen** (`h3_exposition`, `h3_grundlagentheorie`, …): ersetzt durch eine Phase `h3_walk`.
+- **`H3_PHASE_ORDER` Array** im Orchestrator: ersetzt durch dokumentordnungs-getriebenen Walk.
+- **`runH3Phase`-Dispatch** in `h3-phases.ts`: ersetzt durch `runH3WalkStep` in `h3-walk-driver.ts`.
+- **`isWerkPhase`-Check** im Loop: ersetzt durch `phase === 'h3_walk'`-Check.
+- **`runWerkPhaseStep`** im Orchestrator: ersetzt durch `runH3Walk`-Loop.
+- **Anti-EXKURS-Sammlung am Ende**: Komplexe sitzen positional. EXKURS-Komplexe werden in Dokument-Reihenfolge mit-iteriert, nicht ans Walk-Ende verschoben.
+
+`h3-phases.ts` bleibt als Legacy-Helper (Done-/Validated-Checks per H3Phase-Symbol) für Test-Skripte und die `pipeline-status`-API erhalten — der Run-Pfad nutzt sie nicht mehr.
+
+---
+
+## Historischer Stand: 9-Phasen-Modell (überholt)
+
+Der Rest dieses Dokuments beschreibt den **2026-05-03-Stand vor User-Setzung 2026-05-04**. Inhaltlich relevant bleibt nur die Vorbedingungs-Tabelle (#2). Die Phase-Granularität (#1), Container-Iteration (#4), Crash-Resume (#5), SSE-Done-Checks (#6) und Falltyp-Routing-Tabelle sind durch das Walk-Modell ersetzt.
 
 ## Andockpunkt (Mother-Setzung, korrigiert 2026-05-04)
 
@@ -15,7 +91,7 @@ Mig 038 (SSE, Pause/Resume, Idempotenz, Token-Tracking, `cancel_requested`) blei
 
 > **Korrektur-Hinweis 2026-05-04:** frühere Fassung dieser Spec (Z.12 vor Korrektur) und die Status-Doku haben H3 als "zusätzliche Phasen" beschrieben, die nach H1/H2 anhängen. Das war falsch und führte zu einem fehlgeschlagenen E2E-Test, bei dem `include_h3=true` 109 H1-AG-Atome triggerte, bevor irgendeine H3-Phase laufen konnte.
 
-## Reihenfolge der H3-Phasen (vom User gesetzt)
+## Reihenfolge der H3-Phasen (vom User gesetzt) — historisch
 
 ```
 EXPOSITION
@@ -29,7 +105,9 @@ EXPOSITION
                 → WERK_GUTACHT (a + b; c/d/e/f bleiben gated, später)
 ```
 
-**EXKURS-Container sind positional, nicht typisch DURCHFÜHRUNGs-eingebettet.** Sie können an beliebiger Stelle im Werk auftreten — typischerweise in GRUNDLAGENTHEORIE, bei theoretischen Arbeiten auch in DURCHFÜHRUNG, bei empirischen Arbeiten dort selten. Die `h3_exkurs`-Phase iteriert über alle EXKURS-markierten Container und bearbeitet jeden an seiner Dokument-Position; sie läuft erst, wenn alle primären Funktionstyp-Phasen durchgelaufen sind, damit Cross-Typ-Konstrukte aller dokument-vorgängigen Positionen verfügbar sind. Ob nachgelagerte Re-Aggregation einzelner primärer Konstrukte (z.B. FORSCHUNGSGEGENSTAND-Refresh nach EXKURS-Re-Specs auf KERNBEGRIFFE) nötig ist, bleibt offen — entscheidet sich bei EXKURS-Heuristik-Implementation.
+> Diese sequentielle Phasen-Reihenfolge ist durch das Walk-Modell überholt. EXKURS sitzt im Walk an seiner Dokument-Position, FORSCHUNGSGEGENSTAND-Aggregation als Werk-Knoten unmittelbar vor FORSCHUNGSDESIGN.
+
+**EXKURS-Container sind positional, nicht typisch DURCHFÜHRUNGs-eingebettet.** Sie können an beliebiger Stelle im Werk auftreten — typischerweise in GRUNDLAGENTHEORIE, bei theoretischen Arbeiten auch in DURCHFÜHRUNG, bei empirischen Arbeiten dort selten.
 
 ---
 

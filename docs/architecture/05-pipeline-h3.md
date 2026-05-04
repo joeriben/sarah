@@ -277,6 +277,7 @@ Spec: `WERK_GUTACHT-c` (Synthese-Komponente) ist gegated durch ein eigenes User-
 
 ## 7. Was nicht in dieser Doku steht
 
+- **Orchestrator-Anschluss von H3** (linearer Walk über Absatz-Komplexe + Werk-Aggregationen) → `src/lib/server/pipeline/h3-walk-driver.ts` und `docs/h3_orchestrator_spec.md` (Abschnitt "Walk-Modell"). Diese Doku beschreibt _was_ pro Funktionstyp implementiert ist; die Walk-Driver-Doku beschreibt _wie_ der Orchestrator die Funktionstyp-Tools sequenziell aufruft (User-Setzung 2026-05-04, Memory `feedback_no_phase_layer_orchestrator`).
 - **Falltyp-Routing** zwischen H1/H2/H3 (Architekturentscheidung, nicht Heuristik) → `06-cases-briefs-falltyp.md`.
 - **Brief-Flag `h3_enabled`** (Mig 047) → `06-cases-briefs-falltyp.md`.
 - **Detail-Status pro H3-Phase mit Test-Cases** → `docs/h3_implementation_status.md` (266 Zeilen, autoritativ für Tagesarbeit).
