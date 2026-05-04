@@ -49,12 +49,23 @@
 // gleichen source_exkurs_anchors aus dem Stack entfernt; gleichzeitig
 // wird das content-Feld auf "Re-Apply ab letztem origin" gerechnet, damit
 // Re-Run für gleichen EXKURS keine Vermehrung erzeugt.
+//
+// Eintrittspunkte (Memory feedback_no_phase_layer_orchestrator.md):
+//   runExkursForComplex(caseId, documentId, complex)
+//     — primärer komplex-skopierter Eintritt für den Walk-Dispatcher,
+//       genau ein EXKURS-Komplex pro Aufruf.
+//   runExkursPass(caseId)
+//     — Wrapper für Test-Skripte: lädt den Walk, iteriert alle EXKURS-
+//       Komplexe in Walk-Reihenfolge und delegiert. Sequenzielle Re-Spec
+//       entlang Walk-Order ist erhalten — jeder Aufruf liest den
+//       aktuellen FG-Stand frisch.
 
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
 import { extractAndValidateJSON, type ExtractResult } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
+import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
 
 // ── Container-Loading ─────────────────────────────────────────────
 
@@ -620,26 +631,96 @@ export interface ExkursPassResult {
 	};
 }
 
-export async function runExkursPass(
+export interface ExkursComplexPassResult {
+	caseId: string;
+	documentId: string;
+	container: ExkursContainerSummary;
+	/** Re-Spec für genau diesen Komplex; null nur, wenn der Komplex defensiv keine ¶ enthält. */
+	respec: RespecResult | null;
+	forschungsgegenstandId: string | null;
+	finalSubjectKeywords: string[];
+	llmCalls: number;
+	llmTimingMs: number;
+	tokens: { input: number; output: number };
+	provider: string;
+	model: string;
+	diagnostics: {
+		fragestellungCount: number;
+		forschungsgegenstandCount: number;
+		warnings: string[];
+	};
+}
+
+async function loadExkursParagraphsForComplex(
+	documentId: string,
+	complex: H3Complex
+): Promise<ExkursContainer> {
+	if (complex.paragraphIds.length === 0) {
+		return {
+			headingId: complex.headingId,
+			headingText: complex.headingText,
+			paragraphs: [],
+		};
+	}
+	const rows = (
+		await query<{
+			paragraph_id: string;
+			char_start: number;
+			char_end: number;
+			text: string;
+		}>(
+			`SELECT p.id AS paragraph_id,
+			        p.char_start,
+			        p.char_end,
+			        SUBSTRING(dc.full_text FROM p.char_start + 1
+			                              FOR p.char_end - p.char_start) AS text
+			 FROM document_elements p
+			 JOIN document_content dc ON dc.naming_id = p.document_id
+			 WHERE p.document_id = $1
+			   AND p.id = ANY($2::uuid[])
+			 ORDER BY p.char_start`,
+			[documentId, complex.paragraphIds]
+		)
+	).rows;
+
+	return {
+		headingId: complex.headingId,
+		headingText: complex.headingText,
+		paragraphs: rows.map((r, i) => ({
+			paragraphId: r.paragraph_id,
+			charStart: r.char_start,
+			charEnd: r.char_end,
+			text: r.text.trim(),
+			indexInContainer: i,
+		})),
+	};
+}
+
+/**
+ * Komplex-skopierter Eintritt für den H3-Walk-Dispatcher.
+ *
+ * Genau ein EXKURS-Komplex pro Aufruf. FRAGESTELLUNG und FORSCHUNGSGEGENSTAND
+ * werden frisch aus der DB gelesen; sequenzielle Re-Spec entlang Walk-Order
+ * ergibt sich automatisch, weil jeder Aufruf den aktuellsten FG-Stand sieht.
+ */
+export async function runExkursForComplex(
 	caseId: string,
+	documentId: string,
+	complex: H3Complex,
 	options: ExkursPassOptions = {}
-): Promise<ExkursPassResult> {
+): Promise<ExkursComplexPassResult> {
+	if (complex.functionType !== 'EXKURS') {
+		throw new Error(
+			`runExkursForComplex erwartet functionType='EXKURS', erhielt '${complex.functionType}' (heading=${complex.headingId})`
+		);
+	}
+
 	const persistConstructs = options.persistConstructs !== false;
 	const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
 	const modelOverride = options.modelOverride ?? DEFAULT_EXKURS_MODEL;
 	const warnings: string[] = [];
 
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
-
-	const containers = await loadExkursContainers(documentId);
+	const container = await loadExkursParagraphsForComplex(documentId, complex);
 
 	const fsRes = await loadFragestellungWithDiagnostics(caseId, documentId);
 	const fgRes = await loadForschungsgegenstandWithDiagnostics(caseId, documentId);
@@ -657,18 +738,18 @@ export async function runExkursPass(
 		);
 	}
 
-	// No-op: keine EXKURS-Container im Werk → leerer Pass, keine
-	// Pflicht-Voraussetzungs-Prüfung. Sauberer Exit für Werke ohne EXKURS.
-	if (containers.length === 0) {
+	if (container.paragraphs.length === 0) {
 		return {
 			caseId,
 			documentId,
-			exkursContainers: [],
-			fragestellungSnippet: fsRes.text?.slice(0, 200) ?? null,
-			forschungsgegenstandSnippet: fgRes.fg?.content.text.slice(0, 200) ?? null,
+			container: {
+				headingId: container.headingId,
+				headingText: container.headingText,
+				paragraphCount: 0,
+			},
+			respec: null,
 			forschungsgegenstandId: fgRes.fg?.id ?? null,
 			finalSubjectKeywords: fgRes.fg?.content.subjectKeywords ?? [],
-			respecs: [],
 			llmCalls: 0,
 			llmTimingMs: 0,
 			tokens: { input: 0, output: 0 },
@@ -700,9 +781,155 @@ export async function runExkursPass(
 				`Erst H3:GRUNDLAGENTHEORIE Schritt 4 laufen.`,
 		});
 	}
-	const fragestellung = fsRes.text;
-	let fg = fgRes.fg;
 
+	const fragestellung = fsRes.text;
+	const fg = fgRes.fg;
+	const priorText = fg.content.text;
+	const priorKeywords = fg.content.subjectKeywords;
+
+	const llmRes = await extractRespec({
+		fragestellung,
+		priorForschungsgegenstandText: priorText,
+		priorSubjectKeywords: priorKeywords,
+		exkursContainer: container,
+		documentId,
+		maxTokens,
+		modelOverride,
+	});
+
+	let applied: ApplyRespecResult;
+	if (persistConstructs) {
+		applied = await applyRespecToForschungsgegenstand({
+			fg,
+			exkursContainer: container,
+			llmResult: llmRes.result,
+			llmModel: llmRes.model,
+			llmTimingMs: llmRes.timingMs,
+		});
+	} else {
+		// Read-only: simulate apply für Output-Berichterstellung, ohne UPDATE.
+		applied = {
+			updatedFgId: fg.id,
+			noRespec: llmRes.result.noRespec ?? false,
+			priorContent: fg.content,
+			newContent: {
+				...fg.content,
+				text: llmRes.result.newForschungsgegenstandText,
+				subjectKeywords: llmRes.result.newSubjectKeywords,
+			},
+			stackEntriesBefore: fg.versionStack.length,
+			stackEntriesAfter: fg.versionStack.length + (llmRes.result.noRespec ? 0 : 1),
+			replacedPriorRespecForThisExkurs: false,
+		};
+	}
+
+	const respec: RespecResult = {
+		headingId: container.headingId,
+		headingText: container.headingText,
+		noRespec: applied.noRespec,
+		importedConcepts: llmRes.result.importedConcepts.map((c) => ({
+			name: c.name,
+			sourceAuthor: c.sourceAuthor ?? null,
+		})),
+		affectedConcepts: llmRes.result.affectedConcepts,
+		reSpecText: llmRes.result.reSpecText,
+		exkursAnchorText: llmRes.result.exkursAnchorText,
+		priorForschungsgegenstandText: priorText,
+		newForschungsgegenstandText: applied.newContent.text,
+		priorSubjectKeywords: priorKeywords,
+		newSubjectKeywords: applied.newContent.subjectKeywords,
+		stackEntriesBefore: applied.stackEntriesBefore,
+		stackEntriesAfter: applied.stackEntriesAfter,
+		replacedPriorRespecForThisExkurs: applied.replacedPriorRespecForThisExkurs,
+	};
+
+	return {
+		caseId,
+		documentId,
+		container: {
+			headingId: container.headingId,
+			headingText: container.headingText,
+			paragraphCount: container.paragraphs.length,
+		},
+		respec,
+		forschungsgegenstandId: fg.id,
+		finalSubjectKeywords: applied.newContent.subjectKeywords,
+		llmCalls: 1,
+		llmTimingMs: llmRes.timingMs,
+		tokens: llmRes.tokens,
+		provider: llmRes.provider,
+		model: llmRes.model,
+		diagnostics: {
+			fragestellungCount: fsRes.diag.count,
+			forschungsgegenstandCount: fgRes.diag.count,
+			warnings,
+		},
+	};
+}
+
+/**
+ * Werk-skopierter Wrapper: lädt den H3-Komplex-Walk und delegiert pro
+ * EXKURS-Komplex an `runExkursForComplex`. Aufrufer (Test-Skripte,
+ * Legacy-Pfade) sehen weiter die werkweite Aggregat-Struktur.
+ */
+export async function runExkursPass(
+	caseId: string,
+	options: ExkursPassOptions = {}
+): Promise<ExkursPassResult> {
+	const caseRow = await queryOne<{ central_document_id: string | null }>(
+		`SELECT central_document_id FROM cases WHERE id = $1`,
+		[caseId]
+	);
+	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
+	if (!caseRow.central_document_id) {
+		throw new Error(`Case ${caseId} has no central_document_id`);
+	}
+	const documentId = caseRow.central_document_id;
+
+	const walk = await loadH3ComplexWalk(documentId);
+	const exkursComplexes = walk.filter((c) => c.functionType === 'EXKURS');
+
+	const fsRes = await loadFragestellungWithDiagnostics(caseId, documentId);
+	const fgRes = await loadForschungsgegenstandWithDiagnostics(caseId, documentId);
+	const warnings: string[] = [];
+	if (fsRes.diag.duplicate) {
+		warnings.push(
+			`FRAGESTELLUNG: ${fsRes.diag.count} Konstrukte vorhanden — jüngstes wird verwendet. ` +
+				`Cleanup empfohlen (manuell oder via dedizierter Skript).`
+		);
+	}
+	if (fgRes.diag.duplicate) {
+		warnings.push(
+			`FORSCHUNGSGEGENSTAND: ${fgRes.diag.count} Konstrukte vorhanden — jüngstes wird ` +
+				`modifiziert. Cleanup empfohlen.`
+		);
+	}
+
+	// Werk ohne EXKURS-Komplexe: sauberer No-Op-Exit, keine Pflicht-Voraussetzung.
+	if (exkursComplexes.length === 0) {
+		return {
+			caseId,
+			documentId,
+			exkursContainers: [],
+			fragestellungSnippet: fsRes.text?.slice(0, 200) ?? null,
+			forschungsgegenstandSnippet: fgRes.fg?.content.text.slice(0, 200) ?? null,
+			forschungsgegenstandId: fgRes.fg?.id ?? null,
+			finalSubjectKeywords: fgRes.fg?.content.subjectKeywords ?? [],
+			respecs: [],
+			llmCalls: 0,
+			llmTimingMs: 0,
+			tokens: { input: 0, output: 0 },
+			provider: '',
+			model: '',
+			diagnostics: {
+				fragestellungCount: fsRes.diag.count,
+				forschungsgegenstandCount: fgRes.diag.count,
+				warnings,
+			},
+		};
+	}
+
+	const containers: ExkursContainerSummary[] = [];
 	const respecs: RespecResult[] = [];
 	let totalLlmCalls = 0;
 	let totalLlmTimingMs = 0;
@@ -711,95 +938,29 @@ export async function runExkursPass(
 	let lastProvider = '';
 	let lastModel = '';
 
-	for (const container of containers) {
-		if (container.paragraphs.length === 0) continue;
-
-		// Prior-Stand aus aktuellem FG-content (jeder vorgehender EXKURS hat
-		// FG schon weitergedreht — sequenzielle Re-Spec entlang Outline-Order
-		// von loadExkursContainers).
-		const priorText = fg.content.text;
-		const priorKeywords = fg.content.subjectKeywords;
-
-		const llmRes = await extractRespec({
-			fragestellung,
-			priorForschungsgegenstandText: priorText,
-			priorSubjectKeywords: priorKeywords,
-			exkursContainer: container,
-			documentId,
-			maxTokens,
-			modelOverride,
-		});
-
-		totalLlmCalls += 1;
-		totalLlmTimingMs += llmRes.timingMs;
-		totalInputTokens += llmRes.tokens.input;
-		totalOutputTokens += llmRes.tokens.output;
-		lastProvider = llmRes.provider;
-		lastModel = llmRes.model;
-
-		let applied: ApplyRespecResult;
-		if (persistConstructs) {
-			applied = await applyRespecToForschungsgegenstand({
-				fg,
-				exkursContainer: container,
-				llmResult: llmRes.result,
-				llmModel: llmRes.model,
-				llmTimingMs: llmRes.timingMs,
-			});
-			// FG für nächste Iteration: frisch aus DB neu lesen, damit der
-			// nächste EXKURS auf dem re-spezifizierten Stand aufsetzt.
-			const reread = await loadForschungsgegenstandWithDiagnostics(caseId, documentId);
-			if (reread.fg) fg = reread.fg;
-		} else {
-			// Read-only: simulate apply für Output-Berichterstellung, ohne UPDATE.
-			applied = {
-				updatedFgId: fg.id,
-				noRespec: llmRes.result.noRespec ?? false,
-				priorContent: fg.content,
-				newContent: {
-					...fg.content,
-					text: llmRes.result.newForschungsgegenstandText,
-					subjectKeywords: llmRes.result.newSubjectKeywords,
-				},
-				stackEntriesBefore: fg.versionStack.length,
-				stackEntriesAfter: fg.versionStack.length + (llmRes.result.noRespec ? 0 : 1),
-				replacedPriorRespecForThisExkurs: false,
-			};
-		}
-
-		respecs.push({
-			headingId: container.headingId,
-			headingText: container.headingText,
-			noRespec: applied.noRespec,
-			importedConcepts: llmRes.result.importedConcepts.map((c) => ({
-				name: c.name,
-				sourceAuthor: c.sourceAuthor ?? null,
-			})),
-			affectedConcepts: llmRes.result.affectedConcepts,
-			reSpecText: llmRes.result.reSpecText,
-			exkursAnchorText: llmRes.result.exkursAnchorText,
-			priorForschungsgegenstandText: priorText,
-			newForschungsgegenstandText: applied.newContent.text,
-			priorSubjectKeywords: priorKeywords,
-			newSubjectKeywords: applied.newContent.subjectKeywords,
-			stackEntriesBefore: applied.stackEntriesBefore,
-			stackEntriesAfter: applied.stackEntriesAfter,
-			replacedPriorRespecForThisExkurs: applied.replacedPriorRespecForThisExkurs,
-		});
+	for (const complex of exkursComplexes) {
+		const result = await runExkursForComplex(caseId, documentId, complex, options);
+		containers.push(result.container);
+		if (result.respec) respecs.push(result.respec);
+		totalLlmCalls += result.llmCalls;
+		totalLlmTimingMs += result.llmTimingMs;
+		totalInputTokens += result.tokens.input;
+		totalOutputTokens += result.tokens.output;
+		if (result.provider) lastProvider = result.provider;
+		if (result.model) lastModel = result.model;
 	}
+
+	// Final-Snapshot der FG nach allen Re-Specs (für Reporting).
+	const finalFgRes = await loadForschungsgegenstandWithDiagnostics(caseId, documentId);
 
 	return {
 		caseId,
 		documentId,
-		exkursContainers: containers.map((c) => ({
-			headingId: c.headingId,
-			headingText: c.headingText,
-			paragraphCount: c.paragraphs.length,
-		})),
-		fragestellungSnippet: fragestellung.slice(0, 200),
-		forschungsgegenstandSnippet: fg.content.text.slice(0, 200),
-		forschungsgegenstandId: fg.id,
-		finalSubjectKeywords: fg.content.subjectKeywords,
+		exkursContainers: containers,
+		fragestellungSnippet: fsRes.text?.slice(0, 200) ?? null,
+		forschungsgegenstandSnippet: finalFgRes.fg?.content.text.slice(0, 200) ?? null,
+		forschungsgegenstandId: finalFgRes.fg?.id ?? null,
+		finalSubjectKeywords: finalFgRes.fg?.content.subjectKeywords ?? [],
 		respecs,
 		llmCalls: totalLlmCalls,
 		llmTimingMs: totalLlmTimingMs,
