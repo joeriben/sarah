@@ -879,7 +879,7 @@ export interface ArgumentationGraphRun {
 export async function runArgumentationGraphPass(
 	caseId: string,
 	paragraphId: string,
-	opts: { modelOverride?: { provider: Provider; model: string } } = {}
+	opts: { modelOverride?: { provider: Provider; model: string }; maxTokens?: number } = {}
 ): Promise<ArgumentationGraphRun> {
 	const caseCtx = await loadCaseContext(caseId);
 	const paraCtx = await loadParagraphContext(caseCtx, paragraphId);
@@ -914,7 +914,7 @@ export async function runArgumentationGraphPass(
 		messages: [{ role: 'user', content: user }],
 		// 8000: prose-output is generally less verbose than the JSON it
 		// replaces (no quote/bracket boilerplate); 8000 still safe upper.
-		maxTokens: 8000,
+		maxTokens: opts.maxTokens ?? 8000,
 		modelOverride: opts.modelOverride,
 	});
 

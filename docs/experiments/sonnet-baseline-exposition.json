@@ -1,0 +1,25 @@
+{
+  "model": {
+    "provider": "openrouter",
+    "model": "anthropic/claude-sonnet-4.6"
+  },
+  "wall_seconds": 5.62,
+  "tokens": {
+    "input": 1424,
+    "output": 306
+  },
+  "provider": "openrouter",
+  "model_returned": "anthropic/claude-4.6-sonnet-20260217",
+  "raw_text": "```json\n{\n  \"found\": true,\n  \"fragestellung\": \"Inwiefern fördern Bildungsprogramme im Rahmen der UNESCO-GCED das Bewusstsein für globale Probleme der Gegenwart – analysiert im Vergleich mit den epochaltypischen Schlüsselproblemen nach Wolfgang Klafki?\",\n  \"fragestellung_paragraph_indices\": [0],\n  \"motivation\": \"In einer globalisierten Welt stellen Krisen wie Klimawandel, soziale Ungleichheit und Kriege kollektive Herausforderungen dar, auf die Bildung als gestaltende Kraft reagieren muss. Die UNESCO hat mit dem Konzept der Global Citizenship Education (GCED) einen Ansatz entwickelt, der Menschen befähigen soll, globale Probleme zu verstehen und interkulturelle Kompetenzen zu entwickeln. Klafkis Theorie der epochaltypischen Schlüsselprobleme bietet dabei einen etablierten theoretischen Rahmen, um die Wirksamkeit solcher Bildungsprogramme hinsichtlich globaler Verantwortung zu analysieren.\",\n  \"motivation_paragraph_indices\": [0]\n}\n```",
+  "parsed_json": {
+    "found": true,
+    "fragestellung": "Inwiefern fördern Bildungsprogramme im Rahmen der UNESCO-GCED das Bewusstsein für globale Probleme der Gegenwart – analysiert im Vergleich mit den epochaltypischen Schlüsselproblemen nach Wolfgang Klafki?",
+    "fragestellung_paragraph_indices": [
+      0
+    ],
+    "motivation": "In einer globalisierten Welt stellen Krisen wie Klimawandel, soziale Ungleichheit und Kriege kollektive Herausforderungen dar, auf die Bildung als gestaltende Kraft reagieren muss. Die UNESCO hat mit dem Konzept der Global Citizenship Education (GCED) einen Ansatz entwickelt, der Menschen befähigen soll, globale Probleme zu verstehen und interkulturelle Kompetenzen zu entwickeln. Klafkis Theorie der epochaltypischen Schlüsselprobleme bietet dabei einen etablierten theoretischen Rahmen, um die Wirksamkeit solcher Bildungsprogramme hinsichtlich globaler Verantwortung zu analysieren.",
+    "motivation_paragraph_indices": [
+      0
+    ]
+  }
+}

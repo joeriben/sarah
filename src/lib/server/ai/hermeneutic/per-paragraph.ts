@@ -548,7 +548,7 @@ export async function runParagraphPass(
 	caseId: string,
 	paragraphId: string,
 	userId: string,
-	opts: { modelOverride?: { provider: Provider; model: string } } = {}
+	opts: { modelOverride?: { provider: Provider; model: string }; maxTokens?: number } = {}
 ): Promise<ParagraphPassRun> {
 	const caseCtx = await loadCaseContext(caseId);
 	const paraCtx = await loadParagraphContext(caseCtx, paragraphId);
@@ -561,7 +561,7 @@ export async function runParagraphPass(
 		cacheableSystemPrefix,
 		system,
 		messages: [{ role: 'user', content: user }],
-		maxTokens: 2000,
+		maxTokens: opts.maxTokens ?? 2000,
 		modelOverride: opts.modelOverride,
 	});
 

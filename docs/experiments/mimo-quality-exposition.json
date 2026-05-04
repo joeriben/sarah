@@ -1,0 +1,40 @@
+{
+  "model": "xiaomi/mimo-v2.5-pro-20260422",
+  "case_id": "c42e2d8f-1771-43bb-97c8-f57d7d10530a",
+  "document_id": "d1993e8a-f25b-479c-9526-d527215969c6",
+  "container_heading_id": "081aafdc-6c70-4558-8b5c-e5f4f8f5fb23",
+  "container_label": "Einleitung",
+  "paragraph_count": 2,
+  "input_paragraphs": [
+    {
+      "paragraphId": "55994ed9-edee-46bc-9fb8-31e442dd80e1",
+      "text": "In einer globalisierten Welt, in der Krisen wie Klimawandel, soziale Un-gleichheit, Migration, Kriege, Pandemien und technologische Entwicklun-gen die Menschheit kollektiv herausfordern, gewinnt Bildung als gestal-tende Kraft für ein reflektiertes und verantwortungsbewusstes Zusam-menleben an Bedeutung. Insbesondere die Fähigkeit, globale Zusam-menhänge zu erkennen, zu bewerten und entsprechend zu handeln, ist zu einer grundlegenden Anforderung an das Individuum geworden. In diesem Zusammenhang hat die United Nations Educational, Scientific and Culutural Organization (UNESCO) das Konzept der „Global Citi-zenship Education“ (GCED) entwickelt – ein Bildungsansatz, der Men-schen weltweit befähigen soll, globale Probleme zu verstehen, interkul-turelle Kompetenzen zu entwickeln und sich aktiv für eine gerechtere Welt einzusetzen. Die vorliegende Arbeit untersucht, inwiefern Bildungs-programme im Rahmen der UNESCO-GCED tatsächlich zur Förderung eines Bewusstseins für globale Gegenwartsprobleme beitragen. Zur Be-antwortung dieser Forschungsfrage wird das Konzept der GCED in Be-ziehung gesetzt zur Theorie der epochaltypischen Schlüsselprobleme nach Wolfgang Klafki. Klafki stellt in seinem bildungstheoretischen An-satz zentrale Herausforderungen – wie Friedenssicherung, Umweltfra-gen, soziale Ungleichheit oder die Folgen technischer Entwicklung – in den Mittelpunkt der Allgemeinbildung. In diesem Sinne stellen sie ein ver-bindendes Element zwischen individueller Bildung und gesellschaftlicher Verantwortung dar. Die Schlüsselprobleme nach Klafki sind damit hoch-aktuell und bieten einen theoretischen Rahmen, um Bildungsprogramme  hinsichtlich ihrer globalen Wirksamkeit zu analysieren. Die theoretische Verankerung der Arbeit erfolgt durch eine Auseinandersetzung mit dem Bildungsbegriff im gesellschaftlichen Kontext sowie mit Klafkis kritisch-konstruktiver Didaktik. Diese liefert nicht nur eine inhaltliche Orientierung, sondern auch ein methodisches „Wie“ für Bildungsprozesse, die auf Emanzipation, Mündigkeit und Solidarität zielen. Die Forschungsfrage, die hier demnach zugrunde liegt, lautet: „Inwiefern fördern Bildungspro-gramme im Rahmen der UNESCO-GCED das Bewusstsein für globale Probleme der Gegenwart? Ein Vergleich im Kontext der epochaltypi-schen Schlüsselprobleme nach Klafki“. Vor diesem Hintergrund werden ausgewählte Bildungsprogramme der UNESCO – insbesondere solche, die im Rahmen der GCED entwickelt wurden – mit Klafkis Theorie in Be-ziehung gesetzt. Im Ergebnis soll deutlich werden, ob die Programme der UNESCO ein zeitgemäßes und wirkungsvolles Instrument zur Bewälti-gung der epochaltypischen Schlüsselprobleme darstellen – oder ob kon-zeptionelle Nachschärfungen notwendig sind, um den komplexen Anfor-derungen globaler Bildungsprozesse gerecht zu werden.",
+      "indexInContainer": 0
+    },
+    {
+      "paragraphId": "c3818e04-3870-43ef-afc9-c78e60e8dc0d",
+      "text": "Die Auswahl der Literatur folgt bewusst einem reduktiven Ansatz. Im Zentrum der Arbeit stehen zentrale theoretische Texte von Wolfgang Klafki sowie offizielle Dokumente der UNESCO zur GCED. Ziel ist es, diese beiden Perspektiven systematisch gegenüberzustellen, weshalb auf eine breite Sekundärliteratur verzichtet wurde. Stattdessen liegt der Fokus auf der tiefgehenden Analyse und dem theoriegeleiteten Vergleich zweier maßgeblicher Akteure im Diskurs um globale Bildungsherausfor-derungen.",
+      "indexInContainer": 1
+    }
+  ],
+  "wall_seconds": 4.596,
+  "tokens": {
+    "input": 1179,
+    "output": 215
+  },
+  "provider": "openrouter",
+  "raw_text": "{\n  \"found\": true,\n  \"fragestellung\": \"Inwiefern fördern Bildungsprogramme im Rahmen der UNESCO-GCED das Bewusstsein für globale Probleme der Gegenwart? Ein Vergleich im Kontext der epochaltypischen Schlüsselprobleme nach Klafki\",\n  \"fragestellung_paragraph_indices\": [0],\n  \"motivation\": \"In einer globalisierten Welt mit Herausforderungen wie Klimawandel, sozialer Ungleichheit und Pandemien gewinnt Bildung als gestaltende Kraft an Bedeutung. Die UNESCO hat mit der Global Citizenship Education (GCED) einen Ansatz entwickelt, der Menschen befähigen soll, globale Probleme zu verstehen und sich für eine gerechtere Welt einzusetzen. Die vorliegende Arbeit prüft, ob diese Programme tatsächlich zur Förderung eines Bewusstseins für globale Gegenwartsprobleme beitragen.\",\n  \"motivation_paragraph_indices\": [0]\n}",
+  "parsed_json": {
+    "found": true,
+    "fragestellung": "Inwiefern fördern Bildungsprogramme im Rahmen der UNESCO-GCED das Bewusstsein für globale Probleme der Gegenwart? Ein Vergleich im Kontext der epochaltypischen Schlüsselprobleme nach Klafki",
+    "fragestellung_paragraph_indices": [
+      0
+    ],
+    "motivation": "In einer globalisierten Welt mit Herausforderungen wie Klimawandel, sozialer Ungleichheit und Pandemien gewinnt Bildung als gestaltende Kraft an Bedeutung. Die UNESCO hat mit der Global Citizenship Education (GCED) einen Ansatz entwickelt, der Menschen befähigen soll, globale Probleme zu verstehen und sich für eine gerechtere Welt einzusetzen. Die vorliegende Arbeit prüft, ob diese Programme tatsächlich zur Förderung eines Bewusstseins für globale Gegenwartsprobleme beitragen.",
+    "motivation_paragraph_indices": [
+      0
+    ]
+  },
+  "parse_ok": true,
+  "error": null
+}

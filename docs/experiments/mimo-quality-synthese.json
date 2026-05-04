@@ -1,0 +1,133 @@
+{
+  "model": {
+    "provider": "openrouter",
+    "model": "xiaomi/mimo-v2.5-pro"
+  },
+  "records": [
+    {
+      "idx": 1,
+      "pid": "60f9dfb1-5d9d-4c56-8288-1ef51f5eec63",
+      "wall_seconds": 36.213,
+      "tokens": {
+        "input": 3333,
+        "output": 1989,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 5322
+      },
+      "model": "xiaomi/mimo-v2.5-pro-20260422",
+      "parsed": {
+        "interpretierend": "Der Absatz etabliert die kulturwissenschaftliche Grundierung der Arbeit, verankert bei Reckwitz und Bhabha, und definiert Kultur als implizites Reservoir von Werthorizonten, das Gemeinschaften durch Routinen konstituiert. Die argumentative Kernaufgabe des Absatzes besteht in der Herausarbeitung einer Doppelstruktur: Kulturelle Routinen ermöglichen Handlungsgewissheit, begrenzen zugleich das individuelle Repertoire und perpetuieren Ausschlüsse — wobei Kultur gleichzeitig als Wandelprozess und Arena der Bedeutungsaushandlung unter Einschluss impliziter Machtmechanismen konzipiert wird. Als erster Absatz des Unterkapitels liefert er damit das theoretische Fundament, auf dem die nachfolgende Argumentation aufbauen kann, warum kulturelle Orientierungsangebote in der Schule bedeutsam werden.",
+        "codes": [
+          {
+            "label": "Kulturelle Routinen: Ermöglichung und Begrenzung",
+            "anchor_phrase": "Handlungsgewissheit",
+            "rationale": "Die zentrale argumentative Pointe des Absatzes ist die Doppelwirkung kultureller Routinen — sie ermöglichen Handlungssicherheit und begrenzen zugleich das Repertoire, was die gesamte nachfolgende Argumentation für Professionalitätsanforderungen fundiert."
+          },
+          {
+            "label": "Arena der Aushandlung von Bedeutungen",
+            "anchor_phrase": "Arena der Aushandlung von Bedeutungen",
+            "rationale": "Kultur wird nicht als statisches Traditionsreservoir, sondern als prozessualer Aushandlungsraum mit impliziten Machtmechanismen konzipiert, was den gesellschaftlichen Problemzusammenhang markiert, den die Arbeit adressiert."
+          }
+        ]
+      },
+      "raw_text": null,
+      "error": null
+    },
+    {
+      "idx": 2,
+      "pid": "7118aa10-b5d7-495a-9405-5b66116edb06",
+      "wall_seconds": 30.54,
+      "tokens": {
+        "input": 1792,
+        "output": 1637,
+        "cacheCreation": 0,
+        "cacheRead": 2048,
+        "total": 5477
+      },
+      "model": "xiaomi/mimo-v2.5-pro-20260422",
+      "parsed": {
+        "interpretierend": "Der Absatz diagnostiziert den Wandel schulischer kultureller Bildung: Ehemals als Einführung in ein geschlossenes Reservoir geteilter Werte verstanden, sei dieser Konsens angesichts einer pluralisierten kulturellen Ordnung nicht mehr haltbar — kulturelle Bildungsprozesse seien nun als Ausbildung brüchigerer Selbst-Welt-Verhältnisse zu fassen. Vor dem Hintergrund des ersten Absatzes, der Kultur als Reservoir mit Doppelstruktur (Gewissheit/Begrenzung) theoretisch verankert hatte, wird hier die historische Zuspitzung vorgenommen: Was dort als allgemeine Struktur beschrieben wurde, wird nun als Diagnose der Gegenwartslage von Schule konkretisiert. Die argumentative Pointe liegt im Schlusssatz: Kulturelle Vermittlung ist von Routine zu einem nur analytisch-reflexiv zu bewältigenden Handlungsfeld geworden — was die Notwendigkeit einer Theorie kultureller Lehrerbildung erst begründet.",
+        "codes": [
+          {
+            "label": "Kulturelle Bildung als reflexive Aufgabe",
+            "anchor_phrase": "nur analytisch-reflexiv zu bewältigenden Handlungsfeld",
+            "rationale": "Der Schlusssatz formuliert die Diagnose, die das gesamte Habilitationsprojekt motiviert: Routinekultur der Vermittlung ist obsolet, Reflexivität zur conditio geworden."
+          },
+          {
+            "label": "Pluralisierung kultureller Ordnungszusammenhänge",
+            "anchor_phrase": "Pluralität kultureller Ordnungszusammenhänge",
+            "rationale": "Die empirische Prämisse des Absatzes — die Auflösung geteilter Wertvorstellungen — begründet, warum der ehemalige Konsens über kulturelle Einführung in Schule nicht mehr trägt."
+          }
+        ]
+      },
+      "raw_text": null,
+      "error": null
+    },
+    {
+      "idx": 3,
+      "pid": "897ca890-e56a-4768-a078-fd5e59fda3d6",
+      "wall_seconds": 28.813,
+      "tokens": {
+        "input": 1915,
+        "output": 1787,
+        "cacheCreation": 0,
+        "cacheRead": 2048,
+        "total": 5750
+      },
+      "model": "xiaomi/mimo-v2.5-pro-20260422",
+      "parsed": {
+        "interpretierend": "Der Absatz schlägt die Brücke zur Bildungstradition, indem er Selbst- und Weltverhältnisse als existenzielle Bedingung menschlichen Daseins verankert (Hollunder, Kokemohr, Koller) und diese klassische Bildungsdynamik unter dem Stichwort Globalität als radikalisierte Herausforderung neu konturiert. Vor dem Hintergrund der vorangegangenen kulturtheoretischen und schuldiagnostischen Fundierung wird hier die These zugespitzt, dass Bildungsprozesse nicht nur individuelle Selbstvergewisserung meinen, sondern ohne Perspektive auf Teilhabe an Gesellschaft nicht zu denken sind — was die gesellschaftliche Dimension kultureller Orientierungsangebote in Schule erst begründet.",
+        "codes": [
+          {
+            "label": "Bildung als Selbstverortung und Teilhabe",
+            "anchor_phrase": "Prozess der Selbstverortung",
+            "rationale": "Die Schlusspointe des Absatzes, dass Bildung als Selbstverortung ohne Perspektive auf Teilhabe an Gesellschaft nicht zu denken ist, trägt die zentrale Erweiterung von individueller zu gesellschaftlicher Relevanz kultureller Bildungsprozesse."
+          },
+          {
+            "label": "Globalität als Radikalisierung der Bildungsdynamik",
+            "anchor_phrase": "angesichts von Globalität",
+            "rationale": "Globalität wird hier erstmals als verdichtende Chiffre für soziale, sachliche und zeit-räumliche Komplexitätssteigerung eingeführt, die die klassische Bildungsdynamik radikalisiert — ein zentraler argumentativer Drehpunkt der gesamten Arbeit."
+          }
+        ]
+      },
+      "raw_text": null,
+      "error": null
+    },
+    {
+      "idx": 4,
+      "pid": "96556e05-9b69-482b-ace7-174252284536",
+      "wall_seconds": 25.931,
+      "tokens": {
+        "input": 2114,
+        "output": 1420,
+        "cacheCreation": 0,
+        "cacheRead": 2048,
+        "total": 5582
+      },
+      "model": "xiaomi/mimo-v2.5-pro-20260422",
+      "parsed": {
+        "interpretierend": "Der Absatz rezipiert Heinz-Elmar Tenorths Definition allgemeiner Bildung — bewusst ohne expliziten Kulturbezug eingeführt — und extrahiert aus dessen multidimensionalem Konstrukt (kommunikative Praxis, Habitusgenese, Distinktionsmodi, soziale Tatsache) jene Dimensionen, die auf kulturelle Formation verweisen. Die argumentative Pointe liegt in der Schlussformulierung des Autors: Bildung wird als Prozess der Selbstrelationierung zu sozialen Ordnungssystemen reformuliert, deren ‚kulturelle Formierung' die impliziten Werte und normative Gestalt ausmachen. Vor dem Hintergrund der bisherigen Kette (kulturtheoretisches Doppelstruktur-Reservoir, historische Zuspitzung pluralisierter Kulturordnung, Bildungsprozesse als Selbstverortung mit gesellschaftlicher Teilhabeperspektive) vollzieht dieser Absatz die Brücke von der Bildungstheorie zur Kulturanalyse: Selbst ein kulturneutraler Bildungsbegriff enthalte bereits kulturelle Formation als Strukturprinzip — was die These stützt, dass kulturelle Orientierungsangebote in der Schule nicht als Additum, sondern als konstitutiv für Bildungsprozesse zu verstehen sind.",
+        "codes": [
+          {
+            "label": "Bildung als kulturelle Formation sozialer Ordnungsbezüge",
+            "anchor_phrase": "kulturelle Formierung",
+            "rationale": "Die eigenständige Schlussformel des Autors macht den impliziten Kulturbezug in Tenorths Bildungsbegriff explizit und bildet die argumentative Brücke zwischen allgemeiner Bildungstheorie und der Notwendigkeit kultureller Orientierungsangebote in Schule."
+          }
+        ]
+      },
+      "raw_text": null,
+      "error": null
+    },
+    {
+      "idx": 5,
+      "pid": "72919e94-79bb-4a0e-b507-e78aacc1fd5b",
+      "wall_seconds": 34.059,
+      "tokens": null,
+      "model": null,
+      "parsed": null,
+      "raw_text": "paragraph_id: 72919e94-79bb-4a0e-b507-e78aacc1fd5b\nmodel: xiaomi/mimo-v2.5-pro-20260422\nprovider: openrouter\noutput_tokens: 2000\nstop_reason: length\n\n--- RAW RESPONSE ---\n\n",
+      "error": "No JSON object found in LLM response"
+    }
+  ]
+}
