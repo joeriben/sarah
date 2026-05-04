@@ -19,6 +19,8 @@
 
 import { jsonrepair } from 'jsonrepair';
 import type { ZodType } from 'zod';
+import { chat, getModel, getProvider, type Provider } from './client.js';
+import { logPipelineCall } from './pipeline-call-log.js';
 
 export interface ExtractSuccess<T> {
 	ok: true;
@@ -162,4 +164,198 @@ export function repairTypographicQuotes(jsonText: string): string {
 		const close = open === '„' ? '“' : '”';
 		return `${open}${body}${close}`;
 	});
+}
+
+// ── Self-Healing Call-Wrapper ────────────────────────────────────
+//
+// runJsonCallWithRepair: wraps a chat() call with the layered repair pipeline
+// (extractAndValidateJSON) AND a self-repair retry loop. When the first
+// extraction fails, we hand the broken output + parser error back to the LLM
+// as a follow-up turn and ask for a corrected JSON. Up to maxRetries times.
+//
+// The conversation grows: [user(task), assistant(broken), user(repair-feedback),
+// assistant(repaired-or-still-broken), ...]. Token usage accumulates over all
+// attempts. On exhaustion we throw RepairCallExhaustedError carrying the full
+// stage history so callers can dump for diagnosis.
+
+export interface TokenUsage {
+	input: number;
+	output: number;
+	cacheRead: number;
+	cacheCreation: number;
+	total: number;
+}
+
+export interface RepairCallResult<T> {
+	value: T;
+	tokens: TokenUsage;            // accumulated across all attempts
+	stagesUsed: string[];          // stages from final successful extract
+	retries: number;               // 0 = first call succeeded
+	attempts: number;              // = retries + 1
+	stagesPerAttempt: string[][];  // diagnostic: what each attempt went through
+}
+
+export class RepairCallExhaustedError extends Error {
+	constructor(
+		message: string,
+		public readonly attempts: number,
+		public readonly lastStage: string,
+		public readonly lastError: string,
+		public readonly lastRawText: string,
+		public readonly tokens: TokenUsage,
+		public readonly stagesPerAttempt: string[][]
+	) {
+		super(message);
+		this.name = 'RepairCallExhaustedError';
+	}
+}
+
+export interface JsonRepairCallOpts<T> {
+	system?: string;
+	user: string;
+	schema: ZodType<T>;
+	label: string;                 // module identifier for telemetry
+	modelOverride?: { provider: Provider; model: string };
+	maxTokens: number;
+	maxRetries?: number;           // default 2
+	cacheableSystemPrefix?: string;
+	cacheSystem?: boolean;
+	documentIds?: string[];
+	responseFormat?: 'json';
+	/** Telemetry context, optional. */
+	caseId?: string | null;
+	paragraphId?: string | null;
+}
+
+export async function runJsonCallWithRepair<T>(opts: JsonRepairCallOpts<T>): Promise<RepairCallResult<T>> {
+	const maxRetries = opts.maxRetries ?? 2;
+	const totalTokens: TokenUsage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 };
+	const stagesPerAttempt: string[][] = [];
+	const t0 = Date.now();
+
+	const messages: { role: 'user' | 'assistant'; content: string }[] = [
+		{ role: 'user', content: opts.user },
+	];
+
+	let lastFailure: ExtractFailure | null = null;
+	let lastRawText = '';
+	const provider = opts.modelOverride?.provider ?? getProvider();
+	const modelKey = opts.modelOverride?.model ?? getModel();
+
+	for (let attempt = 0; attempt <= maxRetries; attempt++) {
+		const response = await chat({
+			system: opts.system,
+			messages,
+			maxTokens: opts.maxTokens,
+			modelOverride: opts.modelOverride,
+			cacheableSystemPrefix: opts.cacheableSystemPrefix,
+			cacheSystem: opts.cacheSystem,
+			documentIds: opts.documentIds,
+			responseFormat: opts.responseFormat,
+		});
+
+		totalTokens.input          += response.inputTokens;
+		totalTokens.output         += response.outputTokens;
+		totalTokens.cacheRead      += response.cacheReadTokens;
+		totalTokens.cacheCreation  += response.cacheCreationTokens;
+		totalTokens.total          += response.tokensUsed;
+		lastRawText = response.text;
+
+		const result = extractAndValidateJSON(response.text, opts.schema);
+		const stages = attempt === 0
+			? result.stagesUsed
+			: result.stagesUsed.map((s) => `retry-${attempt}:${s}`);
+		stagesPerAttempt.push(stages);
+
+		if (result.ok) {
+			logPipelineCall({
+				module: opts.label,
+				modelKey,
+				provider,
+				parseStrategy: 'json',
+				stagesUsed: stages,
+				stagesPerAttempt,
+				retries: attempt,
+				attempts: attempt + 1,
+				success: true,
+				wallSeconds: (Date.now() - t0) / 1000,
+				tokens: totalTokens,
+				caseId: opts.caseId,
+				paragraphId: opts.paragraphId,
+			});
+			return {
+				value: result.value,
+				tokens: totalTokens,
+				stagesUsed: stages,
+				retries: attempt,
+				attempts: attempt + 1,
+				stagesPerAttempt,
+			};
+		}
+
+		lastFailure = result;
+
+		if (attempt < maxRetries) {
+			messages.push({ role: 'assistant', content: response.text });
+			messages.push({ role: 'user', content: buildJsonRetryFeedback(result) });
+		}
+	}
+
+	logPipelineCall({
+		module: opts.label,
+		modelKey,
+		provider,
+		parseStrategy: 'json',
+		stagesUsed: stagesPerAttempt[stagesPerAttempt.length - 1] ?? [],
+		stagesPerAttempt,
+		retries: maxRetries,
+		attempts: maxRetries + 1,
+		success: false,
+		wallSeconds: (Date.now() - t0) / 1000,
+		tokens: totalTokens,
+		caseId: opts.caseId,
+		paragraphId: opts.paragraphId,
+		errorStage: lastFailure?.stage ?? 'unknown',
+		errorMessage: lastFailure?.error,
+	});
+
+	throw new RepairCallExhaustedError(
+		`${opts.label}: JSON repair exhausted after ${maxRetries + 1} attempts (last stage=${lastFailure?.stage}, error=${lastFailure?.error.slice(0, 200)})`,
+		maxRetries + 1,
+		lastFailure?.stage ?? 'unknown',
+		lastFailure?.error ?? 'unknown',
+		lastRawText,
+		totalTokens,
+		stagesPerAttempt,
+	);
+}
+
+function buildJsonRetryFeedback(failure: ExtractFailure): string {
+	const lines: string[] = [];
+	lines.push('Dein vorheriger Output war kein gültiges JSON für das geforderte Schema.');
+	lines.push('');
+	lines.push(`Stufe: ${failure.stage}`);
+	lines.push(`Fehler: ${failure.error.slice(0, 500)}`);
+
+	if (failure.stage === 'JSON.parse' || failure.stage === 'jsonrepair') {
+		const positionMatch = failure.error.match(/position\s+(\d+)/i);
+		if (positionMatch && failure.candidateJson) {
+			const pos = parseInt(positionMatch[1], 10);
+			const start = Math.max(0, pos - 60);
+			const end = Math.min(failure.candidateJson.length, pos + 60);
+			lines.push('');
+			lines.push(`Auszug an der Bruchstelle (±60 chars um Position ${pos}):`);
+			lines.push('---');
+			lines.push(failure.candidateJson.slice(start, end));
+			lines.push('---');
+		}
+	}
+
+	lines.push('');
+	lines.push('Erzeuge das vollständige Resultat JETZT erneut. Strikt:');
+	lines.push('- Reines JSON, keine Code-Fences (kein ```json), kein Markdown, keine Erklärung');
+	lines.push('- Halte das im System-Prompt vorgegebene Schema präzise ein');
+	lines.push('- Achte auf konsistente Anführungszeichen: innerhalb von JSON-Strings KEINE doppelten ASCII-Quotes ("); für Zitate aus dem Quelltext typographische Quotes („…“ deutsch oder “…” englisch) verwenden, oder mit \\" escapen');
+	lines.push('- Behebe den oben markierten Fehler');
+	return lines.join('\n');
 }
