@@ -22,7 +22,13 @@ interface PassStatus {
 interface PipelineStatus {
 	case_id: string;
 	document_id: string | null;
-	brief: { id: string; name: string; argumentation_graph: boolean; validity_check: boolean } | null;
+	brief: {
+		id: string;
+		name: string;
+		argumentation_graph: boolean;
+		validity_check: boolean;
+		h3_enabled: boolean;
+	} | null;
 	total_paragraphs: number;
 	passes: {
 		argumentation_graph: PassStatus & { enabled: boolean };
@@ -32,6 +38,15 @@ interface PipelineStatus {
 		work: PassStatus;
 		kapitelverlauf: PassStatus;
 		paragraph_synthetic: PassStatus;
+		h3_exposition: PassStatus & { enabled: boolean };
+		h3_grundlagentheorie: PassStatus & { enabled: boolean };
+		h3_forschungsdesign: PassStatus & { enabled: boolean };
+		h3_durchfuehrung: PassStatus & { enabled: boolean };
+		h3_synthese: PassStatus & { enabled: boolean };
+		h3_schlussreflexion: PassStatus & { enabled: boolean };
+		h3_exkurs: PassStatus & { enabled: boolean };
+		h3_werk_deskription: PassStatus & { enabled: boolean };
+		h3_werk_gutacht: PassStatus & { enabled: boolean };
 	};
 	run: {
 		id: string;
@@ -64,9 +79,11 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		brief_name: string | null;
 		argumentation_graph: boolean | null;
 		validity_check: boolean | null;
+		h3_enabled: boolean | null;
 	}>(
 		`SELECT c.id, c.central_document_id, c.assessment_brief_id AS brief_id,
-		        b.name AS brief_name, b.argumentation_graph, b.validity_check
+		        b.name AS brief_name, b.argumentation_graph, b.validity_check,
+		        b.h3_enabled
 		 FROM cases c
 		 LEFT JOIN assessment_briefs b ON b.id = c.assessment_brief_id
 		 WHERE c.id = $1`,
@@ -78,6 +95,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	const docId = caseRow.central_document_id;
 	const useAg = caseRow.argumentation_graph === true;
 	const useValidity = caseRow.validity_check === true;
+	const useH3 = caseRow.h3_enabled === true;
 
 	const empty: PassStatus = { completed: 0, total: null, last_run: null };
 
@@ -103,6 +121,13 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			}
 		: null;
 
+	const emptyH3 = (): PassStatus & { enabled: boolean } => ({
+		completed: 0,
+		total: 1,
+		last_run: null,
+		enabled: useH3,
+	});
+
 	if (!docId) {
 		const result: PipelineStatus = {
 			case_id: caseId,
@@ -113,6 +138,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 					name: caseRow.brief_name ?? '',
 					argumentation_graph: useAg,
 					validity_check: useValidity,
+					h3_enabled: useH3,
 				}
 				: null,
 			total_paragraphs: 0,
@@ -124,6 +150,15 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 				work: empty,
 				kapitelverlauf: empty,
 				paragraph_synthetic: empty,
+				h3_exposition: emptyH3(),
+				h3_grundlagentheorie: emptyH3(),
+				h3_forschungsdesign: emptyH3(),
+				h3_durchfuehrung: emptyH3(),
+				h3_synthese: emptyH3(),
+				h3_schlussreflexion: emptyH3(),
+				h3_exkurs: emptyH3(),
+				h3_werk_deskription: emptyH3(),
+				h3_werk_gutacht: emptyH3(),
 			},
 			run: runDto,
 		};
@@ -254,6 +289,54 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		};
 	}
 
+	// H3-Phasen: alle werk-aggregiert (1 Atom = das Werk). Done-Check pro
+	// Phase über das primäre Output-Konstrukt (siehe h3-phases.ts und Spec
+	// h3_orchestrator_spec.md #6). Bei useH3=false bleiben sie alle leer
+	// — die UI kann den ganzen H3-Block dann ausblenden.
+	async function h3PassFor(outlineType: string, kinds: string[]): Promise<PassStatus> {
+		if (!useH3) return { completed: 0, total: 1, last_run: null };
+		const row = await queryOne<{ completed: number; last_run: string | null }>(
+			`SELECT (CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END)::int AS completed,
+			        MAX(updated_at) AS last_run
+			 FROM function_constructs
+			 WHERE document_id = $1
+			   AND outline_function_type = $2
+			   AND construct_kind = ANY($3)`,
+			[docId, outlineType, kinds]
+		);
+		return { completed: row?.completed ?? 0, total: 1, last_run: row?.last_run ?? null };
+	}
+
+	async function h3ExkursPass(): Promise<PassStatus> {
+		// EXKURS modifiziert FORSCHUNGSGEGENSTAND destruktiv via version_stack —
+		// done iff irgendein FG-Konstrukt einen 're_spec'-Eintrag hat.
+		if (!useH3) return { completed: 0, total: 1, last_run: null };
+		const row = await queryOne<{ completed: number; last_run: string | null }>(
+			`SELECT (CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END)::int AS completed,
+			        MAX(updated_at) AS last_run
+			 FROM function_constructs
+			 WHERE document_id = $1
+			   AND outline_function_type = 'GRUNDLAGENTHEORIE'
+			   AND construct_kind = 'FORSCHUNGSGEGENSTAND'
+			   AND version_stack @> '[{"kind":"re_spec"}]'::jsonb`,
+			[docId]
+		);
+		return { completed: row?.completed ?? 0, total: 1, last_run: row?.last_run ?? null };
+	}
+
+	const h3Exposition = await h3PassFor('EXPOSITION', ['FRAGESTELLUNG']);
+	const h3Grundlagentheorie = await h3PassFor('GRUNDLAGENTHEORIE', ['FORSCHUNGSGEGENSTAND']);
+	const h3Forschungsdesign = await h3PassFor('FORSCHUNGSDESIGN', ['METHODOLOGIE', 'METHODEN', 'BASIS']);
+	const h3Durchfuehrung = await h3PassFor('DURCHFUEHRUNG', ['BEFUND']);
+	const h3Synthese = await h3PassFor('SYNTHESE', ['GESAMTERGEBNIS']);
+	const h3Schlussreflexion = await h3PassFor('SCHLUSSREFLEXION', ['GELTUNGSANSPRUCH']);
+	const h3Exkurs = await h3ExkursPass();
+	// h3_werk_deskription / h3_werk_gutacht: Heuristiken nicht implementiert —
+	// völlig leer ausgeben, damit die UI sie als "noch nicht implementiert"
+	// kennzeichnen kann.
+	const h3WerkDesk: PassStatus = { completed: 0, total: 1, last_run: null };
+	const h3WerkGutacht: PassStatus = { completed: 0, total: 1, last_run: null };
+
 	const result: PipelineStatus = {
 		case_id: caseId,
 		document_id: docId,
@@ -263,6 +346,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 				name: caseRow.brief_name ?? '',
 				argumentation_graph: useAg,
 				validity_check: useValidity,
+				h3_enabled: useH3,
 			}
 			: null,
 		total_paragraphs: totalParagraphs,
@@ -274,6 +358,15 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			work: workPass,
 			kapitelverlauf: kapitelverlaufPass,
 			paragraph_synthetic: synthPass,
+			h3_exposition: { ...h3Exposition, enabled: useH3 },
+			h3_grundlagentheorie: { ...h3Grundlagentheorie, enabled: useH3 },
+			h3_forschungsdesign: { ...h3Forschungsdesign, enabled: useH3 },
+			h3_durchfuehrung: { ...h3Durchfuehrung, enabled: useH3 },
+			h3_synthese: { ...h3Synthese, enabled: useH3 },
+			h3_schlussreflexion: { ...h3Schlussreflexion, enabled: useH3 },
+			h3_exkurs: { ...h3Exkurs, enabled: useH3 },
+			h3_werk_deskription: { ...h3WerkDesk, enabled: useH3 },
+			h3_werk_gutacht: { ...h3WerkGutacht, enabled: useH3 },
 		},
 		run: runDto,
 	};

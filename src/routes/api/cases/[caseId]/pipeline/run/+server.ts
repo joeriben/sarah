@@ -42,10 +42,11 @@ import {
 	type PipelineEvent,
 } from '$lib/server/pipeline/orchestrator.js';
 
-async function ensureCaseAccess(caseId: string, userId: string): Promise<{ central_document_id: string | null; brief_validity_check: boolean }> {
-	const row = await queryOne<{ central_document_id: string | null; project_id: string; brief_validity_check: boolean | null }>(
+async function ensureCaseAccess(caseId: string, userId: string): Promise<{ central_document_id: string | null; brief_validity_check: boolean; brief_h3_enabled: boolean }> {
+	const row = await queryOne<{ central_document_id: string | null; project_id: string; brief_validity_check: boolean | null; brief_h3_enabled: boolean | null }>(
 		`SELECT c.central_document_id, c.project_id,
-		        b.validity_check AS brief_validity_check
+		        b.validity_check AS brief_validity_check,
+		        b.h3_enabled AS brief_h3_enabled
 		 FROM cases c
 		 LEFT JOIN assessment_briefs b ON b.id = c.assessment_brief_id
 		 WHERE c.id = $1`,
@@ -60,6 +61,7 @@ async function ensureCaseAccess(caseId: string, userId: string): Promise<{ centr
 	return {
 		central_document_id: row.central_document_id,
 		brief_validity_check: row.brief_validity_check === true,
+		brief_h3_enabled: row.brief_h3_enabled === true,
 	};
 }
 
@@ -93,13 +95,19 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const body = (await request.json().catch(() => ({}))) as {
 		include_synthetic?: boolean;
 		include_validity?: boolean;
+		include_h3?: boolean;
 		cost_cap_usd?: number | null;
 	};
-	// include_validity: explicit body wins, sonst Default aus brief.validity_check.
+	// include_validity / include_h3: explicit body wins, sonst Default aus
+	// dem zugeordneten Brief (assessment_briefs.validity_check / .h3_enabled).
+	// h3_enabled in Mig 047 als Default false eingeführt — bestehende Briefs
+	// laufen unverändert mit H1 (+ optional H2).
 	const explicitValidity = typeof body?.include_validity === 'boolean' ? body.include_validity : null;
+	const explicitH3 = typeof body?.include_h3 === 'boolean' ? body.include_h3 : null;
 	const options: RunOptions = {
 		include_synthetic: body?.include_synthetic === true,
 		include_validity: explicitValidity ?? access.brief_validity_check,
+		include_h3: explicitH3 ?? access.brief_h3_enabled,
 		cost_cap_usd: typeof body?.cost_cap_usd === 'number' ? body.cost_cap_usd : null,
 	};
 

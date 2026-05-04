@@ -247,6 +247,7 @@ function mergeOptions(prev: RunOptions, next: RunOptions): RunOptions {
 	return {
 		include_synthetic: next.include_synthetic ?? prev.include_synthetic ?? false,
 		include_validity: next.include_validity ?? prev.include_validity ?? false,
+		include_h3: next.include_h3 ?? prev.include_h3 ?? false,
 		cost_cap_usd: next.cost_cap_usd ?? prev.cost_cap_usd ?? null,
 	};
 }
