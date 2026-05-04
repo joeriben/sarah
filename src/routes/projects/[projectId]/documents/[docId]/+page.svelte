@@ -114,7 +114,16 @@
 		| 'section_collapse'
 		| 'chapter_collapse'
 		| 'document_collapse'
-		| 'paragraph_synthetic';
+		| 'paragraph_synthetic'
+		| 'h3_exposition'
+		| 'h3_grundlagentheorie'
+		| 'h3_forschungsdesign'
+		| 'h3_durchfuehrung'
+		| 'h3_synthese'
+		| 'h3_schlussreflexion'
+		| 'h3_exkurs'
+		| 'h3_werk_deskription'
+		| 'h3_werk_gutacht';
 	type RunStatusDto = {
 		id: string;
 		status: 'running' | 'paused' | 'completed' | 'failed';
@@ -173,9 +182,29 @@
 			'Formulierende und interpretierende Memos pro Absatz, sequentiell unter Bezug auf alle vorhergehenden ¶ desselben Subkapitels. Lese-Hilfe für den Reader; fließt nicht in die Aggregation ein.',
 	};
 
+	// H3-Phase-Labels (kein PassKey-Pendant, weil H3 eigene Konstrukt-
+	// Familie nutzt — wir labeln direkt).
+	const H3_PHASE_LABEL: Record<string, string> = {
+		h3_exposition: 'H3 · Exposition (Fragestellung)',
+		h3_grundlagentheorie: 'H3 · Grundlagentheorie (Forschungsgegenstand)',
+		h3_forschungsdesign: 'H3 · Forschungsdesign (Methodik)',
+		h3_durchfuehrung: 'H3 · Durchführung (Befunde)',
+		h3_synthese: 'H3 · Synthese (Gesamtergebnis)',
+		h3_schlussreflexion: 'H3 · Schlussreflexion (Geltungsanspruch)',
+		h3_exkurs: 'H3 · Exkurs',
+		h3_werk_deskription: 'H3 · Werk-Deskription',
+		h3_werk_gutacht: 'H3 · Werk-Gutacht (a + b + c)',
+	};
+
+	function phaseLabel(phase: RunPhase): string {
+		if (phase.startsWith('h3_')) return H3_PHASE_LABEL[phase] ?? phase;
+		const key = PHASE_TO_PASS[phase as keyof typeof PHASE_TO_PASS];
+		return key ? PASS_LABEL[key] : phase;
+	}
+
 	// Mapping zwischen UI-PassKey (orientiert an memo_content.scope_level) und
 	// Run-Phase-Bezeichner aus dem Orchestrator.
-	const PHASE_TO_PASS: Record<RunPhase, AnalyticalPassKey | 'paragraph_synthetic'> = {
+	const PHASE_TO_PASS: Record<string, AnalyticalPassKey | 'paragraph_synthetic'> = {
 		argumentation_graph: 'argumentation_graph',
 		argument_validity: 'argument_validity',
 		section_collapse: 'subchapter',
@@ -330,7 +359,7 @@
 			case 'phase-start':
 				runEvents = [
 					...runEvents,
-					`── Phase: ${PASS_LABEL[PHASE_TO_PASS[evt.phase as RunPhase]]} (${evt.total} Atom${evt.total === 1 ? '' : 'e'})`,
+					`── Phase: ${phaseLabel(evt.phase as RunPhase)} (${evt.total} Atom${evt.total === 1 ? '' : 'e'})`,
 				];
 				break;
 			case 'step-start':
