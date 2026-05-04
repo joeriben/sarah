@@ -40,7 +40,8 @@ import { runArgumentValidityPass } from '../ai/hermeneutic/argument-validity.js'
 import { runGraphCollapse } from '../ai/hermeneutic/section-collapse-from-graph.js';
 import { runChapterCollapse } from '../ai/hermeneutic/chapter-collapse.js';
 import { runDocumentCollapse } from '../ai/hermeneutic/document-collapse.js';
-import { runH3Phase, isH3PhaseDoneForDocument } from './h3-phases.js';
+import { runH3Phase, isH3PhaseDoneForDocument, isWerkPhase } from './h3-phases.js';
+import type { H3Phase } from './h3-phases.js';
 import { PreconditionFailedError } from '../ai/h3/precondition.js';
 
 export type Phase =
@@ -481,14 +482,11 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 			);
 			return { all, pending: done ? [] : all };
 		}
-		// H3-Phasen: jede ist werk-aggregiert (1 Atom = das Werk). Done-Check
-		// pro Phase liegt in h3-phases.ts (z.B. EXKURS prüft re_spec im
-		// version_stack; nicht-implementierte WERK-Phasen sind als done
-		// markiert, damit der Orchestrator sie nicht in Endlosschleife läuft).
-		// caseId ist hier nicht greifbar — done-check geht über documentId
-		// direkt, ohne case_id-Filter, was für H3 ausreicht weil H3-Konstrukte
-		// ohnehin pro (case, document) eindeutig sind und die UI immer im
-		// Case-Kontext steht.
+		// H3-Phasen werden NICHT durch die Atom-Schleife geführt — sie sind
+		// werk-aggregierte Tool-Aufrufe (kein Iterations-Atom). Der Orchestrator
+		// ruft sie direkt über runWerkPhaseStep auf. Wenn diese Funktion mit
+		// einer H3-Phase aufgerufen wird, ist das ein Programmierfehler im
+		// Aufrufer.
 		case 'h3_exposition':
 		case 'h3_grundlagentheorie':
 		case 'h3_forschungsdesign':
@@ -497,11 +495,10 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 		case 'h3_schlussreflexion':
 		case 'h3_exkurs':
 		case 'h3_werk_deskription':
-		case 'h3_werk_gutacht': {
-			const all: AtomRef[] = [{ id: documentId, label: PHASE_LABEL[phase] }];
-			const done = await isH3PhaseDoneForDocument(phase, documentId);
-			return { all, pending: done ? [] : all };
-		}
+		case 'h3_werk_gutacht':
+			throw new Error(
+				`listAtomsForPhase: H3-Phase ${phase} darf nicht durch die Atom-Schleife laufen.`
+			);
 	}
 }
 
@@ -632,9 +629,10 @@ async function executeStep(
 				memoId: r.stored?.memoId ?? r.existingMemoId,
 			};
 		}
-		// H3-Phasen: alle werk-aggregiert, atom.id == documentId. Dispatch
-		// liegt in src/lib/server/pipeline/h3-phases.ts (Validierungs-Schutz,
-		// Heuristik-Aufruf, Token-Aggregation für Multi-Step-Phasen).
+		// H3-Phasen werden NICHT durch executeStep geführt — sie sind werk-
+		// aggregierte Tool-Aufrufe und laufen direkt über runWerkPhaseStep,
+		// nicht durch die Atom-Schleife. Wenn executeStep mit einer H3-Phase
+		// aufgerufen wird, ist das ein Programmierfehler im Aufrufer.
 		case 'h3_exposition':
 		case 'h3_grundlagentheorie':
 		case 'h3_forschungsdesign':
@@ -644,7 +642,9 @@ async function executeStep(
 		case 'h3_exkurs':
 		case 'h3_werk_deskription':
 		case 'h3_werk_gutacht':
-			return runH3Phase(phase, caseId, atom.id);
+			throw new Error(
+				`executeStep: H3-Phase ${phase} darf nicht durch die Atom-Schleife laufen.`
+			);
 	}
 }
 
@@ -678,13 +678,20 @@ function phasesForRun(options: RunOptions): Phase[] {
 }
 
 /**
- * Hauptloop: arbeitet die konfigurierte Phasen-Reihenfolge ab, jeden Atom
- * einzeln. Vor jedem Atom wird cancel_requested aus DB gelesen — bei true
- * → status='paused' und Loop verlassen.
+ * Hauptloop: arbeitet die konfigurierte Phasen-Reihenfolge sequentiell ab.
+ *
+ * Zwei Phasen-Modelle:
+ *   - Iterations-Phasen (H1/H2): pro Atom (¶ / Subkapitel / Kapitel) ein
+ *     Tool-Aufruf. Fail-tolerant pro Atom + Stuck-Guard gegen Endlos-Loops
+ *     bei list-done/pass-skip-Inkongruenz. Implementiert in runIterativePhase.
+ *   - Werk-Phasen (H3): ein Tool-Aufruf pro Phase auf das ganze Werk. Kein
+ *     Atom-Wrapper, kein Stuck-Guard (Tool muss intrinsisch failsafe sein:
+ *     Idempotenz, klare Vorbedingungen, klarer Empty-Path). Implementiert in
+ *     runWerkPhaseStep.
  *
  * Idempotenz auf Pass-Ebene macht Resume trivial: ein erneut aufgerufener
- * Run iteriert dieselben Phasen, listAtomsForPhase filtert die schon
- * erledigten heraus, und der Loop nimmt die neuen.
+ * Run iteriert dieselben Phasen, der jeweilige Done-Check filtert die schon
+ * erledigten Einheiten heraus.
  *
  * sendEvent wird sofort beim Auftreten gerufen — ist verantwortlich für
  * SSE-flush oder Logging. Fehler in sendEvent (z.B. Stream-Disconnect)
@@ -699,32 +706,19 @@ export async function runPipelineLoop(
 	sendEvent: (e: PipelineEvent) => void
 ): Promise<void> {
 	const phases = phasesForRun(options);
-	let lastPhaseAnnounced: Phase | null = null;
-	// Stuck-Guard: derselbe Atom darf nicht 3× hintereinander als pending
-	// erscheinen — Endlos-Symptom für Inkongruenz zwischen list-done und
-	// Pass-Skip-Bedingung. Wenn das auftritt, hat fail-tolerant nichts mit
-	// einem einzelnen Atom zu tun, sondern mit einem strukturellen Loop-Bug
-	// → markFailed (kein graceful continue).
-	let lastProcessedAtomId: string | null = null;
-	let sameAtomRepeatCount = 0;
 
-	// Fail-tolerant Mode: einzelne Atom-Fehler stoppen den Run nicht. Stattdessen
-	// werden die fehlgeschlagenen Atome in-memory getrackt und beim nächsten
-	// listAtomsForPhase aus dem pending herausgefiltert; der Loop springt zum
-	// nächsten Atom. Bei Resume eines Runs wird dieses Set neu aufgebaut — die
-	// errored Atome werden also einmal pro Resume neu versucht (das ist
-	// gewollt, weil ein Resume oft auf einen Code-Fix folgt). Persistierung
-	// erfolgt via `error_message` als JSON-Liste der letzten 20 Atome, damit
-	// der User nach Page-Reload die Fehler immer noch sieht.
+	// Fail-tolerant Mode (nur für Iterations-Phasen): einzelne Atom-Fehler
+	// stoppen den Run nicht. Werk-Phasen kennen kein fail-tolerant, weil ein
+	// Werk-Phase-Fehler systemisch ist (Tool-Defekt) und nicht auf einzelne
+	// Atome lokalisierbar ist. Persistierung erfolgt via `error_message` als
+	// JSON-Liste der letzten 20 Atome, damit der User nach Page-Reload die
+	// Fehler immer noch sieht.
 	const erroredAtomIds = new Set<string>();
 	const erroredHistory: { phase: Phase; label: string; message: string }[] = [];
-
-	const isErrored = (atomId: string) => erroredAtomIds.has(atomId);
 
 	const recordAtomError = async (phase: Phase, atom: AtomRef, message: string) => {
 		erroredAtomIds.add(atom.id);
 		erroredHistory.push({ phase, label: atom.label, message: message.slice(0, 300) });
-		// Persistiere die letzten 20 Errors für den UI-Status nach Reload.
 		const tail = erroredHistory.slice(-20);
 		await query(
 			`UPDATE pipeline_runs
@@ -734,7 +728,16 @@ export async function runPipelineLoop(
 		);
 	};
 
-	while (true) {
+	const initialRun = await getRun(runId);
+	if (!initialRun) {
+		safeSend(sendEvent, { type: 'failed', message: 'run vanished from DB' });
+		return;
+	}
+	const documentId = initialRun.document_id;
+
+	for (const phase of phases) {
+		// Cancel-Check vor jeder Phase. Innerhalb der Phase wird er von
+		// runIterativePhase / runWerkPhaseStep selbst nochmal geprüft.
 		const run = await getRun(runId);
 		if (!run) {
 			safeSend(sendEvent, { type: 'failed', message: 'run vanished from DB' });
@@ -746,90 +749,131 @@ export async function runPipelineLoop(
 			return;
 		}
 
-		// Nächsten Atom suchen — errored Atome herausfiltern.
-		let next: StepDescriptor | null = null;
-		for (const phase of phases) {
-			const list = await listAtomsForPhase(phase, run.document_id);
-			const realPending = list.pending.filter((a) => !isErrored(a.id));
-			if (realPending.length === 0) continue;
-			const totalDone = list.all.length - list.pending.length;
-			next = {
-				phase,
-				atom: realPending[0],
-				index: totalDone,
-				total: list.all.length,
-			};
-			if (lastPhaseAnnounced !== phase) {
-				safeSend(sendEvent, { type: 'phase-start', phase, total: list.all.length });
-				lastPhaseAnnounced = phase;
-			}
-			break;
+		const ok = isWerkPhase(phase)
+			? await runWerkPhaseStep(runId, phase, caseId, documentId, sendEvent)
+			: await runIterativePhase(
+					runId,
+					phase,
+					caseId,
+					documentId,
+					userId,
+					sendEvent,
+					erroredAtomIds,
+					recordAtomError
+				);
+		if (!ok) return; // markFailed/markPaused wurde drinnen schon gesendet
+	}
+
+	// Letzte Statusnotiz: completed mit ggf. errored-Count.
+	if (erroredHistory.length > 0) {
+		const tail = erroredHistory.slice(-20);
+		await query(
+			`UPDATE pipeline_runs
+			 SET error_message = $2
+			 WHERE id = $1`,
+			[runId, JSON.stringify({ atom_errors: tail, completed_with_errors: true })]
+		);
+	}
+	await markCompleted(runId);
+	safeSend(sendEvent, { type: 'completed' });
+}
+
+/**
+ * Eine Iterations-Phase: Atom für Atom abarbeiten, fail-tolerant pro Atom,
+ * Stuck-Guard gegen Endlos-Loops. Stuck-Guard ist hier sinnvoll, weil
+ * listAtomsForPhase dynamisch die pending-Liste neu berechnet — eine
+ * Inkongruenz zwischen list-done und Pass-Skip-Bedingung würde sonst zum
+ * Token-Verbrennen führen.
+ *
+ * Returnt true bei sauber abgeschlossener Phase, false wenn der Run
+ * abgebrochen wurde (markFailed/markPaused bereits aufgerufen, Event
+ * versendet).
+ */
+async function runIterativePhase(
+	runId: string,
+	phase: Phase,
+	caseId: string,
+	documentId: string,
+	userId: string,
+	sendEvent: (e: PipelineEvent) => void,
+	erroredAtomIds: Set<string>,
+	recordAtomError: (phase: Phase, atom: AtomRef, message: string) => Promise<void>
+): Promise<boolean> {
+	let lastProcessedAtomId: string | null = null;
+	let sameAtomRepeatCount = 0;
+	let phaseStartAnnounced = false;
+
+	while (true) {
+		const run = await getRun(runId);
+		if (!run) {
+			safeSend(sendEvent, { type: 'failed', message: 'run vanished from DB' });
+			return false;
+		}
+		if (run.cancel_requested) {
+			await markPaused(runId);
+			safeSend(sendEvent, { type: 'paused' });
+			return false;
 		}
 
-		if (next === null) {
-			// Letzte Statusnotiz: completed mit ggf. errored-Count.
-			if (erroredHistory.length > 0) {
-				const tail = erroredHistory.slice(-20);
-				await query(
-					`UPDATE pipeline_runs
-					 SET error_message = $2
-					 WHERE id = $1`,
-					[runId, JSON.stringify({ atom_errors: tail, completed_with_errors: true })]
-				);
-			}
-			await markCompleted(runId);
-			safeSend(sendEvent, { type: 'completed' });
-			return;
+		const list = await listAtomsForPhase(phase, documentId);
+		const realPending = list.pending.filter((a) => !erroredAtomIds.has(a.id));
+		if (realPending.length === 0) return true; // Phase fertig
+
+		if (!phaseStartAnnounced) {
+			safeSend(sendEvent, { type: 'phase-start', phase, total: list.all.length });
+			phaseStartAnnounced = true;
 		}
+
+		const atom = realPending[0];
+		const totalDone = list.all.length - list.pending.length;
 
 		safeSend(sendEvent, {
 			type: 'step-start',
-			phase: next.phase,
-			atom: next.atom,
-			index: next.index,
-			total: next.total,
+			phase,
+			atom,
+			index: totalDone,
+			total: list.all.length,
 		});
 
 		try {
-			// Pre-Step Stuck-Guard: derselbe Atom kommt zum dritten Mal in
-			// Folge als pending (egal ob vorherige Versuche skipped oder
-			// success waren). Verhindert das Token-Verbrennen-Szenario aus
-			// failure-mode (b).
-			if (next.atom.id === lastProcessedAtomId) {
+			// Stuck-Guard: derselbe Atom 3× hintereinander als pending → Loop-
+			// Bug zwischen list-done und Pass-Skip. Phase-lokal, weil
+			// runIterativePhase pro Phase aufgerufen wird.
+			if (atom.id === lastProcessedAtomId) {
 				sameAtomRepeatCount += 1;
 				if (sameAtomRepeatCount >= 3) {
 					const message =
-						`Stuck on ${next.phase}/${next.atom.label}: ` +
+						`Stuck on ${phase}/${atom.label}: ` +
 						`pass returned successfully 3× but listAtomsForPhase still marks it pending. ` +
 						`Either the pass is skip-on-existing without persisting, or it persists nothing ` +
 						`(e.g. AG-Pass output where all scaffolding anchors are unresolvable). ` +
 						`Run halted to prevent token-burn; inspect this paragraph manually.`;
-					safeSend(sendEvent, { type: 'step-error', phase: next.phase, atom: next.atom, message });
+					safeSend(sendEvent, { type: 'step-error', phase, atom, message });
 					await markFailed(runId, message);
 					safeSend(sendEvent, { type: 'failed', message });
-					return;
+					return false;
 				}
 			} else {
-				lastProcessedAtomId = next.atom.id;
+				lastProcessedAtomId = atom.id;
 				sameAtomRepeatCount = 1;
 			}
 
-			const stepResult = await executeStep(next.phase, next.atom, caseId, userId);
+			const stepResult = await executeStep(phase, atom, caseId, userId);
 			await updateProgress(
 				runId,
-				next.phase,
-				next.index + 1,
-				next.total,
-				next.atom.label,
+				phase,
+				totalDone + 1,
+				list.all.length,
+				atom.label,
 				stepResult.tokens
 			);
 			const updated = await getRun(runId);
 			safeSend(sendEvent, {
 				type: 'step-done',
-				phase: next.phase,
-				atom: next.atom,
-				index: next.index + 1,
-				total: next.total,
+				phase,
+				atom,
+				index: totalDone + 1,
+				total: list.all.length,
 				skipped: stepResult.skipped,
 				tokens: stepResult.tokens,
 				cumulative: {
@@ -840,35 +884,111 @@ export async function runPipelineLoop(
 			});
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
-			// PreconditionFailedError = harte Vorbedingungs-Verletzung gemäß
-			// docs/h3_orchestrator_spec.md #2 (kein Analysehorizont). Run-State
-			// `failed` mit Diagnose; Reviewer-Eingriff erforderlich. NICHT
-			// fail-tolerant überspringen, sonst würde der Stuck-Guard greifen
-			// und die echte Diagnose verloren gehen.
+			safeSend(sendEvent, { type: 'step-error', phase, atom, message });
 			if (err instanceof PreconditionFailedError) {
-				safeSend(sendEvent, {
-					type: 'step-error',
-					phase: next.phase,
-					atom: next.atom,
-					message,
-				});
 				await markFailed(runId, message);
 				safeSend(sendEvent, { type: 'failed', message });
-				return;
+				return false;
 			}
-			safeSend(sendEvent, {
-				type: 'step-error',
-				phase: next.phase,
-				atom: next.atom,
-				message,
-			});
-			// Fail-tolerant: Atom merken, weiter mit nächstem. Stuck-Guard greift
-			// weiterhin, falls dieser Atom wider Erwarten in einer späteren
-			// Iteration nochmal in pending auftauchen würde (Filter-Bug).
-			await recordAtomError(next.phase, next.atom, message);
+			// Fail-tolerant: Atom merken, weiter mit nächstem.
+			await recordAtomError(phase, atom, message);
 			lastProcessedAtomId = null;
 			sameAtomRepeatCount = 0;
 		}
+	}
+}
+
+/**
+ * Eine Werk-Phase (H3): direkter Tool-Aufruf auf das ganze Werk, kein
+ * Atom-Wrapper, kein Stuck-Guard. Voraussetzung ist, dass das Tool selbst
+ * intrinsisch failsafe ist:
+ *   - Idempotenz: Re-Run produziert keinen Duplikat-Stand (clearExisting).
+ *   - Klare Vorbedingungen: PreconditionFailedError für inhaltliche
+ *     Vorbedingungs-Verletzungen, generic Error nur für interne Bugs.
+ *   - Klarer Empty-Path: kein Material → { skipped: true }, kein Fehler.
+ *
+ * Returnt true bei sauber abgeschlossener Phase, false wenn der Run
+ * abgebrochen wurde.
+ */
+async function runWerkPhaseStep(
+	runId: string,
+	phase: H3Phase,
+	caseId: string,
+	documentId: string,
+	sendEvent: (e: PipelineEvent) => void
+): Promise<boolean> {
+	const run = await getRun(runId);
+	if (!run) {
+		safeSend(sendEvent, { type: 'failed', message: 'run vanished from DB' });
+		return false;
+	}
+	if (run.cancel_requested) {
+		await markPaused(runId);
+		safeSend(sendEvent, { type: 'paused' });
+		return false;
+	}
+
+	const atom: AtomRef = { id: documentId, label: PHASE_LABEL[phase] };
+
+	safeSend(sendEvent, { type: 'phase-start', phase, total: 1 });
+	safeSend(sendEvent, { type: 'step-start', phase, atom, index: 0, total: 1 });
+
+	// Done-Check: Phase schon abgeschlossen → skippen (Idempotenz auf
+	// Pass-Ebene; Resume eines Runs läuft hier durch).
+	const isDone = await isH3PhaseDoneForDocument(phase, documentId);
+	if (isDone) {
+		await updateProgress(runId, phase, 1, 1, atom.label, {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+		});
+		const updated = await getRun(runId);
+		safeSend(sendEvent, {
+			type: 'step-done',
+			phase,
+			atom,
+			index: 1,
+			total: 1,
+			skipped: true,
+			tokens: { input: 0, output: 0, cacheRead: 0 },
+			cumulative: {
+				input: updated?.accumulated_input_tokens ?? 0,
+				output: updated?.accumulated_output_tokens ?? 0,
+				cacheRead: updated?.accumulated_cache_read_tokens ?? 0,
+			},
+		});
+		return true;
+	}
+
+	try {
+		const r = await runH3Phase(phase, caseId, documentId);
+		await updateProgress(runId, phase, 1, 1, atom.label, r.tokens);
+		const updated = await getRun(runId);
+		safeSend(sendEvent, {
+			type: 'step-done',
+			phase,
+			atom,
+			index: 1,
+			total: 1,
+			skipped: r.skipped,
+			tokens: r.tokens,
+			cumulative: {
+				input: updated?.accumulated_input_tokens ?? 0,
+				output: updated?.accumulated_output_tokens ?? 0,
+				cacheRead: updated?.accumulated_cache_read_tokens ?? 0,
+			},
+		});
+		return true;
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		safeSend(sendEvent, { type: 'step-error', phase, atom, message });
+		// Werk-Phase: kein fail-tolerant. Jeder Fehler heißt entweder
+		// Vorbedingungs-Verletzung (Reviewer-Eingriff nötig) oder Tool-Defekt
+		// (Code-Fix nötig) — beides braucht markFailed, damit das Problem
+		// nicht stillschweigend hinter weiteren Phasen verschwindet.
+		await markFailed(runId, message);
+		safeSend(sendEvent, { type: 'failed', message });
+		return false;
 	}
 }
 
@@ -906,13 +1026,25 @@ export async function computePreflight(
 	});
 	const result: PhasePreflightStatus[] = [];
 	for (const phase of phases) {
-		const list = await listAtomsForPhase(phase, documentId);
-		result.push({
-			phase,
-			total: list.all.length,
-			done: list.all.length - list.pending.length,
-			pending: list.pending.length,
-		});
+		if (isWerkPhase(phase)) {
+			// Werk-Phase: 1 Tool-Aufruf pro Phase auf das ganze Werk. Done iff
+			// das primäre Output-Konstrukt persistiert ist.
+			const isDone = await isH3PhaseDoneForDocument(phase, documentId);
+			result.push({
+				phase,
+				total: 1,
+				done: isDone ? 1 : 0,
+				pending: isDone ? 0 : 1,
+			});
+		} else {
+			const list = await listAtomsForPhase(phase, documentId);
+			result.push({
+				phase,
+				total: list.all.length,
+				done: list.all.length - list.pending.length,
+				pending: list.pending.length,
+			});
+		}
 	}
 	return result;
 }

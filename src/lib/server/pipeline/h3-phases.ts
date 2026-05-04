@@ -55,6 +55,27 @@ export type H3Phase =
 	| 'h3_werk_deskription'
 	| 'h3_werk_gutacht';
 
+const H3_PHASES_SET: ReadonlySet<string> = new Set([
+	'h3_exposition',
+	'h3_grundlagentheorie',
+	'h3_forschungsdesign',
+	'h3_durchfuehrung',
+	'h3_synthese',
+	'h3_schlussreflexion',
+	'h3_exkurs',
+	'h3_werk_deskription',
+	'h3_werk_gutacht',
+]);
+
+/**
+ * Type-Guard: H3-Phasen sind werk-aggregierte Tool-Aufrufe (kein Iterations-
+ * Atom, sondern eine Werk-Sicht). Der Orchestrator führt sie nicht durch die
+ * Atom-Schleife, sondern direkt.
+ */
+export function isWerkPhase(phase: string): phase is H3Phase {
+	return H3_PHASES_SET.has(phase);
+}
+
 // outline_function_type pro Phase (gemäß Mig 043 + Mig 050 CHECK-Liste).
 // EXKURS hat Sondersemantik (siehe h3_exkurs unten — modifiziert
 // FORSCHUNGSGEGENSTAND destruktiv via version_stack-Append). Werk-Phasen
