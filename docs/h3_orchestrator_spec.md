@@ -90,8 +90,8 @@ Genau das ist der Daseinsgrund des Orchestrators: er beantwortet pro Phase die F
 | h3_synthese | FRAGESTELLUNG, ERKENNTNISSE | "Systematisierungsleistung braucht ERKENNTNIS-Material und FRAGESTELLUNG als Aggregations-Bezugspunkt" |
 | h3_schlussreflexion | GESAMTERGEBNIS | "Geltungsanspruch-Legitimität braucht GESAMTERGEBNIS als Bewertungsbasis" — fehlender SCHLUSSREFLEXION-Container im Outline ist KEIN STOP (Recovery, siehe Abschnitt unten) |
 | h3_exkurs | dokument-vorgängige Konstrukte je EXKURS-Container-Position (KERNBEGRIFFE bei EXKURS in GRUNDLAGENTHEORIE; ERKENNTNISSE bei EXKURS in DURCHFÜHRUNG) | per Container: kein Anker am Dokument-Ort → Container-Eintrag im Status als "abwesender Befund" (kein STOP, weil EXKURS-Beitrag ohne Anker keine Beurteilungsbasis hätte) |
-| h3_werk_deskription | alle Konstrukte der vorigen Phasen, soweit ihr Funktionstyp im Dokument vorhanden ist | STOP wenn ein vorhandener Funktionstyp keine Konstrukte produziert hat |
-| h3_werk_gutacht | WERK_BESCHREIBUNG | STOP wenn fehlt |
+| h3_werk_deskription | Outline + Top-Level-Heading vorhanden | STOP wenn keine ladbare Outline / kein Top-Level-Heading |
+| h3_werk_gutacht | WERK_BESCHREIBUNG + FRAGESTELLUNG | STOP wenn eines fehlt — WERK_DESKRIPTION-Phase und EXPOSITION-Phase müssen vorab gelaufen sein |
 
 ### User-Eingriff bei STOP — heute vs. später
 
@@ -107,6 +107,20 @@ Genau das ist der Daseinsgrund des Orchestrators: er beantwortet pro Phase die F
 ### Konsequenz für FORSCHUNGSDESIGN-Heuristik (Bereinigung)
 
 Die existierende `forschungsdesign.ts`-Heuristik mit ihrem "FORSCHUNGSGEGENSTAND optional, mahne LLM zur Zurückhaltung"-Pattern wird **vor** dem Orchestrator-Anschluss bereinigt: Vorbedingungs-Check entfällt aus der Heuristik (zieht in den Orchestrator), Prompt verliert die "kann fehlen"-Klausel und nimmt FORSCHUNGSGEGENSTAND als Invariante an. Bis zum Orchestrator-Anschluss läuft sie weiterhin per CLI-Skript — dort wird der Vorbedingungs-Check vom Skript erzwungen (heute fehlende Vorbedingung → Skript-Abbruch, kein LLM-Call).
+
+### WERK_DESKRIPTION + WERK_GUTACHT (User-Setzung 2026-05-04, Mig 050)
+
+**WERK_DESKRIPTION** (immer aktiv nach allen Kapitel-Heuristiken): aggregiert alle persistierten Funktionstyp-Konstrukte des Werks zu einer deskriptiv-neutralen Inhaltszusammenfassung (`construct_kind='WERK_BESCHREIBUNG'`). 1 LLM-Call mit Outline + Konstrukten + optional `memo_content` (chapter/subchapter, wenn ein H1- oder H2-Run zuvor lief — Inputs Option B). Anchor: alle nicht-excluded Top-Level-Heading-IDs.
+
+**WERK_GUTACHT-a** (Werk-im-Lichte-der-Fragestellung): längerer Absatz, indikator-getrieben (gelb/rot), KEIN Verdikt. Liest WERK_BESCHREIBUNG + FRAGESTELLUNG + Konstrukte.
+
+**WERK_GUTACHT-b** (Hotspot-Würdigung): pro Achse aus dem Assessment-Achsen-Raster (FRAGESTELLUNG-Qualität, GRUNDLAGENTHEORIE-Fundiertheit, FORSCHUNGSDESIGN-Angemessenheit, DURCHFUEHRUNG-Qualität, SYNTHESE-Systematisierungsleistung, SCHLUSSREFLEXION-Legitimiertheit) ein Indikator `'yellow' | 'red' | null` plus 1–3-Sätze-Rationale. Strukturierend nicht erschöpfend — `null` ist legitim für unauffällige oder nicht-anwendbare Achsen. Grün gibt es bewusst nicht (Pauschal-Bestätigung wäre Critical-Friend-Verstoß).
+
+**WERK_GUTACHT-c** (Fazit aus a+b): heute mit **deaktiviertem Gating** für Testung implementiert (`content.gatingDisabled=true` markiert das transparent). Im Vollausbau ist c gated durch `case.review_draft_document_id`-Upload, mit anschließendem dialogischem Block d/e/f (Blind-Position, Differenz, Reflexive Position) — diese sind weiterhin deferred und kommen mit der Reviewer-Notes-Integration.
+
+Persistenz: ein Konstrukt mit `outline_function_type='WERK_GUTACHT'`, `construct_kind='WERK_GUTACHT'`, `content = {aText, bAxes, cText, gatingDisabled, gatingNote, ...}`. Anchor: gleicher Heading-Set wie WERK_BESCHREIBUNG.
+
+Alle drei WERK_GUTACHT-Stages sind in 3 separaten LLM-Calls (a, dann b, dann c mit a/b als Input). Default-Modell: `openrouter/anthropic/claude-sonnet-4.6`.
 
 ### Konsequenz für SCHLUSSREFLEXION-Heuristik (User-Setzung 2026-05-04)
 

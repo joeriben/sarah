@@ -19,6 +19,8 @@ Letztes Update: 2026-05-04 — Interface-Session-Ergänzungen: SR-Recovery-Heuri
 | Smoke-Test `scripts/test-h3-orchestrator-status.ts` | ✓ Commit `87010d6` |
 | SR-Recovery-Heuristik (letztes Drittel statt STOP, `needsMoreContext`-Eskalation, Defizit-Befund-Persistierung) | ✓ Interface-Session 2026-05-04 |
 | Outline-Numbering-Counter-as-Master (Server + Frontend, Parser-Mismatch via `hasNumberingMismatch`-Flag) | ✓ Interface-Session 2026-05-04 |
+| WERK_DESKRIPTION-Heuristik (Mig 050, Aggregat aus allen H3-Konstrukten + optional H1/H2-memo_content) | ✓ Interface-Session 2026-05-04 |
+| WERK_GUTACHT-Heuristik a/b/c (Stage-c-Gating für Testung deaktiviert; d/e/f bleibt deferred bis review_draft-Upload) | ✓ Interface-Session 2026-05-04 |
 | Frischer End-to-end-Lauf (neuer Case mit `h3_enabled=true`) | offen |
 
 ---
@@ -36,8 +38,8 @@ Letztes Update: 2026-05-04 — Interface-Session-Ergänzungen: SR-Recovery-Heuri
 | h3_synthese | ✓ | GESAMTERGEBNIS |
 | h3_schlussreflexion | ✓ | GELTUNGSANSPRUCH |
 | h3_exkurs | · | korrekt — BA H3 dev hat keinen EXKURS-Container, keine `re_spec`-Stack-Einträge |
-| h3_werk_deskription | ✓ | per Konvention always-done (Heuristik nicht implementiert) |
-| h3_werk_gutacht | ✓ | dito |
+| h3_werk_deskription | (neu, Smoke-Test ausstehend) | echte Aufrufe statt Stub seit Interface-Session 2026-05-04 |
+| h3_werk_gutacht | (neu, Smoke-Test ausstehend) | echte Aufrufe a/b/c, c-Gating deaktiviert für Testung |
 
 Validierungs-Status für alle Phasen: leer (`construct_validations` ist neu, noch keine Marker gesetzt).
 

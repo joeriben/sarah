@@ -89,7 +89,7 @@ export const PHASE_LABEL: Record<Phase, string> = {
 	h3_schlussreflexion: 'H3 · Schlussreflexion (Geltungsanspruch)',
 	h3_exkurs: 'H3 · Exkurs',
 	h3_werk_deskription: 'H3 · Werk-Deskription',
-	h3_werk_gutacht: 'H3 · Werk-Gutacht (a + b)',
+	h3_werk_gutacht: 'H3 · Werk-Gutacht (a + b + c, c-Gating für Test deaktiviert)',
 };
 
 // H3-Phase-Reihenfolge gemäß docs/h3_orchestrator_spec.md (Bedingungsgefüge

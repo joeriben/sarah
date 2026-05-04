@@ -39,6 +39,8 @@ import {
 import { runSynthesePass } from '../ai/h3/synthese.js';
 import { runSchlussreflexionPass } from '../ai/h3/schlussreflexion.js';
 import { runExkursPass } from '../ai/h3/exkurs.js';
+import { runWerkDeskriptionPass } from '../ai/h3/werk-deskription.js';
+import { runWerkGutachtPass } from '../ai/h3/werk-gutacht.js';
 
 // ── Phase-Type & Mapping ──────────────────────────────────────────────────
 
@@ -53,10 +55,10 @@ export type H3Phase =
 	| 'h3_werk_deskription'
 	| 'h3_werk_gutacht';
 
-// outline_function_type pro Phase (gemäß Mig 043 CHECK-Liste). EXKURS hat
-// Sondersemantik (siehe h3_exkurs unten — modifiziert FORSCHUNGSGEGENSTAND
-// destruktiv via version_stack-Append). h3_werk_* sind noch nicht
-// implementiert und mappen auf null → always-done = true.
+// outline_function_type pro Phase (gemäß Mig 043 + Mig 050 CHECK-Liste).
+// EXKURS hat Sondersemantik (siehe h3_exkurs unten — modifiziert
+// FORSCHUNGSGEGENSTAND destruktiv via version_stack-Append). Werk-Phasen
+// (Mig 050) nutzen eigene Funktionstyp-Marker.
 const PHASE_OUTLINE_TYPE: Record<H3Phase, string | null> = {
 	h3_exposition: 'EXPOSITION',
 	h3_grundlagentheorie: 'GRUNDLAGENTHEORIE',
@@ -65,8 +67,8 @@ const PHASE_OUTLINE_TYPE: Record<H3Phase, string | null> = {
 	h3_synthese: 'SYNTHESE',
 	h3_schlussreflexion: 'SCHLUSSREFLEXION',
 	h3_exkurs: 'GRUNDLAGENTHEORIE', // FG-Konstrukt liegt am GTH-Outline-Typ
-	h3_werk_deskription: null,
-	h3_werk_gutacht: null,
+	h3_werk_deskription: 'WERK_DESKRIPTION',
+	h3_werk_gutacht: 'WERK_GUTACHT',
 };
 
 // Primäres Output-Konstrukt-Set pro Phase (Done-Marker). Mind. eines davon
@@ -85,8 +87,8 @@ const PHASE_PRIMARY_KINDS: Record<H3Phase, string[] | null> = {
 	h3_synthese: ['GESAMTERGEBNIS'],
 	h3_schlussreflexion: ['GELTUNGSANSPRUCH'],
 	h3_exkurs: null, // Sondersemantik: version_stack @> '[{"kind":"re_spec"}]'
-	h3_werk_deskription: null, // nicht implementiert
-	h3_werk_gutacht: null, // nicht implementiert
+	h3_werk_deskription: ['WERK_BESCHREIBUNG'],
+	h3_werk_gutacht: ['WERK_GUTACHT'],
 };
 
 // ── Done-Check ────────────────────────────────────────────────────────────
@@ -94,20 +96,12 @@ const PHASE_PRIMARY_KINDS: Record<H3Phase, string[] | null> = {
 /**
  * True wenn das primäre Output-Konstrukt der Phase im Werk persistiert ist.
  *
- * Für h3_werk_deskription / h3_werk_gutacht (nicht implementiert) immer
- * true, damit der Orchestrator-Loop nicht endlos auf einen non-existent
- * Pass wartet. Sobald die Heuristiken kommen, wird hier ein normaler
- * Konstrukt-Check eingebaut.
  */
 export async function isH3PhaseDone(
 	phase: H3Phase,
 	caseId: string,
 	documentId: string
 ): Promise<boolean> {
-	if (phase === 'h3_werk_deskription' || phase === 'h3_werk_gutacht') {
-		return true;
-	}
-
 	if (phase === 'h3_exkurs') {
 		// Sondersemantik: EXKURS modifiziert FORSCHUNGSGEGENSTAND destruktiv
 		// via version_stack-Append (siehe ../ai/h3/exkurs.ts Top-Doc).
@@ -151,10 +145,6 @@ export async function isH3PhaseDoneForDocument(
 	phase: H3Phase,
 	documentId: string
 ): Promise<boolean> {
-	if (phase === 'h3_werk_deskription' || phase === 'h3_werk_gutacht') {
-		return true;
-	}
-
 	if (phase === 'h3_exkurs') {
 		const row = await queryOne<{ id: string }>(
 			`SELECT id FROM function_constructs
@@ -190,18 +180,12 @@ export async function isH3PhaseDoneForDocument(
  * construct_validations (Mig 049) hat. Wenn validiert → Phase überspringen
  * (User-Schutz, Spec #3 Variante c).
  *
- * Für nicht-implementierte Phasen (h3_werk_*) immer false, weil es keine
- * Konstrukte gibt, die validiert sein könnten.
  */
 export async function isH3PhaseValidated(
 	phase: H3Phase,
 	caseId: string,
 	documentId: string
 ): Promise<boolean> {
-	if (phase === 'h3_werk_deskription' || phase === 'h3_werk_gutacht') {
-		return false;
-	}
-
 	if (phase === 'h3_exkurs') {
 		// Sondersemantik: validiert iff ein FG-Konstrukt mit re_spec-Stack-
 		// Eintrag einen Validierungs-Marker hat. Der Re-Spec-Akt selbst
@@ -388,13 +372,23 @@ export async function runH3Phase(
 			};
 		}
 
-		case 'h3_werk_deskription':
+		case 'h3_werk_deskription': {
+			const r = await runWerkDeskriptionPass(caseId);
+			return {
+				skipped: false,
+				tokens: { input: r.tokens.input, output: r.tokens.output, cacheRead: 0 },
+			};
+		}
+
 		case 'h3_werk_gutacht': {
-			// Heuristik nicht implementiert. Skipped, kein Throw — Spec
-			// erlaubt strukturelle Abwesenheit (SKIP ≠ STOP). Sobald die
-			// Heuristik kommt, wird hier ein echter Pass-Call eingehängt.
-			void documentId; // suppress unused warning; kein Lese-Bedarf hier
-			return { skipped: true, tokens: { ...ZERO_TOKENS } };
+			// User-Setzung 2026-05-04: c-Gating heute deaktiviert für Test
+			// (kein review_draft-Check). content.gatingDisabled markiert das
+			// transparent; volle dialogische Kette d/e/f bleibt deferred.
+			const r = await runWerkGutachtPass(caseId);
+			return {
+				skipped: false,
+				tokens: { input: r.tokens.input, output: r.tokens.output, cacheRead: 0 },
+			};
 		}
 	}
 }
