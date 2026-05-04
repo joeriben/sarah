@@ -4,14 +4,22 @@
 // H3:FORSCHUNGSDESIGN — extrahiert METHODOLOGIE, METHODEN und BASIS
 // (Korpus oder Erhebung) aus dem methodischen Material eines Werkes.
 //
-// Memory: project_three_heuristics_architecture.md (FORSCHUNGSDESIGN-Tabelle).
-// Mother-Session-Setzung: METHODIK_EXTRAHIEREN als ein LLM-Pass mit drei
-// Feldern; Cross-Typ-Bezug liest FRAGESTELLUNG + FORSCHUNGSGEGENSTAND.
+// Memory: project_three_heuristics_architecture.md (FORSCHUNGSDESIGN-Tabelle),
+// feedback_no_phase_layer_orchestrator.md.
+//
+// Walk-Position (Setzung 2026-05-04): FORSCHUNGSDESIGN ist ein WERK-skopierter
+// Knoten im H3-Walk — nicht per Komplex iteriert, sondern genau einmal pro
+// Werk ausgeführt. Im linearen Walk steht es nach allen GRUNDLAGENTHEORIE-
+// Komplexen UND nach dem werk-skopierten FG-Aggregations-Knoten (der den
+// FORSCHUNGSGEGENSTAND-Konstrukt produziert). Wenn das Werk eigene
+// FORSCHUNGSDESIGN-getypte Headings hat, absorbiert dieser Werk-Knoten alle
+// FORSCHUNGSDESIGN-Komplexe in einem Pass — der Orchestrator iteriert sie
+// nicht einzeln.
 //
 // Choreographie:
 //   1. ¶-Sammlung kaskadierend, mit Provenienz-Tracking pro ¶:
-//      a) Outline-Container 'FORSCHUNGSDESIGN' (KAPITEL/UNTERKAPITEL,
-//         der nähere Container gewinnt qua LATERAL-Lookup).
+//      a) Walk-Komplexe mit functionType='FORSCHUNGSDESIGN' (alle, in Walk-
+//         Reihenfolge zusammengefügt).
 //      b) Falls leer: EXPOSITION-Container, Methoden-Marker-Filter pro ¶.
 //      c) Falls leer: Volltext-Scan über alle main-¶, Methoden-Marker-Filter.
 //      Stop bei erstem Treffer-Set.
@@ -42,6 +50,7 @@ import { query, queryOne } from '../../db/index.js';
 import { chat, getModel, getProvider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
+import { loadH3ComplexWalk } from '../../pipeline/h3-complex-walk.js';
 
 // ── Marker-Set für Methoden-Sätze ─────────────────────────────────
 
@@ -111,57 +120,44 @@ interface CollectedParagraph {
 }
 
 /**
- * Strategie A: ¶ aus dem Outline-Container 'FORSCHUNGSDESIGN'.
- * KAPITEL und UNTERKAPITEL gleichermaßen — der LATERAL-Lookup
- * ordnet jeden ¶ dem nächstgelegenen FORSCHUNGSDESIGN-Heading zu,
- * sodass nestende Markierungen nicht doppelt zählen.
+ * Strategie A: ¶ aus FORSCHUNGSDESIGN-Komplexen des H3-Walks.
+ * Wenn das Werk mehrere FORSCHUNGSDESIGN-Komplexe enthält (KAPITEL +
+ * UNTERKAPITEL), absorbiert der werk-skopierte Knoten sie in Walk-Reihenfolge
+ * — der Container-Label kommt vom ersten Komplex.
  */
 async function loadOutlineContainerParagraphs(
 	documentId: string
 ): Promise<CollectedParagraph[]> {
+	const walk = await loadH3ComplexWalk(documentId);
+	const fdComplexes = walk.filter((c) => c.functionType === 'FORSCHUNGSDESIGN');
+	if (fdComplexes.length === 0) return [];
+
+	const allParagraphIds: string[] = [];
+	const headingByParagraph = new Map<string, string>();
+	for (const c of fdComplexes) {
+		for (const pid of c.paragraphIds) {
+			allParagraphIds.push(pid);
+			headingByParagraph.set(pid, c.headingText);
+		}
+	}
+
 	const rows = (await query<{
 		paragraph_id: string;
 		char_start: number;
 		char_end: number;
 		text: string;
-		container_heading_text: string;
 	}>(
-		`WITH heading_with_type AS (
-		   SELECT de.id AS heading_id,
-		          de.char_start,
-		          de.char_end,
-		          hc.outline_function_type,
-		          SUBSTRING(dc.full_text FROM de.char_start + 1
-		                                 FOR de.char_end - de.char_start) AS heading_text
-		   FROM document_elements de
-		   JOIN heading_classifications hc ON hc.element_id = de.id
-		   JOIN document_content dc ON dc.naming_id = de.document_id
-		   WHERE de.document_id = $1
-		     AND de.element_type = 'heading'
-		     AND de.section_kind = 'main'
-		     AND hc.outline_function_type IS NOT NULL
-		     AND COALESCE(hc.excluded, false) = false
-		 )
-		 SELECT p.id AS paragraph_id,
+		`SELECT p.id AS paragraph_id,
 		        p.char_start,
 		        p.char_end,
 		        SUBSTRING(dc.full_text FROM p.char_start + 1
-		                              FOR p.char_end - p.char_start) AS text,
-		        h.heading_text AS container_heading_text
+		                              FOR p.char_end - p.char_start) AS text
 		 FROM document_elements p
 		 JOIN document_content dc ON dc.naming_id = p.document_id
-		 JOIN LATERAL (
-		   SELECT hwt.heading_text, hwt.outline_function_type
-		   FROM heading_with_type hwt
-		   WHERE hwt.char_start <= p.char_start
-		   ORDER BY hwt.char_start DESC
-		   LIMIT 1
-		 ) h ON h.outline_function_type = 'FORSCHUNGSDESIGN'
 		 WHERE p.document_id = $1
-		   AND p.element_type = 'paragraph'
-		   AND p.section_kind = 'main'
+		   AND p.id = ANY($2::uuid[])
 		 ORDER BY p.char_start`,
-		[documentId]
+		[documentId, allParagraphIds]
 	)).rows;
 
 	return rows.map((r) => ({
@@ -169,7 +165,7 @@ async function loadOutlineContainerParagraphs(
 		charStart: r.char_start,
 		charEnd: r.char_end,
 		text: r.text.trim(),
-		containerHeadingText: r.container_heading_text.trim(),
+		containerHeadingText: headingByParagraph.get(r.paragraph_id) ?? null,
 		provenance: 'outline_container',
 	}));
 }
