@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// H3:DURCHFÜHRUNG — Schritt 1 (deterministisch, kein LLM).
+// H3:DURCHFÜHRUNG — vier Schritte pro DURCHFÜHRUNG-Komplex.
 //
-// Mother-Session-Setzung (Z. 109 + L<follow-up nach extraction>):
+// Mother-Session-Setzung (Z. 109 + Folgenachricht):
 // "Empirieartikel sind sehr lang und enthalten zwar Schlüsse, aber wenig
 // Argumentation. H1 wäre auf das ganze Material teuer und sinnlos. Daher
 // Regex/Heuristik analog zu GRUNDLAGENTHEORIE Step 1: thematische Hot-Spots
@@ -12,19 +12,30 @@
 // liegen. Schätzung: 10–20% einer empirischen DURCHFÜHRUNG müssen wirklich
 // per LLM analysiert werden."
 //
-// Diese Stufe macht den billigen Vorlauf: Closure-Marker-Regex über alle
-// DURCHFÜHRUNGS-Container des Werks, Persistenz der Hot-Spot-¶ als
-// virtuelle Container (ein virtueller Container pro Outline-Container),
-// damit der spätere H1-Schritt nur auf der reduzierten Menge läuft.
+// Walk-Position (Setzung 2026-05-04, feedback_no_phase_layer_orchestrator.md):
+// Alle vier Schritte sind per-Komplex strukturiert — pro DURCHFÜHRUNG-Knoten
+// im linearen H3-Walk laufen Step 1 → Step 2 → Step 3 → Step 4 sequenziell,
+// bevor zum nächsten Komplex gewechselt wird. Die runDurchfuehrungPassStepN-
+// Wrapper sind Walk-Driver, die über alle DURCHFÜHRUNG-Komplexe iterieren
+// und pro Komplex die step-N-Funktion aufrufen — Backward-Compat für den
+// alten Phasen-Orchestrator.
 //
-// Konstrukt-Schreibung (BEFUND) erfolgt NICHT in dieser Stufe, sondern
-// erst in Schritt 2 nach H1-Pass — Memory `feedback_constructs_are_extracts_not_telemetry`:
-// Hot-Spot-Listen sind Pre-Selektion, nicht Extrakt.
+// Schritt-Choreographie:
+//   Step 1 (deterministisch): Closure-Marker-Regex pro Komplex, Persistenz
+//          der Hot-Spot-¶ als virtueller Container.
+//   Step 2 (LLM, AG-Pipeline): pro Hotspot-¶ AG + Argument-Validity.
+//   Step 3 (deterministisch): pro Hotspot Token-Extraktion + Container-
+//          Vorlauf-Suche (Grounding-Lookup).
+//   Step 4 (LLM): pro Hotspot ein BEFUND-Extract — Konsolidierung aus
+//          H1-Argumenten + Grounding-Lookup zu einem BEFUND-Konstrukt.
 //
-// Re-Run: idempotent über DELETE auf virtual_function_containers für
-// (case_id, document_id, outline_function_type='DURCHFUEHRUNG') vor dem
-// neuen INSERT. Spätere BEFUND-Konstrukte (Schritt 2) hängen über
-// virtual_container_id daran und gehen FK-SET-NULL bei Container-Löschung.
+// Konstrukt-Schreibung (BEFUND) ausschließlich in Schritt 4 — Memory
+// `feedback_constructs_are_extracts_not_telemetry`: Hot-Spot-Listen +
+// Grounding-Lookups sind Pre-Selektion + Kontext, nicht Extrakt.
+//
+// Idempotenz pro Komplex: jeder Step räumt seinen eigenen Output für die
+// Komplex-¶ weg, bevor er neu schreibt (anchor-skopierter DELETE bzw.
+// range-overlap-DELETE für virtual_function_containers).
 
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
@@ -33,6 +44,7 @@ import { extractAndValidateJSON } from '../json-extract.js';
 import { runArgumentationGraphPass } from '../hermeneutic/argumentation-graph.js';
 import { runArgumentValidityPass } from '../hermeneutic/argument-validity.js';
 import { extractInlineCitations } from './grundlagentheorie.js';
+import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
 
 // ── Closure-Marker für Befund-Stellen ─────────────────────────────
 //
@@ -89,6 +101,54 @@ export interface DurchfuehrungContainer {
 	headingId: string;
 	headingText: string;
 	paragraphs: DurchfuehrungParagraph[];
+}
+
+/**
+ * Lädt die Absätze eines DURCHFÜHRUNG-Komplexes in Container-Form.
+ * Die Komplex-Variante des Loaders — analog zu
+ * loadGrundlagentheorieParagraphsForComplex.
+ */
+export async function loadDurchfuehrungParagraphsForComplex(
+	documentId: string,
+	complex: H3Complex
+): Promise<DurchfuehrungContainer> {
+	if (complex.paragraphIds.length === 0) {
+		return {
+			headingId: complex.headingId,
+			headingText: complex.headingText,
+			paragraphs: [],
+		};
+	}
+	const rows = (await query<{
+		paragraph_id: string;
+		char_start: number;
+		char_end: number;
+		text: string;
+	}>(
+		`SELECT p.id AS paragraph_id,
+		        p.char_start,
+		        p.char_end,
+		        SUBSTRING(dc.full_text FROM p.char_start + 1
+		                              FOR p.char_end - p.char_start) AS text
+		 FROM document_elements p
+		 JOIN document_content dc ON dc.naming_id = p.document_id
+		 WHERE p.document_id = $1
+		   AND p.id = ANY($2::uuid[])
+		 ORDER BY p.char_start`,
+		[documentId, complex.paragraphIds]
+	)).rows;
+
+	return {
+		headingId: complex.headingId,
+		headingText: complex.headingText,
+		paragraphs: rows.map((r, i) => ({
+			paragraphId: r.paragraph_id,
+			charStart: r.char_start,
+			charEnd: r.char_end,
+			text: r.text.trim(),
+			indexInContainer: i,
+		})),
+	};
 }
 
 export async function loadDurchfuehrungContainers(
@@ -218,6 +278,30 @@ async function clearExistingDurchfuehrung(
 	);
 }
 
+/**
+ * Komplex-skopierter DELETE: räumt nur Hotspot-Container weg, deren Ranges
+ * Absätze des angegebenen Komplexes referenzieren — Idempotenz pro Walk-Knoten.
+ */
+async function clearExistingDurchfuehrungForComplex(
+	caseId: string,
+	documentId: string,
+	complexParagraphIds: string[]
+): Promise<void> {
+	if (complexParagraphIds.length === 0) return;
+	await query(
+		`DELETE FROM virtual_function_containers
+		 WHERE case_id = $1
+		   AND document_id = $2
+		   AND outline_function_type = 'DURCHFUEHRUNG'
+		   AND EXISTS (
+		     SELECT 1
+		     FROM jsonb_array_elements(source_anchor_ranges) r
+		     WHERE (r->>'element_id')::uuid = ANY($3::uuid[])
+		   )`,
+		[caseId, documentId, complexParagraphIds]
+	);
+}
+
 async function persistHotspotContainer(
 	caseId: string,
 	documentId: string,
@@ -266,6 +350,45 @@ export interface DurchfuehrungPassResult {
 	hotspotRatio: number; // 0..1; Mother-Setzung Ziel ~0.10–0.20 für H1-Folgepass
 }
 
+/**
+ * Komplex-skopierter Eintritt für H3:DURCHFÜHRUNG Schritt 1.
+ * Detektiert Hotspots im einen Komplex, persistiert genau einen
+ * virtual_function_container.
+ */
+export async function runDurchfuehrungStep1ForComplex(
+	caseId: string,
+	documentId: string,
+	complex: H3Complex
+): Promise<DurchfuehrungContainerResult & { totalParagraphs: number; totalHotspots: number }> {
+	if (complex.functionType !== 'DURCHFUEHRUNG') {
+		throw new Error(
+			`runDurchfuehrungStep1ForComplex erwartet functionType='DURCHFUEHRUNG', erhielt '${complex.functionType}' (heading=${complex.headingId})`
+		);
+	}
+	const container = await loadDurchfuehrungParagraphsForComplex(documentId, complex);
+	const hotspots = detectBefundHotspots(container);
+
+	await clearExistingDurchfuehrungForComplex(caseId, documentId, complex.paragraphIds);
+
+	let virtualContainerId: string | null = null;
+	if (hotspots.length > 0) {
+		virtualContainerId = await persistHotspotContainer(caseId, documentId, container, hotspots);
+	}
+
+	return {
+		headingId: container.headingId,
+		headingText: container.headingText,
+		totalParagraphs: container.paragraphs.length,
+		hotspots,
+		virtualContainerId,
+		totalHotspots: hotspots.length,
+	};
+}
+
+/**
+ * Werk-skopierter Walk-Driver: iteriert alle DURCHFÜHRUNG-Komplexe
+ * und ruft pro Komplex Step 1 auf.
+ */
 export async function runDurchfuehrungPassStep1(
 	caseId: string
 ): Promise<DurchfuehrungPassResult> {
@@ -279,9 +402,10 @@ export async function runDurchfuehrungPassStep1(
 	}
 	const documentId = caseRow.central_document_id;
 
-	const containers = await loadDurchfuehrungContainers(documentId);
+	const walk = await loadH3ComplexWalk(documentId);
+	const dfComplexes = walk.filter((c) => c.functionType === 'DURCHFUEHRUNG');
 
-	if (containers.length === 0) {
+	if (dfComplexes.length === 0) {
 		return {
 			caseId,
 			documentId,
@@ -292,33 +416,20 @@ export async function runDurchfuehrungPassStep1(
 		};
 	}
 
-	await clearExistingDurchfuehrung(caseId, documentId);
-
 	const containerResults: DurchfuehrungContainerResult[] = [];
 	let totalParagraphs = 0;
 	let totalHotspots = 0;
 
-	for (const container of containers) {
-		totalParagraphs += container.paragraphs.length;
-		const hotspots = detectBefundHotspots(container);
-		totalHotspots += hotspots.length;
-
-		let virtualContainerId: string | null = null;
-		if (hotspots.length > 0) {
-			virtualContainerId = await persistHotspotContainer(
-				caseId,
-				documentId,
-				container,
-				hotspots
-			);
-		}
-
+	for (const complex of dfComplexes) {
+		const r = await runDurchfuehrungStep1ForComplex(caseId, documentId, complex);
+		totalParagraphs += r.totalParagraphs;
+		totalHotspots += r.totalHotspots;
 		containerResults.push({
-			headingId: container.headingId,
-			headingText: container.headingText,
-			totalParagraphs: container.paragraphs.length,
-			hotspots,
-			virtualContainerId,
+			headingId: r.headingId,
+			headingText: r.headingText,
+			totalParagraphs: r.totalParagraphs,
+			hotspots: r.hotspots,
+			virtualContainerId: r.virtualContainerId,
 		});
 	}
 
@@ -391,6 +502,47 @@ async function loadHotspotsFromContainers(
 	}));
 }
 
+/**
+ * Komplex-skopierter Loader: nur die Hotspots des angegebenen Komplexes.
+ * Filter über paragraph_ids, weil ein Komplex genau einen virtuellen Container
+ * hat (Step 1) und dessen Ranges alle innerhalb der Komplex-Absätze liegen.
+ */
+async function loadHotspotsForComplex(
+	caseId: string,
+	documentId: string,
+	complexParagraphIds: string[]
+): Promise<{ paragraphId: string; charStart: number; charEnd: number; markerNames: string[] }[]> {
+	if (complexParagraphIds.length === 0) return [];
+	const rows = (await query<{
+		element_id: string;
+		start_seq: number;
+		end_seq: number;
+		marker_names: string[] | null;
+	}>(
+		`SELECT (r->>'element_id')::uuid AS element_id,
+		        (r->>'start_seq')::int  AS start_seq,
+		        (r->>'end_seq')::int    AS end_seq,
+		        ARRAY(
+		          SELECT jsonb_array_elements_text(r->'marker_names')
+		        )::text[] AS marker_names
+		 FROM virtual_function_containers vfc,
+		      jsonb_array_elements(vfc.source_anchor_ranges) r
+		 WHERE vfc.case_id = $1
+		   AND vfc.document_id = $2
+		   AND vfc.outline_function_type = 'DURCHFUEHRUNG'
+		   AND (r->>'element_id')::uuid = ANY($3::uuid[])
+		 ORDER BY (r->>'start_seq')::int`,
+		[caseId, documentId, complexParagraphIds]
+	)).rows;
+
+	return rows.map((r) => ({
+		paragraphId: r.element_id,
+		charStart: r.start_seq,
+		charEnd: r.end_seq,
+		markerNames: r.marker_names ?? [],
+	}));
+}
+
 export interface DurchfuehrungStep2HotspotResult {
 	paragraphId: string;
 	markerNames: string[];
@@ -422,6 +574,28 @@ export interface DurchfuehrungStep2Result {
 	hotspots: DurchfuehrungStep2HotspotResult[];
 }
 
+/**
+ * Komplex-skopierter Eintritt für H3:DURCHFÜHRUNG Schritt 2.
+ * Iteriert nur die Hotspots dieses Komplexes; AG + Validity pro Hotspot-¶.
+ */
+export async function runDurchfuehrungStep2ForComplex(
+	caseId: string,
+	documentId: string,
+	complex: H3Complex
+): Promise<DurchfuehrungStep2Result> {
+	if (complex.functionType !== 'DURCHFUEHRUNG') {
+		throw new Error(
+			`runDurchfuehrungStep2ForComplex erwartet functionType='DURCHFUEHRUNG', erhielt '${complex.functionType}' (heading=${complex.headingId})`
+		);
+	}
+	const hotspots = await loadHotspotsForComplex(caseId, documentId, complex.paragraphIds);
+	return runDurchfuehrungStep2OverHotspots(caseId, documentId, hotspots);
+}
+
+/**
+ * Werk-skopierter Walk-Driver: iteriert alle DURCHFÜHRUNG-Komplexe
+ * und ruft pro Komplex Step 2 auf — aggregiert das Werk-Ergebnis.
+ */
 export async function runDurchfuehrungPassStep2(
 	caseId: string
 ): Promise<DurchfuehrungStep2Result> {
@@ -436,7 +610,14 @@ export async function runDurchfuehrungPassStep2(
 	const documentId = caseRow.central_document_id;
 
 	const hotspots = await loadHotspotsFromContainers(caseId, documentId);
+	return runDurchfuehrungStep2OverHotspots(caseId, documentId, hotspots);
+}
 
+async function runDurchfuehrungStep2OverHotspots(
+	caseId: string,
+	documentId: string,
+	hotspots: { paragraphId: string; charStart: number; charEnd: number; markerNames: string[] }[]
+): Promise<DurchfuehrungStep2Result> {
 	const acc = {
 		input: 0,
 		output: 0,
@@ -770,6 +951,62 @@ export interface DurchfuehrungStep3Result {
 	hotspots: DurchfuehrungStep3HotspotResult[];
 }
 
+/**
+ * Komplex-skopierter Eintritt für H3:DURCHFÜHRUNG Schritt 3.
+ * Container des Komplexes laden, Hotspots detektieren, pro Hotspot
+ * Grounding-Tokens extrahieren und im Container-Vorlauf zurücksuchen.
+ */
+export async function runDurchfuehrungStep3ForComplex(
+	caseId: string,
+	documentId: string,
+	complex: H3Complex
+): Promise<DurchfuehrungStep3Result> {
+	if (complex.functionType !== 'DURCHFUEHRUNG') {
+		throw new Error(
+			`runDurchfuehrungStep3ForComplex erwartet functionType='DURCHFUEHRUNG', erhielt '${complex.functionType}' (heading=${complex.headingId})`
+		);
+	}
+	const container = await loadDurchfuehrungParagraphsForComplex(documentId, complex);
+	const hotspots = detectBefundHotspots(container);
+	const hotspotResults: DurchfuehrungStep3HotspotResult[] = [];
+	let totalExtractedTokens = 0;
+	let totalMatched = 0;
+	let totalUnmatched = 0;
+
+	for (const h of hotspots) {
+		const lookup = lookupGroundingForHotspot(h, container);
+		totalExtractedTokens += lookup.extractedTokens.length;
+		totalMatched += lookup.matches.length;
+		totalUnmatched += lookup.unmatched.length;
+		hotspotResults.push({
+			hotspotParagraphId: h.paragraphId,
+			containerHeadingText: container.headingText,
+			extractedTokens: lookup.extractedTokens.length,
+			matchedTokens: lookup.matches.length,
+			unmatchedTokens: lookup.unmatched.length,
+			lookup,
+		});
+	}
+
+	return {
+		caseId,
+		documentId,
+		hotspotCount: hotspotResults.length,
+		totalExtractedTokens,
+		totalMatched,
+		totalUnmatched,
+		hotspots: hotspotResults,
+	};
+}
+
+/**
+ * Werk-skopierter Walk-Driver: iteriert alle DURCHFÜHRUNG-Komplexe
+ * und ruft pro Komplex Step 3 auf — aggregiert das Werk-Ergebnis.
+ *
+ * (Container) muss komplex-skopiert geladen werden, weil der
+ * Vorlauf-Suchraum auf den eigenen Komplex begrenzt ist — Mother-Setzung
+ * "bis zum Kapitelbeginn".
+ */
 export async function runDurchfuehrungPassStep3(
 	caseId: string
 ): Promise<DurchfuehrungStep3Result> {
@@ -783,33 +1020,20 @@ export async function runDurchfuehrungPassStep3(
 	}
 	const documentId = caseRow.central_document_id;
 
-	// Container neu aufbauen (statt aus virtual_function_containers zu
-	// rekonstruieren, weil wir den vollständigen ¶-Vorlauf brauchen,
-	// nicht nur die Hotspots — die Rückwärtssuche läuft auf den
-	// nicht-Hotspot-¶, die in vfc nicht enthalten sind).
-	const containers = await loadDurchfuehrungContainers(documentId);
+	const walk = await loadH3ComplexWalk(documentId);
+	const dfComplexes = walk.filter((c) => c.functionType === 'DURCHFUEHRUNG');
 
 	const hotspotResults: DurchfuehrungStep3HotspotResult[] = [];
 	let totalExtractedTokens = 0;
 	let totalMatched = 0;
 	let totalUnmatched = 0;
 
-	for (const container of containers) {
-		const hotspots = detectBefundHotspots(container);
-		for (const h of hotspots) {
-			const lookup = lookupGroundingForHotspot(h, container);
-			totalExtractedTokens += lookup.extractedTokens.length;
-			totalMatched += lookup.matches.length;
-			totalUnmatched += lookup.unmatched.length;
-			hotspotResults.push({
-				hotspotParagraphId: h.paragraphId,
-				containerHeadingText: container.headingText,
-				extractedTokens: lookup.extractedTokens.length,
-				matchedTokens: lookup.matches.length,
-				unmatchedTokens: lookup.unmatched.length,
-				lookup,
-			});
-		}
+	for (const complex of dfComplexes) {
+		const r = await runDurchfuehrungStep3ForComplex(caseId, documentId, complex);
+		totalExtractedTokens += r.totalExtractedTokens;
+		totalMatched += r.totalMatched;
+		totalUnmatched += r.totalUnmatched;
+		hotspotResults.push(...r.hotspots);
 	}
 
 	return {
@@ -897,10 +1121,17 @@ async function loadParagraphSnippets(
 	return new Map(rows.map((r) => [r.id, r.text.trim()]));
 }
 
-async function loadHotspotToContainerMap(
+/**
+ * Komplex-skopierter Hotspot→Container-Map-Loader: nur die Hotspots des
+ * angegebenen Komplexes. Filter über paragraph_ids analog zu
+ * loadHotspotsForComplex.
+ */
+async function loadHotspotToContainerMapForComplex(
 	caseId: string,
-	documentId: string
+	documentId: string,
+	complexParagraphIds: string[]
 ): Promise<Map<string, string>> {
+	if (complexParagraphIds.length === 0) return new Map();
 	const rows = (await query<{ container_id: string; element_id: string }>(
 		`SELECT vfc.id AS container_id,
 		        (r->>'element_id')::uuid AS element_id
@@ -908,27 +1139,35 @@ async function loadHotspotToContainerMap(
 		      jsonb_array_elements(vfc.source_anchor_ranges) r
 		 WHERE vfc.case_id = $1
 		   AND vfc.document_id = $2
-		   AND vfc.outline_function_type = 'DURCHFUEHRUNG'`,
-		[caseId, documentId]
+		   AND vfc.outline_function_type = 'DURCHFUEHRUNG'
+		   AND (r->>'element_id')::uuid = ANY($3::uuid[])`,
+		[caseId, documentId, complexParagraphIds]
 	)).rows;
 	const out = new Map<string, string>();
 	for (const r of rows) out.set(r.element_id, r.container_id);
 	return out;
 }
 
-async function clearExistingBefundConstructs(
+/**
+ * Komplex-skopierter DELETE: räumt nur BEFUND-Konstrukte weg, deren
+ * anchor_element_ids vollständig innerhalb des Komplexes liegen — Idempotenz
+ * pro Walk-Knoten. Da BEFUND-Konstrukte per Konstruktion an genau einen
+ * Hotspot-¶ gebunden sind, ist `<@` (Subset) der saubere Operator.
+ */
+async function clearExistingBefundConstructsForComplex(
 	caseId: string,
-	documentId: string
+	documentId: string,
+	complexParagraphIds: string[]
 ): Promise<void> {
-	// Alle BEFUND-Konstrukte für DURCHFUEHRUNG-Container dieses Werks
-	// löschen — kein partial keep, weil Step 4 als Ganzes neu läuft.
+	if (complexParagraphIds.length === 0) return;
 	await query(
 		`DELETE FROM function_constructs
 		 WHERE case_id = $1
 		   AND document_id = $2
 		   AND outline_function_type = 'DURCHFUEHRUNG'
-		   AND construct_kind = 'BEFUND'`,
-		[caseId, documentId]
+		   AND construct_kind = 'BEFUND'
+		   AND anchor_element_ids <@ $3::uuid[]`,
+		[caseId, documentId, complexParagraphIds]
 	);
 }
 
@@ -1034,6 +1273,221 @@ export interface DurchfuehrungStep4Result {
 	errors: { paragraphId: string; message: string }[];
 }
 
+/**
+ * Per-Container-Helfer: iteriert Hotspots eines bereits geladenen Containers,
+ * macht den BEFUND-Extract-Call pro Hotspot und persistiert die Konstrukte.
+ * Keine eigene Idempotenz hier — der Aufrufer ist für Pre-Cleanup zuständig.
+ */
+async function runDurchfuehrungStep4OverContainer(
+	caseId: string,
+	documentId: string,
+	container: DurchfuehrungContainer,
+	hotspotToContainer: Map<string, string>
+): Promise<{
+	hotspots: DurchfuehrungStep4HotspotResult[];
+	tokens: { input: number; output: number };
+	befundsExtracted: number;
+	nullResults: number;
+	errors: { paragraphId: string; message: string }[];
+}> {
+	const accTokens = { input: 0, output: 0 };
+	const hotspotResults: DurchfuehrungStep4HotspotResult[] = [];
+	const errors: { paragraphId: string; message: string }[] = [];
+	let befundsExtracted = 0;
+	let nullResults = 0;
+
+	const hotspots = detectBefundHotspots(container);
+	for (const h of hotspots) {
+		const args = await loadArgumentsForParagraph(h.paragraphId);
+		const lookup = lookupGroundingForHotspot(h, container);
+
+		// Grounding-Items mit Snippet aus dem nearest-Vorlauf-¶ aufbauen.
+		const nearestIds = lookup.matches
+			.map((m) => m.nearestParagraphId)
+			.filter((x): x is string => x != null);
+		const snippetMap = await loadParagraphSnippets(nearestIds);
+
+		const groundingItems = lookup.matches.map((m, i) => {
+			const snippet = m.nearestParagraphId
+				? snippetMap.get(m.nearestParagraphId) ?? ''
+				: '';
+			return {
+				handle: `G${i + 1}`,
+				handleParagraphId: m.nearestParagraphId, // mapping zurück
+				token: m.token,
+				kind: m.kind,
+				snippet,
+			};
+		});
+
+		let befundText: string | null = null;
+		let supportArgIds: string[] = [];
+		let groundingParaIds: string[] = [];
+		let tokIn = 0;
+		let tokOut = 0;
+		let perError: string | null = null;
+
+		try {
+			const system = buildBefundSystemPrompt();
+			const user = buildBefundUserMessage(
+				container.headingText,
+				h.text,
+				args,
+				groundingItems.map((g) => ({
+					handle: g.handle,
+					token: g.token,
+					kind: g.kind,
+					snippet: g.snippet,
+				}))
+			);
+			const response = await chat({
+				system,
+				messages: [{ role: 'user', content: user }],
+				maxTokens: 1200,
+				responseFormat: 'json',
+				documentIds: [documentId],
+			});
+			tokIn = response.inputTokens;
+			tokOut = response.outputTokens;
+			accTokens.input += tokIn;
+			accTokens.output += tokOut;
+
+			const parsed = extractAndValidateJSON(response.text, BefundExtractSchema);
+			if (!parsed.ok) {
+				throw new Error(
+					`BEFUND-Extract: Antwort nicht parsbar (stage=${parsed.stage}): ${parsed.error}\n` +
+					`Raw: ${response.text.slice(0, 400)}`
+				);
+			}
+			const ex: BefundExtractResult = parsed.value;
+
+			// Mapping arg_local_id → UUID. Unbekannte IDs verwerfen, nicht crashen.
+			const argLocalToId = new Map(args.map((a) => [a.arg_local_id, a.id]));
+			supportArgIds = ex.support_argument_local_ids
+				.map((lid) => argLocalToId.get(lid))
+				.filter((x): x is string => x != null);
+
+			// Mapping G-Handle → ¶-UUID.
+			const handleToParaId = new Map(
+				groundingItems.map((g) => [g.handle, g.handleParagraphId])
+			);
+			groundingParaIds = ex.grounding_handles
+				.map((h2) => handleToParaId.get(h2))
+				.filter((x): x is string => x != null);
+
+			befundText = ex.text;
+		} catch (e) {
+			perError = e instanceof Error ? e.message : String(e);
+			errors.push({ paragraphId: h.paragraphId, message: perError });
+		}
+
+		const virtualContainerId = hotspotToContainer.get(h.paragraphId) ?? null;
+
+		let befundConstructId: string | null = null;
+		if (perError == null) {
+			const content = {
+				text: befundText,
+				support_argument_ids: supportArgIds,
+				grounding_paragraph_ids: groundingParaIds,
+			};
+			const stackEntry = {
+				kind: 'origin' as const,
+				at: new Date().toISOString(),
+				by_user_id: null,
+				source_run_id: null,
+				content_snapshot: content,
+			};
+			const row = await queryOne<{ id: string }>(
+				`INSERT INTO function_constructs
+				   (case_id, document_id, outline_function_type, construct_kind,
+				    anchor_element_ids, content, version_stack, virtual_container_id)
+				 VALUES ($1, $2, 'DURCHFUEHRUNG', 'BEFUND', $3, $4, $5, $6)
+				 RETURNING id`,
+				[
+					caseId,
+					documentId,
+					[h.paragraphId],
+					JSON.stringify(content),
+					JSON.stringify([stackEntry]),
+					virtualContainerId,
+				]
+			);
+			befundConstructId = row?.id ?? null;
+			if (befundText != null) befundsExtracted += 1;
+			else nullResults += 1;
+		}
+
+		hotspotResults.push({
+			hotspotParagraphId: h.paragraphId,
+			containerHeadingText: container.headingText,
+			virtualContainerId,
+			befundConstructId,
+			befundText,
+			supportArgumentCount: supportArgIds.length,
+			groundingParagraphCount: groundingParaIds.length,
+			tokens: { input: tokIn, output: tokOut },
+			error: perError,
+		});
+	}
+
+	return {
+		hotspots: hotspotResults,
+		tokens: accTokens,
+		befundsExtracted,
+		nullResults,
+		errors,
+	};
+}
+
+/**
+ * Komplex-skopierter Eintritt für H3:DURCHFÜHRUNG Schritt 4.
+ * Lädt Container des Komplexes, ruft per-Container-Helfer auf, räumt
+ * BEFUND-Konstrukte des Komplexes vorab anchor-skopiert weg.
+ */
+export async function runDurchfuehrungStep4ForComplex(
+	caseId: string,
+	documentId: string,
+	complex: H3Complex
+): Promise<DurchfuehrungStep4Result> {
+	if (complex.functionType !== 'DURCHFUEHRUNG') {
+		throw new Error(
+			`runDurchfuehrungStep4ForComplex erwartet functionType='DURCHFUEHRUNG', erhielt '${complex.functionType}' (heading=${complex.headingId})`
+		);
+	}
+	const container = await loadDurchfuehrungParagraphsForComplex(documentId, complex);
+	const hotspotToContainer = await loadHotspotToContainerMapForComplex(
+		caseId,
+		documentId,
+		complex.paragraphIds
+	);
+
+	await clearExistingBefundConstructsForComplex(caseId, documentId, complex.paragraphIds);
+
+	const r = await runDurchfuehrungStep4OverContainer(
+		caseId,
+		documentId,
+		container,
+		hotspotToContainer
+	);
+
+	return {
+		caseId,
+		documentId,
+		hotspotCount: r.hotspots.length,
+		befundsExtracted: r.befundsExtracted,
+		nullResults: r.nullResults,
+		tokens: r.tokens,
+		model: getModel(),
+		provider: getProvider(),
+		hotspots: r.hotspots,
+		errors: r.errors,
+	};
+}
+
+/**
+ * Werk-skopierter Walk-Driver: iteriert alle DURCHFÜHRUNG-Komplexe
+ * und ruft pro Komplex Step 4 auf — aggregiert das Werk-Ergebnis.
+ */
 export async function runDurchfuehrungPassStep4(
 	caseId: string
 ): Promise<DurchfuehrungStep4Result> {
@@ -1047,10 +1501,8 @@ export async function runDurchfuehrungPassStep4(
 	}
 	const documentId = caseRow.central_document_id;
 
-	const containers = await loadDurchfuehrungContainers(documentId);
-	const hotspotToContainer = await loadHotspotToContainerMap(caseId, documentId);
-
-	await clearExistingBefundConstructs(caseId, documentId);
+	const walk = await loadH3ComplexWalk(documentId);
+	const dfComplexes = walk.filter((c) => c.functionType === 'DURCHFUEHRUNG');
 
 	const accTokens = { input: 0, output: 0 };
 	const hotspotResults: DurchfuehrungStep4HotspotResult[] = [];
@@ -1058,140 +1510,14 @@ export async function runDurchfuehrungPassStep4(
 	let befundsExtracted = 0;
 	let nullResults = 0;
 
-	for (const container of containers) {
-		const hotspots = detectBefundHotspots(container);
-		for (const h of hotspots) {
-			const args = await loadArgumentsForParagraph(h.paragraphId);
-			const lookup = lookupGroundingForHotspot(h, container);
-
-			// Grounding-Items mit Snippet aus dem nearest-Vorlauf-¶ aufbauen.
-			const nearestIds = lookup.matches
-				.map((m) => m.nearestParagraphId)
-				.filter((x): x is string => x != null);
-			const snippetMap = await loadParagraphSnippets(nearestIds);
-
-			const groundingItems = lookup.matches.map((m, i) => {
-				const snippet = m.nearestParagraphId
-					? snippetMap.get(m.nearestParagraphId) ?? ''
-					: '';
-				return {
-					handle: `G${i + 1}`,
-					handleParagraphId: m.nearestParagraphId, // mapping zurück
-					token: m.token,
-					kind: m.kind,
-					snippet,
-				};
-			});
-
-			let befundText: string | null = null;
-			let supportArgIds: string[] = [];
-			let groundingParaIds: string[] = [];
-			let tokIn = 0;
-			let tokOut = 0;
-			let perError: string | null = null;
-
-			try {
-				const system = buildBefundSystemPrompt();
-				const user = buildBefundUserMessage(
-					container.headingText,
-					h.text,
-					args,
-					groundingItems.map((g) => ({
-						handle: g.handle,
-						token: g.token,
-						kind: g.kind,
-						snippet: g.snippet,
-					}))
-				);
-				const response = await chat({
-					system,
-					messages: [{ role: 'user', content: user }],
-					maxTokens: 1200,
-					responseFormat: 'json',
-					documentIds: [documentId],
-				});
-				tokIn = response.inputTokens;
-				tokOut = response.outputTokens;
-				accTokens.input += tokIn;
-				accTokens.output += tokOut;
-
-				const parsed = extractAndValidateJSON(response.text, BefundExtractSchema);
-				if (!parsed.ok) {
-					throw new Error(
-						`BEFUND-Extract: Antwort nicht parsbar (stage=${parsed.stage}): ${parsed.error}\n` +
-						`Raw: ${response.text.slice(0, 400)}`
-					);
-				}
-				const ex: BefundExtractResult = parsed.value;
-
-				// Mapping arg_local_id → UUID. Unbekannte IDs verwerfen, nicht crashen.
-				const argLocalToId = new Map(args.map((a) => [a.arg_local_id, a.id]));
-				supportArgIds = ex.support_argument_local_ids
-					.map((lid) => argLocalToId.get(lid))
-					.filter((x): x is string => x != null);
-
-				// Mapping G-Handle → ¶-UUID.
-				const handleToParaId = new Map(
-					groundingItems.map((g) => [g.handle, g.handleParagraphId])
-				);
-				groundingParaIds = ex.grounding_handles
-					.map((h2) => handleToParaId.get(h2))
-					.filter((x): x is string => x != null);
-
-				befundText = ex.text;
-			} catch (e) {
-				perError = e instanceof Error ? e.message : String(e);
-				errors.push({ paragraphId: h.paragraphId, message: perError });
-			}
-
-			const virtualContainerId = hotspotToContainer.get(h.paragraphId) ?? null;
-
-			let befundConstructId: string | null = null;
-			if (perError == null) {
-				const content = {
-					text: befundText,
-					support_argument_ids: supportArgIds,
-					grounding_paragraph_ids: groundingParaIds,
-				};
-				const stackEntry = {
-					kind: 'origin' as const,
-					at: new Date().toISOString(),
-					by_user_id: null,
-					source_run_id: null,
-					content_snapshot: content,
-				};
-				const row = await queryOne<{ id: string }>(
-					`INSERT INTO function_constructs
-					   (case_id, document_id, outline_function_type, construct_kind,
-					    anchor_element_ids, content, version_stack, virtual_container_id)
-					 VALUES ($1, $2, 'DURCHFUEHRUNG', 'BEFUND', $3, $4, $5, $6)
-					 RETURNING id`,
-					[
-						caseId,
-						documentId,
-						[h.paragraphId],
-						JSON.stringify(content),
-						JSON.stringify([stackEntry]),
-						virtualContainerId,
-					]
-				);
-				befundConstructId = row?.id ?? null;
-				if (befundText != null) befundsExtracted += 1;
-				else nullResults += 1;
-			}
-
-			hotspotResults.push({
-				hotspotParagraphId: h.paragraphId,
-				containerHeadingText: container.headingText,
-				virtualContainerId,
-				befundConstructId,
-				befundText,
-				supportArgumentCount: supportArgIds.length,
-				groundingParagraphCount: groundingParaIds.length,
-				tokens: { input: tokIn, output: tokOut },
-				error: perError,
-			});
-		}
+	for (const complex of dfComplexes) {
+		const r = await runDurchfuehrungStep4ForComplex(caseId, documentId, complex);
+		accTokens.input += r.tokens.input;
+		accTokens.output += r.tokens.output;
+		befundsExtracted += r.befundsExtracted;
+		nullResults += r.nullResults;
+		hotspotResults.push(...r.hotspots);
+		errors.push(...r.errors);
 	}
 
 	return {
