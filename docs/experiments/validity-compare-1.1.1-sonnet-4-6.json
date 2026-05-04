@@ -1,0 +1,278 @@
+{
+  "model": {
+    "key": "sonnet-4-6",
+    "provider": "openrouter",
+    "model": "anthropic/claude-sonnet-4.6"
+  },
+  "per_paragraph": [
+    {
+      "idx": 1,
+      "paragraph_id": "60f9dfb1-5d9d-4c56-8288-1ef51f5eec63",
+      "wall_seconds": 16.279,
+      "tokens": {
+        "input": 2307,
+        "output": 693,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 3000
+      },
+      "model": "anthropic/claude-4.6-sonnet-20260217",
+      "provider": "openrouter",
+      "updated_count": 3,
+      "skipped": false,
+      "error": null
+    },
+    {
+      "idx": 2,
+      "paragraph_id": "7118aa10-b5d7-495a-9405-5b66116edb06",
+      "wall_seconds": 18.927,
+      "tokens": {
+        "input": 2645,
+        "output": 928,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 3573
+      },
+      "model": "anthropic/claude-4.6-sonnet-20260217",
+      "provider": "openrouter",
+      "updated_count": 5,
+      "skipped": false,
+      "error": null
+    },
+    {
+      "idx": 3,
+      "paragraph_id": "897ca890-e56a-4768-a078-fd5e59fda3d6",
+      "wall_seconds": 19.994,
+      "tokens": {
+        "input": 2229,
+        "output": 1025,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 3254
+      },
+      "model": "anthropic/claude-4.6-sonnet-20260217",
+      "provider": "openrouter",
+      "updated_count": 4,
+      "skipped": false,
+      "error": null
+    },
+    {
+      "idx": 4,
+      "paragraph_id": "96556e05-9b69-482b-ace7-174252284536",
+      "wall_seconds": 10.72,
+      "tokens": {
+        "input": 2019,
+        "output": 438,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 2457
+      },
+      "model": "anthropic/claude-4.6-sonnet-20260217",
+      "provider": "openrouter",
+      "updated_count": 2,
+      "skipped": false,
+      "error": null
+    },
+    {
+      "idx": 5,
+      "paragraph_id": "72919e94-79bb-4a0e-b507-e78aacc1fd5b",
+      "wall_seconds": 15.675,
+      "tokens": {
+        "input": 2593,
+        "output": 826,
+        "cacheCreation": 0,
+        "cacheRead": 0,
+        "total": 3419
+      },
+      "model": "anthropic/claude-4.6-sonnet-20260217",
+      "provider": "openrouter",
+      "updated_count": 4,
+      "skipped": false,
+      "error": null
+    }
+  ],
+  "assessments": [
+    {
+      "paragraph_element_id": "60f9dfb1-5d9d-4c56-8288-1ef51f5eec63",
+      "arg_local_id": "A1",
+      "claim": "Der vorliegende Argumentationsgang basiert auf einer kulturwissenschaftlichen Perspektivierung, die sich insbesondere auf Reckwitz' Theorievorschläge stützt und durch praxeologische Ansätze in Schule und Unterricht einen analytischen Mehrwert gegenüber anderen Zugängen erzeugt.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 liefert die empirisch-programmatische Behauptung, dass kulturwissenschaftlich-praxeologische Zugänge einen spezifischen Mehrwert erzeugen; P2 verankert diese Option als methodologisch eigenständige Größe im Fachdiskurs. Der claim — dass der vorliegende Argumentationsgang genau diesen Zugang wählt und dadurch analytisch profiliert ist — folgt als beste Erklärung für die Rahmungsentscheidung. Die einzige Lücke betrifft den komparativen Zusatz „gegenüber anderen Zugängen\": er ist im Absatz nicht explizit ausgeführt, kann aber als background-Implikation des Mehrwert-Begriffs gelesen werden, ohne den Schluss zu brechen.",
+        "inference_form": "abductive"
+      }
+    },
+    {
+      "paragraph_element_id": "60f9dfb1-5d9d-4c56-8288-1ef51f5eec63",
+      "arg_local_id": "A2",
+      "claim": "Kultur fungiert in schulischen Kontexten als implizites Reservoir von Werthorizonten, das Gemeinschaft konstituiert und zugleich das individuelle Handlungsrepertoire begrenzt — sie erzeugt Handlungsgewissheit und perpetuiert Abgrenzungen und Ausschlüsse.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 etabliert Kultur als implizit wirkendes, gemeinschaftsstiftendes Reservoir; P2 entfaltet die daraus folgende Doppelwirkung (Handlungsgewissheit vs. Begrenzung) als direkte Konsequenz dieser Konstitutionsleistung; P3 schließt die Kette, indem sie den ausschließenden Effekt als weiteres Derivat derselben gemeinschaftsstiftenden Funktion ausweist. Alle Premissen bewegen sich auf derselben Analyseebene (Wirkungsweise von Kultur auf Handlungsspielräume), die Prämissen-Ebenen sind kongruent, und der claim fasst die Summe der drei Schritte zusammen, ohne über sie hinauszugehen.",
+        "inference_form": "deductive"
+      }
+    },
+    {
+      "paragraph_element_id": "60f9dfb1-5d9d-4c56-8288-1ef51f5eec63",
+      "arg_local_id": "A3",
+      "claim": "Kultur ist nicht nur tradierungserhaltend, sondern gleichzeitig ein Prozess der Wandlung und ein Möglichkeitsraum für Neuformulierungen; als Arena der Aushandlung von Bedeutungen schließt sie implizite Machtmechanismen ein und verweist damit auf einen gesellschaftlichen Problemzusammenhang.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 und P2 benennen zwei komplementäre Eigenschaften von Kultur — ihr Innovationspotenzial und ihre Machtdimension —, die zusammen erklären, warum Kultur weder auf bloße Tradierung noch auf neutrale Aushandlung reduziert werden kann. P3 stützt diese Doppelcharakterisierung durch einschlägige Theoriereferenzen (Bhabha, Reckwitz) als fachübliche Hintergrundannahme und hebt damit den Schluss auf den gesellschaftlichen Problemzusammenhang aus dem Bereich bloßer Assertion heraus. Der claim integriert beide Teilthesen zu einer Gesamtcharakterisierung, die als beste Erklärung für die im Absatz gezeigte Dynamisierung des Kulturbegriffs gilt; ein deduktiver Zwang besteht nicht, die abduktive Stützung ist aber hinreichend.",
+        "inference_form": "abductive"
+      }
+    },
+    {
+      "paragraph_element_id": "7118aa10-b5d7-495a-9405-5b66116edb06",
+      "arg_local_id": "A1",
+      "claim": "Schulisches Lernen ist nicht nur Wissenserwerb, sondern immer auch ein kultureller Bildungsprozess, in dem die nachwachsende Generation in Kultur eingeführt wird.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 liefert als stated Konsensaussage die direkte propositionale Grundlage des Claims, und P2 verankert diesen Konsens in der einschlägigen Schultheorie als background-Annahme. Der Claim ist eine Reformulierung eben dieser Premissen auf demselben Abstraktionsniveau — kein Gattungswechsel, keine unmarkierte Lücke. Die Subsumtion „Schule = Ort kultureller Einführung\" folgt deduktiv aus der Kombination beider Premissen.",
+        "inference_form": "deductive"
+      }
+    },
+    {
+      "paragraph_element_id": "7118aa10-b5d7-495a-9405-5b66116edb06",
+      "arg_local_id": "A2",
+      "claim": "Das klassische Modell der Enkulturation als Einführung in ein geschlossenes Reservoir vorherrschender Werte und Normen ist heute nicht mehr haltbar, weil tradierte kollektiv geteilte Wertvorstellungen aufgebrochen und kulturelle Ordnungszusammenhänge pluralisiert sind.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 beschreibt das klassische Modell, P2 liefert die empirische Gegenwartsdiagnose (Pluralisierung, Aufbrechen geteilter Werte), und P3 (carried) stellt die konzeptuelle Rahmung bereit, die erklärt, warum veränderte kulturelle Verhältnisse das geschlossene Reservoir-Modell unterlaufen. Der Claim folgt deduktiv: Wenn Enkulturation Einführung in ein geschlossenes Reservoir voraussetzt (P1), dieses Reservoir aber empirisch nicht mehr existiert (P2) und Kultur strukturell als offene Aushandlungsarena zu verstehen ist (P3), dann ist das klassische Modell nicht mehr haltbar. Alle drei Premissen-Ebenen sind kongruent zum claim.",
+        "inference_form": "deductive"
+      }
+    },
+    {
+      "paragraph_element_id": "7118aa10-b5d7-495a-9405-5b66116edb06",
+      "arg_local_id": "A3",
+      "claim": "Kulturelle Bildungsprozesse in der Schule sind gegenwärtig als Ausbildung von Selbst- und Weltverhältnissen zu fassen, die brüchiger und komplexer werden, weil weder kulturelle Wertvorstellungen als selbstverständlich vorausgesetzt noch tradierte Werte unhinterfragt als legitimiert gelten können.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 stellt die normative Ausgangslage fest (weder Selbstverständlichkeit noch unhinterfragte Legitimität), P2 (carried) fügt die konzeptuelle Bestimmung hinzu, dass Kultur ein offener Möglichkeitsraum ist. Aus beiden folgt deduktiv, dass schulische Bildungsprozesse nicht auf stabile Vorgaben zurückgreifen können, sondern als iterative, brüchigere Selbst- und Weltverhältnisbildung zu fassen sind — der Claim enthält keine über die Premissen hinausgehende Behauptung.",
+        "inference_form": "deductive"
+      }
+    },
+    {
+      "paragraph_element_id": "7118aa10-b5d7-495a-9405-5b66116edb06",
+      "arg_local_id": "A4",
+      "claim": "Trotz kultureller Pluralisierung und Brüchigkeit bleibt für das Individuum die Notwendigkeit bestehen, eine tragfähige Selbstpositionierung im Facettenreichtum kultureller Sinndimensionen zu erreichen und Anschluss an geteilte Wertdimensionen aufzubauen.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 behauptet die Notwendigkeit der Selbstpositionierung als stated Prämisse direkt, P2 (background) liefert die anthropologisch-soziologische Begründung, warum diese Notwendigkeit auch unter Pluralitätsbedingungen fortbesteht. Der Claim ist eine Zusammenführung beider Premissen ohne Gattungswechsel; die scheinbare Spannung zwischen Pluralisierung und Orientierungsbedarf wird durch P2 als bekannte Hintergrundannahme aufgelöst, nicht ignoriert.",
+        "inference_form": "deductive"
+      }
+    },
+    {
+      "paragraph_element_id": "7118aa10-b5d7-495a-9405-5b66116edb06",
+      "arg_local_id": "A5",
+      "claim": "Für Lehrkräfte als schulische Akteure bedeutet die kulturelle Pluralisierung, dass das Anstoßen kultureller Bildungsprozesse zu einem analytisch-reflexiv zu bewältigenden Handlungsfeld geworden ist, das nicht mehr durch routinierte Selbstverständlichkeit bewältigt werden kann.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 liefert die Transformation von Routine zu analytisch-reflexivem Handlungsfeld als stated Prämisse, P2 spezifiziert die situative Unübersichtlichkeit für Lehrkräfte, und P3 (carried) begründet konzeptuell, warum der Wegfall kultureller Handlungsgewissheit das Repertoire verändert. Der Claim folgt deduktiv: Wer in einem unübersichtlichen Feld ohne verlässliche Routinen navigiert (P1, P2) und dem der stützende Werthorizont als Handlungsgarant fehlt (P3), muss zwingend auf analytisch-reflexive Kompetenz ausweichen. Alle drei Premissen-Ebenen sind kongruent und lückenfrei.",
+        "inference_form": "deductive"
+      }
+    },
+    {
+      "paragraph_element_id": "72919e94-79bb-4a0e-b507-e78aacc1fd5b",
+      "arg_local_id": "A1",
+      "claim": "Kulturelle Superdiversität, Enttraditionalisierung und Individualisierung steigern die Komplexität kulturell dimensionierter Sozialisierungsprozesse in der Schule, weil sie widersprüchliche Weltsichten und Sinndimensionen vervielfältigen.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 etabliert Superdiversität, Enttraditionalisierung und Individualisierung als sozialisierungserschwerenden Rahmen; P2 liefert den Mechanismus, durch den dieser Rahmen wirkt (Vervielfältigung widersprüchlicher Weltsichten via Kontingenz und Historizität); P3 schließt die Brücke zur schulischen Sozialisierung, indem das Scheitern des Enkulturationmodells als kontextueller Hintergrund fungiert. Die Premissen sind ebenenkongruent (gesellschaftliche Diagnose → Mechanismus → schulische Konsequenz), und der claim folgt als Subsumtion: wenn diese Bedingungen vorliegen, steigt die Komplexität kulturell dimensionierter Sozialisierung.",
+        "inference_form": "deductive"
+      }
+    },
+    {
+      "paragraph_element_id": "72919e94-79bb-4a0e-b507-e78aacc1fd5b",
+      "arg_local_id": "A2",
+      "claim": "Die durch Superdiversität und Pluralisierung ausgelösten Verunsicherungen manifestieren sich gesellschaftlich unter anderem in der Verhärtung agonaler Diskurspositionen und im Erstarken national-populistischer Bewegungen.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 benennt direkt die behaupteten Erscheinungsformen (agonale Verhärtung, Erstarken nationalpopulistischer Bewegungen) als mögliche Folgen der Phänomene; P2 liefert den plausiblen Mechanismus (implizite Machtmechanismen in kulturellen Aushandlungsprozessen als gesellschaftlichen Problemzusammenhang). Der claim ist als Schluss auf die beste Erklärung tragfähig: gesellschaftliche Verunsicherung durch Pluralisierung ist eine kohärente Erklärung für die benannten Manifestationen. Dass P1 mit „können auftreten\" modalisiert ist, schwächt den claim appropriat ab, macht ihn aber formal nicht unhaltbar.",
+        "inference_form": "abductive"
+      }
+    },
+    {
+      "paragraph_element_id": "72919e94-79bb-4a0e-b507-e78aacc1fd5b",
+      "arg_local_id": "A3",
+      "claim": "Angesichts der gesellschaftlichen Verunsicherungen durch kulturelle Superdiversität ist es bildungspolitisch und pädagogisch dringlich, Bildungsprozesse zu ermöglichen, die temporäre Orientierung in anhaltender Unübersichtlichkeit ermöglichen.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P3 etabliert die gesellschaftliche Relevanz von Bildungsprozessen; P2 hält fest, dass die Orientierungsaufgabe trotz Dynamik fortbesteht; P1 formuliert unmittelbar die normative Schlussfolgerung. Zusammen bilden die Premissen eine vollständige Subsumtion: gesellschaftlich relevante, fortbestehende Aufgaben unter Bedingungen von Verunsicherung begründen bildungspolitische Dringlichkeit. Alle Premissen sind ebenenkongruent (gesellschaftlich-normativ), und der claim folgt ohne Gattungswechsel.",
+        "inference_form": "deductive"
+      }
+    },
+    {
+      "paragraph_element_id": "72919e94-79bb-4a0e-b507-e78aacc1fd5b",
+      "arg_local_id": "A4",
+      "claim": "Das gestiegene bildungspolitische Bewusstsein für die Relevanz kultureller Bildungsprozesse belegt die Dringlichkeit, Defizite gesellschaftlich-kultureller Kohärenz zu bearbeiten und kulturelle Ordnungszusammenhänge in ihrer Pluralität und Wandelbarkeit zu ermöglichen.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 liefert zwei konkrete bildungspolitische Belege (BMBF-Förderprogramme, PISA-2018-Globalkompetenzen) als Indizien für ein gestiegenes institutionelles Bewusstsein; P2 schließt interpretativ, worauf sich dieses Bewusstsein inhaltlich richtet. Der claim verallgemeinert aus diesen Belegen auf eine übergeordnete Dringlichkeit — das ist ein induktiver Schluss mit mäßiger Belegdichte, aber kein formaler Bruch. Die Brückenannahme, dass bildungspolitische Impulse tatsächlich gesellschaftlich diagnostizierte Dringlichkeiten widerspiegeln, ist als background-Annahme im wissenschaftspolitischen Diskurs hinreichend etabliert.",
+        "inference_form": "inductive"
+      }
+    },
+    {
+      "paragraph_element_id": "897ca890-e56a-4768-a078-fd5e59fda3d6",
+      "arg_local_id": "A1",
+      "claim": "Es ist eine anthropologische Grundbedingung menschlicher Existenz, sich zu sich selbst und zur Welt in ein Verhältnis zu setzen; dieser Prozess vollzieht sich als kontinuierliches Wechselspiel zwischen eigener Weltsicht und veränderten Bedingungen, neuen Erkenntnissen und Begegnungen.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 stützt den claim durch den Befund, dass bildungstheoretische Reflexion über Jahrhunderte hinweg konsistent dasselbe Strukturmerkmal — das Selbst- und Weltverhältnis — als Bedingung menschlicher Existenz ausweist; die breite historische Streuung dieses Befundes liefert induktive Stützung für seine anthropologische Verallgemeinerung. P2 verdichtet diesen Befund durch die fachhistorische Feststellung, dass prominente Traditionslinien von Humboldt bis zur transformatorischen Bildungstheorie genau dieses Merkmal als konstitutiven Bezugspunkt setzen, womit die benötigte Brückenannahme — dass der Befund nicht zufällig, sondern strukturell ist — als background-Prämisse legitim markiert ist. Der claim überschreitet die Premissen-Ebene zwar auf Richtung einer anthropologischen Grundaussage, doch dieser Gattungsschritt ist durch die explizite Formulierung „seit Jahrhunderten … reflektiert\" in P1 bereits angelegt und somit keine unmarkierte Metabasis.",
+        "inference_form": "inductive"
+      }
+    },
+    {
+      "paragraph_element_id": "897ca890-e56a-4768-a078-fd5e59fda3d6",
+      "arg_local_id": "A2",
+      "claim": "Die Dynamik des Wechselspiels zwischen Selbst und Welt hat sich durch soziale, sachliche und zeit-räumliche Komplexitätssteigerung — kurz: Globalität — radikalisiert und erfordert fortwährende Aushandlungsleistungen.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "Der claim benennt Globalität (soziale, sachliche, zeit-räumliche Komplexitätssteigerung) als beste Erklärung dafür, warum die bereits in A1 etablierte Selbst-Welt-Dynamik sich in ihrer Intensität verändert hat; P1 bringt dieses Explanans wörtlich in Stellung. P2 liefert die inhaltliche Füllung: der Zerfall kollektiv geteilter Ordnungszusammenhänge macht den erhöhten Aushandlungsbedarf strukturell plausibel und schließt damit die Lücke zwischen Komplexitätssteigerung und dem normativen Befund „fortwährende Aushandlungsleistungen erforderlich\". Die Schlussform ist abduktiv, nicht deduktiv — eine stärkere logische Bindung wird im Text auch nicht beansprucht; innerhalb des abduktiven Rahmens tragen die Premissen den claim hinreichend.",
+        "inference_form": "abductive"
+      }
+    },
+    {
+      "paragraph_element_id": "897ca890-e56a-4768-a078-fd5e59fda3d6",
+      "arg_local_id": "A3",
+      "claim": "Trotz der radikalisierten Dynamik bleibt die Aufgabe bestehen, innerhalb kontingenter sachlicher und sozialer Bezüge Momente der Sicherheit aufzufinden und so in einem Zustand gesicherter Selbstgewissheit mit anhaltenden Veränderungen in Dialog zu treten.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P2 etabliert als bildungstheoretische Hintergrundannahme, dass Bildung auf Handlungsfähigkeit trotz Kontingenz zielt und Stabilisierungsleistungen systematisch erfordert; P1 subsumiert die konkrete Situation — kontingente sachliche und soziale Bezüge — unter genau diesen Rahmen. Der claim folgt daraus durch einfache Subsumtion: wenn Bildung Stabilisierungsleistungen erfordert und die aktuelle Situation von Kontingenz geprägt ist, dann ist das Auffinden von Sicherheitsmomenten als Voraussetzung dialogischer Handlungsfähigkeit geboten. Die Premissen sind ebenenkongruent; keine unmarkierte Brückenannahme ist nötig.",
+        "inference_form": "deductive"
+      }
+    },
+    {
+      "paragraph_element_id": "897ca890-e56a-4768-a078-fd5e59fda3d6",
+      "arg_local_id": "A4",
+      "claim": "Bildungsprozesse sind nicht nur für das Individuum relevant, sondern auch gesellschaftlich bedeutsam: Bildung als Prozess der Selbstverortung ist ohne eine Perspektive auf gesellschaftliche Teilhabe nicht denkbar.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P2 liefert die Allgemeinprämisse: Bildung hat strukturell eine doppelte Referenz — individuell und gesellschaftlich. P1 wendet diese Struktur auf den spezifischen Begriff der Selbstverortung an und expliziert, dass der Außenbezug konstitutiv, nicht additiv ist. Der claim folgt deduktiv durch modus ponens: wenn Bildung als Selbstverortung stets gesellschaftliche Referenz einschließt, dann ist Teilhabeperspektive keine externe Ergänzung, sondern Bedingung der Möglichkeit des Begriffs selbst. Die benötigte Brückenannahme — dass Selbstverortung ein Außen logisch impliziert — ist durch P2 als background-Prämisse fachüblich gedeckt.",
+        "inference_form": "deductive"
+      }
+    },
+    {
+      "paragraph_element_id": "96556e05-9b69-482b-ace7-174252284536",
+      "arg_local_id": "A1",
+      "claim": "Allgemeine Bildung ist nicht nur eine subjektbezogene Kategorie, sondern gleichzeitig ein mehrdimensionales soziales Konstrukt — sie umfasst kommunikative Praxis, Wissens- und Könnensbestände, Urteilskraft sowie habituelle und schichtspezifische Distinktionsmodi.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 und P2 liefern zwei sich ergänzende, wörtlich belegte Belege aus Tenorths eigenem Werk, die gemeinsam den mehrdimensionalen Charakter von Bildung aufspannen — von der kommunikativen Praxis über Habitus bis zur Distinktion. P3 verankert diese Lesart als diskursiv etabliert und soziologisch anschlussfähig, wodurch die Brücke vom Einzelzitat zur allgemeinen Aussage über Bildungstheorie als Hintergrundannahme legitim gestützt ist. Der Claim ist damit kein Schluss auf bloß einen Fall, sondern eine Generalisierung, die durch konvergente Quellenlage und fachübliche Einbettung hinreichend getragen wird.\n---",
+        "inference_form": "inductive"
+      }
+    },
+    {
+      "paragraph_element_id": "96556e05-9b69-482b-ace7-174252284536",
+      "arg_local_id": "A2",
+      "claim": "Bildung kann als Prozess der Selbstrelationierung zu sozialen Ordnungssystemen verstanden werden, dessen kulturelle Formierung in den impliziten Werten und der normativen Gestalt dieses Prozesses liegt.",
+      "validity_assessment": {
+        "carries": true,
+        "rationale": "P1 benennt Bildung als Prozess der Selbstrelationierung zu sozialen Ordnungssystemen; P2 bestimmt implizite Werte und normative Gestalt als dasjenige, was die kulturelle Formierung dieses Prozesses ausmacht — der Claim folgt daraus durch direkte Subsumtion, da er lediglich beide Prämissen in einer einzigen Aussage zusammenführt. P3 und P4 fungieren als inhaltlich konsistente Stützen, die das Verhältnis von Selbst, Kultur und gesellschaftlicher Ordnung absichern, ohne einen Gattungswechsel zu erzeugen; alle Premissen-Ebenen bleiben kongruent auf dem Terrain sozial-normativer Bildungstheorie.",
+        "inference_form": "deductive"
+      }
+    }
+  ],
+  "wall_total": 81.597,
+  "tokens_total": 15703
+}

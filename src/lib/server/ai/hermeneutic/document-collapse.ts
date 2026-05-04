@@ -360,7 +360,7 @@ export interface DocumentCollapseRun {
 export async function runDocumentCollapse(
 	caseId: string,
 	userId: string,
-	opts: { modelOverride?: { provider: Provider; model: string } } = {}
+	opts: { modelOverride?: { provider: Provider; model: string }; maxTokens?: number } = {}
 ): Promise<DocumentCollapseRun> {
 	const caseRow = await queryOne<{ central_document_id: string }>(
 		`SELECT central_document_id FROM cases WHERE id = $1`,
@@ -404,7 +404,7 @@ export async function runDocumentCollapse(
 		messages: [{ role: 'user', content: user }],
 		// 5000: work output is single (synthese + auffaelligkeiten); the
 		// synthese can run 10-18 sentences with substantial Pflichtbestandteile.
-		maxTokens: 5000,
+		maxTokens: opts.maxTokens ?? 5000,
 		modelOverride: opts.modelOverride,
 	});
 

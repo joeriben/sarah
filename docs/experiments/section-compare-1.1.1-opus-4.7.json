@@ -1,0 +1,59 @@
+{
+  "model": {
+    "key": "opus-4.7",
+    "provider": "openrouter",
+    "model": "anthropic/claude-opus-4.7"
+  },
+  "wall_seconds": 25.354,
+  "tokens": {
+    "input": 12364,
+    "output": 2189,
+    "cacheCreation": 0,
+    "cacheRead": 0,
+    "total": 14553
+  },
+  "paragraphs_synthesized": 5,
+  "total_arguments": 18,
+  "total_scaffolding": 18,
+  "result": {
+    "synthese": "Das Subkapitel etabliert die Grundthese, dass Schule als kulturell durchwobenes Handlungsfeld unter Bedingungen von Pluralisierung, Superdiversität und Globalität kulturelle Bildungsprozesse nicht mehr als enkulturative Selbstverständlichkeit vollziehen kann, sondern als analytisch-reflexiv zu bewältigende Aufgabe für Lehrkräfte rahmen muss. Die argumentative Architektur bewegt sich in fünf Schritten: Theorierahmung (§1: Kultur als implizites, zugleich wandelbares und machtdurchzogenes Reservoir), diagnostische Zuspitzung (§2: Unhaltbarkeit des klassischen Enkulturationsmodells), anthropologisch-bildungstheoretische Grundierung (§3: Selbst-Welt-Verhältnis unter Globalitätsbedingungen), bildungstheoretische Verdichtung (§4: Bildung als Selbstrelationierung zu sozialen Ordnungssystemen) und gesellschaftsdiagnostische Dringlichkeitsbehauptung (§5: Superdiversität, Populismus, bildungspolitische Konsequenz). Die argumentative Kernbewegung des Subkapitels ist der Übergang in §2 von der Diagnose kultureller Pluralisierung zur Konsequenz für Lehrkräfte (§2:A5) — auf diesen Punkt zielen alle nachfolgenden Cross-Edges aus §3 und §5, wodurch er sich als strukturell tragender Knoten erweist, der das Subkapitel auf die professionspädagogische Problemstellung des Werks hinführt. Als Brücke zwischen dem voranstehenden Subkapitel 'Schule: Ein kulturell durchwobenes Handlungsfeld' und dem nachfolgenden 'Lehrkräfte als kulturelle Bildungsakteure' leistet das Subkapitel den Übergang von der Phänomenbeschreibung zur Akteursperspektive: Es nimmt die Feldbeschreibung auf, verdichtet sie bildungstheoretisch und legt mit §2:A5 die Argumentationsspur für die folgende Engführung auf die Lehrkraft. Die argumentative Tragweite ist feldweit und normativ ambitioniert — beansprucht wird eine bildungstheoretisch-gesellschaftsdiagnostische Gesamtrahmung für das Werk. Die Tragfähigkeit der Stützung ist demgegenüber unterdimensioniert: die zentralen Theoriereferenzen (Reckwitz, Bhabha, Tenorth, Vertovec, Fend) erscheinen überwiegend in namedropping-Gestalt, zentrale Kausalbehauptungen (etwa Superdiversität→Populismus) bleiben unbelegt, und kritische Gegenstimmen werden nur als Seitenverweis statt als produktive Einwände inkorporiert.",
+    "auffaelligkeiten": [
+      {
+        "scope": "§1:A1",
+        "observation": "Die Berufung auf Reckwitz als tragenden Theoriebezug des gesamten Argumentationsgangs wird nur mit Jahreszahlen, nicht mit inhaltlicher Entfaltung eingeführt; der behauptete 'analytische Mehrwert gegenüber anderen Zugängen' bleibt ohne vergleichende Auseinandersetzung."
+      },
+      {
+        "scope": "§2:A4",
+        "observation": "A4 steht in einer contradicts-Relation zu A3, wird aber nicht als produktive Spannung ausgearbeitet, sondern direkt in A5 aufgelöst — die dialektische Figur (Brüchigkeit vs. Notwendigkeit von Selbstpositionierung) wird behauptet, nicht durchgearbeitet."
+      },
+      {
+        "scope": "§2:A5",
+        "observation": "A5 ist strukturell der tragende Knoten des Subkapitels (Ziel mehrerer cross-paragraph supports aus §3 und §5), bleibt aber selbst auf Behauptungsebene ohne eigene empirische oder theoretische Absicherung — die strukturelle Zentralität korrespondiert nicht mit grounding-Dichte."
+      },
+      {
+        "scope": "§3:A4",
+        "observation": "A4 wird rhetorisch als Absatz-Pointe markiert ('letztlich heißt dies'), ist aber substantiell eine bildungstheoretische Basisaussage ohne eigenes grounding; die Emphase ist gegenüber dem Gehalt überinvestiert."
+      },
+      {
+        "scope": "§4:A2",
+        "observation": "Die Brücke von Tenorths Dimensionenkatalog (A1) zur kulturellen Formierung (A2) wird durch das Modalverb 'kann verstanden werden' behauptet, nicht argumentativ vollzogen; die Eigenleistung der Autorin gegenüber der übernommenen Taxonomie bleibt unausgewiesen."
+      },
+      {
+        "scope": "§4",
+        "observation": "Die textkritische Praxis (Ellipsen-Notation im Tenorth-Zitat) und ein grammatischer Kongruenzfehler im Schlusssatz sind auf Habilitationsniveau bemerkenswert."
+      },
+      {
+        "scope": "§5:A2",
+        "observation": "Die Kausalbehauptung Superdiversität→Populismus/agonale Diskurse ist grounding-los; die beigefügten Beispiele illustrieren, belegen den Zusammenhang aber nicht."
+      },
+      {
+        "scope": "§5:S3",
+        "observation": "Impliziter Habermas-Bezug ('alte Unübersichtlichkeit') ohne Namensnennung — für eine Habilitationsarbeit eine Frage der intersubjektiven Nachvollziehbarkeit."
+      },
+      {
+        "scope": "§5:S4",
+        "observation": "Kritische Gegenreferenzen (Ress et al., Simpson & Dervin) werden als Seitenverweis angeführt, aber nicht in den Argumentationsgang integriert — redliche Markierung eines Einwandpotenzials, das jedoch uneingelöst bleibt."
+      }
+    ]
+  }
+}

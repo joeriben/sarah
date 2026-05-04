@@ -195,7 +195,7 @@ Beurteile JEDES Argument nach dem Charity-Prinzip. Eine VALIDITY-Sektion pro Arg
 
 // ── Parser ────────────────────────────────────────────────────────
 
-const VALIDITY_HEADER = /^\s*VALIDITY\s+(A\d+)\s*$/i;
+const VALIDITY_HEADER = /^\s*(?:#{1,3}\s+)?VALIDITY\s+(A\d+)\s*$/i;
 const VALID_FORM = new Set(['deductive', 'inductive', 'abductive']);
 const VALID_FALLACY = new Set<string>(FALLACY_WHITELIST as readonly string[]);
 
@@ -336,7 +336,7 @@ export interface ArgumentValidityRun {
 export async function runArgumentValidityPass(
 	_caseId: string,
 	paragraphId: string,
-	opts: { modelOverride?: { provider: Provider; model: string } } = {}
+	opts: { modelOverride?: { provider: Provider; model: string }; maxTokens?: number } = {}
 ): Promise<ArgumentValidityRun> {
 	const ctx = await loadValidityContext(paragraphId);
 	if (!ctx) {
@@ -362,7 +362,7 @@ export async function runArgumentValidityPass(
 		messages: [{ role: 'user', content: user }],
 		// Pro Argument ~150-300 Tokens Output (rationale + Felder). 4000 deckt
 		// auch ¶ mit 8+ Argumenten komfortabel ab.
-		maxTokens: 4000,
+		maxTokens: opts.maxTokens ?? 4000,
 		modelOverride: opts.modelOverride,
 	});
 

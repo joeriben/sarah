@@ -1,0 +1,49 @@
+{
+  "model": {
+    "key": "mimo-v2.5-pro",
+    "provider": "openrouter",
+    "model": "xiaomi/mimo-v2.5-pro",
+    "maxTokens": 8000
+  },
+  "wall_seconds": null,
+  "tokens": {
+    "input": null,
+    "output": 2405,
+    "cacheCreation": 0,
+    "cacheRead": 0,
+    "total": null
+  },
+  "paragraphs_synthesized": 5,
+  "total_arguments": 18,
+  "total_scaffolding": 18,
+  "result": {
+    "synthese": "Das Subkapitel entfaltet eine fünfschrittige argumentative Architektur, die von der kulturtheoretischen Rahmung über die bildungstheoretische Konzeptualisierung bis zur normativen Dringlichkeitsdiagnose reicht. In §1 wird durch eine Reckwitz'sche Kulturperspektivierung der gesamte Argumentationsgang verankert, wobei Kultur als dialektisches Verhältnis von Handlungsgewissheit und Wandlungsraum profiliert wird. §2 überführt diese Rahmung in die Erziehungswissenschaft, indem das klassische Enkulturationsmodell als unhaltbar markiert und stattdessen kulturelle Bildungsprozesse als Ausbildung brüchiger Selbst-Welt-Verhältnisse reformuliert werden — eine diagnostische Verschiebung, die die zentrale Problemlage des Werks generiert. §3 verankert diese diagnostische Verschiebung anthropologisch: Das Selbst-Welt-Verhältnis wird als existenzielle Grundbedingung eingeführt, deren Komplexität durch Globalität radikalisiert sei, wobei die Notwendigkeit gesicherter Selbstgewissheit trotz Kontingenz behauptet wird. §4 konzeptualisiert Allgemeine Bildung über Tenorth als mehrdimensionales soziales Konstrukt und überführt die Mehrdimensionalität in die These kultureller Formierung — ein Übergang, der mehr behauptet als argumentativ vollzogen wird. §5 kulminiert das Subkapitel in einer Dringlichkeitsdiagnose: Superdiversität, Enttraditionalisierung und Individualisierung steigerten die Komplexität schulischer Sozialisation und machten die Ermöglichung temporärer Orientierung bildungspolitisch dringlich — gestützt durch bildungspolitische Indizien, die jedoch kritisch eingeschränkt, aber nicht in den Argumentationsgang integriert werden. Die argumentative Kernbewegung des Subkapitels ist der Übergang von §4 zu §5: Die von Tenorth übernommene Mehrdimensionalität kultureller Formierung von Bildung wird mit der Diagnose kultureller Superdiversität konfrontiert, sodass aus einer theoretischen Konzeptualisierung eine normativ-dringliche Handlungsanforderung an Lehrkräfte wird — genau diese Spannung zwischen konzeptueller Tiefe und zeitdiagnostischer Dringlichkeit organisiert das gesamte Subkapitel. Strukturell schließt das Kapitel an die vorangehende Rahmung (Schule als kulturell durchwobenes Handlungsfeld) an und bereitet die nachfolgende Thematisierung der Lehrkräfte als kulturelle Bildungsakteure vor, indem es den Bogen vom kulturtheoretischen Konzept über die bildungstheoretische Rahmung bis zur professionsbezogenen Dringlichkeit spannt. Der Anspruch des Subkapitels — die gesamte kulturelle Komplexität der Gegenwart als argumentatives Fundament für die Notwendigkeit kultureller Lehrkräfteprofessionalität zu etablieren — ist weitreichend; die stützende Architektur bleibt jedoch, wie die Einzelbeobachtungen zeigen, an mehreren Stellen unterdimensioniert.",
+    "auffaelligkeiten": [
+      {
+        "scope": "§2",
+        "observation": "Die edges A4 (--contradicts--> A3) und A5 (--supports--> A3) erzeugen eine bemerkenswerte argumentative Spannung: A3 behauptet Brüchigkeit der Selbst-Welt-Verhältnisse, A4 insistiert gleichzeitig auf der Notwendigkeit tragfähiger Selbstpositionierung, und A5 leitet aus der Brüchigkeit die neue Handlungsanforderung an Lehrkräfte ab. Diese Spannung wird jedoch nicht produktiv aufgelöst, sondern sequentiell abgearbeitet — A4 fungiert als normativer Gegenpol zu A3, ohne dass der Widerspruch diskutiert würde."
+      },
+      {
+        "scope": "§4",
+        "observation": "Die Überführung von Tenorths Mehrdimensionalitätskatalog (S1/S2) in die These kultureller Formierung (A2) wird argumentativ nicht vollzogen: Das Zitat liefert eine Dimensionenaufzählung ohne Kulturbezug, und A2 behauptet kulturelle Formierung als interpretative Rahmung, ohne dass die Brücke von der Mehrdimensionalität zur Kulturalität argumentativ geschlagen wird. Dies ist die strukturell schwächste Stelle des Subkapitels."
+      },
+      {
+        "scope": "§4:A2",
+        "observation": "Der Satz enthält einen grammatischen Inkongruenzfehler („deren” statt „dessen” bezogen auf maskulines Genus „Prozess”), der auf Habilitationsniveau auffällt und die sprachliche Sorgfalt der Passage mindert."
+      },
+      {
+        "scope": "§1",
+        "observation": "Die Stützstrukturen S1 und S3 (kontextualisierend) verankern A1 und A3 durch benannte Quellen mit Jahreszahlen, erschließen aber weder Werkinhalte noch konkrete Theoriepositionen. Für einen Geltungsanspruch, der den gesamten Argumentationsgang auf diese Theorietradition stützt, ist die Verankerung dünn — insbesondere bei Bhabha 2010, wo nicht einmal erkennbar wird, welcher Aspekt (Hybridität, Dritter Raum, Mimikry) gemeint ist."
+      },
+      {
+        "scope": "§3:S1",
+        "observation": "Die Belegung von A1 durch drei Autoren (Hollunder 2023, Kokemohr 2007, Koller 2012) bleibt bei namedropping mit Jahreszahlen stehen. Für die Behauptung einer anthropologischen Grundbedingung, die sich über Jahrhunderte erstreckt, ist dies unterdimensioniert — die Referenzen benennen Gewährsleute, nicht deren Beiträge."
+      },
+      {
+        "scope": "§5",
+        "observation": "Die Stützstruktur S4 (kontextualisierend zu A4) integriert kritische Gegenreferenzen (Ress et al., Simpson & Dervin) als Seitenverweise, deren Einspruchspotenzial gegen das gestiegene bildungspolitische Bewusstsein nicht in den Argumentationsgang aufgenommen wird. Dies mindert die epistemische Redlichkeit des Belegs, ohne dass die Autorin den Widerspruch aktiv verarbeitet."
+      }
+    ]
+  },
+  "_note": "JSON parse repaired post-hoc: mimo emitted „...\" mixing typographic and ASCII quotes. Replaced with „...”. Substance unchanged."
+}

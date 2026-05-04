@@ -1,12 +1,15 @@
 # xiaomi/mimo-v2.5-pro — qualitative content comparison
 
 Test date: 2026-05-04
-Test scope: 4 load-bearing pipeline calls. Same prompts, same input data,
+Test scope: 6 load-bearing pipeline calls. Same prompts, same input data,
 only the model swapped. JSON adherence is incidental — the reading is
 whether mimo's content holds up against Sonnet/Opus/DeepSeek on academic
 German prose.
 
-Test driver: `scripts/test-mimo-quality.ts`.
+Test driver: `scripts/test-mimo-quality.ts` (synth/AG/chapter-collapse/
+EXPOSITION), `scripts/test-mimo-section-collapse.ts` (section-collapse
+1.1.1 vs Sonnet+Opus), `scripts/test-mimo-validity.ts` (argument-validity
+1.1.1 vs Sonnet+Opus).
 
 ## Bottom line — content quality
 
@@ -31,17 +34,63 @@ in der Doppelaufgabe Kohärenzdefizite/Pluralität-ermöglichen — siehe
 §5 unten (Sektion 5/6, re-run mit adäquatem Budget). Code-Labels
 durchgängig gut formuliert und mit dem Quelltext eng verbunden.
 
-**Argumentation graph: textsensitiv variable Granularität.** Bei §1
-packt mimo 4-5 atomare Sonnet-Argumente in 1 Mega-Argument mit mehreren
-Prämissen (mimo: 3 Args / Sonnet: 5 Args / Opus: 6 Args). Bei §5
-invertiert sich das Bild: **mimo liegt mit 5 Args parallel zu Opus**,
-während Sonnet auf 3 dichtere Mega-Argumente bündelt (siehe Sektion 6).
-Beide Modi sind analytisch tragfähig; mimo's Granularitätssensitivität
-korreliert offenbar mit Textdichte des Absatzes. Distinct bei mimo §5:
-explizite cross-paragraph-edges (A1→§1:A4/A5 refines, A5→§4:A1
-presupposes), die Sonnet/Opus an dieser Stelle nicht ziehen. **Eine
-echte inhaltliche Lapsus** bei §1: A1's Prämisse hat den Text "none"
-statt Quote — Lazy-Extraktion.
+**Argumentation graph: aggregiert auf Knoten-Ebene, konserviert auf
+Premise-Ebene.** Über §1-§5 zeigt sich konsistent: mimo bündelt die
+argumentative Hauptbewegung pro ¶ in wenige Knoten (3-5), trägt aber
+die feinkörnigen Differenzierungen vollständig in den Premises der
+Argumente. Sonnet/Opus zerlegen denselben Stoff in mehr Knoten (4-6),
+deren Differenzen oft eher syntaktisch (Konjunktionen, Aufzählungs-
+glieder) als argumentativ sind — bei §1 etwa splittet Opus „Wandlung"
+und „Macht" über A4+A5, die im Text als ein Atemzug stehen; Sonnet's
+A2/A3/A4-Trennung des Doppeleffekt-Stroms ist eng benachbarte
+Variation. mimo's A2 hält den Doppeleffekt als wörtliche Premise
+(„Dies hat einen doppelten Effekt: ... Handlungsgewissheit ...
+Handlungsrepertoire begrenzt") — Information vorhanden, nur nicht
+reifiziert. Bei §3 verschmelzen Diagnose+Konsequenz (Globalität+
+Sicherheitsmomente) im Text selbst zu einem Bewegungs-Argument; mimo
+trägt das so, Sonnet/Opus splitten künstlich in zwei Knoten. **Einzige
+Stelle mit echter Information am Knoten-Rand**: §2 „Selbstpositionierung
+trotz Pluralität" — bei mimo weder Knoten noch Premise; bei Sonnet/Opus
+A4. Argumentationsstrukturell aber Konjunktions-Zwischenstufe, kein
+Disqualifikator. Bei §4 (Tenorth-Definitions-Absatz, 1 autoreigene
+Synthese + 2 Block-Zitate) liefert mimo-rerun **1 Arg + 3 Scaffolding**
+und trifft die argumentationstheoretisch saubere Lektüre — Tenorths
+Zitate als Material, nicht als Eigen-Argument. Sonnet/Opus produzierten
+§4 in der Originalstudie nicht (JSON-Parse-Fehler). **Distinct bei mimo
+durchgängig**: explizite cross-paragraph-edges (§2: A3→§1:A3; §3:
+A2→§2:A3; §5: A1→§1:A4/A5 refines, A5→§4:A1 presupposes; §4: A1→§1:A5
+refines, A1→§1:A1 presupposes), die Sonnet/Opus an gleichen Stellen
+nicht ziehen oder unregelmäßig setzen. **Eine echte inhaltliche Lapsus**
+bleibt bei §1 A1: Premise-Text „none" statt Quote — Lazy-Extraktion,
+keine Granularitätsfrage. **Verdikt:** AG-Track für mimo bei 5.4×
+geringerer Kosten als Sonnet substanziell tragfähig.
+
+**Section-collapse: substanziell stärker als Sonnet/Opus, ein
+Encoding-Schwellenproblem.** Auf Subkapitel 1.1.1 (5 ¶, 18 Args, 18
+Scaffolding) liefert mimo die längste Synthese (2781 chars vs Sonnet 2444
+vs Opus 2239) mit einer eigenen *edges-bezogenen Lese-Schicht* (§2:
+A4-A3-A5-Spannungstrias als argumentative Diagnose, die Sonnet/Opus an
+gleicher Stelle entweder gar nicht oder nur monodimensional ziehen). 6
+paragraphen-präzise Auffälligkeiten — Konvergenzen mit Sonnet+Opus auf
+§4 Tenorth-Brücke und §5/S4 Gegenreferenzen, Konvergenz mit Opus auf §4
+grammatischen Kongruenzfehler. mimo-spezifischer Bug: gemischte
+Anführungszeichen im Output (`„deren"` öffnend deutsch, schließend ASCII-
+Doublequote) brechen den JSON-Parse — Substanz war intakt, Repair via
+Regex möglich, Production-Lösung wäre Prompt-Härtung.
+
+**Argument-validity: hohe Konvergenz mit Sonnet/Opus, opus eine Stufe
+strenger.** Über alle 18 Args der 5 ¶ stimmen mimo, Sonnet, Opus zu 17/18
+in der `carries`-Klassifikation überein. Der einzige Disagreement (§5/A4:
+"bildungspolitisches Bewusstsein belegt Dringlichkeit") ist ein echter
+argumentationstheoretischer Streitpunkt — opus diagnostiziert
+`petitio_principii` (P2 setzt das Belegende voraus), mimo+sonnet bleiben
+im Charity-Modus tragfähig (mimo abductive, sonnet inductive mit
+Brückenannahme-Caveat). Inference-Form-Klassifikation variiert auch
+zwischen Sonnet+Opus selbst (§3/A1 alle drei verschieden), keine
+mimo-spezifische Schwäche. mimo-spezifischer Bug: Markdown-Headers
+(`## VALIDITY A1`) statt plain `VALIDITY A1` brachen den Prose-Parser bei
+§4 — Production-Parser wurde entsprechend gehärtet
+(argument-validity.ts:198, optional `#{1,3}`-Prefix toleriert).
 
 **EXPOSITION (BA H3 dev): Test diskriminiert nicht.** Mimo und Sonnet
 produzieren beide eine Paraphrase der selbstdeklarierten BA-Forschungs-
@@ -63,24 +112,46 @@ opts-Parameter nehmen jetzt `maxTokens?: number` entgegen
 |---|---:|---:|---:|---:|
 | 5 ¶ synth | $0.030 | $0.111 | $0.725 | **3.7× günstiger als Sonnet** |
 | 5 ¶ AG | $0.047 | $0.255 | $1.436 | **5.4× günstiger als Sonnet** |
+| Section collapse 1.1.1 | ~$0.020 | $0.056 | $0.350 | **3× günstiger als Sonnet, 18× günstiger als Opus** |
+| Validity 5 ¶ | $0.051 | $0.094 | $0.501 | **2× günstiger als Sonnet, ~10× günstiger als Opus** |
 | Chapter collapse | $0.024 | n/a | $0.563 | **23× günstiger als Opus** |
 | EXPOSITION | $0.002 | $0.009 | n/a | **4× günstiger als Sonnet** |
 
-**Wo mimo passt** in der existierenden Two-Track-Architektur (Sonnet-/
-Opus-Premium + Mistral-basal/Sonnet-collapse-Budget):
-- **Chapter-Collapse-Stufe in der Budget-Route**: bisher Sonnet-Domäne;
-  mimo erreicht hier Opus-Qualität (mehr Auffälligkeiten als Opus,
-  gleiche §:A-Präzision) bei einem Bruchteil der Kosten. Klarster
-  Kandidat.
-- **Per-¶ synthese als Mistral-Alternative**: gleiche inhaltliche
-  Schärfe wie Sonnet bei ähnlichen Kosten zu Mistral, aber nicht in der
-  EU. Eher Wahlfrage (DSGVO vs Inhalt).
-- **AG**: Lesart gemischter — bei §1-artigen, theoretisch dicht geführten
-  Absätzen tendiert mimo zur Bündelung; bei diagnostisch-aufzählenden
-  Absätzen wie §5 liefert mimo dieselbe Granularität wie Opus mit
-  zusätzlich expliziten cross-¶-edges. Sonnet bleibt für gleichmäßige
-  §:A-Granularität die berechenbarere Wahl, mimo gewinnt durch
-  cross-¶-Verweise.
+**Wo mimo passt** in der existierenden Zwei-Stack-Architektur (Sonnet/
+Opus-Stack + Mistral+Sonnet-Stack):
+- **Chapter-Collapse**: mimo erreicht hier Opus-Qualität (mehr
+  Auffälligkeiten als Opus, gleiche §:A-Präzision) bei 23× geringeren
+  Kosten als Opus, ~5× geringer als Sonnet. Klarster Kandidat für die
+  Collapse-Stufe in beiden Stacks.
+- **Per-¶ synthese**: inhaltlich auf Sonnet-Niveau, kostenmäßig
+  zwischen Mistral und Sonnet. Kein klarer Schärfungs-Vorteil über
+  Sonnet/Mistral, also kein Verdrängungs-Kandidat.
+- **AG**: aggregiert auf Knoten-Ebene, konserviert Differenzierung
+  vollständig in Premises. §-by-§-Audit über §1-§5 (siehe Bottom-Line)
+  zeigt: keine substanziellen Informationsverluste — Sonnet/Opus
+  produzieren teils Listen-Granularität ohne argumentativen Mehrwert
+  (enge Knoten-Trennungen für eng benachbartes Material). mimo-spezifisch
+  positiv: durchgängig explizite cross-¶-edges, saubere Argument/
+  Scaffolding-Disziplin (§4 Tenorth-Block-Zitate), und 5.4× geringere
+  Kosten als Sonnet, ~30× geringer als Opus. **Tragfähiger AG-Kandidat**
+  für beide Stacks; Bug-Restposten ist die "none"-Premise-Lazy-Extraktion
+  in §1 A1 (Prompt- oder Schema-Hardening separat zu prüfen).
+- **Section-Collapse (Subkapitel-L3)**: substanziell stärker als Sonnet
+  und Opus auf 1.1.1 — längste Synthese (2781 vs 2444 vs 2239 chars), 6
+  paragraphen-präzise Auffälligkeiten mit eigener edges-bezogener Lese-
+  Schicht (§2 A4-A3-A5-Spannungstrias), Konvergenz mit Sonnet+Opus auf §4
+  Tenorth-Brücke und §5/S4 Gegenreferenzen. Cost ~$0.020 vs Sonnet
+  $0.056 vs Opus $0.350 (≈3× günstiger als Sonnet, ≈18× günstiger als
+  Opus). **Tragfähiger Section-Collapse-Kandidat** in beiden Stacks;
+  Bug-Restposten ist das mixed-quote JSON-Encoding-Problem (Production:
+  Prompt-Härtung oder robuster Parser).
+- **Argument-validity**: hohe Konvergenz (17/18 carries-agreement) mit
+  Sonnet/Opus über §1-§5 von 1.1.1. Inference-Form-Variation zwischen
+  allen drei Modellen normal (auch zwischen Sonnet+Opus). Charity-Modus
+  intakt. Cost $0.051 vs Sonnet $0.094 vs Opus $0.501 (≈2× günstiger
+  als Sonnet, ~10× günstiger als Opus). **Tragfähiger Validity-Kandidat**
+  für beide Stacks; Parser-Hardening für Markdown-Headers ist bereits
+  eingespielt (argument-validity.ts:198).
 - **EXPOSITION-Klasse Konstrukte**: Test war hier nicht diskriminierend.
 
 ## Headline cost / latency
@@ -110,6 +181,36 @@ Opus-Premium + Mistral-basal/Sonnet-collapse-Budget):
 | **mimo-v2.5-pro** | 67.4 | 11562 | 4127 | $0.0239 | 7 |
 | opus-4.7 | 42.5 | 18587 | 3792 | $0.5632 | 6 |
 | deepseek-v4-pro | 151.3 | 11023 | 5248 | $0.0128 | 4 |
+
+### Section-collapse (Subkapitel-L3) for 1.1.1 — single call, 5 ¶, 18 args, 18 scaffolding
+
+| Modell | Wall (s) | In tokens | Out tokens | Cost (rough) | Synthese chars | Auffälligkeiten | JSON ok |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **mimo-v2.5-pro** | n/a¹ | n/a¹ | 2405 | ~$0.020² | 2781 | 6 | NO¹ |
+| sonnet-4-6 | 39.4 | 9008 | 1947 | $0.0562 | 2444 | 8 | YES |
+| opus-4.7 | 25.4 | 12364 | 2189 | $0.3497 | 2239 | 9 | YES |
+
+¹ Mimo response was substantively complete but parse-failed at JSON position
+  3992 (mixed quote types: `„deren"` opens with German typographic, closes
+  with ASCII U+0022 — the closing ASCII doublequote terminated the JSON
+  string prematurely). Recovered via Python regex post-hoc; wall_seconds
+  and input_tokens lost in repair path.
+² Cost estimate using known mimo rate ($0.001/1k input, $0.003/1k output)
+  and inferred input ~10-12k. Real cost is in the ~$0.015–0.025 range.
+
+### Argument-validity (5 ¶ on subchapter 1.1.1, 18 args total)
+
+| Modell | Wall (s) | In tokens | Out tokens | Cost (rough) | Successful ¶ | Carries-Agreement vs Opus |
+|---|---:|---:|---:|---:|---:|---:|
+| **mimo-v2.5-pro** | 247.3¹ | 6950 | 14642 | $0.0509 | 5/5¹ | 17/18 |
+| sonnet-4-6 | 81.6 | 11793 | 3910 | $0.0941 | 5/5 | 17/18 |
+| opus-4.7 | 34.6 | 16563 | 3371 | $0.5013 | 5/5 | (Referenz) |
+
+¹ Mimo §4 failed in initial run (Markdown-Header-Prefix `## VALIDITY A1`
+  vom Prose-Parser nicht erkannt); nach Parser-Hardening
+  (argument-validity.ts:198) im Rerun erfolgreich (38.5s). Aggregierte
+  Wall-Zeit summiert beide Runs; Tokens nur initialer Run + Rerun-Output
+  (Rerun-Input war gecached).
 
 ### H3 EXPOSITION fallback (BA H3 dev, single call)
 

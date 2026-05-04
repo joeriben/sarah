@@ -568,7 +568,7 @@ export async function runGraphCollapse(
 	caseId: string,
 	subchapterHeadingId: string,
 	userId: string,
-	opts: { modelOverride?: { provider: Provider; model: string } } = {}
+	opts: { modelOverride?: { provider: Provider; model: string }; maxTokens?: number } = {}
 ): Promise<GraphCollapseRun> {
 	// Idempotency guard: skip if a graph-fed kontextualisierend memo for this
 	// subchapter already exists. The Auto-Trigger from the per-paragraph
@@ -626,7 +626,7 @@ export async function runGraphCollapse(
 		// 4000 (was 2000): subchapters with > ~25 arguments + > ~30 scaffolding
 		// produce a synthesis that, with the four Pflichtbestandteile, reaches
 		// the 2000-cap. Methodologische Grundlegung came in at exactly 1999.
-		maxTokens: 4000,
+		maxTokens: opts.maxTokens ?? 4000,
 		modelOverride: opts.modelOverride,
 	});
 
