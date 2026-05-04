@@ -262,6 +262,41 @@
 		try { JSON.parse(raw); return null; } catch { return raw; }
 	}
 
+	// Strukturierte Diagnose für Hard-Fail-Anzeige. PreconditionFailedError
+	// (precondition.ts) formatiert als: "H3:${heuristic} — Vorbedingung
+	// verletzt: ${missing}\n  ${diagnostic}". Stuck-Guard formatiert als:
+	// "Stuck on ${phase}/${label}: …".
+	type ParsedFailure =
+		| { kind: 'precondition'; heuristic: string; missing: string; diagnostic: string }
+		| { kind: 'stuck'; phase: string; atomLabel: string; diagnostic: string }
+		| { kind: 'generic'; diagnostic: string };
+
+	function parseFailureMessage(raw: string): ParsedFailure {
+		// Format aus precondition.ts: "H3:HEURISTIC — Vorbedingung verletzt: MISSING\n  DIAGNOSTIC"
+		const preMatch = raw.match(
+			/^H3:([A-Z_]+) — Vorbedingung verletzt: ([^\n]+)\n\s*([\s\S]+)$/
+		);
+		if (preMatch) {
+			return {
+				kind: 'precondition',
+				heuristic: preMatch[1],
+				missing: preMatch[2].trim(),
+				diagnostic: preMatch[3].trim(),
+			};
+		}
+		// Format aus orchestrator.ts Stuck-Guard: "Stuck on PHASE/LABEL: …"
+		const stuckMatch = raw.match(/^Stuck on ([^/]+)\/([^:]+): ([\s\S]+)$/);
+		if (stuckMatch) {
+			return {
+				kind: 'stuck',
+				phase: stuckMatch[1].trim(),
+				atomLabel: stuckMatch[2].trim(),
+				diagnostic: stuckMatch[3].trim(),
+			};
+		}
+		return { kind: 'generic', diagnostic: raw };
+	}
+
 	async function loadPipelineStatus() {
 		if (!caseInfo) return;
 		pipelineLoading = true;
@@ -1313,7 +1348,29 @@
 								{@const persistedAtomErrors = parseAtomErrors(run.error_message)}
 								{@const catastrophic = isCatastrophicRunError(run.error_message)}
 								{#if catastrophic && run.status === 'failed'}
-									<div class="error-box compact">Fehler: {catastrophic}</div>
+									{@const parsed = parseFailureMessage(catastrophic)}
+									<div class="failure-box">
+										<header class="failure-head">
+											{#if parsed.kind === 'precondition'}
+												<span class="failure-tag tag-precondition">Vorbedingung verletzt</span>
+												<span class="failure-locus">H3:{parsed.heuristic} · {parsed.missing}</span>
+											{:else if parsed.kind === 'stuck'}
+												<span class="failure-tag tag-stuck">Stuck-Guard</span>
+												<span class="failure-locus">{parsed.phase} · {parsed.atomLabel}</span>
+											{:else}
+												<span class="failure-tag tag-generic">Lauf-Fehler</span>
+											{/if}
+										</header>
+										<p class="failure-diagnostic">{parsed.diagnostic}</p>
+										<nav class="failure-actions">
+											{#if parsed.kind === 'precondition' || parsed.kind === 'stuck'}
+												<a class="failure-action" href="/projects/{projectId}/documents/{docId}/outline">→ Outline öffnen (Funktionstypen prüfen / umtaggen)</a>
+											{/if}
+											{#if parsed.kind === 'generic'}
+												<a class="failure-action" href="/projects/{projectId}/documents/{docId}/outline">→ Outline öffnen</a>
+											{/if}
+										</nav>
+									</div>
 								{:else if persistedAtomErrors && persistedAtomErrors.length > 0}
 									<details class="atom-errors" open={run.status === 'failed'}>
 										<summary>
@@ -2507,6 +2564,66 @@
 		font-size: 0.8rem;
 		margin: 0.6rem 0 0;
 	}
+	.failure-box {
+		margin-top: 0.6rem;
+		padding: 0.7rem 0.85rem;
+		background: rgba(239, 68, 68, 0.06);
+		border: 1px solid rgba(239, 68, 68, 0.3);
+		border-left-width: 3px;
+		border-radius: 0 4px 4px 0;
+	}
+	.failure-head {
+		display: flex; align-items: center; gap: 0.55rem;
+		margin-bottom: 0.45rem;
+		flex-wrap: wrap;
+	}
+	.failure-tag {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		padding: 0.1rem 0.45rem;
+		border-radius: 3px;
+		font-weight: 600;
+	}
+	.tag-precondition {
+		color: #fbbf24;
+		background: rgba(251, 191, 36, 0.12);
+		border: 1px solid rgba(251, 191, 36, 0.35);
+	}
+	.tag-stuck {
+		color: #f87171;
+		background: rgba(248, 113, 113, 0.12);
+		border: 1px solid rgba(248, 113, 113, 0.4);
+	}
+	.tag-generic {
+		color: #c9cdd5;
+		background: rgba(255, 255, 255, 0.06);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+	}
+	.failure-locus {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.78rem;
+		color: #fecaca;
+	}
+	.failure-diagnostic {
+		margin: 0 0 0.55rem;
+		font-size: 0.85rem;
+		line-height: 1.5;
+		color: #e5e7eb;
+		white-space: pre-wrap;
+	}
+	.failure-actions {
+		display: flex; gap: 0.6rem;
+		flex-wrap: wrap;
+	}
+	.failure-action {
+		font-size: 0.8rem;
+		color: #fbbf24;
+		text-decoration: underline;
+		padding: 0.15rem 0;
+	}
+	.failure-action:hover { color: #fcd34d; }
 	.atom-errors {
 		margin-top: 0.6rem;
 		padding: 0.5rem 0.7rem;
