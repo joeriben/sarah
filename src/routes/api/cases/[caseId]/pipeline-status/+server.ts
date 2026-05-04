@@ -289,12 +289,13 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		};
 	}
 
-	// H3-Phasen: alle werk-aggregiert (1 Atom = das Werk). Done-Check pro
-	// Phase über das primäre Output-Konstrukt (siehe h3-phases.ts und Spec
-	// h3_orchestrator_spec.md #6). Bei useH3=false bleiben sie alle leer
-	// — die UI kann den ganzen H3-Block dann ausblenden.
+	// H3-Phasen: alle werk-aggregiert (1 Werk = 1 Output-Konstrukt pro Phase).
+	// Done-Check über das primäre Output-Konstrukt (siehe h3-phases.ts und Spec
+	// h3_orchestrator_spec.md #6). Der Done-Check ist unabhängig vom Brief-
+	// Flag h3_enabled — Karten zeigen den DB-Stand, der Brief-Flag steuert
+	// nur, welcher Pfad beim nächsten Run-Trigger gewählt wird (siehe
+	// PassStatus.enabled in der UI).
 	async function h3PassFor(outlineType: string, kinds: string[]): Promise<PassStatus> {
-		if (!useH3) return { completed: 0, total: 1, last_run: null };
 		const row = await queryOne<{ completed: number; last_run: string | null }>(
 			`SELECT (CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END)::int AS completed,
 			        MAX(updated_at) AS last_run
@@ -310,7 +311,6 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	async function h3ExkursPass(): Promise<PassStatus> {
 		// EXKURS modifiziert FORSCHUNGSGEGENSTAND destruktiv via version_stack —
 		// done iff irgendein FG-Konstrukt einen 're_spec'-Eintrag hat.
-		if (!useH3) return { completed: 0, total: 1, last_run: null };
 		const row = await queryOne<{ completed: number; last_run: string | null }>(
 			`SELECT (CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END)::int AS completed,
 			        MAX(updated_at) AS last_run
@@ -331,11 +331,8 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	const h3Synthese = await h3PassFor('SYNTHESE', ['GESAMTERGEBNIS']);
 	const h3Schlussreflexion = await h3PassFor('SCHLUSSREFLEXION', ['GELTUNGSANSPRUCH']);
 	const h3Exkurs = await h3ExkursPass();
-	// h3_werk_deskription / h3_werk_gutacht: Heuristiken nicht implementiert —
-	// völlig leer ausgeben, damit die UI sie als "noch nicht implementiert"
-	// kennzeichnen kann.
-	const h3WerkDesk: PassStatus = { completed: 0, total: 1, last_run: null };
-	const h3WerkGutacht: PassStatus = { completed: 0, total: 1, last_run: null };
+	const h3WerkDesk = await h3PassFor('WERK_DESKRIPTION', ['WERK_BESCHREIBUNG']);
+	const h3WerkGutacht = await h3PassFor('WERK_GUTACHT', ['WERK_GUTACHT']);
 
 	const result: PipelineStatus = {
 		case_id: caseId,

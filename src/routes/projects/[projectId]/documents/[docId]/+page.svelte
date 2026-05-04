@@ -17,6 +17,7 @@
 		missingRequiredFunctionTypes,
 		OUTLINE_FUNCTION_TYPE_LABELS,
 		type HeuristicPath,
+		type OutlineFunctionType,
 	} from '$lib/shared/h3-vocabulary.js';
 	import ReaderModal from './ReaderModal.svelte';
 	import DocumentReader from './DocumentReader.svelte';
@@ -141,15 +142,25 @@
 		paused_at: string | null;
 		completed_at: string | null;
 	};
+	type H3PhaseKey =
+		| 'h3_exposition'
+		| 'h3_grundlagentheorie'
+		| 'h3_forschungsdesign'
+		| 'h3_durchfuehrung'
+		| 'h3_synthese'
+		| 'h3_schlussreflexion'
+		| 'h3_werk_deskription'
+		| 'h3_werk_gutacht'
+		| 'h3_exkurs';
 	type PipelineStatus = {
 		case_id: string;
 		document_id: string | null;
-		brief: { id: string; name: string; argumentation_graph: boolean; validity_check: boolean } | null;
+		brief: { id: string; name: string; argumentation_graph: boolean; validity_check: boolean; h3_enabled: boolean } | null;
 		total_paragraphs: number;
 		passes: Record<AnalyticalPassKey, PassStatus> & {
 			kapitelverlauf: PassStatus;
 			paragraph_synthetic: PassStatus;
-		};
+		} & Record<H3PhaseKey, PassStatus>;
 		run: RunStatusDto | null;
 	};
 
@@ -183,21 +194,83 @@
 	};
 
 	// H3-Phase-Labels (kein PassKey-Pendant, weil H3 eigene Konstrukt-
-	// Familie nutzt — wir labeln direkt).
-	const H3_PHASE_LABEL: Record<string, string> = {
-		h3_exposition: 'H3 · Exposition (Fragestellung)',
-		h3_grundlagentheorie: 'H3 · Grundlagentheorie (Forschungsgegenstand)',
-		h3_forschungsdesign: 'H3 · Forschungsdesign (Methodik)',
-		h3_durchfuehrung: 'H3 · Durchführung (Befunde)',
-		h3_synthese: 'H3 · Synthese (Gesamtergebnis)',
-		h3_schlussreflexion: 'H3 · Schlussreflexion (Geltungsanspruch)',
-		h3_exkurs: 'H3 · Exkurs',
-		h3_werk_deskription: 'H3 · Werk-Deskription',
-		h3_werk_gutacht: 'H3 · Werk-Gutacht (a + b + c)',
+	// Familie nutzt — wir labeln direkt). Reihenfolge in H3_ORDER spiegelt
+	// die Cross-Typ-Bezüge (Exposition → … → Werk-Gutacht); Exkurs steht
+	// am Ende, weil seine Position im Werk variabel ist (vgl. Memory
+	// project_three_heuristics_architecture.md).
+	const H3_PHASE_LABEL: Record<H3PhaseKey, string> = {
+		h3_exposition: 'Exposition · Fragestellung',
+		h3_grundlagentheorie: 'Grundlagentheorie · Forschungsgegenstand',
+		h3_forschungsdesign: 'Forschungsdesign · Methodik',
+		h3_durchfuehrung: 'Durchführung · Befunde',
+		h3_synthese: 'Synthese · Gesamtergebnis',
+		h3_schlussreflexion: 'Schlussreflexion · Geltungsanspruch',
+		h3_werk_deskription: 'Werk-Deskription',
+		h3_werk_gutacht: 'Werk-Gutacht (a + b + c)',
+		h3_exkurs: 'Exkurs · Re-Spezifikation',
+	};
+
+	const H3_PHASE_DESC: Record<H3PhaseKey, string> = {
+		h3_exposition:
+			'Rekonstruiert FRAGESTELLUNG und MOTIVATION aus dem Einleitungs-Container. Liefert den Bezugsrahmen für alle nachfolgenden H3-Pässe.',
+		h3_grundlagentheorie:
+			'Fünfstufige Pyramide pro Grundlagentheorie-Container: Verweis-Profil → Block-Routing → reproduktive/diskursive Würdigung → Aggregation zum FORSCHUNGSGEGENSTAND.',
+		h3_forschungsdesign:
+			'Extrahiert METHODOLOGIE, METHODEN und BASIS aus dem Methoden-Container — oder findet eine AUFBAU_SKIZZE in der Einleitung, falls kein eigenständiges Methodenkapitel vorliegt.',
+		h3_durchfuehrung:
+			'Detektiert Hotspots, ruft den H1-Argumentations-Pass mit Grounding-Suche auf, konsolidiert zu BEFUNDEN. Argumentanalytisch fundiert, hermeneutisch verdichtet.',
+		h3_synthese:
+			'Aggregiert aus den BEFUNDEN ein GESAMTERGEBNIS plus Bezug zur ursprünglichen Fragestellung. Critical-Friend-Diagnose bei niedriger Befund-Coverage.',
+		h3_schlussreflexion:
+			'Extrahiert GELTUNGSANSPRUCH, GRENZEN und ANSCHLUSSFORSCHUNG aus dem Schluss-Container. Cross-Read auf METHODOLOGIE/BASIS für reflektierte Methodengrenzen.',
+		h3_werk_deskription:
+			'Werk-aggregierte deskriptive Beschreibung aus allen vorherigen H3-Konstrukten. Neutral, kein Urteil — bildet die Grundlage für das Werk-Gutachten.',
+		h3_werk_gutacht:
+			'Kritische Würdigung in drei Teilen: a) Werk im Lichte der Fragestellung, b) Hotspot-Würdigung pro Funktionstyp, c) Fazit (gated durch eigenen Review-Draft des Users — heute zur Test-Phase deaktiviert).',
+		h3_exkurs:
+			'Re-Spezifiziert FORSCHUNGSGEGENSTAND aus EXKURS-Containern via append-only Stack. Iterative Spezifikation des Gegenstands aus gewonnenen Erkenntnissen.',
+	};
+
+	// Reihenfolge der H3-Cards. EXKURS ans Ende (variabler Ort im Werk;
+	// User-Setzung 2026-05-04).
+	const H3_ORDER: H3PhaseKey[] = [
+		'h3_exposition',
+		'h3_grundlagentheorie',
+		'h3_forschungsdesign',
+		'h3_durchfuehrung',
+		'h3_synthese',
+		'h3_schlussreflexion',
+		'h3_werk_deskription',
+		'h3_werk_gutacht',
+		'h3_exkurs',
+	];
+
+	// Erforderliche outline_function_types pro H3-Phase: ohne den Container
+	// im Outline kann die Heuristik nichts extrahieren.
+	const H3_REQUIRED_OUTLINE_TYPE: Partial<Record<H3PhaseKey, string>> = {
+		h3_exposition: 'EXPOSITION',
+		h3_grundlagentheorie: 'GRUNDLAGENTHEORIE',
+		h3_forschungsdesign: 'FORSCHUNGSDESIGN',
+		h3_durchfuehrung: 'DURCHFUEHRUNG',
+		h3_schlussreflexion: 'SCHLUSSREFLEXION',
+		h3_exkurs: 'EXKURS',
+	};
+
+	// Vorgelagerte H3-Phasen, deren Output als Bezugsrahmen einer Phase
+	// vorliegen muss. Pro Vorbedingung der zugehörige Pass-Key.
+	const H3_PHASE_PREREQS: Partial<Record<H3PhaseKey, H3PhaseKey[]>> = {
+		h3_grundlagentheorie: ['h3_exposition'],
+		h3_forschungsdesign: ['h3_exposition', 'h3_grundlagentheorie'],
+		h3_durchfuehrung: ['h3_grundlagentheorie', 'h3_forschungsdesign'],
+		h3_synthese: ['h3_durchfuehrung'],
+		h3_schlussreflexion: ['h3_synthese'],
+		h3_werk_deskription: ['h3_exposition', 'h3_grundlagentheorie', 'h3_forschungsdesign'],
+		h3_werk_gutacht: ['h3_werk_deskription'],
+		h3_exkurs: ['h3_grundlagentheorie'],
 	};
 
 	function phaseLabel(phase: RunPhase): string {
-		if (phase.startsWith('h3_')) return H3_PHASE_LABEL[phase] ?? phase;
+		if (phase.startsWith('h3_')) return H3_PHASE_LABEL[phase as H3PhaseKey] ?? phase;
 		const key = PHASE_TO_PASS[phase as keyof typeof PHASE_TO_PASS];
 		return key ? PASS_LABEL[key] : phase;
 	}
@@ -512,6 +585,31 @@
 		if (!iso) return '—';
 		const d = new Date(iso);
 		return d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+	}
+
+	type H3PhaseDiagnosis = {
+		state: 'done' | 'pending' | 'blocked';
+		missingOutlineType: string | null;
+		missingPrereqs: H3PhaseKey[];
+	};
+	function h3PhaseDiagnosis(
+		phase: H3PhaseKey,
+		passes: PipelineStatus['passes'],
+		coverage: Record<string, number>
+	): H3PhaseDiagnosis {
+		const pass = passes[phase];
+		const requiredType = H3_REQUIRED_OUTLINE_TYPE[phase] ?? null;
+		const missingOutlineType =
+			requiredType && (coverage[requiredType] ?? 0) === 0 ? requiredType : null;
+		const prereqs = H3_PHASE_PREREQS[phase] ?? [];
+		const missingPrereqs = prereqs.filter((p) => passes[p].completed === 0);
+		const isDone = pass.completed > 0;
+		const isBlocked = !isDone && (missingOutlineType !== null || missingPrereqs.length > 0);
+		return {
+			state: isDone ? 'done' : isBlocked ? 'blocked' : 'pending',
+			missingOutlineType,
+			missingPrereqs,
+		};
 	}
 
 	function selectView(v: View) {
@@ -1319,7 +1417,7 @@
 														<li><code>{t}</code> ({OUTLINE_FUNCTION_TYPE_LABELS[t]})</li>
 													{/each}
 												</ul>
-												<a class="prerun-link" href="/projects/{projectId}/documents/{docId}/outline">→ Outline öffnen und Funktionstypen zuweisen</a>
+												<a class="prerun-link" href="/projects/{$page.params.projectId}/documents/{$page.params.docId}/outline">→ Outline öffnen und Funktionstypen zuweisen</a>
 											</div>
 										{/if}
 										<button
@@ -1364,10 +1462,10 @@
 										<p class="failure-diagnostic">{parsed.diagnostic}</p>
 										<nav class="failure-actions">
 											{#if parsed.kind === 'precondition' || parsed.kind === 'stuck'}
-												<a class="failure-action" href="/projects/{projectId}/documents/{docId}/outline">→ Outline öffnen (Funktionstypen prüfen / umtaggen)</a>
+												<a class="failure-action" href="/projects/{$page.params.projectId}/documents/{$page.params.docId}/outline">→ Outline öffnen (Funktionstypen prüfen / umtaggen)</a>
 											{/if}
 											{#if parsed.kind === 'generic'}
-												<a class="failure-action" href="/projects/{projectId}/documents/{docId}/outline">→ Outline öffnen</a>
+												<a class="failure-action" href="/projects/{$page.params.projectId}/documents/{$page.params.docId}/outline">→ Outline öffnen</a>
 											{/if}
 										</nav>
 									</div>
@@ -1399,10 +1497,18 @@
 							{/if}
 						</div>
 
-						<!-- Hauptlinie -->
-						<section class="passes-section">
+						<!-- H1 — Analytische Hauptlinie -->
+						<section
+							class="passes-section"
+							class:active-path={effectiveHeuristic === 'h1'}
+						>
 							<header class="passes-section-head">
-								<h3>Analytische Hauptlinie</h3>
+								<h3>
+									H1 · Analytische Hauptlinie
+									{#if effectiveHeuristic === 'h1'}
+										<span class="path-tag active">aktiver Pfad</span>
+									{/if}
+								</h3>
 								<p>
 									Sequenzielle Pässe in der Reihenfolge, in der sie aufeinander aufbauen:
 									Argumentations-Graph pro Absatz · {pipelineStatus.brief?.validity_check ? 'Argument-Validität (Charity-Pass) · ' : ''}Subkapitel-Synthesen · Hauptkapitel-Synthesen · Werk-Synthese.
@@ -1457,6 +1563,81 @@
 													{p.completed}{p.total != null ? ` / ${p.total}` : ''}
 												</span>
 											</div>
+											<div class="pass-meta">
+												<span class="last-run">Letzter Lauf: {formatLastRun(p.last_run)}</span>
+											</div>
+										{/if}
+									</article>
+								{/each}
+							</div>
+						</section>
+
+						<!-- H3 — Funktionstyp-orchestrierte Heuristiken -->
+						<section
+							class="passes-section h3-section"
+							class:active-path={effectiveHeuristic === 'h3'}
+						>
+							<header class="passes-section-head">
+								<h3>
+									H3 · Funktionstyp-orchestrierte Heuristiken
+									{#if effectiveHeuristic === 'h3'}
+										<span class="path-tag active">aktiver Pfad</span>
+									{/if}
+								</h3>
+								<p>
+									Werk-aggregierte Heuristiken in der Cross-Typ-Reihenfolge, in der die
+									Konstrukte aufeinander aufbauen. Jede Karte erzeugt ein eigenes
+									Output-Konstrukt am jeweiligen Funktionstyp-Container.
+									Exkurs steht am Ende, weil sein Ort im Werk variabel ist.
+									{#if pipelineStatus.brief && !pipelineStatus.brief.h3_enabled}
+										<span class="hint-inline">H3 ist im Brief nicht aktiviert — Karten zeigen den DB-Stand,
+										der Lauf nutzt aber den Brief-Default-Pfad.</span>
+									{/if}
+								</p>
+							</header>
+							<div class="pass-grid">
+								{#each H3_ORDER as key, i (key)}
+									{@const p = pipelineStatus.passes[key]}
+									{@const diag = h3PhaseDiagnosis(key, pipelineStatus.passes, outlineCoverage)}
+									{@const isCurrent = run?.current_phase === key && runIsLive}
+									<article
+										class="pass-card pass-{diag.state}"
+										class:current={isCurrent}
+									>
+										<header class="pass-head">
+											<span class="pass-num h3">{i + 1}</span>
+											<h4>{H3_PHASE_LABEL[key]}</h4>
+											<span class="pass-state-tag tag-{diag.state}">
+												{#if diag.state === 'done'}
+													Vorhanden
+												{:else if diag.state === 'blocked'}
+													Vorbedingung fehlt
+												{:else}
+													Offen
+												{/if}
+											</span>
+										</header>
+										<p class="pass-desc">{H3_PHASE_DESC[key]}</p>
+										{#if diag.state === 'blocked'}
+											<div class="precondition-block">
+												{#if diag.missingOutlineType}
+													<p>
+														Outline-Funktionstyp <code>{diag.missingOutlineType}</code>
+														({OUTLINE_FUNCTION_TYPE_LABELS[diag.missingOutlineType as OutlineFunctionType]})
+														ist im Werk nicht vergeben.
+														<a href="/projects/{$page.params.projectId}/documents/{$page.params.docId}/outline">→ Outline öffnen</a>
+													</p>
+												{/if}
+												{#if diag.missingPrereqs.length > 0}
+													<p>
+														Vorgelagerte H3-Phasen fehlen:
+														{#each diag.missingPrereqs as prereq, j (prereq)}
+															<code>{H3_PHASE_LABEL[prereq]}</code>{j < diag.missingPrereqs.length - 1 ? ', ' : ''}
+														{/each}
+													</p>
+												{/if}
+											</div>
+										{:else}
 											<div class="pass-meta">
 												<span class="last-run">Letzter Lauf: {formatLastRun(p.last_run)}</span>
 											</div>
@@ -2744,4 +2925,59 @@
 	}
 
 	.empty { color: #6b7280; font-size: 0.85rem; font-style: italic; }
+
+	.pass-card.pass-blocked {
+		border-color: rgba(251, 191, 36, 0.30);
+		opacity: 0.85;
+	}
+	.tag-blocked {
+		background: rgba(251, 191, 36, 0.10);
+		color: #fbbf24;
+		border: 1px solid rgba(251, 191, 36, 0.3);
+	}
+	.pass-num.h3 {
+		background: rgba(167, 139, 250, 0.10);
+		border-color: rgba(167, 139, 250, 0.3);
+		color: #c4b5fd;
+	}
+	.passes-section.h3-section {
+		margin-top: 1.4rem;
+		padding-top: 1rem;
+		border-top: 1px dashed #2a2d3a;
+	}
+	.passes-section.active-path {
+		padding-left: 0.6rem;
+		border-left: 2px solid rgba(167, 139, 250, 0.55);
+	}
+	.path-tag.active {
+		font-size: 0.65rem;
+		font-weight: 500;
+		padding: 0.1rem 0.45rem;
+		background: rgba(167, 139, 250, 0.14);
+		color: #c4b5fd;
+		border: 1px solid rgba(167, 139, 250, 0.35);
+		border-radius: 3px;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+	.precondition-block {
+		font-size: 0.78rem;
+		color: #c5c8d3;
+		background: rgba(251, 191, 36, 0.04);
+		border: 1px solid rgba(251, 191, 36, 0.18);
+		border-radius: 4px;
+		padding: 0.5rem 0.65rem;
+		margin-top: 0.3rem;
+	}
+	.precondition-block p { margin: 0.15rem 0; }
+	.precondition-block code {
+		font-size: 0.78em;
+		padding: 0.05em 0.3em;
+		background: rgba(165, 180, 252, 0.08);
+		border-radius: 2px;
+	}
+	.precondition-block a {
+		color: #a5b4fc;
+		margin-left: 0.3em;
+	}
 </style>
