@@ -103,9 +103,20 @@ Server-seitig: `count(integriert=true) / count(BEFUNDE)`. `null` wenn keine BEFU
 
 Zweiter `--persist`-Lauf: `(1 prior GESAMTERGEBNIS-Konstrukt(e) ersetzt — idempotent)`. DB-Bestand bleibt bei 1 GESAMTERGEBNIS-Konstrukt pro Werk.
 
-### Open: Test gegen Werk mit größerer DURCHFÜHRUNG-BEFUND-Menge
+### Stichprobe gegen Habil 2026-05-04
 
-BA H3 dev hat 1 BEFUND. Coverage-Map zeigt sich erst aussagekräftig bei 5–20 BEFUNDEN. Validierung gegen Habil/Bachelorarbeit-TM-Cases steht aus, sobald deren DURCHFÜHRUNG-Pässe BEFUNDE persistiert haben.
+Habil-Case `2635e73c-…`, 2 SYNTHESE-Container ("Reflexionen der kulturbezogenen Orientierungen" 64 ¶ + "Ansätze einer Theorie kultureller Lehrkräftebildung" 48 ¶ = 112 ¶ insgesamt), 0 BEFUNDE (DURCHFÜHRUNG-Pass auf Habil noch nicht gelaufen).
+
+- 1 LLM-Call (Sonnet 4.6), 16.3s, 45.021 in / 605 out Tokens
+- coverage=null (keine BEFUNDE — sauberer no-op-Pfad in ERKENNTNIS-INTEGRATION)
+- GESAMTERGEBNIS substantiell: integriert empirisch rekonstruierte Orientierungsmuster (Grenzsetzung, technokratisch, Defizit, Kulturessentialismus, Gemeinschaft) in bildungs-/professionstheoretische Rahmung; entwickelt drei didaktische Prinzipien (Variabilität, Anerkennung sozialer Effekte, Balance Normbefolgung-Autonomie) plus konkrete hochschuldidaktische Ansätze; Leitkonzept "kulturbezogene Reflexivität"; Habitustransformation in der ersten Ausbildungsphase
+- FRAGESTELLUNGS-ANTWORT mit präziser Critical-Friend-Diagnose: *"der Aspekt einer vollständigen Ausformulierung des Theoriegerüsts bleibt partiell programmatisch"* — entspricht der Selbsteinschätzung der Habil
+
+Cost-Hochrechnung Habil-SYNTHESE: ~46k Tokens / 1 Call / ~45 ct OpenRouter — bezahlbar trotz 112 ¶ Container-Größe.
+
+### Open: Test gegen Werk mit großer DURCHFÜHRUNG-BEFUND-Menge
+
+Coverage-Map zeigt sich erst aussagekräftig bei 5–20 BEFUNDEN. Habil hat noch keine BEFUNDE; BA TM hat keine FRAGESTELLUNG. Validierung gegen umfangreiche BEFUND-Mengen steht aus, sobald DURCHFÜHRUNG-Pässe weiter gelaufen sind.
 
 ---
 

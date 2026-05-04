@@ -85,6 +85,17 @@ Default-Modell: `openrouter/anthropic/claude-sonnet-4.6`. Max-Tokens 1500.
 
 Zweiter `--persist`-Lauf: `(1 prior Konstrukt(e) ersetzt — idempotent)`. DB-Bestand bleibt 1 GELTUNGSANSPRUCH pro Werk.
 
+### Stichprobe gegen Habil 2026-05-04
+
+Habil-Case `2635e73c-…`, 1 SR-Container "Fazit" (2 ¶), alle Cross-Typ-Reads vorhanden inkl. METHODEN/BASIS aus FORSCHUNGSDESIGN.
+
+- 1 LLM-Call (Sonnet 4.6), 14.3s, 3.338 in / 723 out Tokens
+- GELTUNGSANSPRUCH: präzise Diagnose der Selbst-Beschränkung: *"Geltungsanspruch ist auf Anregung und konzeptionelle Grundlegung beschränkt … Die Arbeit beansprucht ausdrücklich nicht, vollständige Professionalisierung zu erzeugen, sondern mögliche Ansatzpunkte aufzuzeigen … was mit der Selbsteinschätzung der Fragestellungs-Antwort übereinstimmt, dass das Theoriegerüst partiell programmatisch bleibt."* — Cross-Read der SYNTHESE-FRAGESTELLUNGS-ANTWORT trägt korrekt durch.
+- **GRENZEN — Methodologie-Cross-Read trägt am Material**:
+   *"Die Schlussreflexion benennt keine methodischen oder sampling-bezogenen Grenzen explizit; … Aus dem Forschungsdesign ergibt sich eine thematisch relevante Grenze, die laut Forschungsdesign-Beschreibung im Werk selbst reflektiert wird: Das Sample umfasst vorwiegend Studierende ohne stark kulturell diversifizierte Lebenswelt, was die Tragfähigkeit der empirischen Basis für die Gesamtfragestellung einer Lehrkräftebildung unter Bedingungen globaler Komplexität einschränkt. Diese Grenze wird in der eigentlichen Schlussreflexion jedoch nicht mehr aufgegriffen."*
+   Genau das ist der Wert der Mother-Lücken-Schließung (METHODEN/BASIS als optional Cross-Typ-Read): der LLM erkennt die im FORSCHUNGSDESIGN reflektierte Sample-Grenze und macht transparent, dass die SCHLUSSREFLEXION sie nicht aufgreift.
+- ANSCHLUSSFORSCHUNG: *"keine expliziten Anschlussforschungsfragen", "implizites Desiderat für praktische Implementierungen und deren Evaluation"*
+
 ---
 
 ## Offene Punkte
