@@ -24,17 +24,22 @@
 // Marker — die Abwesenheit ist der Befund, den eine spätere WERK_GUTACHT-
 // Stufe konsumiert).
 //
-// Container-Auflösung ist heading-hierarchisch über
-// heading_classifications.outline_function_type='EXPOSITION', filter auf
-// element_type='paragraph' (Pipeline-Konvention).
+// Eintrittspunkte (Memory feedback_no_phase_layer_orchestrator.md):
+//   runExpositionForComplex(caseId, documentId, complex)
+//     — primärer komplex-skopierter Eintritt für den Walk-Dispatcher.
+//   runExpositionPass(caseId)
+//     — Wrapper für Test-Skripte: lädt den Walk, sucht den ersten
+//       EXPOSITION-Komplex und delegiert. PreconditionFailedError, wenn
+//       der Walk keinen EXPOSITION-Komplex enthält.
 
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, getModel, getProvider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
+import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
 
-// ── Container-Auflösung ───────────────────────────────────────────
+// ── Komplex-Auflösung ─────────────────────────────────────────────
 
 interface ExpositionParagraph {
 	paragraphId: string;
@@ -45,50 +50,28 @@ interface ExpositionParagraph {
 	indexInContainer: number;
 }
 
-async function loadExpositionParagraphs(documentId: string): Promise<ExpositionParagraph[]> {
+async function loadExpositionParagraphsForComplex(
+	documentId: string,
+	complex: H3Complex
+): Promise<ExpositionParagraph[]> {
+	if (complex.paragraphIds.length === 0) return [];
 	const rows = (await query<{
 		paragraph_id: string;
 		char_start: number;
 		char_end: number;
 		text: string;
-		container_heading_text: string;
 	}>(
-		`WITH heading_with_type AS (
-		   SELECT de.id AS heading_id,
-		          de.char_start,
-		          de.char_end,
-		          hc.outline_function_type,
-		          SUBSTRING(dc.full_text FROM de.char_start + 1
-		                                 FOR de.char_end - de.char_start) AS heading_text
-		   FROM document_elements de
-		   JOIN heading_classifications hc ON hc.element_id = de.id
-		   JOIN document_content dc ON dc.naming_id = de.document_id
-		   WHERE de.document_id = $1
-		     AND de.element_type = 'heading'
-		     AND de.section_kind = 'main'
-		     AND hc.outline_function_type IS NOT NULL
-		     AND COALESCE(hc.excluded, false) = false
-		 )
-		 SELECT p.id AS paragraph_id,
+		`SELECT p.id AS paragraph_id,
 		        p.char_start,
 		        p.char_end,
 		        SUBSTRING(dc.full_text FROM p.char_start + 1
-		                              FOR p.char_end - p.char_start) AS text,
-		        h.heading_text AS container_heading_text
+		                              FOR p.char_end - p.char_start) AS text
 		 FROM document_elements p
 		 JOIN document_content dc ON dc.naming_id = p.document_id
-		 JOIN LATERAL (
-		   SELECT hwt.heading_text, hwt.outline_function_type
-		   FROM heading_with_type hwt
-		   WHERE hwt.char_start <= p.char_start
-		   ORDER BY hwt.char_start DESC
-		   LIMIT 1
-		 ) h ON h.outline_function_type = 'EXPOSITION'
-		 WHERE p.document_id = $1
-		   AND p.element_type = 'paragraph'
-		   AND p.section_kind = 'main'
+		 WHERE p.id = ANY($1::uuid[])
+		   AND p.document_id = $2
 		 ORDER BY p.char_start`,
-		[documentId]
+		[complex.paragraphIds, documentId]
 	)).rows;
 
 	return rows.map((r, i) => ({
@@ -96,7 +79,7 @@ async function loadExpositionParagraphs(documentId: string): Promise<ExpositionP
 		charStart: r.char_start,
 		charEnd: r.char_end,
 		text: r.text.trim(),
-		containerHeadingText: r.container_heading_text.trim(),
+		containerHeadingText: complex.headingText,
 		indexInContainer: i,
 	}));
 }
@@ -425,22 +408,28 @@ async function llmFallbackVollerContainer(
 
 // ── Persistenz ────────────────────────────────────────────────────
 
-async function clearExistingExposition(
+async function clearExistingExpositionForComplex(
 	caseId: string,
-	documentId: string
+	documentId: string,
+	complexParagraphIds: string[]
 ): Promise<number> {
-	// Idempotenz: alte EXPOSITION-Konstrukte (FRAGESTELLUNG, MOTIVATION)
-	// für dieses Werk wegräumen. FRAGESTELLUNG_BEURTEILUNG wird absichtlich
-	// NICHT gelöscht — das ist ein eigener Beurteilungs-Lauf
-	// (runBeurteilungOnly), läuft separat und steht nicht im Auftrags-
-	// Verhältnis zum Rekonstruktions-Pass.
+	// Idempotenz, komplex-skopiert: alte EXPOSITION-Konstrukte
+	// (FRAGESTELLUNG, MOTIVATION) werden nur gelöscht, wenn ihre Anker-
+	// Absätze vollständig im aktuellen Komplex liegen. Das schützt
+	// Konstrukte aus parallelen EXPOSITION-Komplexen (selten, aber denkbar)
+	// vor versehentlichem Wegräumen. FRAGESTELLUNG_BEURTEILUNG wird
+	// absichtlich NICHT gelöscht — das ist ein eigener Beurteilungs-Lauf
+	// (runBeurteilungForComplex), läuft separat und steht nicht im
+	// Auftrags-Verhältnis zum Rekonstruktions-Pass.
+	if (complexParagraphIds.length === 0) return 0;
 	const r = await query(
 		`DELETE FROM function_constructs
 		 WHERE case_id = $1
 		   AND document_id = $2
 		   AND outline_function_type = 'EXPOSITION'
-		   AND construct_kind IN ('FRAGESTELLUNG', 'MOTIVATION')`,
-		[caseId, documentId]
+		   AND construct_kind IN ('FRAGESTELLUNG', 'MOTIVATION')
+		   AND anchor_element_ids <@ $3::uuid[]`,
+		[caseId, documentId, complexParagraphIds]
 	);
 	return r.rowCount ?? 0;
 }
@@ -523,28 +512,19 @@ export interface BeurteilungPassResult {
 	provider: string;
 }
 
-export async function runBeurteilungOnly(caseId: string): Promise<BeurteilungPassResult> {
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
+export async function runBeurteilungForComplex(
+	caseId: string,
+	documentId: string,
+	complex: H3Complex
+): Promise<BeurteilungPassResult> {
+	if (complex.functionType !== 'EXPOSITION') {
+		throw new Error(
+			`runBeurteilungForComplex: Komplex hat functionType=${complex.functionType}, erwartet EXPOSITION`
+		);
 	}
-	const documentId = caseRow.central_document_id;
 
-	const paragraphs = await loadExpositionParagraphs(documentId);
-	if (paragraphs.length === 0) {
-		throw new PreconditionFailedError({
-			heuristic: 'EXPOSITION',
-			missing: 'EXPOSITION-Container',
-			diagnostic:
-				`Werk ${documentId} hat keinen EXPOSITION-Container — ` +
-				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
-		});
-	}
-	const containerLabel = paragraphs[0].containerHeadingText;
+	const paragraphs = await loadExpositionParagraphsForComplex(documentId, complex);
+	const containerLabel = complex.headingText;
 
 	let totalInput = 0;
 	let totalOutput = 0;
@@ -559,7 +539,7 @@ export async function runBeurteilungOnly(caseId: string): Promise<BeurteilungPas
 	if (parsed) {
 		fragestellungParagraphs = parsed.fragestellungParagraphs;
 	} else {
-		// Fallback: LLM identifiziert die Fragestellungs-¶ über den ganzen Container.
+		// Fallback: LLM identifiziert die Fragestellungs-¶ über den ganzen Komplex.
 		usedFallback = true;
 		const fb = await llmFallbackVollerContainer(paragraphs, containerLabel, documentId);
 		llmCalls += 1;
@@ -624,7 +604,11 @@ export async function runBeurteilungOnly(caseId: string): Promise<BeurteilungPas
 	};
 }
 
-export async function runExpositionPass(caseId: string): Promise<ExpositionPassResult> {
+/**
+ * Wrapper für Test-Skripte / direkte Case-Aufrufe ohne Walk-Kontext.
+ * Lädt den Walk, sucht den ersten EXPOSITION-Komplex und delegiert.
+ */
+export async function runBeurteilungOnly(caseId: string): Promise<BeurteilungPassResult> {
 	const caseRow = await queryOne<{ central_document_id: string | null }>(
 		`SELECT central_document_id FROM cases WHERE id = $1`,
 		[caseId]
@@ -635,17 +619,33 @@ export async function runExpositionPass(caseId: string): Promise<ExpositionPassR
 	}
 	const documentId = caseRow.central_document_id;
 
-	const paragraphs = await loadExpositionParagraphs(documentId);
-	if (paragraphs.length === 0) {
+	const walk = await loadH3ComplexWalk(documentId);
+	const complex = walk.find((c) => c.functionType === 'EXPOSITION');
+	if (!complex) {
 		throw new PreconditionFailedError({
 			heuristic: 'EXPOSITION',
-			missing: 'EXPOSITION-Container',
+			missing: 'EXPOSITION-Komplex',
 			diagnostic:
-				`Werk ${documentId} hat keinen EXPOSITION-Container — ` +
+				`Walk für Werk ${documentId} enthält keinen EXPOSITION-Komplex — ` +
 				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
 		});
 	}
-	const containerLabel = paragraphs[0].containerHeadingText;
+	return runBeurteilungForComplex(caseId, documentId, complex);
+}
+
+export async function runExpositionForComplex(
+	caseId: string,
+	documentId: string,
+	complex: H3Complex
+): Promise<ExpositionPassResult> {
+	if (complex.functionType !== 'EXPOSITION') {
+		throw new Error(
+			`runExpositionForComplex: Komplex hat functionType=${complex.functionType}, erwartet EXPOSITION`
+		);
+	}
+
+	const paragraphs = await loadExpositionParagraphsForComplex(documentId, complex);
+	const containerLabel = complex.headingText;
 
 	let totalInput = 0;
 	let totalOutput = 0;
@@ -712,9 +712,11 @@ export async function runExpositionPass(caseId: string): Promise<ExpositionPassR
 		}
 	}
 
-	// Idempotenz-Schicht: vor dem Persist alte FRAGESTELLUNG/MOTIVATION
-	// wegräumen. Re-Run produziert deterministisch denselben End-Stand.
-	await clearExistingExposition(caseId, documentId);
+	// Idempotenz-Schicht: vor dem Persist alte FRAGESTELLUNG/MOTIVATION für
+	// genau diesen Komplex wegräumen. Re-Run produziert deterministisch
+	// denselben End-Stand. Andere EXPOSITION-Komplexe (sofern vorhanden)
+	// bleiben unangetastet.
+	await clearExistingExpositionForComplex(caseId, documentId, complex.paragraphIds);
 
 	let fragestellungConstructId: string | null = null;
 	let motivationConstructId: string | null = null;
@@ -756,4 +758,33 @@ export async function runExpositionPass(caseId: string): Promise<ExpositionPassR
 		model: getModel(),
 		provider: getProvider(),
 	};
+}
+
+/**
+ * Wrapper für Test-Skripte / direkte Case-Aufrufe ohne Walk-Kontext.
+ * Lädt den Walk, sucht den ersten EXPOSITION-Komplex und delegiert.
+ */
+export async function runExpositionPass(caseId: string): Promise<ExpositionPassResult> {
+	const caseRow = await queryOne<{ central_document_id: string | null }>(
+		`SELECT central_document_id FROM cases WHERE id = $1`,
+		[caseId]
+	);
+	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
+	if (!caseRow.central_document_id) {
+		throw new Error(`Case ${caseId} has no central_document_id`);
+	}
+	const documentId = caseRow.central_document_id;
+
+	const walk = await loadH3ComplexWalk(documentId);
+	const complex = walk.find((c) => c.functionType === 'EXPOSITION');
+	if (!complex) {
+		throw new PreconditionFailedError({
+			heuristic: 'EXPOSITION',
+			missing: 'EXPOSITION-Komplex',
+			diagnostic:
+				`Walk für Werk ${documentId} enthält keinen EXPOSITION-Komplex — ` +
+				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
+		});
+	}
+	return runExpositionForComplex(caseId, documentId, complex);
 }
