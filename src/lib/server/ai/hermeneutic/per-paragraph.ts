@@ -19,7 +19,13 @@
 import { z } from 'zod';
 import { query, queryOne, transaction } from '../../db/index.js';
 import { type Provider } from '../client.js';
-import { runJsonCallWithRepair, RepairCallExhaustedError } from '../json-extract.js';
+import { RepairCallExhaustedError } from '../json-extract.js';
+import {
+	runProseCallWithRepair,
+	describeProseFormat,
+	type SectionSpec,
+	type FieldKind,
+} from '../prose-extract.js';
 
 // ── Output schema ─────────────────────────────────────────────────
 
@@ -48,6 +54,33 @@ const ParagraphPassResultSchema = z.object({
 });
 
 export type ParagraphPassResult = z.infer<typeof ParagraphPassResultSchema>;
+
+// Section-Headered-Prose-Schema. FORMULIEREND is conditionally included; if
+// the brief opts out, the section is omitted from the spec entirely so the
+// parser does not default an empty string that would fail Zod's min(1).
+//
+// CODES list-element field `anchor_phrase` may be empty (oneline parses ''
+// fine; the schema's max(500).default('') tolerates absent or empty).
+function buildSectionSpec(caseCtx: CaseContext): SectionSpec {
+	const singletons: Record<string, FieldKind> = {
+		INTERPRETIEREND: 'multiline',
+	};
+	if (caseCtx.brief.includeFormulierend) {
+		singletons.FORMULIEREND = 'multiline';
+	}
+	return {
+		singletons,
+		lists: {
+			CODES: {
+				fields: {
+					label: 'oneline',
+					anchor_phrase: 'oneline',
+					rationale: 'oneline',
+				},
+			},
+		},
+	};
+}
 
 // ── Internal context types ────────────────────────────────────────
 
@@ -333,26 +366,27 @@ export function buildSystemPrompt(caseCtx: CaseContext, paraCtx: ParagraphContex
 }
 
 function buildOutputFormatSection(caseCtx: CaseContext): string {
+	const spec = buildSectionSpec(caseCtx);
+	const formatDesc = describeProseFormat(spec);
+
+	const formulierendHint = caseCtx.brief.includeFormulierend
+		? `Inhalt der FORMULIEREND-Sektion: inhaltliche Verdichtung des aktuellen Absatzes — was wird gesagt, in 1–3 Sätzen, in Deinen Worten. Textnah, ohne Wertung oder Argumentations-Reflexion.\n\n`
+		: '';
+
+	const interpretierendHint = caseCtx.brief.includeFormulierend
+		? `Inhalt der INTERPRETIEREND-Sektion: argumentative/funktionale Reflexion: was tut dieser Absatz im aktuellen Verlauf des Unterkapitels (vor dem Hintergrund der bisherigen interpretierenden Kette)? Welche Bewegung vollzieht er, welcher Stelle im Argumentations-Aufbau dient er? 1–3 Sätze.`
+		: `Inhalt der INTERPRETIEREND-Sektion: 2–4 Sätze. Die ersten 1–2 Sätze: was wird zum Thema gemacht, welche Position bezogen — knapp, als Inhaltsanker. Die folgenden 1–2 Sätze: welche argumentative Bewegung / Funktion vollzieht der Absatz vor dem Hintergrund der bisherigen interpretierenden Kette des Subkapitels?`;
+
 	return `
-Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst (kein Vor-/Nachtext, kein Markdown-Codefence):
+${formatDesc}
+${formulierendHint}${interpretierendHint}
 
-${caseCtx.brief.includeFormulierend ? `{
-  "formulierend": "<inhaltliche Verdichtung des aktuellen Absatzes — was wird gesagt, in 1–3 Sätzen, in Deinen Worten. Textnah, ohne Wertung oder Argumentations-Reflexion.>",
-  "interpretierend": "<argumentative/funktionale Reflexion: was tut dieser Absatz im aktuellen Verlauf des Unterkapitels (vor dem Hintergrund der bisherigen interpretierenden Kette)? Welche Bewegung vollzieht er, welcher Stelle im Argumentations-Aufbau dient er? 1–3 Sätze.>",
-  "codes": [ … ]
-}` : `{
-  "interpretierend": "<2–4 Sätze. Die ersten 1–2 Sätze: was wird zum Thema gemacht, welche Position bezogen — knapp, als Inhaltsanker. Die folgenden 1–2 Sätze: welche argumentative Bewegung / Funktion vollzieht der Absatz vor dem Hintergrund der bisherigen interpretierenden Kette des Subkapitels?>",
-  "codes": [ … ]
-}`}
+Inhalt jeder CODES-N-Sektion (Felder):
+- label: 3–5 Wörter, self-contained, retrieval-tauglich — auch isoliert vom Absatzkontext eindeutig verständlich
+- anchor_phrase: EXAKTE in-vivo-Wortgruppe aus dem aktuellen Absatz, höchstens 4 Wörter, oder leer wenn keine geeignete wörtliche Verankerung existiert
+- rationale: warum dieser Begriff die Kernthese / den argumentativen Schlüssel des Absatzes trägt, 1 Satz
 
-Codes-Struktur (für beide Fälle gleich):
-{
-  "label": "<3–5 Wörter, self-contained, retrieval-tauglich — auch isoliert vom Absatzkontext eindeutig verständlich>",
-  "anchor_phrase": "<EXAKTE in-vivo-Wortgruppe aus dem aktuellen Absatz, höchstens 4 Wörter, oder leerer String wenn keine geeignete wörtliche Verankerung existiert>",
-  "rationale": "<warum dieser Begriff die Kernthese / den argumentativen Schlüssel des Absatzes trägt, 1 Satz>"
-}
-
-**Kernthesen-Codes** — keine beliebigen markanten Begriffe, sondern die argumentativen Kerne des Absatzes. 0–2 pro Absatz.
+**Kernthesen-Codes** — keine beliebigen markanten Begriffe, sondern die argumentativen Kerne des Absatzes. 0–2 pro Absatz. (Bei 0 Codes: lasse alle CODES-Sektionen weg.)
 
 Zwei harte Anforderungen pro Code:
 (a) **Self-contained**: Das \`label\` ist auch ohne Absatzkontext eindeutig verständlich. Ein späteres Retrieval-System wird Codes verwenden, um relevante Absätze zu finden — Codes wie "Wiederholung und Veränderung", "long durée", "bis in die Gegenwart" sind isoliert mehrdeutig und damit retrieval-untauglich.
@@ -360,16 +394,23 @@ Zwei harte Anforderungen pro Code:
 
 Drei Muster in Präferenz-Reihenfolge:
 
-1. **In-vivo + self-contained** (Ideal): label und anchor_phrase identisch.
-   Beispiel: \`{ "label": "Cultural Turn", "anchor_phrase": "Cultural Turn" }\`,
-   \`{ "label": "Steigerung von Komplexität", "anchor_phrase": "Steigerung von Komplexität" }\`.
+1. **In-vivo + self-contained** (Ideal): label und anchor_phrase identisch. Beispiel:
+   ## CODES 1
+   label: Cultural Turn
+   anchor_phrase: Cultural Turn
+   rationale: Markiert die methodologische Wende des Absatzes hin zur Kultur als Analyse-Einheit
 
-2. **In-vivo mit Topic-Prefix**: wörtliche Wortgruppe + ergänzender Topic-Bezug.
-   Beispiel statt isoliertem "Wiederholung und Veränderung":
-   \`{ "label": "Kultur: Wiederholung und Veränderung", "anchor_phrase": "Wiederholung und Veränderung" }\`.
+2. **In-vivo mit Topic-Prefix**: wörtliche Wortgruppe + ergänzender Topic-Bezug. Beispiel:
+   ## CODES 1
+   label: Kultur: Wiederholung und Veränderung
+   anchor_phrase: Wiederholung und Veränderung
+   rationale: Charakterisiert Kultur als iterativen Prozess gegenüber statischen Begriffen
 
-3. **Paraphrase** (Notlösung): label ohne wörtlichen Anker.
-   Beispiel: \`{ "label": "Kultur als iterativer Prozess", "anchor_phrase": "" }\`.
+3. **Paraphrase** (Notlösung): label ohne wörtlichen Anker. Beispiel:
+   ## CODES 1
+   label: Kultur als iterativer Prozess
+   anchor_phrase:
+   rationale: Verdichtet die abschnittsleitende These ohne wörtliche Stütze
 
 Wenn der Absatz keine kristalline Kernthese trägt, lieber keinen Code als einen schwachen oder mehrdeutigen.`;
 }
@@ -394,7 +435,7 @@ ${predecessor}
 
 ${successor}
 
-Erzeuge das JSON für den AKTUELLEN ABSATZ.`;
+Erzeuge die Sektionen für den AKTUELLEN ABSATZ.`;
 }
 
 // ── Storage ───────────────────────────────────────────────────────
@@ -546,13 +587,15 @@ export async function runParagraphPass(
 	const cacheableSystemPrefix = buildSystemPrefix(caseCtx);
 	const system = buildSystemSuffix(paraCtx, caseCtx);
 	const user = buildUserMessage(paraCtx);
+	const spec = buildSectionSpec(caseCtx);
 
 	let repairResult;
 	try {
-		repairResult = await runJsonCallWithRepair({
+		repairResult = await runProseCallWithRepair({
 			cacheableSystemPrefix,
 			system,
 			user,
+			spec,
 			schema: ParagraphPassResultSchema,
 			label: 'per-paragraph',
 			maxTokens: opts.maxTokens ?? 2000,

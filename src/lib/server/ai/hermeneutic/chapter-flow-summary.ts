@@ -28,16 +28,22 @@
 import { z } from 'zod';
 import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { runJsonCallWithRepair, RepairCallExhaustedError } from '../json-extract.js';
+import { RepairCallExhaustedError } from '../json-extract.js';
+import { runProseCallWithRepair, describeProseFormat, type SectionSpec } from '../prose-extract.js';
 import { loadChapterUnits, type ChapterUnit } from './heading-hierarchy.js';
 
-// ── Output schema ─────────────────────────────────────────────────
+// ── Output schema + prose section spec ────────────────────────────
 
 const ChapterFlowResultSchema = z.object({
 	kapitelverlauf: z.string().min(1),
 });
 
 export type ChapterFlowResult = z.infer<typeof ChapterFlowResultSchema>;
+
+const FLOW_SPEC: SectionSpec = {
+	singletons: { KAPITELVERLAUF: 'multiline' },
+	lists: {},
+};
 
 // ── Context ────────────────────────────────────────────────────────
 
@@ -260,11 +266,9 @@ Outline:
 ${outlineLines}
 
 [OUTPUT-FORMAT]
-Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst (kein Vor-/Nachtext, kein Markdown-Codefence):
+${describeProseFormat(FLOW_SPEC)}
 
-{
-  "kapitelverlauf": "<${len.paragraphs}, ${len.words}, referierend-narrative Diktion, mit eingestreuten Wertungen wo aus den Hauptkapitel-Synthesen klar belegt>"
-}`;
+Längen-Kalibrierung des Sektion-Inhalts: ${len.paragraphs}, ${len.words}. Referierend-narrative Diktion, mit eingestreuten Wertungen wo aus den Hauptkapitel-Synthesen klar belegt.`;
 }
 
 function buildUserMessage(ctx: FlowContext): string {
@@ -464,10 +468,11 @@ export async function runChapterFlowSummary(
 
 	let repairResult;
 	try {
-		repairResult = await runJsonCallWithRepair({
+		repairResult = await runProseCallWithRepair({
 			system,
 			cacheSystem: true,
 			user,
+			spec: FLOW_SPEC,
 			schema: ChapterFlowResultSchema,
 			label: 'chapter-flow-summary',
 			// Output ist ein knapper Fließtext (1–3 Absätze); 2000 Tokens

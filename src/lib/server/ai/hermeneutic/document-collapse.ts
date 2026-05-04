@@ -31,10 +31,11 @@
 import { z } from 'zod';
 import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { runJsonCallWithRepair, RepairCallExhaustedError } from '../json-extract.js';
+import { RepairCallExhaustedError } from '../json-extract.js';
+import { runProseCallWithRepair, describeProseFormat, type SectionSpec } from '../prose-extract.js';
 import { loadChapterUnits, type ChapterUnit } from './heading-hierarchy.js';
 
-// ── Output schema ─────────────────────────────────────────────────
+// ── Output schema + prose section spec ────────────────────────────
 
 const AuffaelligkeitSchema = z.object({
 	scope: z.string().min(1),
@@ -47,6 +48,15 @@ const DocumentCollapseResultSchema = z.object({
 });
 
 export type DocumentCollapseResult = z.infer<typeof DocumentCollapseResultSchema>;
+
+const DOCUMENT_COLLAPSE_SPEC: SectionSpec = {
+	singletons: { SYNTHESE: 'multiline' },
+	lists: {
+		AUFFAELLIGKEITEN: {
+			fields: { scope: 'oneline', observation: 'multiline' },
+		},
+	},
+};
 
 // ── Context ────────────────────────────────────────────────────────
 
@@ -228,16 +238,15 @@ Outline:
 ${outlineLines}
 
 [OUTPUT-FORMAT]
-Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst (kein Vor-/Nachtext, kein Markdown-Codefence):
+${describeProseFormat(DOCUMENT_COLLAPSE_SPEC)}
 
-{
-  "synthese": "<8–14 Sätze, argumentative Diktion, drei Pflichtbestandteile, Niveau-Beurteilung explizit am Werktyp '${ctx.brief.work_type}' kalibriert>",
-  "auffaelligkeiten": [
-    { "scope": "<Hauptkapitel-Numerierung oder werkweit>", "observation": "<Eine Beobachtung zur argumentativen Qualität>" }
-  ]
-}
+Inhalt der SYNTHESE-Sektion: 8–14 Sätze, argumentative Diktion, drei Pflichtbestandteile, Niveau-Beurteilung explizit am Werktyp '${ctx.brief.work_type}' kalibriert.
 
-auffaelligkeiten kann leeres Array sein.`;
+Inhalt jeder AUFFAELLIGKEITEN-N-Sektion:
+- scope: Hauptkapitel-Numerierung (z.B. "Kap. 3", "Kap. 1.2") oder freitextlich "werkweit"
+- observation: Eine Beobachtung zur argumentativen Qualität auf Werk-Ebene
+
+Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Sektionen weg.`;
 }
 
 function buildUserMessage(ctx: DocumentContext): string {
@@ -389,10 +398,11 @@ export async function runDocumentCollapse(
 
 	let repairResult;
 	try {
-		repairResult = await runJsonCallWithRepair({
+		repairResult = await runProseCallWithRepair({
 			system,
 			cacheSystem: true,
 			user,
+			spec: DOCUMENT_COLLAPSE_SPEC,
 			schema: DocumentCollapseResultSchema,
 			label: 'document-collapse',
 			// 5000: work output is single (synthese + auffaelligkeiten); the

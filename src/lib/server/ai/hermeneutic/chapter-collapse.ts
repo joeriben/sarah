@@ -40,7 +40,8 @@
 import { z } from 'zod';
 import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { runJsonCallWithRepair, RepairCallExhaustedError } from '../json-extract.js';
+import { RepairCallExhaustedError } from '../json-extract.js';
+import { runProseCallWithRepair, describeProseFormat, type SectionSpec } from '../prose-extract.js';
 import {
 	loadChapterUnits,
 	chooseSubchapterLevel,
@@ -51,7 +52,7 @@ import {
 } from './heading-hierarchy.js';
 import { extractFallacy, formatFallacyLine, FALLACY_AWARENESS_REGEL } from './validity-helpers.js';
 
-// ── Output schema ─────────────────────────────────────────────────
+// ── Output schema + prose section spec ────────────────────────────
 
 const AuffaelligkeitSchema = z.object({
 	scope: z.string().min(1),
@@ -65,6 +66,18 @@ const ChapterCollapseResultSchema = z.object({
 });
 
 export type ChapterCollapseResult = z.infer<typeof ChapterCollapseResultSchema>;
+
+const CHAPTER_COLLAPSE_SPEC: SectionSpec = {
+	singletons: {
+		SYNTHESE: 'multiline',
+		ARGUMENTATIONSWIEDERGABE: 'multiline',
+	},
+	lists: {
+		AUFFAELLIGKEITEN: {
+			fields: { scope: 'oneline', observation: 'multiline' },
+		},
+	},
+};
 
 // ── Context ────────────────────────────────────────────────────────
 
@@ -538,17 +551,17 @@ ${outlineLines}
 ${preceding}
 
 [OUTPUT-FORMAT]
-Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst (kein Vor-/Nachtext, kein Markdown-Codefence):
+${describeProseFormat(CHAPTER_COLLAPSE_SPEC)}
 
-{
-  "synthese": "<6–10 Sätze, argumentative Diktion, vier Pflichtbestandteile>",
-  "argumentationswiedergabe": "<1–3 Absätze, expositorisch, neutral, gutachten-fertig>",
-  "auffaelligkeiten": [
-    { "scope": "<L2-Numerierung oder L3-Subkapitel-Numerierung oder §<Position> bei Mode 'paragraphs'>", "observation": "<Eine Beobachtung zur argumentativen Qualität dieser Einheit>" }
-  ]
-}
+Inhalt der SYNTHESE-Sektion: 6–10 Sätze, argumentative Diktion, vier Pflichtbestandteile.
 
-auffaelligkeiten kann leeres Array sein, wenn nichts qualitätsmäßig hervorzuheben ist.${ctx.brief.validityCheck && ctx.mode === 'paragraphs' ? FALLACY_AWARENESS_REGEL : ''}`;
+Inhalt der ARGUMENTATIONSWIEDERGABE-Sektion: 1–3 Absätze, expositorisch, neutral, gutachten-fertig.
+
+Inhalt jeder AUFFAELLIGKEITEN-N-Sektion:
+- scope: L2-Numerierung oder L3-Subkapitel-Numerierung oder §<Position> bei Mode 'paragraphs'
+- observation: Eine Beobachtung zur argumentativen Qualität dieser Einheit
+
+Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Sektionen weg.${ctx.brief.validityCheck && ctx.mode === 'paragraphs' ? FALLACY_AWARENESS_REGEL : ''}`;
 }
 
 function buildUserMessage(ctx: ChapterContext): string {
@@ -760,10 +773,11 @@ export async function runChapterCollapse(
 
 	let repairResult;
 	try {
-		repairResult = await runJsonCallWithRepair({
+		repairResult = await runProseCallWithRepair({
 			system,
 			cacheSystem: true,
 			user,
+			spec: CHAPTER_COLLAPSE_SPEC,
 			schema: ChapterCollapseResultSchema,
 			label: 'chapter-collapse',
 			// 6000: chapter output is dual (synthese + argumentationswiedergabe +

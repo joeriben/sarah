@@ -30,11 +30,12 @@
 import { z } from 'zod';
 import type { Provider } from '../client.js';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { runJsonCallWithRepair, RepairCallExhaustedError } from '../json-extract.js';
+import { RepairCallExhaustedError } from '../json-extract.js';
+import { runProseCallWithRepair, describeProseFormat, type SectionSpec } from '../prose-extract.js';
 import { loadResolvedOutline } from './heading-hierarchy.js';
 import { extractFallacy, formatFallacyLine, FALLACY_AWARENESS_REGEL } from './validity-helpers.js';
 
-// ── Output schema ─────────────────────────────────────────────────
+// ── Output schema + prose section spec ────────────────────────────
 
 // scope is permissive: §N (paragraph), §N:AM (argument), §N:SM (scaffolding),
 // or even a subkapitelweite Bemerkung as a free string. The downstream consumer
@@ -51,6 +52,18 @@ const GraphCollapseResultSchema = z.object({
 });
 
 export type GraphCollapseResult = z.infer<typeof GraphCollapseResultSchema>;
+
+// Section-Headered-Prose-Schema. Plural section name `AUFFAELLIGKEITEN` so the
+// parser-derived key matches the schema field exactly (parser lowercases the
+// section name into the resulting object key).
+const GRAPH_COLLAPSE_SPEC: SectionSpec = {
+	singletons: { SYNTHESE: 'multiline' },
+	lists: {
+		AUFFAELLIGKEITEN: {
+			fields: { scope: 'oneline', observation: 'multiline' },
+		},
+	},
+};
 
 // ── Context ────────────────────────────────────────────────────────
 
@@ -382,16 +395,15 @@ Werktyp: ${ctx.brief.work_type}
 Umfang Hauptteil: ${ctx.mainHeadingCount} Hauptkapitel-Überschriften, ${ctx.mainParagraphCount} Hauptabsätze.
 
 [OUTPUT-FORMAT]
-Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst (kein Vor-/Nachtext, kein Markdown-Codefence):
+${describeProseFormat(GRAPH_COLLAPSE_SPEC)}
 
-{
-  "synthese": "<4–8 Sätze, argumentative Diktion (welche Position, welche Bewegung, welche Spannung), keine Inhalts-Diktion (was steht da)>",
-  "auffaelligkeiten": [
-    { "scope": "§<Position>" | "§<Position>:A<ID>", "observation": "<Eine Beobachtung zur argumentativen Qualität dieses Absatzes/Arguments>" }
-  ]
-}
+Inhalt der SYNTHESE-Sektion: 4–8 Sätze, argumentative Diktion (welche Position, welche Bewegung, welche Spannung), keine Inhalts-Diktion (was steht da).
 
-auffaelligkeiten kann leeres Array sein, wenn nichts qualitätsmäßig hervorzuheben ist. Schreibe keine Allerwelts-Beobachtungen — nur, was bei Begutachtung wirklich relevant wäre.${ctx.brief.validityCheck ? FALLACY_AWARENESS_REGEL : ''}`;
+Inhalt jeder AUFFAELLIGKEITEN-N-Sektion:
+- scope: §<Position> oder §<Position>:A<ID> (Argument) oder §<Position>:S<ID> (Stützstruktur) oder freitextliche subkapitelweite Bemerkung
+- observation: Eine Beobachtung zur argumentativen Qualität dieses Absatzes/Arguments
+
+Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Sektionen weg. Schreibe keine Allerwelts-Beobachtungen — nur, was bei Begutachtung wirklich relevant wäre.${ctx.brief.validityCheck ? FALLACY_AWARENESS_REGEL : ''}`;
 }
 
 function buildSystemSuffix(ctx: CollapseContext): string {
@@ -610,10 +622,11 @@ export async function runGraphCollapse(
 
 	let repairResult;
 	try {
-		repairResult = await runJsonCallWithRepair({
+		repairResult = await runProseCallWithRepair({
 			cacheableSystemPrefix,
 			system,
 			user,
+			spec: GRAPH_COLLAPSE_SPEC,
 			schema: GraphCollapseResultSchema,
 			label: 'section-collapse-from-graph',
 			// 4000 (was 2000): subchapters with > ~25 arguments + > ~30 scaffolding

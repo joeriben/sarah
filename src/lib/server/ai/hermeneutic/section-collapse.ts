@@ -17,15 +17,21 @@
 
 import { z } from 'zod';
 import { query, queryOne, transaction } from '../../db/index.js';
-import { runJsonCallWithRepair, RepairCallExhaustedError } from '../json-extract.js';
+import { RepairCallExhaustedError } from '../json-extract.js';
+import { runProseCallWithRepair, describeProseFormat, type SectionSpec } from '../prose-extract.js';
 
-// ── Output schema ─────────────────────────────────────────────────
+// ── Output schema + prose section spec ────────────────────────────
 
 const SubchapterCollapseResultSchema = z.object({
 	kontextualisierend: z.string().min(1),
 });
 
 export type SubchapterCollapseResult = z.infer<typeof SubchapterCollapseResultSchema>;
+
+const COLLAPSE_SPEC: SectionSpec = {
+	singletons: { KONTEXTUALISIEREND: 'multiline' },
+	lists: {},
+};
 
 // ── Context type ──────────────────────────────────────────────────
 
@@ -235,11 +241,9 @@ ${outlineLines}
 ${completed}
 
 [OUTPUT-FORMAT]
-Antworte mit einem einzelnen JSON-Objekt der folgenden Struktur und nichts sonst (kein Vor-/Nachtext, kein Markdown-Codefence):
+${describeProseFormat(COLLAPSE_SPEC)}
 
-{
-  "kontextualisierend": "<Synthese der Subkapitel-Bewegung — was wurde hier geleistet? 4-8 Sätze, in argumentativer Diktion (welche Position, welche Bewegung, welche Spannung), nicht in Inhalts-Diktion (was steht da).>"
-}`;
+Inhalt der KONTEXTUALISIEREND-Sektion: Synthese der Subkapitel-Bewegung — was wurde hier geleistet? 4–8 Sätze, in argumentativer Diktion (welche Position, welche Bewegung, welche Spannung), nicht in Inhalts-Diktion (was steht da).`;
 }
 
 function buildUserMessage(ctx: CollapseContext): string {
@@ -356,10 +360,11 @@ export async function runSubchapterCollapse(
 
 	let repairResult;
 	try {
-		repairResult = await runJsonCallWithRepair({
+		repairResult = await runProseCallWithRepair({
 			system,
 			cacheSystem: true,
 			user,
+			spec: COLLAPSE_SPEC,
 			schema: SubchapterCollapseResultSchema,
 			label: 'section-collapse',
 			maxTokens: 1500,
