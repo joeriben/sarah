@@ -31,15 +31,16 @@
 // mit Array über alle reproduktiv-Blöcke. Keine Idempotenz (analog Schritt 1+2).
 
 import { z } from 'zod';
-import { queryOne } from '../../db/index.js';
+import { query, queryOne } from '../../db/index.js';
 import { chat, getModel, getProvider, type Provider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import {
-	loadGrundlagentheorieContainers,
+	loadGrundlagentheorieParagraphsForComplex,
 	type GrundlagentheorieContainer,
 	type GrundlagentheorieParagraph,
 } from './grundlagentheorie.js';
+import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
 
 // ── Routing-Konstrukt einlesen ────────────────────────────────────
 
@@ -420,11 +421,224 @@ const DEFAULT_REPRODUCTIVE_MODEL: { provider: Provider; model: string } = {
 	model: 'anthropic/claude-sonnet-4.6',
 };
 
+/**
+ * Anchor-skopierter DELETE für BLOCK_WUERDIGUNG + ECKPUNKT_BEFUND eines
+ * Komplexes — Idempotenz pro Walk-Knoten.
+ */
+async function clearExistingReproductiveBefundForComplex(
+	caseId: string,
+	documentId: string,
+	complexParagraphIds: string[]
+): Promise<number> {
+	if (complexParagraphIds.length === 0) return 0;
+	const r = await query(
+		`DELETE FROM function_constructs
+		 WHERE case_id = $1
+		   AND document_id = $2
+		   AND outline_function_type = 'GRUNDLAGENTHEORIE'
+		   AND construct_kind IN ('BLOCK_WUERDIGUNG', 'ECKPUNKT_BEFUND')
+		   AND anchor_element_ids <@ $3::uuid[]`,
+		[caseId, documentId, complexParagraphIds]
+	);
+	return r.rowCount ?? 0;
+}
+
+export interface ReproductiveComplexPassResult {
+	caseId: string;
+	documentId: string;
+	model: string;
+	provider: string;
+	totalLlmCalls: number;
+	totalTimingMs: number;
+	totalTokens: { input: number; output: number };
+	container: ContainerReproductiveResult;
+}
+
+/**
+ * Komplex-skopierter Eintritt für H3:GRUNDLAGENTHEORIE Schritt 3b (reproduktiv).
+ *
+ * Voraussetzungen pro Komplex: BLOCK_ROUTING (Step 2) muss bereits persistiert
+ * sein — die ¶ des Komplexes sind die Anchor-Match-Basis.
+ */
+export async function runReproductiveBlockForComplex(
+	caseId: string,
+	documentId: string,
+	complex: H3Complex,
+	options: ReproductivePassOptions = {}
+): Promise<ReproductiveComplexPassResult> {
+	if (complex.functionType !== 'GRUNDLAGENTHEORIE') {
+		throw new Error(
+			`runReproductiveBlockForComplex erwartet functionType='GRUNDLAGENTHEORIE', erhielt '${complex.functionType}' (heading=${complex.headingId})`
+		);
+	}
+	const persistConstructs = options.persistConstructs !== false;
+	const modelOverride = options.modelOverride ?? DEFAULT_REPRODUCTIVE_MODEL;
+
+	const container = await loadGrundlagentheorieParagraphsForComplex(documentId, complex);
+	if (container.paragraphs.length === 0) {
+		throw new Error(
+			`GRUNDLAGENTHEORIE-Komplex ${complex.headingId} hat keine Paragraphen — Walk-Builder sollte das verhindern.`
+		);
+	}
+
+	let routing = await loadBlockRoutingByFirstParagraph(
+		caseId,
+		documentId,
+		container.paragraphs[0].paragraphId
+	);
+	if (!routing) {
+		// Fallback: Heading-ID-Match (für etwaige Persistenz-Varianten)
+		routing = await loadBlockRoutingForContainer(caseId, documentId, container.headingId);
+	}
+	if (!routing) {
+		throw new Error(
+			`Komplex "${container.headingText}" hat kein BLOCK_ROUTING-Konstrukt — ` +
+				`Routing-Pass (Step 2) muss zuerst laufen ` +
+				`(scripts/test-h3-routing.ts <caseId> --persist).`
+		);
+	}
+
+	if (persistConstructs) {
+		await clearExistingReproductiveBefundForComplex(caseId, documentId, complex.paragraphIds);
+	}
+
+	const reproductiveBlocks = routing.blocks.filter((b) => b.classification === 'wiedergabe');
+
+	const paragraphById = new Map(container.paragraphs.map((p) => [p.paragraphId, p]));
+	const containerResultBlocks: ContainerReproductiveResult['blocks'] = [];
+	let totalLlmCalls = 0;
+	let totalTimingMs = 0;
+	let totalInputTokens = 0;
+	let totalOutputTokens = 0;
+	let lastModel = '';
+	let lastProvider = '';
+
+	for (let i = 0; i < reproductiveBlocks.length; i++) {
+		const block = reproductiveBlocks[i];
+		const blockParagraphs = block.paragraphIds.map((id) => {
+			const p = paragraphById.get(id);
+			if (!p) {
+				throw new Error(
+					`Block-¶ ${id} aus Routing-Konstrukt nicht in Komplex "${container.headingText}" gefunden.`
+				);
+			}
+			return p;
+		});
+
+		// Call 1 — H2 BLOCK_WUERDIGUNG
+		const wuerdigung = await blockWuerdigung({
+			block,
+			paragraphs: blockParagraphs,
+			containerLabel: container.headingText,
+			documentId,
+			modelOverride,
+		});
+		totalLlmCalls += 1;
+		totalTimingMs += wuerdigung.timingMs;
+		totalInputTokens += wuerdigung.tokens.input;
+		totalOutputTokens += wuerdigung.tokens.output;
+		lastModel = wuerdigung.model;
+		lastProvider = wuerdigung.provider;
+
+		// Call 2 — ECKPUNKT_CHECK
+		const eckpunkt = await eckpunktCheck({
+			block,
+			paragraphs: blockParagraphs,
+			containerLabel: container.headingText,
+			documentId,
+			modelOverride,
+		});
+		totalLlmCalls += 1;
+		totalTimingMs += eckpunkt.timingMs;
+		totalInputTokens += eckpunkt.tokens.input;
+		totalOutputTokens += eckpunkt.tokens.output;
+		lastModel = eckpunkt.model;
+		lastProvider = eckpunkt.provider;
+
+		containerResultBlocks.push({
+			blockIndex: i,
+			type: block.type,
+			paragraphIds: block.paragraphIds,
+			paragraphIndexRange: block.paragraphIndexRange,
+			dominantAuthor: block.dominantAuthor,
+			summary: wuerdigung.result.summary,
+			summaryLlmModel: wuerdigung.model,
+			summaryTimingMs: wuerdigung.timingMs,
+			summaryTokens: wuerdigung.tokens,
+			axes: eckpunkt.result.axes,
+			eckpunktLlmModel: eckpunkt.model,
+			eckpunktTimingMs: eckpunkt.timingMs,
+			eckpunktTokens: eckpunkt.tokens,
+		});
+	}
+
+	let wuerdigungConstructId: string | null = null;
+	let eckpunktConstructId: string | null = null;
+	if (persistConstructs && containerResultBlocks.length > 0) {
+		const wuerdigungContent: BlockWuerdigungContent = {
+			blocks: containerResultBlocks.map((b) => ({
+				blockIndex: b.blockIndex,
+				paragraphIds: b.paragraphIds,
+				paragraphIndexRange: b.paragraphIndexRange,
+				summary: b.summary,
+				llmModel: b.summaryLlmModel,
+				llmTimingMs: b.summaryTimingMs,
+			})),
+		};
+		const eckpunktContent: EckpunktBefundContent = {
+			blocks: containerResultBlocks.map((b) => ({
+				blockIndex: b.blockIndex,
+				paragraphIds: b.paragraphIds,
+				paragraphIndexRange: b.paragraphIndexRange,
+				axes: b.axes,
+				llmModel: b.eckpunktLlmModel,
+				llmTimingMs: b.eckpunktTimingMs,
+			})),
+		};
+		wuerdigungConstructId = await persistConstruct(
+			caseId,
+			documentId,
+			container,
+			'BLOCK_WUERDIGUNG',
+			wuerdigungContent
+		);
+		eckpunktConstructId = await persistConstruct(
+			caseId,
+			documentId,
+			container,
+			'ECKPUNKT_BEFUND',
+			eckpunktContent
+		);
+	}
+
+	return {
+		caseId,
+		documentId,
+		model: lastModel || modelOverride?.model || getModel(),
+		provider: lastProvider || modelOverride?.provider || getProvider(),
+		totalLlmCalls,
+		totalTimingMs,
+		totalTokens: { input: totalInputTokens, output: totalOutputTokens },
+		container: {
+			headingId: container.headingId,
+			headingText: container.headingText,
+			paragraphCount: container.paragraphs.length,
+			reproductiveBlockCount: reproductiveBlocks.length,
+			blocks: containerResultBlocks,
+			blockWuerdigungConstructId: wuerdigungConstructId,
+			eckpunktBefundConstructId: eckpunktConstructId,
+		},
+	};
+}
+
+/**
+ * Werk-skopierter Wrapper über den Walk: dispatched
+ * runReproductiveBlockForComplex pro GRUNDLAGENTHEORIE-Komplex.
+ */
 export async function runReproductiveBlockPass(
 	caseId: string,
 	options: ReproductivePassOptions = {}
 ): Promise<ReproductivePassResult> {
-	const persistConstructs = options.persistConstructs !== false;
 	const modelOverride = options.modelOverride ?? DEFAULT_REPRODUCTIVE_MODEL;
 
 	const caseRow = await queryOne<{ central_document_id: string | null }>(
@@ -437,13 +651,14 @@ export async function runReproductiveBlockPass(
 	}
 	const documentId = caseRow.central_document_id;
 
-	const containers = await loadGrundlagentheorieContainers(documentId);
-	if (containers.length === 0) {
+	const walk = await loadH3ComplexWalk(documentId);
+	const gthComplexes = walk.filter((c) => c.functionType === 'GRUNDLAGENTHEORIE');
+	if (gthComplexes.length === 0) {
 		throw new PreconditionFailedError({
 			heuristic: 'GRUNDLAGENTHEORIE',
-			missing: 'GRUNDLAGENTHEORIE-Container',
+			missing: 'GRUNDLAGENTHEORIE-Komplex',
 			diagnostic:
-				`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
+				`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Komplex im H3-Walk — ` +
 				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
 		});
 	}
@@ -456,144 +671,15 @@ export async function runReproductiveBlockPass(
 	let lastModel = '';
 	let lastProvider = '';
 
-	for (const container of containers) {
-		// Routing-Konstrukt für diesen Container laden — ¶-IDs des Containers
-		// sind die Anchor-Match-Basis. Wenn keins existiert: harter Fehler,
-		// Routing-Pass muss zuerst laufen.
-		let routing: BlockRoutingContentFromDb | null = null;
-		if (container.paragraphs.length > 0) {
-			routing = await loadBlockRoutingByFirstParagraph(
-				caseId,
-				documentId,
-				container.paragraphs[0].paragraphId
-			);
-		}
-		if (!routing) {
-			// Fallback: Heading-ID-Match (für etwaige Persistenz-Varianten)
-			routing = await loadBlockRoutingForContainer(caseId, documentId, container.headingId);
-		}
-		if (!routing) {
-			throw new Error(
-				`Container "${container.headingText}" hat kein BLOCK_ROUTING-Konstrukt — ` +
-					`Routing-Pass muss zuerst laufen ` +
-					`(scripts/test-h3-routing.ts <caseId> --persist).`
-			);
-		}
-
-		const reproductiveBlocks = routing.blocks.filter(
-			(b) => b.classification === 'wiedergabe'
-		);
-
-		const paragraphById = new Map(container.paragraphs.map((p) => [p.paragraphId, p]));
-		const containerResultBlocks: ContainerReproductiveResult['blocks'] = [];
-
-		for (let i = 0; i < reproductiveBlocks.length; i++) {
-			const block = reproductiveBlocks[i];
-			const blockParagraphs = block.paragraphIds.map((id) => {
-				const p = paragraphById.get(id);
-				if (!p) {
-					throw new Error(
-						`Block-¶ ${id} aus Routing-Konstrukt nicht in Container "${container.headingText}" gefunden.`
-					);
-				}
-				return p;
-			});
-
-			// Call 1 — H2 BLOCK_WUERDIGUNG
-			const wuerdigung = await blockWuerdigung({
-				block,
-				paragraphs: blockParagraphs,
-				containerLabel: container.headingText,
-				documentId,
-				modelOverride,
-			});
-			totalLlmCalls += 1;
-			totalTimingMs += wuerdigung.timingMs;
-			totalInputTokens += wuerdigung.tokens.input;
-			totalOutputTokens += wuerdigung.tokens.output;
-			lastModel = wuerdigung.model;
-			lastProvider = wuerdigung.provider;
-
-			// Call 2 — ECKPUNKT_CHECK
-			const eckpunkt = await eckpunktCheck({
-				block,
-				paragraphs: blockParagraphs,
-				containerLabel: container.headingText,
-				documentId,
-				modelOverride,
-			});
-			totalLlmCalls += 1;
-			totalTimingMs += eckpunkt.timingMs;
-			totalInputTokens += eckpunkt.tokens.input;
-			totalOutputTokens += eckpunkt.tokens.output;
-			lastModel = eckpunkt.model;
-			lastProvider = eckpunkt.provider;
-
-			containerResultBlocks.push({
-				blockIndex: i,
-				type: block.type,
-				paragraphIds: block.paragraphIds,
-				paragraphIndexRange: block.paragraphIndexRange,
-				dominantAuthor: block.dominantAuthor,
-				summary: wuerdigung.result.summary,
-				summaryLlmModel: wuerdigung.model,
-				summaryTimingMs: wuerdigung.timingMs,
-				summaryTokens: wuerdigung.tokens,
-				axes: eckpunkt.result.axes,
-				eckpunktLlmModel: eckpunkt.model,
-				eckpunktTimingMs: eckpunkt.timingMs,
-				eckpunktTokens: eckpunkt.tokens,
-			});
-		}
-
-		let wuerdigungConstructId: string | null = null;
-		let eckpunktConstructId: string | null = null;
-		if (persistConstructs && containerResultBlocks.length > 0) {
-			const wuerdigungContent: BlockWuerdigungContent = {
-				blocks: containerResultBlocks.map((b) => ({
-					blockIndex: b.blockIndex,
-					paragraphIds: b.paragraphIds,
-					paragraphIndexRange: b.paragraphIndexRange,
-					summary: b.summary,
-					llmModel: b.summaryLlmModel,
-					llmTimingMs: b.summaryTimingMs,
-				})),
-			};
-			const eckpunktContent: EckpunktBefundContent = {
-				blocks: containerResultBlocks.map((b) => ({
-					blockIndex: b.blockIndex,
-					paragraphIds: b.paragraphIds,
-					paragraphIndexRange: b.paragraphIndexRange,
-					axes: b.axes,
-					llmModel: b.eckpunktLlmModel,
-					llmTimingMs: b.eckpunktTimingMs,
-				})),
-			};
-			wuerdigungConstructId = await persistConstruct(
-				caseId,
-				documentId,
-				container,
-				'BLOCK_WUERDIGUNG',
-				wuerdigungContent
-			);
-			eckpunktConstructId = await persistConstruct(
-				caseId,
-				documentId,
-				container,
-				'ECKPUNKT_BEFUND',
-				eckpunktContent
-			);
-		}
-
-		out.push({
-			headingId: container.headingId,
-			headingText: container.headingText,
-			paragraphCount: container.paragraphs.length,
-			reproductiveBlockCount: reproductiveBlocks.length,
-			blocks: containerResultBlocks,
-			blockWuerdigungConstructId: wuerdigungConstructId,
-			eckpunktBefundConstructId: eckpunktConstructId,
-		});
+	for (const complex of gthComplexes) {
+		const result = await runReproductiveBlockForComplex(caseId, documentId, complex, options);
+		out.push(result.container);
+		totalLlmCalls += result.totalLlmCalls;
+		totalTimingMs += result.totalTimingMs;
+		totalInputTokens += result.totalTokens.input;
+		totalOutputTokens += result.totalTokens.output;
+		if (result.model) lastModel = result.model;
+		if (result.provider) lastProvider = result.provider;
 	}
 
 	return {

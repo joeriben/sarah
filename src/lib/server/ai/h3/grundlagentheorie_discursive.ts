@@ -36,15 +36,16 @@
 // Keine Idempotenz (analog Schritt 1+2+3-reproduktiv).
 
 import { z } from 'zod';
-import { queryOne } from '../../db/index.js';
+import { query, queryOne } from '../../db/index.js';
 import { chat, getModel, getProvider, type Provider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import {
-	loadGrundlagentheorieContainers,
+	loadGrundlagentheorieParagraphsForComplex,
 	type GrundlagentheorieContainer,
 	type GrundlagentheorieParagraph,
 } from './grundlagentheorie.js';
+import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
 
 // ── Routing-Konstrukt einlesen ────────────────────────────────────
 
@@ -462,11 +463,210 @@ const DEFAULT_DISCURSIVE_MODEL: { provider: Provider; model: string } = {
 	model: 'anthropic/claude-sonnet-4.6',
 };
 
+/**
+ * Anchor-skopierter DELETE für DISKURSIV_BEZUG_BEFUND eines Komplexes —
+ * Idempotenz pro Walk-Knoten.
+ */
+async function clearExistingDiskursivBezugBefundForComplex(
+	caseId: string,
+	documentId: string,
+	complexParagraphIds: string[]
+): Promise<number> {
+	if (complexParagraphIds.length === 0) return 0;
+	const r = await query(
+		`DELETE FROM function_constructs
+		 WHERE case_id = $1
+		   AND document_id = $2
+		   AND outline_function_type = 'GRUNDLAGENTHEORIE'
+		   AND construct_kind = 'DISKURSIV_BEZUG_BEFUND'
+		   AND anchor_element_ids <@ $3::uuid[]`,
+		[caseId, documentId, complexParagraphIds]
+	);
+	return r.rowCount ?? 0;
+}
+
+export interface DiscursiveComplexPassOptions extends DiscursivePassOptions {
+	/** Vorgeladene FRAGESTELLUNG, um pro Komplex DB-Read zu sparen. */
+	fragestellung?: string;
+}
+
+export interface DiscursiveComplexPassResult {
+	caseId: string;
+	documentId: string;
+	fragestellung: string;
+	thresholds: { minStandardStretchLen: number };
+	maxTokens: number;
+	model: string;
+	provider: string;
+	totalLlmCalls: number;
+	totalTimingMs: number;
+	totalTokens: { input: number; output: number };
+	container: ContainerDiscursiveResult;
+}
+
+/**
+ * Komplex-skopierter Eintritt für H3:GRUNDLAGENTHEORIE Schritt 3a (diskursiv).
+ *
+ * Voraussetzungen pro Komplex: BLOCK_ROUTING (Step 2) muss bereits persistiert
+ * sein; FRAGESTELLUNG (EXPOSITION) muss am Werk vorliegen.
+ */
+export async function runDiskursivBezugForComplex(
+	caseId: string,
+	documentId: string,
+	complex: H3Complex,
+	options: DiscursiveComplexPassOptions = {}
+): Promise<DiscursiveComplexPassResult> {
+	if (complex.functionType !== 'GRUNDLAGENTHEORIE') {
+		throw new Error(
+			`runDiskursivBezugForComplex erwartet functionType='GRUNDLAGENTHEORIE', erhielt '${complex.functionType}' (heading=${complex.headingId})`
+		);
+	}
+	const persistConstructs = options.persistConstructs !== false;
+	const minStandardStretchLen =
+		options.minStandardStretchLen ?? DEFAULT_MIN_STANDARD_STRETCH_LEN;
+	const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
+	const modelOverride = options.modelOverride ?? DEFAULT_DISCURSIVE_MODEL;
+
+	const container = await loadGrundlagentheorieParagraphsForComplex(documentId, complex);
+	if (container.paragraphs.length === 0) {
+		throw new Error(
+			`GRUNDLAGENTHEORIE-Komplex ${complex.headingId} hat keine Paragraphen — Walk-Builder sollte das verhindern.`
+		);
+	}
+
+	const fragestellung = options.fragestellung ?? (await loadFragestellung(caseId, documentId));
+	const fragestellungSnippet = fragestellung.slice(0, 200);
+
+	const routing = await loadBlockRoutingByFirstParagraph(
+		caseId,
+		documentId,
+		container.paragraphs[0].paragraphId
+	);
+	if (!routing) {
+		throw new Error(
+			`Komplex "${container.headingText}" hat kein BLOCK_ROUTING-Konstrukt — ` +
+				`Routing-Pass (Step 2) muss zuerst laufen ` +
+				`(scripts/test-h3-routing.ts <caseId> --persist).`
+		);
+	}
+
+	if (persistConstructs) {
+		await clearExistingDiskursivBezugBefundForComplex(caseId, documentId, complex.paragraphIds);
+	}
+
+	const discursiveBlocks = identifyDiscursiveBlocks(
+		container,
+		routing,
+		minStandardStretchLen
+	);
+
+	const paragraphById = new Map(container.paragraphs.map((p) => [p.paragraphId, p]));
+	const containerResultBlocks: ContainerDiscursiveResult['blocks'] = [];
+	let totalLlmCalls = 0;
+	let totalTimingMs = 0;
+	let totalInputTokens = 0;
+	let totalOutputTokens = 0;
+	let lastModel = '';
+	let lastProvider = '';
+
+	for (let i = 0; i < discursiveBlocks.length; i++) {
+		const block = discursiveBlocks[i];
+		const blockParagraphs = block.paragraphIds.map((id) => {
+			const p = paragraphById.get(id);
+			if (!p) {
+				throw new Error(
+					`Block-¶ ${id} aus diskursivem Block nicht in Komplex "${container.headingText}" gefunden.`
+				);
+			}
+			return p;
+		});
+
+		const llm = await diskursivBezugPruefen({
+			block,
+			paragraphs: blockParagraphs,
+			containerLabel: container.headingText,
+			fragestellung,
+			documentId,
+			modelOverride,
+			maxTokens,
+		});
+		totalLlmCalls += 1;
+		totalTimingMs += llm.timingMs;
+		totalInputTokens += llm.tokens.input;
+		totalOutputTokens += llm.tokens.output;
+		lastModel = llm.model;
+		lastProvider = llm.provider;
+
+		containerResultBlocks.push({
+			blockIndex: i,
+			source: block.source,
+			paragraphIds: block.paragraphIds,
+			paragraphIndexRange: block.paragraphIndexRange,
+			routingType: block.routingType,
+			dominantAuthor: block.dominantAuthor,
+			bezug: llm.result.bezug,
+			signal: llm.result.signal,
+			rationale: llm.result.rationale,
+			anchorParagraphIds: llm.result.paragraphIds,
+			llmModel: llm.model,
+			llmTimingMs: llm.timingMs,
+			tokens: llm.tokens,
+		});
+	}
+
+	let constructId: string | null = null;
+	if (persistConstructs && containerResultBlocks.length > 0) {
+		const persistedBlocks: DiskursivBezugBlockPersisted[] = containerResultBlocks.map(
+			(b) => ({
+				blockIndex: b.blockIndex,
+				paragraphIds: b.paragraphIds,
+				paragraphIndexRange: b.paragraphIndexRange,
+				source: b.source,
+				bezug: b.bezug,
+				signal: b.signal,
+				rationale: b.rationale,
+				anchorParagraphIds: b.anchorParagraphIds,
+				llmModel: b.llmModel,
+				llmTimingMs: b.llmTimingMs,
+			})
+		);
+		constructId = await persistDiskursivBezugBefund(caseId, documentId, container, {
+			fragestellungSnippet,
+			blocks: persistedBlocks,
+			thresholds: { minStandardStretchLen },
+		});
+	}
+
+	return {
+		caseId,
+		documentId,
+		fragestellung,
+		thresholds: { minStandardStretchLen },
+		maxTokens,
+		model: lastModel || modelOverride?.model || getModel(),
+		provider: lastProvider || modelOverride?.provider || getProvider(),
+		totalLlmCalls,
+		totalTimingMs,
+		totalTokens: { input: totalInputTokens, output: totalOutputTokens },
+		container: {
+			headingId: container.headingId,
+			headingText: container.headingText,
+			paragraphCount: container.paragraphs.length,
+			discursiveBlockCount: discursiveBlocks.length,
+			blocks: containerResultBlocks,
+			diskursivBezugBefundConstructId: constructId,
+		},
+	};
+}
+
+/**
+ * Werk-skopierter Wrapper über den Walk: lädt FRAGESTELLUNG einmal,
+ * dispatched runDiskursivBezugForComplex pro GRUNDLAGENTHEORIE-Komplex.
+ */
 export async function runDiskursivBezugPass(
 	caseId: string,
 	options: DiscursivePassOptions = {}
 ): Promise<DiscursivePassResult> {
-	const persistConstructs = options.persistConstructs !== false;
 	const minStandardStretchLen =
 		options.minStandardStretchLen ?? DEFAULT_MIN_STANDARD_STRETCH_LEN;
 	const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
@@ -482,20 +682,20 @@ export async function runDiskursivBezugPass(
 	}
 	const documentId = caseRow.central_document_id;
 
-	const containers = await loadGrundlagentheorieContainers(documentId);
-	if (containers.length === 0) {
+	const walk = await loadH3ComplexWalk(documentId);
+	const gthComplexes = walk.filter((c) => c.functionType === 'GRUNDLAGENTHEORIE');
+	if (gthComplexes.length === 0) {
 		throw new PreconditionFailedError({
 			heuristic: 'GRUNDLAGENTHEORIE',
-			missing: 'GRUNDLAGENTHEORIE-Container',
+			missing: 'GRUNDLAGENTHEORIE-Komplex',
 			diagnostic:
-				`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
+				`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Komplex im H3-Walk — ` +
 				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
 		});
 	}
 
-	// FRAGESTELLUNG einmal laden — gilt für alle Container des Werks.
+	// FRAGESTELLUNG einmal laden — gilt für alle Komplexe des Werks.
 	const fragestellung = await loadFragestellung(caseId, documentId);
-	const fragestellungSnippet = fragestellung.slice(0, 200);
 
 	const out: ContainerDiscursiveResult[] = [];
 	let totalLlmCalls = 0;
@@ -505,111 +705,18 @@ export async function runDiskursivBezugPass(
 	let lastModel = '';
 	let lastProvider = '';
 
-	for (const container of containers) {
-		// Routing-Konstrukt für diesen Container laden — Anchor-Match über
-		// erstes ¶ (analog reproductive). Wenn keins existiert: harter
-		// Fehler, Routing-Pass muss zuerst laufen.
-		let routing: BlockRoutingContentFromDb | null = null;
-		if (container.paragraphs.length > 0) {
-			routing = await loadBlockRoutingByFirstParagraph(
-				caseId,
-				documentId,
-				container.paragraphs[0].paragraphId
-			);
-		}
-		if (!routing) {
-			throw new Error(
-				`Container "${container.headingText}" hat kein BLOCK_ROUTING-Konstrukt — ` +
-					`Routing-Pass muss zuerst laufen ` +
-					`(scripts/test-h3-routing.ts <caseId> --persist).`
-			);
-		}
-
-		const discursiveBlocks = identifyDiscursiveBlocks(
-			container,
-			routing,
-			minStandardStretchLen
-		);
-
-		const paragraphById = new Map(container.paragraphs.map((p) => [p.paragraphId, p]));
-		const containerResultBlocks: ContainerDiscursiveResult['blocks'] = [];
-
-		for (let i = 0; i < discursiveBlocks.length; i++) {
-			const block = discursiveBlocks[i];
-			const blockParagraphs = block.paragraphIds.map((id) => {
-				const p = paragraphById.get(id);
-				if (!p) {
-					throw new Error(
-						`Block-¶ ${id} aus diskursivem Block nicht in Container "${container.headingText}" gefunden.`
-					);
-				}
-				return p;
-			});
-
-			const llm = await diskursivBezugPruefen({
-				block,
-				paragraphs: blockParagraphs,
-				containerLabel: container.headingText,
-				fragestellung,
-				documentId,
-				modelOverride,
-				maxTokens,
-			});
-			totalLlmCalls += 1;
-			totalTimingMs += llm.timingMs;
-			totalInputTokens += llm.tokens.input;
-			totalOutputTokens += llm.tokens.output;
-			lastModel = llm.model;
-			lastProvider = llm.provider;
-
-			containerResultBlocks.push({
-				blockIndex: i,
-				source: block.source,
-				paragraphIds: block.paragraphIds,
-				paragraphIndexRange: block.paragraphIndexRange,
-				routingType: block.routingType,
-				dominantAuthor: block.dominantAuthor,
-				bezug: llm.result.bezug,
-				signal: llm.result.signal,
-				rationale: llm.result.rationale,
-				anchorParagraphIds: llm.result.paragraphIds,
-				llmModel: llm.model,
-				llmTimingMs: llm.timingMs,
-				tokens: llm.tokens,
-			});
-		}
-
-		let constructId: string | null = null;
-		if (persistConstructs && containerResultBlocks.length > 0) {
-			const persistedBlocks: DiskursivBezugBlockPersisted[] = containerResultBlocks.map(
-				(b) => ({
-					blockIndex: b.blockIndex,
-					paragraphIds: b.paragraphIds,
-					paragraphIndexRange: b.paragraphIndexRange,
-					source: b.source,
-					bezug: b.bezug,
-					signal: b.signal,
-					rationale: b.rationale,
-					anchorParagraphIds: b.anchorParagraphIds,
-					llmModel: b.llmModel,
-					llmTimingMs: b.llmTimingMs,
-				})
-			);
-			constructId = await persistDiskursivBezugBefund(caseId, documentId, container, {
-				fragestellungSnippet,
-				blocks: persistedBlocks,
-				thresholds: { minStandardStretchLen },
-			});
-		}
-
-		out.push({
-			headingId: container.headingId,
-			headingText: container.headingText,
-			paragraphCount: container.paragraphs.length,
-			discursiveBlockCount: discursiveBlocks.length,
-			blocks: containerResultBlocks,
-			diskursivBezugBefundConstructId: constructId,
+	for (const complex of gthComplexes) {
+		const result = await runDiskursivBezugForComplex(caseId, documentId, complex, {
+			...options,
+			fragestellung,
 		});
+		out.push(result.container);
+		totalLlmCalls += result.totalLlmCalls;
+		totalTimingMs += result.totalTimingMs;
+		totalInputTokens += result.totalTokens.input;
+		totalOutputTokens += result.totalTokens.output;
+		if (result.model) lastModel = result.model;
+		if (result.provider) lastProvider = result.provider;
 	}
 
 	return {

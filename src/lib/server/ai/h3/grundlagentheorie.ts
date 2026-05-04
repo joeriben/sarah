@@ -31,6 +31,7 @@
 
 import { query, queryOne } from '../../db/index.js';
 import { PreconditionFailedError } from './precondition.js';
+import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
 
 // ── Container-Auflösung GRUNDLAGENTHEORIE ─────────────────────────
 
@@ -759,16 +760,93 @@ export async function clearExistingGrundlagentheorie(
 	return r.rowCount ?? 0;
 }
 
+// ── Komplex-skopierte API (Walk-Dispatch) ─────────────────────────
+
+/**
+ * Lädt die Absätze eines GRUNDLAGENTHEORIE-Komplexes in Container-Form.
+ * Wird auch von Step 2 (routing), Step 3a (discursive) und Step 3b
+ * (reproductive) konsumiert — selbe Form, selbe ¶-Reihenfolge.
+ */
+export async function loadGrundlagentheorieParagraphsForComplex(
+	documentId: string,
+	complex: H3Complex
+): Promise<GrundlagentheorieContainer> {
+	if (complex.paragraphIds.length === 0) {
+		return {
+			headingId: complex.headingId,
+			headingText: complex.headingText,
+			paragraphs: [],
+		};
+	}
+	const rows = (
+		await query<{
+			paragraph_id: string;
+			char_start: number;
+			char_end: number;
+			text: string;
+		}>(
+			`SELECT p.id AS paragraph_id,
+			        p.char_start,
+			        p.char_end,
+			        SUBSTRING(dc.full_text FROM p.char_start + 1
+			                              FOR p.char_end - p.char_start) AS text
+			 FROM document_elements p
+			 JOIN document_content dc ON dc.naming_id = p.document_id
+			 WHERE p.document_id = $1
+			   AND p.id = ANY($2::uuid[])
+			 ORDER BY p.char_start`,
+			[documentId, complex.paragraphIds]
+		)
+	).rows;
+
+	return {
+		headingId: complex.headingId,
+		headingText: complex.headingText,
+		paragraphs: rows.map((r, i) => ({
+			paragraphId: r.paragraph_id,
+			charStart: r.char_start,
+			charEnd: r.char_end,
+			text: r.text.trim(),
+			indexInContainer: i,
+		})),
+	};
+}
+
+/**
+ * Anchor-skopierter DELETE für VERWEIS_PROFIL eines Komplexes — Idempotenz
+ * pro Walk-Knoten. Reichweite: nur Konstrukte, deren anchor_element_ids ⊆
+ * complex.paragraphIds. Andere parallele Komplexe bleiben unberührt.
+ */
+async function clearExistingVerweisProfileForComplex(
+	caseId: string,
+	documentId: string,
+	complexParagraphIds: string[]
+): Promise<number> {
+	if (complexParagraphIds.length === 0) return 0;
+	const r = await query(
+		`DELETE FROM function_constructs
+		 WHERE case_id = $1
+		   AND document_id = $2
+		   AND outline_function_type = 'GRUNDLAGENTHEORIE'
+		   AND construct_kind = 'VERWEIS_PROFIL'
+		   AND anchor_element_ids <@ $3::uuid[]`,
+		[caseId, documentId, complexParagraphIds]
+	);
+	return r.rowCount ?? 0;
+}
+
 // ── Public API ────────────────────────────────────────────────────
+
+export interface BibliographyResult {
+	entryCount: number;
+	parsedAuthorYear: number;
+	unparsedRawOnly: number;
+}
 
 export interface GrundlagentheoriePassResult {
 	caseId: string;
 	documentId: string;
-	bibliography: {
-		entryCount: number;
-		parsedAuthorYear: number;
-		unparsedRawOnly: number;
-	};
+	bibliography: BibliographyResult;
 	containers: Array<{
 		headingId: string;
 		headingText: string;
@@ -778,43 +856,41 @@ export interface GrundlagentheoriePassResult {
 	}>;
 }
 
-export async function runGrundlagentheoriePass(
+export interface GrundlagentheorieStep1ComplexResult {
+	caseId: string;
+	documentId: string;
+	headingId: string;
+	headingText: string;
+	paragraphCount: number;
+	profile: VerweisProfile;
+	verweisProfileConstructId: string;
+}
+
+export interface GrundlagentheorieStep1Options {
+	persistConstructs?: boolean;
+	/** Vorgeladenen Bibliografie-Index optional reinreichen, um pro Komplex DB-Read zu sparen. */
+	bibIndex?: Array<{
+		id: string;
+		first_author_lastname: string | null;
+		year: string | null;
+		year_suffix: string | null;
+	}>;
+}
+
+/**
+ * Werk-skopierte Bibliografie-Persistierung (idempotent via DELETE-then-INSERT
+ * pro document_id). Eigenes Werk-Knoten-Tool, läuft einmal pro Werk vor den
+ * GRUNDLAGENTHEORIE-Komplexen (positional am ersten GTH-Komplex).
+ */
+export async function persistBibliographyForWerk(
 	caseId: string,
+	documentId: string,
 	options: { persistConstructs?: boolean } = {}
-): Promise<GrundlagentheoriePassResult> {
-	const persistConstructs = options.persistConstructs !== false;
+): Promise<BibliographyResult> {
+	const persist = options.persistConstructs !== false;
 
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
-
-	const containers = await loadGrundlagentheorieContainers(documentId);
-	if (containers.length === 0) {
-		throw new PreconditionFailedError({
-			heuristic: 'GRUNDLAGENTHEORIE',
-			missing: 'GRUNDLAGENTHEORIE-Container',
-			diagnostic:
-				`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
-				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
-		});
-	}
-
-	// Idempotenz-Schicht für die gesamte GTH-Pyramide: alte Konstrukte aus
-	// allen 5 Sub-Pässen wegräumen, bevor Step 1 das erste neue persistiert.
-	// Steps 2/3a/3b/4 müssen dann kein eigenes clearExisting machen.
-	if (persistConstructs) {
-		await clearExistingGrundlagentheorie(caseId, documentId);
-	}
-
-	// Bibliografie: persistConstructs=true => INSERT (idempotent), sonst nur lesen.
 	let bibEntries: BibliographyExtractedEntry[] = [];
-	if (persistConstructs) {
+	if (persist) {
 		bibEntries = await persistBibliography(caseId, documentId);
 	} else {
 		const existing = await loadBibliographyIndex(documentId);
@@ -832,32 +908,124 @@ export async function runGrundlagentheoriePass(
 		(e) => e.firstAuthorLastname && e.year
 	).length;
 
+	return {
+		entryCount: bibEntries.length,
+		parsedAuthorYear,
+		unparsedRawOnly: bibEntries.length - parsedAuthorYear,
+	};
+}
+
+/**
+ * Komplex-skopierter Eintritt für H3:GRUNDLAGENTHEORIE Schritt 1
+ * (deterministisch, kein LLM). Pro Komplex genau ein VERWEIS_PROFIL-Konstrukt.
+ *
+ * Voraussetzung: Bibliografie ist bereits werk-weit persistiert
+ * (`persistBibliographyForWerk`). Der bibIndex kann optional vorgeladen
+ * reingereicht werden — sonst wird er pro Aufruf gelesen.
+ */
+export async function runGrundlagentheorieStep1ForComplex(
+	caseId: string,
+	documentId: string,
+	complex: H3Complex,
+	options: GrundlagentheorieStep1Options = {}
+): Promise<GrundlagentheorieStep1ComplexResult> {
+	if (complex.functionType !== 'GRUNDLAGENTHEORIE') {
+		throw new Error(
+			`runGrundlagentheorieStep1ForComplex erwartet functionType='GRUNDLAGENTHEORIE', erhielt '${complex.functionType}' (heading=${complex.headingId})`
+		);
+	}
+	const persist = options.persistConstructs !== false;
+
+	const container = await loadGrundlagentheorieParagraphsForComplex(documentId, complex);
+	if (container.paragraphs.length === 0) {
+		throw new Error(
+			`GRUNDLAGENTHEORIE-Komplex ${complex.headingId} hat keine Paragraphen — Walk-Builder sollte das verhindern.`
+		);
+	}
+
+	const bibIndex = options.bibIndex ?? (await loadBibliographyIndex(documentId));
+
+	if (persist) {
+		await clearExistingVerweisProfileForComplex(caseId, documentId, complex.paragraphIds);
+	}
+
+	const profile = buildVerweisProfile(container, bibIndex);
+	let constructId = '';
+	if (persist) {
+		constructId = await persistVerweisProfile(caseId, documentId, container, profile);
+	}
+
+	return {
+		caseId,
+		documentId,
+		headingId: container.headingId,
+		headingText: container.headingText,
+		paragraphCount: container.paragraphs.length,
+		profile,
+		verweisProfileConstructId: constructId,
+	};
+}
+
+/**
+ * Werk-skopierter Wrapper über den Walk: lädt die GRUNDLAGENTHEORIE-Komplexe
+ * aus dem H3-Walk, persistiert die werkweite Bibliografie einmal und
+ * delegiert pro Komplex an `runGrundlagentheorieStep1ForComplex`. Aufrufer
+ * (Test-Skripte, Legacy-Pfade) sehen weiter die werkweite Aggregat-Struktur.
+ */
+export async function runGrundlagentheoriePass(
+	caseId: string,
+	options: { persistConstructs?: boolean } = {}
+): Promise<GrundlagentheoriePassResult> {
+	const persistConstructs = options.persistConstructs !== false;
+
+	const caseRow = await queryOne<{ central_document_id: string | null }>(
+		`SELECT central_document_id FROM cases WHERE id = $1`,
+		[caseId]
+	);
+	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
+	if (!caseRow.central_document_id) {
+		throw new Error(`Case ${caseId} has no central_document_id`);
+	}
+	const documentId = caseRow.central_document_id;
+
+	const walk = await loadH3ComplexWalk(documentId);
+	const gthComplexes = walk.filter((c) => c.functionType === 'GRUNDLAGENTHEORIE');
+	if (gthComplexes.length === 0) {
+		throw new PreconditionFailedError({
+			heuristic: 'GRUNDLAGENTHEORIE',
+			missing: 'GRUNDLAGENTHEORIE-Komplex',
+			diagnostic:
+				`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Komplex im H3-Walk — ` +
+				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
+		});
+	}
+
+	const bibliography = await persistBibliographyForWerk(caseId, documentId, {
+		persistConstructs,
+	});
 	const bibIndex = await loadBibliographyIndex(documentId);
 
 	const out: GrundlagentheoriePassResult['containers'] = [];
-	for (const c of containers) {
-		const profile = buildVerweisProfile(c, bibIndex);
-		let constructId = '';
-		if (persistConstructs) {
-			constructId = await persistVerweisProfile(caseId, documentId, c, profile);
-		}
+	for (const complex of gthComplexes) {
+		const result = await runGrundlagentheorieStep1ForComplex(
+			caseId,
+			documentId,
+			complex,
+			{ persistConstructs, bibIndex }
+		);
 		out.push({
-			headingId: c.headingId,
-			headingText: c.headingText,
-			paragraphCount: c.paragraphs.length,
-			profile,
-			verweisProfileConstructId: constructId,
+			headingId: result.headingId,
+			headingText: result.headingText,
+			paragraphCount: result.paragraphCount,
+			profile: result.profile,
+			verweisProfileConstructId: result.verweisProfileConstructId,
 		});
 	}
 
 	return {
 		caseId,
 		documentId,
-		bibliography: {
-			entryCount: bibEntries.length,
-			parsedAuthorYear,
-			unparsedRawOnly: bibEntries.length - parsedAuthorYear,
-		},
+		bibliography,
 		containers: out,
 	};
 }

@@ -29,11 +29,12 @@ import { chat, getModel, getProvider, type Provider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import {
-	loadGrundlagentheorieContainers,
+	loadGrundlagentheorieParagraphsForComplex,
 	extractInlineCitations,
 	type GrundlagentheorieContainer,
 	type GrundlagentheorieParagraph,
 } from './grundlagentheorie.js';
+import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
 
 // ── Verdachts-Block-Identifikation (deterministisch) ───────────────
 
@@ -380,14 +381,169 @@ const DEFAULT_ROUTING_MODEL: { provider: Provider; model: string } = {
 	model: 'anthropic/claude-sonnet-4.6',
 };
 
-export async function runRoutingPass(
+/**
+ * Anchor-skopierter DELETE für BLOCK_ROUTING eines Komplexes — Idempotenz
+ * pro Walk-Knoten. Reichweite: nur Konstrukte, deren anchor_element_ids ⊆
+ * complex.paragraphIds.
+ */
+async function clearExistingBlockRoutingForComplex(
 	caseId: string,
+	documentId: string,
+	complexParagraphIds: string[]
+): Promise<number> {
+	if (complexParagraphIds.length === 0) return 0;
+	const r = await query(
+		`DELETE FROM function_constructs
+		 WHERE case_id = $1
+		   AND document_id = $2
+		   AND outline_function_type = 'GRUNDLAGENTHEORIE'
+		   AND construct_kind = 'BLOCK_ROUTING'
+		   AND anchor_element_ids <@ $3::uuid[]`,
+		[caseId, documentId, complexParagraphIds]
+	);
+	return r.rowCount ?? 0;
+}
+
+export interface RoutingComplexPassResult {
+	caseId: string;
+	documentId: string;
+	thresholds: { minClusterLen: number; minCitationGapLen: number };
+	container: ContainerRoutingResult;
+	totalLlmCalls: number;
+	totalTimingMs: number;
+	totalTokens: { input: number; output: number };
+	model: string;
+	provider: string;
+}
+
+/**
+ * Komplex-skopierter Eintritt für H3:GRUNDLAGENTHEORIE Schritt 2 (Routing).
+ * Genau ein GRUNDLAGENTHEORIE-Komplex pro Aufruf — pro Verdachts-Block ein
+ * billiger LLM-Call, alle Resultate in einem BLOCK_ROUTING-Konstrukt
+ * persistiert (anchor = complex.paragraphIds).
+ */
+export async function runRoutingForComplex(
+	caseId: string,
+	documentId: string,
+	complex: H3Complex,
 	options: RoutingPassOptions = {}
-): Promise<RoutingPassResult> {
+): Promise<RoutingComplexPassResult> {
+	if (complex.functionType !== 'GRUNDLAGENTHEORIE') {
+		throw new Error(
+			`runRoutingForComplex erwartet functionType='GRUNDLAGENTHEORIE', erhielt '${complex.functionType}' (heading=${complex.headingId})`
+		);
+	}
 	const persistConstructs = options.persistConstructs !== false;
 	const minClusterLen = options.minClusterLen ?? DEFAULT_MIN_CLUSTER_LEN;
 	const minCitationGapLen = options.minCitationGapLen ?? DEFAULT_MIN_CITATION_GAP_LEN;
 	const modelOverride = options.modelOverride ?? DEFAULT_ROUTING_MODEL;
+	const thresholds = { minClusterLen, minCitationGapLen };
+
+	const container = await loadGrundlagentheorieParagraphsForComplex(documentId, complex);
+	if (container.paragraphs.length === 0) {
+		throw new Error(
+			`GRUNDLAGENTHEORIE-Komplex ${complex.headingId} hat keine Paragraphen — Walk-Builder sollte das verhindern.`
+		);
+	}
+
+	if (persistConstructs) {
+		await clearExistingBlockRoutingForComplex(caseId, documentId, complex.paragraphIds);
+	}
+
+	const suspicionBlocks = identifySuspicionBlocks(container, thresholds);
+	const paragraphById = new Map(container.paragraphs.map((p) => [p.paragraphId, p]));
+
+	const containerResultBlocks: ContainerRoutingResult['blocks'] = [];
+	let totalLlmCalls = 0;
+	let totalTimingMs = 0;
+	let totalInputTokens = 0;
+	let totalOutputTokens = 0;
+	let lastModel = '';
+	let lastProvider = '';
+
+	for (const block of suspicionBlocks) {
+		const blockParagraphs = block.paragraphIds.map((id) => {
+			const p = paragraphById.get(id);
+			if (!p) throw new Error(`Block-¶ ${id} not found in container`);
+			return p;
+		});
+		const llm = await wiedergabePruefen({
+			block,
+			paragraphs: blockParagraphs,
+			containerLabel: container.headingText,
+			documentId,
+			modelOverride,
+		});
+		totalLlmCalls += 1;
+		totalTimingMs += llm.timingMs;
+		totalInputTokens += llm.tokens.input;
+		totalOutputTokens += llm.tokens.output;
+		lastModel = llm.model;
+		lastProvider = llm.provider;
+		containerResultBlocks.push({
+			type: block.type,
+			paragraphIds: block.paragraphIds,
+			paragraphIndexRange: block.paragraphIndexRange,
+			dominantAuthor: block.dominantAuthor,
+			classification: llm.result.classification,
+			rationale: llm.result.rationale,
+			confidence: llm.result.confidence,
+			llmModel: llm.model,
+			llmTimingMs: llm.timingMs,
+			tokens: llm.tokens,
+		});
+	}
+
+	let constructId: string | null = null;
+	if (persistConstructs) {
+		const persistedBlocks: RoutedBlockPersisted[] = containerResultBlocks.map((b) => ({
+			paragraphIds: b.paragraphIds,
+			paragraphIndexRange: b.paragraphIndexRange,
+			type: b.type,
+			dominantAuthor: b.dominantAuthor,
+			classification: b.classification,
+			rationale: b.rationale,
+			confidence: b.confidence,
+			llmModel: b.llmModel,
+			llmTimingMs: b.llmTimingMs,
+		}));
+		constructId = await persistBlockRouting(caseId, documentId, container, {
+			blocks: persistedBlocks,
+			thresholds,
+		});
+	}
+
+	return {
+		caseId,
+		documentId,
+		thresholds,
+		container: {
+			headingId: container.headingId,
+			headingText: container.headingText,
+			paragraphCount: container.paragraphs.length,
+			blocks: containerResultBlocks,
+			blockRoutingConstructId: constructId,
+		},
+		totalLlmCalls,
+		totalTimingMs,
+		totalTokens: { input: totalInputTokens, output: totalOutputTokens },
+		model: lastModel || modelOverride?.model || getModel(),
+		provider: lastProvider || modelOverride?.provider || getProvider(),
+	};
+}
+
+/**
+ * Werk-skopierter Wrapper über den Walk: dispatched runRoutingForComplex
+ * für jeden GRUNDLAGENTHEORIE-Komplex und aggregiert.
+ */
+export async function runRoutingPass(
+	caseId: string,
+	options: RoutingPassOptions = {}
+): Promise<RoutingPassResult> {
+	const minClusterLen = options.minClusterLen ?? DEFAULT_MIN_CLUSTER_LEN;
+	const minCitationGapLen = options.minCitationGapLen ?? DEFAULT_MIN_CITATION_GAP_LEN;
+	const modelOverride = options.modelOverride ?? DEFAULT_ROUTING_MODEL;
+	const thresholds = { minClusterLen, minCitationGapLen };
 
 	const caseRow = await queryOne<{ central_document_id: string | null }>(
 		`SELECT central_document_id FROM cases WHERE id = $1`,
@@ -399,18 +555,18 @@ export async function runRoutingPass(
 	}
 	const documentId = caseRow.central_document_id;
 
-	const containers = await loadGrundlagentheorieContainers(documentId);
-	if (containers.length === 0) {
+	const walk = await loadH3ComplexWalk(documentId);
+	const gthComplexes = walk.filter((c) => c.functionType === 'GRUNDLAGENTHEORIE');
+	if (gthComplexes.length === 0) {
 		throw new PreconditionFailedError({
 			heuristic: 'GRUNDLAGENTHEORIE',
-			missing: 'GRUNDLAGENTHEORIE-Container',
+			missing: 'GRUNDLAGENTHEORIE-Komplex',
 			diagnostic:
-				`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
+				`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Komplex im H3-Walk — ` +
 				`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`,
 		});
 	}
 
-	const thresholds = { minClusterLen, minCitationGapLen };
 	const out: ContainerRoutingResult[] = [];
 	let totalLlmCalls = 0;
 	let totalTimingMs = 0;
@@ -419,70 +575,15 @@ export async function runRoutingPass(
 	let lastModel = '';
 	let lastProvider = '';
 
-	for (const container of containers) {
-		const suspicionBlocks = identifySuspicionBlocks(container, thresholds);
-		const paragraphById = new Map(container.paragraphs.map((p) => [p.paragraphId, p]));
-
-		const containerResultBlocks: ContainerRoutingResult['blocks'] = [];
-		for (const block of suspicionBlocks) {
-			const blockParagraphs = block.paragraphIds.map((id) => {
-				const p = paragraphById.get(id);
-				if (!p) throw new Error(`Block-¶ ${id} not found in container`);
-				return p;
-			});
-			const llm = await wiedergabePruefen({
-				block,
-				paragraphs: blockParagraphs,
-				containerLabel: container.headingText,
-				documentId,
-				modelOverride,
-			});
-			totalLlmCalls += 1;
-			totalTimingMs += llm.timingMs;
-			totalInputTokens += llm.tokens.input;
-			totalOutputTokens += llm.tokens.output;
-			lastModel = llm.model;
-			lastProvider = llm.provider;
-			containerResultBlocks.push({
-				type: block.type,
-				paragraphIds: block.paragraphIds,
-				paragraphIndexRange: block.paragraphIndexRange,
-				dominantAuthor: block.dominantAuthor,
-				classification: llm.result.classification,
-				rationale: llm.result.rationale,
-				confidence: llm.result.confidence,
-				llmModel: llm.model,
-				llmTimingMs: llm.timingMs,
-				tokens: llm.tokens,
-			});
-		}
-
-		let constructId: string | null = null;
-		if (persistConstructs) {
-			const persistedBlocks: RoutedBlockPersisted[] = containerResultBlocks.map((b) => ({
-				paragraphIds: b.paragraphIds,
-				paragraphIndexRange: b.paragraphIndexRange,
-				type: b.type,
-				dominantAuthor: b.dominantAuthor,
-				classification: b.classification,
-				rationale: b.rationale,
-				confidence: b.confidence,
-				llmModel: b.llmModel,
-				llmTimingMs: b.llmTimingMs,
-			}));
-			constructId = await persistBlockRouting(caseId, documentId, container, {
-				blocks: persistedBlocks,
-				thresholds,
-			});
-		}
-
-		out.push({
-			headingId: container.headingId,
-			headingText: container.headingText,
-			paragraphCount: container.paragraphs.length,
-			blocks: containerResultBlocks,
-			blockRoutingConstructId: constructId,
-		});
+	for (const complex of gthComplexes) {
+		const result = await runRoutingForComplex(caseId, documentId, complex, options);
+		out.push(result.container);
+		totalLlmCalls += result.totalLlmCalls;
+		totalTimingMs += result.totalTimingMs;
+		totalInputTokens += result.totalTokens.input;
+		totalOutputTokens += result.totalTokens.output;
+		if (result.model) lastModel = result.model;
+		if (result.provider) lastProvider = result.provider;
 	}
 
 	return {
