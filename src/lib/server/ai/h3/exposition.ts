@@ -424,6 +424,26 @@ async function llmFallbackVollerContainer(
 
 // ── Persistenz ────────────────────────────────────────────────────
 
+async function clearExistingExposition(
+	caseId: string,
+	documentId: string
+): Promise<number> {
+	// Idempotenz: alte EXPOSITION-Konstrukte (FRAGESTELLUNG, MOTIVATION)
+	// für dieses Werk wegräumen. FRAGESTELLUNG_BEURTEILUNG wird absichtlich
+	// NICHT gelöscht — das ist ein eigener Beurteilungs-Lauf
+	// (runBeurteilungOnly), läuft separat und steht nicht im Auftrags-
+	// Verhältnis zum Rekonstruktions-Pass.
+	const r = await query(
+		`DELETE FROM function_constructs
+		 WHERE case_id = $1
+		   AND document_id = $2
+		   AND outline_function_type = 'EXPOSITION'
+		   AND construct_kind IN ('FRAGESTELLUNG', 'MOTIVATION')`,
+		[caseId, documentId]
+	);
+	return r.rowCount ?? 0;
+}
+
 async function persistConstruct(
 	caseId: string,
 	documentId: string,
@@ -481,10 +501,11 @@ export interface ExpositionPassResult {
 //
 // Eigener Eintrittspunkt, der NUR den Beurteilungs-Schritt ausführt.
 // Lässt FRAGESTELLUNG / MOTIVATION unangetastet — schützt validierte
-// Stände, weil Re-Run-Idempotenz für H3:EXPOSITION noch nicht
-// implementiert ist (siehe docs/h3_implementation_status.md, offener
-// Punkt 2). Verwendet dieselbe Parser/Fallback-Logik wie der Haupt-
-// Pass, um an dasselbe Material zu kommen wie der Rekonstruktions-Call.
+// Stände eines getrennten Rekonstruktions-Laufs. (Der Haupt-Pass
+// runExpositionPass schreibt sie selbst idempotent, siehe
+// clearExistingExposition.) Verwendet dieselbe Parser/Fallback-Logik
+// wie der Haupt-Pass, um an dasselbe Material zu kommen wie der
+// Rekonstruktions-Call.
 
 export interface BeurteilungPassResult {
 	caseId: string;
@@ -683,6 +704,10 @@ export async function runExpositionPass(caseId: string): Promise<ExpositionPassR
 			}
 		}
 	}
+
+	// Idempotenz-Schicht: vor dem Persist alte FRAGESTELLUNG/MOTIVATION
+	// wegräumen. Re-Run produziert deterministisch denselben End-Stand.
+	await clearExistingExposition(caseId, documentId);
 
 	let fragestellungConstructId: string | null = null;
 	let motivationConstructId: string | null = null;

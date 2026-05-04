@@ -730,6 +730,34 @@ async function persistVerweisProfile(
 	return row.id;
 }
 
+// ── Idempotenz: Pyramide-zentral ──────────────────────────────────
+
+/**
+ * Räumt alle GRUNDLAGENTHEORIE-Konstrukte für ein Werk weg. Wird am Anfang
+ * von Step 1 aufgerufen — Steps 2/3a/3b/4 erben die Tabula rasa, weil sie
+ * alle nur on-top INSERTen. Re-Run der gesamten Pyramide produziert dann
+ * deterministisch denselben Stand.
+ *
+ * Hinweis: Wenn ein User EXKURS gefahren hat (re_spec im version_stack des
+ * FORSCHUNGSGEGENSTAND-Konstrukts), geht dieser Stand bei Re-Run der
+ * GTH-Pyramide verloren. Das ist gewollt: ein GTH-Re-Run rekonstruiert
+ * den Forschungsgegenstand von Grund auf — anschließend müsste EXKURS
+ * separat erneut gefahren werden, um den re_spec wieder anzuhängen.
+ */
+export async function clearExistingGrundlagentheorie(
+	caseId: string,
+	documentId: string
+): Promise<number> {
+	const r = await query(
+		`DELETE FROM function_constructs
+		 WHERE case_id = $1
+		   AND document_id = $2
+		   AND outline_function_type = 'GRUNDLAGENTHEORIE'`,
+		[caseId, documentId]
+	);
+	return r.rowCount ?? 0;
+}
+
 // ── Public API ────────────────────────────────────────────────────
 
 export interface GrundlagentheoriePassResult {
@@ -771,6 +799,13 @@ export async function runGrundlagentheoriePass(
 			`Werk ${documentId} hat keinen GRUNDLAGENTHEORIE-Container — ` +
 			`erst FUNKTIONSTYP_ZUWEISEN-Vor-Heuristik laufen oder Outline-UI manuell setzen.`
 		);
+	}
+
+	// Idempotenz-Schicht für die gesamte GTH-Pyramide: alte Konstrukte aus
+	// allen 5 Sub-Pässen wegräumen, bevor Step 1 das erste neue persistiert.
+	// Steps 2/3a/3b/4 müssen dann kein eigenes clearExisting machen.
+	if (persistConstructs) {
+		await clearExistingGrundlagentheorie(caseId, documentId);
 	}
 
 	// Bibliografie: persistConstructs=true => INSERT (idempotent), sonst nur lesen.
