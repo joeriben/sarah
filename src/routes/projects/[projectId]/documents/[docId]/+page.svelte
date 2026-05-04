@@ -2371,13 +2371,6 @@
 		display: flex; align-items: center; gap: 0.7rem;
 		flex-wrap: wrap;
 	}
-	.opt-toggle {
-		display: inline-flex; align-items: center; gap: 0.4rem;
-		font-size: 0.82rem; color: #c9cdd5;
-		cursor: pointer;
-	}
-	.opt-toggle input { cursor: pointer; }
-	.opt-toggle input:disabled { cursor: not-allowed; }
 	.heuristic-radio {
 		flex-basis: 100%;
 		display: flex; flex-direction: column; gap: 0.35rem;
