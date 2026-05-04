@@ -52,12 +52,14 @@
 			while (counter.length < lvl) counter.push(0);
 			counter.length = lvl;
 			counter[lvl - 1] = (counter[lvl - 1] ?? 0) + 1;
-			const parserDepth = h.parserNumbering?.split('.').length ?? 0;
-			const effectiveNumbering =
-				h.parserNumbering && parserDepth === lvl
-					? h.parserNumbering
-					: counter.join('.');
-			return { ...h, effectiveNumbering };
+			// Counter ist Master (s. Server outline.ts). Bei User-Edit am
+			// Level wandert der Counter, parserNumbering bleibt stale — daher
+			// muss hasNumberingMismatch hier neu gegen den frischen Counter
+			// geprüft werden, nicht aus dem Initial-Load übernommen.
+			const effectiveNumbering = counter.join('.');
+			const hasNumberingMismatch =
+				h.parserNumbering !== null && h.parserNumbering !== effectiveNumbering;
+			return { ...h, effectiveNumbering, hasNumberingMismatch };
 		});
 	}
 

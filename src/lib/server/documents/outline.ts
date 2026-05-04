@@ -188,17 +188,16 @@ export async function loadEffectiveOutline(
 		while (counter.length < lvl) counter.push(0);
 		counter.length = lvl;
 		counter[lvl - 1] = (counter[lvl - 1] ?? 0) + 1;
-		// Prefer parser-extracted numbering when its depth matches the
-		// effective level — that's what the source DOCX actually says. If
-		// user changed the level, parserNumbering may be stale (e.g. "1.2"
-		// while effectiveLevel=3), so fall back to auto-counter in that
-		// case. Without this preference, a single misclassified heading
-		// shifts the entire downstream auto-numbering relative to source.
-		const parserNumberingDepth = h.parserNumbering?.split('.').length ?? 0;
-		const effectiveNumbering = h.parserNumbering && parserNumberingDepth === lvl
-			? h.parserNumbering
-			: counter.join('.');
-		return { ...h, effectiveNumbering };
+		// Counter ist Master der Numerierung — folgt der Dokument-Position
+		// lückenlos. parserNumbering kann durch DOCX-Author-Fehler oder
+		// OCR-Drift inkonsistent sein; blindes Übernehmen erzeugt visuelle
+		// Brüche zwischen aufeinanderfolgenden Headings. Abweichung wird
+		// via hasNumberingMismatch (additiv zum DB-Flag) signalisiert.
+		const effectiveNumbering = counter.join('.');
+		const hasNumberingMismatch =
+			h.hasNumberingMismatch ||
+			(h.parserNumbering !== null && h.parserNumbering !== effectiveNumbering);
+		return { ...h, effectiveNumbering, hasNumberingMismatch };
 	});
 
 	return {
