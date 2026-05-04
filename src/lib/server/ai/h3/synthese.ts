@@ -53,6 +53,7 @@ import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
 import { extractAndValidateJSON, type ExtractResult } from '../json-extract.js';
+import { PreconditionFailedError } from './precondition.js';
 
 // ── Container-Loading ─────────────────────────────────────────────
 
@@ -582,30 +583,24 @@ export async function runSynthesePass(
 		);
 	}
 
-	// No-op: keine SYNTHESE-Container im Werk → leerer Pass.
+	// Setzung 2026-05-04: keine SYNTHESE-Container im Werk → STOP, kein
+	// no-op-Return. Spec docs/h3_orchestrator_spec.md #2: harte Vorbedingung
+	// (SYNTHESE-Material) verletzt → Run-State `failed` mit Reviewer-Recovery-
+	// Diagnose. Kein "stiller Skip", weil das beim Orchestrator-Stuck-Guard
+	// landen würde und die echte Diagnose verschluckt wäre.
+	//
+	// Critical-Friend-Hinweis im Diagnose-Text: häufiger Fall in literatur-
+	// basierten BAs ist, dass die Synthese-Funktion in einem Kapitel mitläuft,
+	// das als DURCHFUEHRUNG markiert wurde (z.B. "die theoretisch motivierten
+	// Bereiche zusammenführendes" Pädagogik-Kapitel). Reviewer prüft Outline-
+	// Funktionstypen und kann ggf. umtaggen.
 	if (containers.length === 0) {
-		return {
-			caseId,
-			documentId,
-			syntheseContainers: [],
-			befundCount: 0,
-			fragestellungSnippet: fsRes.text?.slice(0, 200) ?? null,
-			forschungsgegenstandSnippet: fgRes.fg?.text.slice(0, 200) ?? null,
-			subjectKeywords: fgRes.fg?.subjectKeywords ?? [],
-			gesamtergebnis: null,
-			constructId: null,
-			deletedPriorCount: 0,
-			llmCalls: 0,
-			llmTimingMs: 0,
-			tokens: { input: 0, output: 0 },
-			provider: '',
-			model: '',
-			diagnostics: {
-				fragestellungCount: fsRes.diag.count,
-				forschungsgegenstandCount: fgRes.diag.count,
-				warnings,
-			},
-		};
+		throw new PreconditionFailedError({
+			heuristic: 'SYNTHESE',
+			missing: 'SYNTHESE-Container im Outline',
+			diagnostic:
+				'Kein als SYNTHESE markiertes Kapitel im Werk gefunden — die Heuristik kann ohne SYNTHESE-Material kein GESAMTERGEBNIS aggregieren. Reviewer-Aktion: prüfen, ob ein anderes Kapitel funktional die Synthese-Leistung erfüllt (häufig: ein Kapitel, das mehrere theoretische Stränge zusammenführt, oder ein "Fazit" in dem Synthese und Schlussreflexion verschmelzen). In diesen Fällen den Funktionstyp am Heading umtaggen und Pipeline neu triggern. Falls das Werk strukturell keine integrierende Synthese leistet: das ist ein Befund, der im Werk-Gutacht zur Abwertung führt.',
+		});
 	}
 
 	if (!fsRes.text) {

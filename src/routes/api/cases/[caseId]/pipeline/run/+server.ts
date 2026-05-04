@@ -6,7 +6,12 @@
 //
 //   POST   — startet einen neuen Run oder resumed einen pausierten/laufenden;
 //            antwortet mit text/event-stream (SSE) bis zu 'completed', 'paused'
-//            oder 'failed'. Body: { include_synthetic?: bool, cost_cap_usd?: number }.
+//            oder 'failed'. Body:
+//              { heuristic?: 'h1'|'h2'|'h3',  // exklusive Pfad-Wahl
+//                include_validity?: bool,    // H1-Modifikator
+//                cost_cap_usd?: number }
+//            heuristic-Default: aus dem Brief abgeleitet (h3_enabled=true
+//            → 'h3', sonst 'h1'). H1/H2/H3 sind exklusive Pfade.
 //   GET    — gibt den aktuellen Run-Stand als JSON zurück (für Reload/Polling).
 //   DELETE — setzt cancel_requested = true; der laufende Loop stoppt nach
 //            dem nächsten atomaren Step graceful, persistierter Stand bleibt.
@@ -93,21 +98,26 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	}
 
 	const body = (await request.json().catch(() => ({}))) as {
-		include_synthetic?: boolean;
+		heuristic?: 'h1' | 'h2' | 'h3';
 		include_validity?: boolean;
-		include_h3?: boolean;
 		cost_cap_usd?: number | null;
 	};
-	// include_validity / include_h3: explicit body wins, sonst Default aus
-	// dem zugeordneten Brief (assessment_briefs.validity_check / .h3_enabled).
-	// h3_enabled in Mig 047 als Default false eingeführt — bestehende Briefs
-	// laufen unverändert mit H1 (+ optional H2).
+	// heuristic: explicit body wins, sonst Default aus dem Brief
+	// (h3_enabled=true → 'h3'; sonst 'h1'). H1, H2, H3 sind exklusive
+	// Pfade pro Run; Brief-Spalte `h3_enabled` ist Übergangs-Modellierung
+	// und wird in einer Folge-Migration zu einer expliziten heuristic-
+	// Spalte mit Werten 'h1'|'h2'|'h3'.
+	// include_validity ist H1-spezifischer Modifikator (argument_validity
+	// einschieben); explicit body wins, sonst Default aus dem Brief.
 	const explicitValidity = typeof body?.include_validity === 'boolean' ? body.include_validity : null;
-	const explicitH3 = typeof body?.include_h3 === 'boolean' ? body.include_h3 : null;
+	const briefHeuristic: 'h1' | 'h3' = access.brief_h3_enabled ? 'h3' : 'h1';
+	const heuristic: 'h1' | 'h2' | 'h3' =
+		body?.heuristic === 'h1' || body?.heuristic === 'h2' || body?.heuristic === 'h3'
+			? body.heuristic
+			: briefHeuristic;
 	const options: RunOptions = {
-		include_synthetic: body?.include_synthetic === true,
+		heuristic,
 		include_validity: explicitValidity ?? access.brief_validity_check,
-		include_h3: explicitH3 ?? access.brief_h3_enabled,
 		cost_cap_usd: typeof body?.cost_cap_usd === 'number' ? body.cost_cap_usd : null,
 	};
 

@@ -50,6 +50,7 @@ import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
 import { extractAndValidateJSON, type ExtractResult } from '../json-extract.js';
+import { PreconditionFailedError } from './precondition.js';
 
 // ── Container-Loading ─────────────────────────────────────────────
 
@@ -561,33 +562,22 @@ export async function runSchlussreflexionPass(
 		warnings.push(`GESAMTERGEBNIS: ${geRes.diag.count} Konstrukte vorhanden — jüngstes verwendet.`);
 	}
 
+	// Setzung 2026-05-04: gleiche Architektur wie SYNTHESE — keine
+	// SCHLUSSREFLEXION-Container im Werk → STOP, kein no-op-Return. Spec
+	// docs/h3_orchestrator_spec.md #2 Stuck-Guard würde sonst greifen und
+	// die echte Diagnose verschlucken.
+	//
+	// Recovery-Hinweis: häufig in BAs verschmilzt SCHLUSSREFLEXION mit
+	// SYNTHESE im "Fazit"-Kapitel. Heute kann pro Heading nur EIN Funktions-
+	// typ markiert werden — Reviewer muss die Wahl treffen oder bis zur
+	// Multi-Funktionstyp-Modellierung (Spawn-Task 2026-05-04) warten.
 	if (containers.length === 0) {
-		return {
-			caseId,
-			documentId,
-			srContainers: [],
-			fragestellungSnippet: fsRes.text?.slice(0, 200) ?? null,
-			forschungsgegenstandSnippet: fgRes.fg?.text.slice(0, 200) ?? null,
-			gesamtergebnisSnippet: geRes.ge?.text.slice(0, 200) ?? null,
-			hadMethoden: false,
-			hadBasis: false,
-			geltungsanspruchText: null,
-			grenzenText: null,
-			anschlussforschungText: null,
-			constructId: null,
-			deletedPriorCount: 0,
-			llmCalls: 0,
-			llmTimingMs: 0,
-			tokens: { input: 0, output: 0 },
-			provider: '',
-			model: '',
-			diagnostics: {
-				fragestellungCount: fsRes.diag.count,
-				forschungsgegenstandCount: fgRes.diag.count,
-				gesamtergebnisCount: geRes.diag.count,
-				warnings,
-			},
-		};
+		throw new PreconditionFailedError({
+			heuristic: 'SCHLUSSREFLEXION',
+			missing: 'SCHLUSSREFLEXION-Container im Outline',
+			diagnostic:
+				'Kein als SCHLUSSREFLEXION markiertes Kapitel im Werk gefunden — die Heuristik kann ohne SR-Material keinen GELTUNGSANSPRUCH/GRENZEN/ANSCHLUSSFORSCHUNG extrahieren. Reviewer-Aktion: prüfen, ob ein anderes Kapitel (häufig "Fazit", "Schluss", "Diskussion") funktional die Schlussreflexion erfüllt — oft verschmilzt SR mit SYNTHESE im selben Kapitel. Heute kann nur EIN Funktionstyp pro Heading vergeben werden, also entscheiden welche Funktion dominiert. Bis zur Multi-Funktionstyp-Modellierung: Funktionstyp am Heading umtaggen und Pipeline neu triggern. Falls das Werk strukturell keine Schlussreflexion leistet: das ist ein Befund, der im Werk-Gutacht zur Abwertung führt.',
+		});
 	}
 
 	if (!fsRes.text) {

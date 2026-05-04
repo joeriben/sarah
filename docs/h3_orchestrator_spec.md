@@ -7,9 +7,13 @@ Konzeptionelle Grundlage:
 - Status-Stand: [`h3_implementation_status.md`](./h3_implementation_status.md), [`h3_grundlagentheorie_status.md`](./h3_grundlagentheorie_status.md)
 - Heutiger Pipeline-Orchestrator: Memory `project_pipeline_run_orchestrator.md` (Mig 038)
 
-## Andockpunkt (Mother-Setzung, unverändert)
+## Andockpunkt (Mother-Setzung, korrigiert 2026-05-04)
 
-H3 hängt sich an `phasesForRun()` in `src/lib/server/pipeline/orchestrator.ts:563-575` als **zusätzliche Phasen**. Mig 038 (SSE, Pause/Resume, Idempotenz, Token-Tracking, `cancel_requested`) bleibt unverändert; H3 erbt das Verhalten. Outline-Confirm-Gate (`outline_status='confirmed'`) bleibt Vorbedingung. `executeStep()` (Z.482–559) Pass-Signaturen eingefroren — H3 als neue Pass-Funktion, alte Signaturen unangetastet.
+H3 hängt sich an `phasesForRun()` in `src/lib/server/pipeline/orchestrator.ts` als **alternative Phasen-Liste** — H1, H2 und H3 sind drei eigenständige, **exklusive** Heuristik-Pfade pro Run (Memory `project_three_heuristics_architecture.md`). Bei `include_h3=true` läuft ausschließlich H3, NICHT H1+H3. Wer mehrere Pfade auf demselben Werk anwenden will, triggert sequenziell mehrere Runs — automatische Verkettung gibt es nicht.
+
+Mig 038 (SSE, Pause/Resume, Idempotenz, Token-Tracking, `cancel_requested`) bleibt unverändert; H3 erbt das Verhalten. Outline-Confirm-Gate (`outline_status='confirmed'`) bleibt Vorbedingung. `executeStep()` Pass-Signaturen eingefroren — H3 als neue Pass-Funktion, alte Signaturen unangetastet.
+
+> **Korrektur-Hinweis 2026-05-04:** frühere Fassung dieser Spec (Z.12 vor Korrektur) und die Status-Doku haben H3 als "zusätzliche Phasen" beschrieben, die nach H1/H2 anhängen. Das war falsch und führte zu einem fehlgeschlagenen E2E-Test, bei dem `include_h3=true` 109 H1-AG-Atome triggerte, bevor irgendeine H3-Phase laufen konnte.
 
 ## Reihenfolge der H3-Phasen (vom User gesetzt)
 
@@ -228,7 +232,9 @@ Die H3-Phasen-Sequenz dieser Spec gilt für `qualification_review` (BA/MA/Diss).
 
 Falltyp-Routing greift erst, wenn Falltyp-System (Memory `project_falltyp_architecture.md`, Stufe 3 der UI-Roadmap) am Case persistiert ist. **Diese Spec adressiert nur das H3-Sequencing für `qualification_review`** — die anderen Falltypen brauchen ihre eigenen Routing-Entscheidungen, die nicht durch die H3-Phasen-Liste laufen.
 
-Heute (vor Falltyp-System): Pipeline-Run wird per Brief-Flag `h3_enabled` aktiviert; ohne den Flag läuft H1/H2 wie bisher. Falltyp-Determinierung kommt mit dem Falltyp-System nach.
+Heute (vor Falltyp-System): Pipeline-Run wählt EINEN exklusiven Heuristik-Pfad pro Run. Brief-Flag `h3_enabled=true` → Default-Pfad ist H3; sonst H1. Body-Param `heuristic: 'h1'|'h2'|'h3'` überschreibt den Brief-Default. Wer mehrere Pfade auf demselben Werk anwenden will, triggert sequenziell mehrere Runs — automatische Verkettung gibt es nicht.
+
+> **Korrektur 2026-05-04:** vor dieser Korrektur war im Code `include_h3: boolean` als additives Flag modelliert (H3 hängte an H1+H2 an). Das war falsch und führte zu einem fehlgeschlagenen E2E-Test, bei dem `include_h3: true` 109 H1-AG-Atome triggerte, bevor irgendeine H3-Phase laufen konnte. Korrigiert: `RunOptions.heuristic: 'h1'|'h2'|'h3'`, exklusive Pfad-Wahl. Brief-Spalte `h3_enabled` bleibt vorerst als Übergangs-Modellierung; Folge-Migration ersetzt sie durch eine explizite `heuristic`-Spalte.
 
 ---
 

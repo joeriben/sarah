@@ -55,7 +55,7 @@ interface PipelineStatus {
 		current_index: number;
 		total_in_phase: number | null;
 		last_step_label: string | null;
-		options: { include_synthetic?: boolean; cost_cap_usd?: number | null };
+		options: { heuristic?: 'h1' | 'h2' | 'h3'; include_validity?: boolean; cost_cap_usd?: number | null };
 		cancel_requested: boolean;
 		error_message: string | null;
 		accumulated_input_tokens: number;

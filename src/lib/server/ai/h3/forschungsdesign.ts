@@ -60,6 +60,43 @@ function paragraphHasMethodenMarker(text: string): boolean {
 	return METHODEN_MARKERS.some((re) => re.test(text));
 }
 
+// ── Marker-Set für Aufbau-Skizzen ─────────────────────────────────
+//
+// Aufbau-Skizzen sind Plan/Vorgehensweise-Beschreibungen in der Einleitung —
+// methodologisch unbegründet, aber strukturell-narrativ erkennbar. Critical-
+// Friend-Befund: planvoll, aber methodisch nicht reflektiert. Drei Marker-
+// Familien: sequentielle Reihenfolge ("im ersten Teil … im zweiten Teil …"),
+// Aufbau-Vokabular ("Aufbau dieser Arbeit", "im Folgenden"), Werk-
+// Selbstreferenz ("die Arbeit gliedert sich").
+
+const AUFBAU_SEQUENTIAL_MARKERS: RegExp[] = [
+	/\bim\s+(ersten|zweiten|dritten|vierten|letzten)\s+(teil|kapitel|abschnitt|schritt)\b/i,
+	/\b(zunächst|zuerst|anschließend|danach|abschließend|schließlich|im\s+folgenden|sodann|sodass)\b/i,
+	/\bdarauf(hin|\s+aufbauend)?\b/i,
+	/\b(zum\s+abschluss|am\s+ende\s+der\s+arbeit|im\s+letzten)\b/i,
+];
+const AUFBAU_GLIEDERUNG_MARKERS: RegExp[] = [
+	/\bdie\s+arbeit\s+(gliedert\s+sich|ist\s+gegliedert|besteht\s+aus|umfasst|setzt\s+sich\s+zusammen)\b/i,
+	/\b(aufbau|gliederung|struktur)\s+(dieser|der\s+vorliegenden)\s+arbeit\b/i,
+	/\bim\s+folgenden\s+wird\b/i,
+	/\b(in\s+kapitel|im\s+kapitel)\s+\d+\b/i,
+];
+
+function paragraphHasAufbauMarker(text: string): { hits: number; isAufbau: boolean } {
+	let sequentialHits = 0;
+	for (const re of AUFBAU_SEQUENTIAL_MARKERS) {
+		const matches = text.match(re);
+		if (matches) sequentialHits += matches.length;
+	}
+	const gliederungHit = AUFBAU_GLIEDERUNG_MARKERS.some((re) => re.test(text));
+	// Aufbau-Skizze gilt als detektiert, wenn entweder ≥3 sequentielle Marker
+	// im selben ¶ (typisches "Im ersten Teil … im zweiten Teil … abschließend …"-
+	// Pattern) oder ≥1 Gliederungs-Marker plus ≥1 sequenzieller Marker.
+	const isAufbau =
+		sequentialHits >= 3 || (gliederungHit && sequentialHits >= 1);
+	return { hits: sequentialHits + (gliederungHit ? 1 : 0), isAufbau };
+}
+
 // ── ¶-Sammlung mit Provenienz ────────────────────────────────────
 
 type Provenance = 'outline_container' | 'exposition_fallback' | 'fulltext_regex';
@@ -270,6 +307,60 @@ async function collectParagraphs(documentId: string): Promise<{
 	return { paragraphs: [], strategy: null, containerLabel: null };
 }
 
+/**
+ * Lädt alle ¶ aus EXPOSITION-Containern (ohne Marker-Filter). Wird für die
+ * Aufbau-Skizzen-Suche genutzt — sowohl regex-basiert (paragraphHasAufbauMarker)
+ * als auch als LLM-Input wenn Regex nichts findet.
+ */
+async function loadExpositionAllParagraphs(
+	documentId: string
+): Promise<{ paragraphId: string; charStart: number; charEnd: number; text: string }[]> {
+	const rows = (await query<{
+		paragraph_id: string;
+		char_start: number;
+		char_end: number;
+		text: string;
+	}>(
+		`WITH heading_with_type AS (
+		   SELECT de.id AS heading_id,
+		          de.char_start,
+		          hc.outline_function_type
+		   FROM document_elements de
+		   JOIN heading_classifications hc ON hc.element_id = de.id
+		   WHERE de.document_id = $1
+		     AND de.element_type = 'heading'
+		     AND de.section_kind = 'main'
+		     AND hc.outline_function_type IS NOT NULL
+		     AND COALESCE(hc.excluded, false) = false
+		 )
+		 SELECT p.id AS paragraph_id,
+		        p.char_start,
+		        p.char_end,
+		        SUBSTRING(dc.full_text FROM p.char_start + 1
+		                              FOR p.char_end - p.char_start) AS text
+		 FROM document_elements p
+		 JOIN document_content dc ON dc.naming_id = p.document_id
+		 JOIN LATERAL (
+		   SELECT hwt.outline_function_type
+		   FROM heading_with_type hwt
+		   WHERE hwt.char_start <= p.char_start
+		   ORDER BY hwt.char_start DESC
+		   LIMIT 1
+		 ) h ON h.outline_function_type = 'EXPOSITION'
+		 WHERE p.document_id = $1
+		   AND p.element_type = 'paragraph'
+		   AND p.section_kind = 'main'
+		 ORDER BY p.char_start`,
+		[documentId]
+	)).rows;
+	return rows.map((r) => ({
+		paragraphId: r.paragraph_id,
+		charStart: r.char_start,
+		charEnd: r.char_end,
+		text: r.text.trim(),
+	}));
+}
+
 // ── Bezugsrahmen: FRAGESTELLUNG + FORSCHUNGSGEGENSTAND ───────────
 //
 // Beide sind HARTE Vorbedingungen. Der `loadBezugsrahmen`-Aufrufer ist
@@ -365,6 +456,202 @@ async function persistVirtualContainer(
 		[caseId, documentId, label, JSON.stringify(ranges)]
 	);
 	if (!row) throw new Error('Failed to persist virtual container for FORSCHUNGSDESIGN');
+	return row.id;
+}
+
+// ── AUFBAU_SKIZZE: Regex-Erkennung + LLM-Fallback ─────────────────
+//
+// Critical-Friend-Befund für BAs ohne FORSCHUNGSDESIGN-Material: das Werk
+// hat einen Aufbau-Plan in der Einleitung (Vorhaben-Statement), aber keine
+// methodologische Begründung. Pyramide:
+//   1. Regex: ¶-Suche in EXPOSITION mit AUFBAU_*_MARKERS (billig, deterministisch)
+//   2. LLM-Fallback: ein Pass auf alle EXPOSITION-¶ mit Plan/Vorgehensweise-
+//      Frage (teurer, aber robust gegen Formulierungs-Vielfalt)
+//   3. wenn beide leer → PreconditionFailedError mit Reviewer-Recovery-Hint
+
+interface AufbauSkizzeFinding {
+	text: string;
+	source: 'regex' | 'llm';
+	anchorParagraphIds: string[];
+}
+
+async function findAufbauSkizzeRegex(
+	documentId: string
+): Promise<AufbauSkizzeFinding | null> {
+	const expoParagraphs = await loadExpositionAllParagraphs(documentId);
+	if (expoParagraphs.length === 0) return null;
+
+	// Setzung 2026-05-04: Aufbau-Skizzen stehen typischerweise am ENDE der
+	// Einleitung — oft über 3-5 ¶ verteilt mit je 1-2 Markern (Per-¶-
+	// Schwellenwert wird dadurch nie erreicht). Rückwärts-Strategie:
+	//   - vom letzten EXPOSITION-¶ rückwärts iterieren
+	//   - jeden ¶ auf Marker-Hits prüfen (paragraphHasAufbauMarker.hits)
+	//   - Block sammeln, solange ¶ mind. 1 Marker-Hit hat ODER die Lücke
+	//     zwischen Markern <2 ¶ ist (1 zwischendurch leerer ¶ erlaubt,
+	//     z.B. Überleitungs-Satz)
+	//   - bei 2 ¶ in Folge ohne Marker → Block-Ende
+	// Block gilt als Aufbau-Skizze, wenn:
+	//   - mind. 3 sequenzielle Marker insgesamt im Block
+	//   - ODER 1 Gliederungs-Marker + 1 sequenzieller Marker im Block
+	//   - ODER mind. 2 ¶ mit je 1+ sequentiellem Marker
+	const block: typeof expoParagraphs = [];
+	let consecutiveEmpty = 0;
+	for (let i = expoParagraphs.length - 1; i >= 0; i--) {
+		const p = expoParagraphs[i];
+		const m = paragraphHasAufbauMarker(p.text);
+		if (m.hits === 0) {
+			consecutiveEmpty++;
+			if (consecutiveEmpty >= 2) break;
+			// Erlaubt: 1 zwischendurch leerer ¶ — wird mitgenommen, falls Block
+			// schon angefangen hat (Überleitungs-Satz mitten im Aufbau-Block).
+			if (block.length > 0) block.unshift(p);
+			continue;
+		}
+		consecutiveEmpty = 0;
+		block.unshift(p);
+	}
+	if (block.length === 0) return null;
+
+	// Block-Akzeptanzkriterium: mind. 3 sequentielle Marker im Block ODER
+	// 1 Gliederungs-Marker + 1 sequentieller Marker ODER ≥2 ¶ mit Markern.
+	let totalSequential = 0;
+	let hasGliederung = false;
+	let paragraphsWithMarker = 0;
+	for (const p of block) {
+		let pSeq = 0;
+		for (const re of AUFBAU_SEQUENTIAL_MARKERS) {
+			const matches = p.text.match(re);
+			if (matches) pSeq += matches.length;
+		}
+		const pGl = AUFBAU_GLIEDERUNG_MARKERS.some((re) => re.test(p.text));
+		totalSequential += pSeq;
+		if (pGl) hasGliederung = true;
+		if (pSeq > 0 || pGl) paragraphsWithMarker++;
+	}
+	const accepted =
+		totalSequential >= 3 ||
+		(hasGliederung && totalSequential >= 1) ||
+		paragraphsWithMarker >= 2;
+	if (!accepted) return null;
+
+	const text = block.map((p) => p.text).join('\n\n');
+	return {
+		text,
+		source: 'regex',
+		anchorParagraphIds: block.map((p) => p.paragraphId),
+	};
+}
+
+const AufbauSkizzeLlmSchema = z.object({
+	found: z.boolean(),
+	plan_text: z.string().nullable(),
+	anchor_paragraph_indices: z.array(z.number().int().nonnegative()).nullable(),
+});
+
+async function findAufbauSkizzeLlm(
+	documentId: string,
+	bezugsrahmen: Bezugsrahmen
+): Promise<{ finding: AufbauSkizzeFinding | null; tokens: { input: number; output: number } }> {
+	const expoParagraphs = await loadExpositionAllParagraphs(documentId);
+	if (expoParagraphs.length === 0) {
+		return { finding: null, tokens: { input: 0, output: 0 } };
+	}
+
+	const system = [
+		'Du bist ein analytisches Werkzeug. Aufgabe: in den vorgelegten Absätzen aus der Einleitung einer wissenschaftlichen Arbeit prüfen, ob eine AUFBAU-SKIZZE (Plan/Vorgehensweise des Werks) erkennbar ist.',
+		'',
+		'Eine AUFBAU-SKIZZE ist ein Text, der die Gliederung/Vorgehensweise der Arbeit beschreibt — typischerweise mit sequentieller Reihenfolge ("Im ersten Teil … im zweiten Teil … abschließend …") oder Werk-Selbstreferenz ("Die Arbeit gliedert sich in …", "Im Folgenden wird …").',
+		'',
+		'WICHTIG: AUFBAU-SKIZZE ist KEIN methodologisch begründetes Forschungsdesign. Die Skizze beschreibt nur den Aufbau, nicht das Warum (Methodenwahl, Verfahrensbegründung). Wenn die Begründung methodologisch trägt, ist es METHODOLOGIE/METHODEN — das wird woanders extrahiert. Hier nur den Plan-Charakter erkennen.',
+		'',
+		'Bezugsrahmen (zur Lese-Orientierung, NICHT zu reproduzieren):',
+		`  FRAGESTELLUNG: ${bezugsrahmen.fragestellungText}`,
+		`  FORSCHUNGSGEGENSTAND: ${bezugsrahmen.forschungsgegenstandText}`,
+		'',
+		'Antworte ausschließlich als JSON:',
+		'{',
+		'  "found": true | false,',
+		'  "plan_text": "<wörtlicher Plan-Text aus den Absätzen>" | null,',
+		'  "anchor_paragraph_indices": [<Indizes der relevanten Absätze>] | null',
+		'}',
+		'',
+		'Bei "found": false → plan_text und anchor_paragraph_indices sind null.',
+		'Bei "found": true → plan_text enthält den extrahierten Text (Wortlaut, ggf. mit Kürzungen via "…"), anchor_paragraph_indices listet die Indizes der Absätze, in denen der Plan steht (mehrere möglich).',
+	].join('\n');
+
+	const userMessage = [
+		'EXPOSITION-Absätze (in Werk-Reihenfolge, indiziert):',
+		'',
+		...expoParagraphs.map((p, i) => `[${i}] ${p.text}`),
+	].join('\n\n');
+
+	const response = await chat({
+		system,
+		messages: [{ role: 'user', content: userMessage }],
+		maxTokens: 1500,
+		responseFormat: 'json',
+		documentIds: [documentId],
+	});
+
+	const parsed = extractAndValidateJSON(response.text, AufbauSkizzeLlmSchema);
+	if (!parsed.ok) {
+		throw new Error(
+			`AUFBAU_SKIZZE LLM-Pass: Antwort nicht parsbar (stage=${parsed.stage}): ${parsed.error}\n` +
+			`Raw: ${response.text.slice(0, 500)}`
+		);
+	}
+	const result = parsed.value;
+	const tokens = { input: response.inputTokens, output: response.outputTokens };
+
+	if (!result.found || !result.plan_text || !result.anchor_paragraph_indices) {
+		return { finding: null, tokens };
+	}
+	const anchorIds = result.anchor_paragraph_indices
+		.filter((i) => i >= 0 && i < expoParagraphs.length)
+		.map((i) => expoParagraphs[i].paragraphId);
+	if (anchorIds.length === 0) {
+		// LLM hat found:true, aber keine validen Indizes → behandeln wir defensiv
+		// als "doch nicht gefunden", damit die Pipeline keinen Konstrukt ohne
+		// Anker persistiert (Mig-043-CHECK: cardinality(anchor_element_ids)>=1).
+		return { finding: null, tokens };
+	}
+	return {
+		finding: { text: result.plan_text, source: 'llm', anchorParagraphIds: anchorIds },
+		tokens,
+	};
+}
+
+async function persistAufbauSkizze(
+	caseId: string,
+	documentId: string,
+	finding: AufbauSkizzeFinding
+): Promise<string> {
+	const content = { text: finding.text, source: finding.source };
+	const stackEntry = {
+		kind: 'origin' as const,
+		at: new Date().toISOString(),
+		by_user_id: null,
+		source_run_id: null,
+		content_snapshot: content,
+	};
+	// AUFBAU_SKIZZE braucht keinen virtual_function_container — sie ist ein
+	// EXPOSITION-Phänomen, das als FORSCHUNGSDESIGN-Defizit-Befund persistiert
+	// wird. Direkt-Anker an die EXPOSITION-¶, die den Plan tragen.
+	const row = await queryOne<{ id: string }>(
+		`INSERT INTO function_constructs
+		   (case_id, document_id, outline_function_type, construct_kind,
+		    anchor_element_ids, content, version_stack, virtual_container_id)
+		 VALUES ($1, $2, 'FORSCHUNGSDESIGN', 'AUFBAU_SKIZZE', $3, $4, $5, NULL)
+		 RETURNING id`,
+		[
+			caseId,
+			documentId,
+			finding.anchorParagraphIds,
+			JSON.stringify(content),
+			JSON.stringify([stackEntry]),
+		]
+	);
+	if (!row) throw new Error('Failed to persist AUFBAU_SKIZZE construct');
 	return row.id;
 }
 
@@ -507,6 +794,10 @@ export interface ForschungsdesignPassResult {
 	methodologie: { constructId: string; text: string } | null;
 	methoden: { constructId: string; text: string } | null;
 	basis: { constructId: string; text: string } | null;
+	// Aufbau-Skizzen-Befund: greift, wenn weder Methoden-Container noch
+	// methodische Markierungen in der Einleitung vorliegen. Critical-Friend-
+	// Substanz: planvoll, aber methodologisch unbegründet.
+	aufbauSkizze: { constructId: string; text: string; source: 'regex' | 'llm' } | null;
 	tokens: { input: number; output: number };
 	llmCalls: number;
 	model: string;
@@ -553,24 +844,66 @@ export async function runForschungsdesignPass(
 	const collected = await collectParagraphs(documentId);
 
 	if (collected.paragraphs.length === 0 || collected.strategy === null) {
-		// Strukturelle Abwesenheit: das Werk hat keine FORSCHUNGSDESIGN-relevanten
-		// ¶. Vorbedingungen sind erfüllt, also kein STOP — der Orchestrator wird
-		// das später als legitimen SKIP behandeln.
-		return {
-			caseId,
-			documentId,
-			strategy: null,
-			containerLabel: null,
-			collectedParagraphCount: 0,
-			virtualContainerId: null,
-			methodologie: null,
-			methoden: null,
-			basis: null,
-			tokens: { input: 0, output: 0 },
-			llmCalls: 0,
-			model: getModel(),
-			provider: getProvider(),
-		};
+		// Kein Methoden-Material gefunden. Pyramide für AUFBAU_SKIZZE:
+		// 1. Regex auf EXPOSITION-¶ — billig, deterministisch
+		// 2. LLM-Fallback auf alle EXPOSITION-¶ — teurer, robust
+		// 3. wenn beide leer → PreconditionFailedError mit Reviewer-Recovery-Hint
+		//
+		// Critical-Friend-Setzung 2026-05-04: kein Skip bei strukturell fehlendem
+		// FORSCHUNGSDESIGN — entweder ein erkennbarer Aufbau-Plan (= Plan-ohne-
+		// methodologische-Begründung als substanzieller Befund), oder STOP mit
+		// Diagnose, damit der Reviewer manuell prüfen kann.
+
+		await clearExistingForschungsdesign(caseId, documentId);
+
+		const regexFinding = await findAufbauSkizzeRegex(documentId);
+		if (regexFinding) {
+			const id = await persistAufbauSkizze(caseId, documentId, regexFinding);
+			return {
+				caseId,
+				documentId,
+				strategy: null,
+				containerLabel: null,
+				collectedParagraphCount: 0,
+				virtualContainerId: null,
+				methodologie: null,
+				methoden: null,
+				basis: null,
+				aufbauSkizze: { constructId: id, text: regexFinding.text, source: 'regex' },
+				tokens: { input: 0, output: 0 },
+				llmCalls: 0,
+				model: getModel(),
+				provider: getProvider(),
+			};
+		}
+
+		const llm = await findAufbauSkizzeLlm(documentId, bezugsrahmen);
+		if (llm.finding) {
+			const id = await persistAufbauSkizze(caseId, documentId, llm.finding);
+			return {
+				caseId,
+				documentId,
+				strategy: null,
+				containerLabel: null,
+				collectedParagraphCount: 0,
+				virtualContainerId: null,
+				methodologie: null,
+				methoden: null,
+				basis: null,
+				aufbauSkizze: { constructId: id, text: llm.finding.text, source: 'llm' },
+				tokens: llm.tokens,
+				llmCalls: 1,
+				model: getModel(),
+				provider: getProvider(),
+			};
+		}
+
+		throw new PreconditionFailedError({
+			heuristic: 'FORSCHUNGSDESIGN',
+			missing: 'Methodisches Material und Aufbau-Skizze',
+			diagnostic:
+				'Weder ein eigenständiges Methodenkapitel noch methodische Markierungen in der Einleitung noch eine Aufbau-Skizze (Plan/Vorgehensweise) wurden in EXPOSITION gefunden — Regex- und LLM-Pyramide haben beide nichts geliefert. Reviewer-Aktion: in der Einleitung manuell prüfen — falls eine Plan/Vorgehensweise-Passage existiert, manuell als AUFBAU_SKIZZE-Konstrukt anlegen und Pipeline neu triggern. Falls keinerlei Reflexion über Vorgehensweise im Werk: das ist ein methodologisches Defizit, das im Werk-Gutacht zur Abwertung führt.',
+		});
 	}
 
 	await clearExistingForschungsdesign(caseId, documentId);
@@ -640,6 +973,7 @@ export async function runForschungsdesignPass(
 		methodologie,
 		methoden,
 		basis,
+		aufbauSkizze: null,
 		tokens: extract.tokens,
 		llmCalls: 1,
 		model: getModel(),

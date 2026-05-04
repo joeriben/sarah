@@ -2,21 +2,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Pipeline-Orchestrator — sequentieller Treiber der hermeneutischen Pässe in
-// der korrekten Reihenfolge (analytische Hauptlinie + optionales synthetisches
-// Addendum). State liegt in pipeline_runs (Migration 038); Pause/Resume läuft
-// über cancel_requested + Idempotenz der Einzel-Pässe.
+// der korrekten Reihenfolge je gewähltem Heuristik-Pfad. State liegt in
+// pipeline_runs (Migration 038); Pause/Resume läuft über cancel_requested +
+// Idempotenz der Einzel-Pässe.
 //
-// Phasen-Reihenfolge der Hauptlinie:
+// Heuristik-Pfade sind exklusiv pro Run (Memory
+// `project_three_heuristics_architecture.md`): genau einer von H1, H2, H3
+// läuft je Run-Trigger. Default 'h1'. Wer mehrere Pfade auf demselben Werk
+// anwenden will, triggert sequenziell mehrere Runs — automatische
+// Verkettung gibt es nicht.
+//
+// H1 — analytische Hauptlinie (Default):
 //   1. argumentation_graph  — pro Absatz Argumente/Edges/Scaffolding
+//      (optional: argument_validity dazwischen, wenn include_validity)
 //   2. section_collapse     — Subkapitel-Memo aus Graph (L2/L3 adaptiv)
 //   3. chapter_collapse     — Hauptkapitel-Memo (L1)
 //   4. document_collapse    — Werk-Memo (L0)
 //
-// Optionales Addendum (nur bei options.include_synthetic === true):
-//   5. paragraph_synthetic  — formulierend + interpretierend pro Absatz
-//      Läuft NACH der analytischen Linie. Konsumiert nichts vom Graph
-//      und wird von keinem Aggregations-Pass konsumiert — pures Lese-
-//      Addendum für den Reader.
+// H2 — synthetisch-hermeneutisch:
+//   1. paragraph_synthetic  — formulierend + interpretierend pro Absatz
+//      Konsumiert nichts vom Graph; pures Lese-Addendum für den Reader.
+//
+// H3 — kontextadaptiv (funktionstyp-orchestriert):
+//   siehe H3_PHASE_ORDER unten und docs/h3_orchestrator_spec.md.
 
 import { query, queryOne } from '../db/index.js';
 import {
@@ -33,6 +41,7 @@ import { runGraphCollapse } from '../ai/hermeneutic/section-collapse-from-graph.
 import { runChapterCollapse } from '../ai/hermeneutic/chapter-collapse.js';
 import { runDocumentCollapse } from '../ai/hermeneutic/document-collapse.js';
 import { runH3Phase, isH3PhaseDoneForDocument } from './h3-phases.js';
+import { PreconditionFailedError } from '../ai/h3/precondition.js';
 
 export type Phase =
 	| 'argumentation_graph'
@@ -100,9 +109,16 @@ const H3_PHASE_ORDER: Phase[] = [
 ];
 
 export interface RunOptions {
-	include_synthetic?: boolean;
+	// Pfad-Wahl: H1, H2 und H3 sind drei eigenständige, exklusive Heuristik-
+	// Pfade pro Run (Memory `project_three_heuristics_architecture.md`).
+	// Default `'h1'`, wenn nicht gesetzt. Wer mehrere Pfade auf demselben
+	// Werk anwenden will, triggert sequenziell mehrere Runs — automatische
+	// Verkettung gibt es nicht.
+	heuristic?: 'h1' | 'h2' | 'h3';
+
+	// H1-spezifischer Modifikator. Wird ignoriert, wenn heuristic !== 'h1'.
 	include_validity?: boolean;
-	include_h3?: boolean;
+
 	cost_cap_usd?: number | null;
 }
 
@@ -245,9 +261,8 @@ export async function startOrResumeRun(
 
 function mergeOptions(prev: RunOptions, next: RunOptions): RunOptions {
 	return {
-		include_synthetic: next.include_synthetic ?? prev.include_synthetic ?? false,
+		heuristic: next.heuristic ?? prev.heuristic ?? 'h1',
 		include_validity: next.include_validity ?? prev.include_validity ?? false,
-		include_h3: next.include_h3 ?? prev.include_h3 ?? false,
 		cost_cap_usd: next.cost_cap_usd ?? prev.cost_cap_usd ?? null,
 	};
 }
@@ -636,23 +651,30 @@ async function executeStep(
 // ── Loop ──────────────────────────────────────────────────────────────────
 
 function phasesForRun(options: RunOptions): Phase[] {
-	const phases: Phase[] = [...PHASE_ORDER_ANALYTICAL];
-	if (options.include_validity) {
-		// argument_validity NACH argumentation_graph (braucht die Argumente),
-		// VOR section_collapse (Synthese kann bewertete Argumente nutzen).
-		const agIdx = phases.indexOf('argumentation_graph');
-		phases.splice(agIdx + 1, 0, 'argument_validity');
+	// Heuristik-Pfade sind exklusiv pro Run (Memory
+	// `project_three_heuristics_architecture.md`): genau einer von H1, H2,
+	// H3 läuft je Run-Trigger. Default 'h1'. Wer mehrere Pfade auf dem-
+	// selben Werk anwenden will, triggert sequenziell mehrere Runs —
+	// automatische Verkettung gibt es nicht.
+	const heuristic = options.heuristic ?? 'h1';
+
+	switch (heuristic) {
+		case 'h3':
+			return [...H3_PHASE_ORDER];
+		case 'h2':
+			return ['paragraph_synthetic'];
+		case 'h1': {
+			const phases: Phase[] = [...PHASE_ORDER_ANALYTICAL];
+			if (options.include_validity) {
+				// argument_validity NACH argumentation_graph (braucht die
+				// Argumente), VOR section_collapse (Synthese kann bewertete
+				// Argumente nutzen).
+				const agIdx = phases.indexOf('argumentation_graph');
+				phases.splice(agIdx + 1, 0, 'argument_validity');
+			}
+			return phases;
+		}
 	}
-	if (options.include_synthetic) {
-		phases.push('paragraph_synthetic');
-	}
-	if (options.include_h3) {
-		// H3 läuft nach H1/H2 als zusätzliche kontextadaptive Spur. Die
-		// Phasen-Reihenfolge folgt dem Bedingungsgefüge (siehe Spec); harte
-		// Vorbedingungen werden in den jeweiligen Pass-Funktionen geprüft.
-		phases.push(...H3_PHASE_ORDER);
-	}
-	return phases;
 }
 
 /**
@@ -818,6 +840,22 @@ export async function runPipelineLoop(
 			});
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
+			// PreconditionFailedError = harte Vorbedingungs-Verletzung gemäß
+			// docs/h3_orchestrator_spec.md #2 (kein Analysehorizont). Run-State
+			// `failed` mit Diagnose; Reviewer-Eingriff erforderlich. NICHT
+			// fail-tolerant überspringen, sonst würde der Stuck-Guard greifen
+			// und die echte Diagnose verloren gehen.
+			if (err instanceof PreconditionFailedError) {
+				safeSend(sendEvent, {
+					type: 'step-error',
+					phase: next.phase,
+					atom: next.atom,
+					message,
+				});
+				await markFailed(runId, message);
+				safeSend(sendEvent, { type: 'failed', message });
+				return;
+			}
 			safeSend(sendEvent, {
 				type: 'step-error',
 				phase: next.phase,
@@ -860,10 +898,10 @@ export interface PhasePreflightStatus {
  */
 export async function computePreflight(
 	documentId: string,
-	options: { includeSynthetic: boolean; includeValidity: boolean }
+	options: { heuristic: 'h1' | 'h2' | 'h3'; includeValidity: boolean }
 ): Promise<PhasePreflightStatus[]> {
 	const phases = phasesForRun({
-		include_synthetic: options.includeSynthetic,
+		heuristic: options.heuristic,
 		include_validity: options.includeValidity,
 	});
 	const result: PhasePreflightStatus[] = [];

@@ -77,7 +77,10 @@ const PHASE_OUTLINE_TYPE: Record<H3Phase, string | null> = {
 const PHASE_PRIMARY_KINDS: Record<H3Phase, string[] | null> = {
 	h3_exposition: ['FRAGESTELLUNG'],
 	h3_grundlagentheorie: ['FORSCHUNGSGEGENSTAND'], // werk-aggregierte End-Synthese (Step 4)
-	h3_forschungsdesign: ['METHODOLOGIE', 'METHODEN', 'BASIS'],
+	// METHODOLOGIE/METHODEN/BASIS: Standard-FORSCHUNGSDESIGN-Befund.
+	// AUFBAU_SKIZZE: Critical-Friend-Befund für Werke ohne methodologische
+	// Begründung — Plan vorhanden, aber nicht reflektiert. Eines reicht.
+	h3_forschungsdesign: ['METHODOLOGIE', 'METHODEN', 'BASIS', 'AUFBAU_SKIZZE'],
 	h3_durchfuehrung: ['BEFUND'], // Step-4-Output
 	h3_synthese: ['GESAMTERGEBNIS'],
 	h3_schlussreflexion: ['GELTUNGSANSPRUCH'],

@@ -43,7 +43,9 @@ Validierungs-Status für alle Phasen: leer (`construct_validations` ist neu, noc
 
 ## Architektur (kurze Beschreibung)
 
-H3 hängt sich als **neun zusätzliche Phasen** an `phasesForRun()` (`src/lib/server/pipeline/orchestrator.ts`) — Mig-038-Mechanik (SSE, Pause/Resume, Idempotenz, Token-Tracking, `cancel_requested`) bleibt unverändert. Aktivierung über `RunOptions.include_h3`, das aus `assessment_briefs.h3_enabled` (Mig 047) kommt.
+H3 ist einer von **drei exklusiven Heuristik-Pfaden** (H1 / H2 / H3) — `phasesForRun()` (`src/lib/server/pipeline/orchestrator.ts`) liefert pro Run die Phasen-Liste GENAU EINES Pfads. Mig-038-Mechanik (SSE, Pause/Resume, Idempotenz, Token-Tracking, `cancel_requested`) bleibt unverändert. Pfad-Wahl über `RunOptions.heuristic: 'h1' | 'h2' | 'h3'` (Default `'h1'`); abgeleitet aus `assessment_briefs.h3_enabled` (Mig 047) → wenn true, Default `'h3'`. Body-Param überschreibt den Brief-Default.
+
+> **Korrektur 2026-05-04:** vor dieser Korrektur war H3 als „zusätzliche Phasen" hinter H1 modelliert (`include_h3: boolean`-Flag). Das war falsch. H1/H2/H3 sind eigenständig und exklusiv pro Run-Trigger; wer mehrere Pfade laufen lassen will, triggert sequenziell mehrere Runs.
 
 Die Heuristik-Aufrufe leben in [`src/lib/server/pipeline/h3-phases.ts`](../src/lib/server/pipeline/h3-phases.ts) — ein dünner Dispatch-Layer mit drei Funktionen:
 
@@ -113,9 +115,9 @@ Beides bewusst akzeptiert; präzises Tracking lebt in den jeweiligen CLI-Skript-
 
 ## Backward-Compat-Status
 
-H1/H2-Pfade unverändert lauffähig. Verifikation: `scripts/test-h3-regression.ts <docId>` ist weiterhin grün, weil `phasesForRun()` ohne `include_h3=true` exakt die alte Phasen-Liste zurückgibt. `assessment_briefs.h3_enabled` ist Default `false`, alte Briefs verändern sich nicht.
+H1-Pfad unverändert lauffähig. Verifikation: `scripts/test-h3-regression.ts <docId>` ist weiterhin grün, weil `phasesForRun()` mit `heuristic='h1'` (Default) exakt die alte Phasen-Liste zurückgibt. `assessment_briefs.h3_enabled` ist Default `false`, alte Briefs verändern sich nicht.
 
-Bei `include_h3=true` läuft H3 nach H1/H2 als zusätzliche Spur; bestehende Konstrukt-Tabellen (`argument_nodes`, `memo_content`) werden von H3 nicht angefasst.
+Bei `heuristic='h3'` läuft AUSSCHLIESSLICH H3 — kein H1 davor, kein H2. Bestehende Konstrukt-Tabellen (`argument_nodes`, `memo_content`) werden von H3 nicht angefasst, weil H3 in `function_constructs` schreibt.
 
 ---
 

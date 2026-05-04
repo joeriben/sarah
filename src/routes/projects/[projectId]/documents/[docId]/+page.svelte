@@ -117,7 +117,7 @@
 		current_index: number;
 		total_in_phase: number | null;
 		last_step_label: string | null;
-		options: { include_synthetic?: boolean; cost_cap_usd?: number | null };
+		options: { heuristic?: 'h1' | 'h2' | 'h3'; include_validity?: boolean; cost_cap_usd?: number | null };
 		cancel_requested: boolean;
 		error_message: string | null;
 		accumulated_input_tokens: number;
@@ -183,9 +183,13 @@
 	let pipelineLoading = $state(false);
 	let pipelineError = $state<string | null>(null);
 
-	// Run-Steuerung
+	// Run-Steuerung. H1, H2, H3 sind exklusive Heuristik-Pfade pro Run
+	// (Memory `project_three_heuristics_architecture.md`); der Toggle hier
+	// erzwingt H2 statt des Brief-Defaults. Eine vollständige Pfad-Wahl-UI
+	// (Radio H1/H2/H3 mit Brief-Default-Hinweis) gehört zur Interface-Phase
+	// und ist hier bewusst minimal.
 	let runActive = $state(false);
-	let runOptions = $state<{ include_synthetic: boolean }>({ include_synthetic: false });
+	let runOptions = $state<{ pickH2: boolean }>({ pickH2: false });
 	let runEvents = $state<string[]>([]);
 	let runError = $state<string | null>(null);
 	let runEventSource: AbortController | null = null;
@@ -236,7 +240,7 @@
 			const r = await fetch(`/api/cases/${caseInfo.id}/pipeline/run`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-				body: JSON.stringify({ include_synthetic: runOptions.include_synthetic }),
+				body: JSON.stringify(runOptions.pickH2 ? { heuristic: 'h2' } : {}),
 				signal: ac.signal,
 			});
 			if (!r.ok || !r.body) {
@@ -1181,10 +1185,10 @@
 										<label class="opt-toggle">
 											<input
 												type="checkbox"
-												bind:checked={runOptions.include_synthetic}
+												bind:checked={runOptions.pickH2}
 												disabled={!agEnabled}
 											/>
-											<span>Synthetisches Per-¶-Memo zusätzlich erzeugen</span>
+											<span>H2-Pfad (synthetisches Per-¶-Memo) statt H1</span>
 										</label>
 										<button
 											class="run-btn start"
