@@ -88,7 +88,7 @@ Genau das ist der Daseinsgrund des Orchestrators: er beantwortet pro Phase die F
 | h3_forschungsdesign | FRAGESTELLUNG; FORSCHUNGSGEGENSTAND | "Methodische Angemessenheit braucht spezifizierten FORSCHUNGSGEGENSTAND als Maßstab — ohne ihn nur grob gegen FRAGESTELLUNG-Charakterisierung haltbar (= keine Analyse)" |
 | h3_durchfuehrung | METHODEN, FORSCHUNGSGEGENSTAND | "DURCHFÜHRUNGs-Beurteilung braucht METHODEN (Verfahrens-Maßstab) und FORSCHUNGSGEGENSTAND (Ziel-Maßstab)" |
 | h3_synthese | FRAGESTELLUNG, ERKENNTNISSE | "Systematisierungsleistung braucht ERKENNTNIS-Material und FRAGESTELLUNG als Aggregations-Bezugspunkt" |
-| h3_schlussreflexion | GESAMTERGEBNIS | "Geltungsanspruch-Legitimität braucht GESAMTERGEBNIS als Bewertungsbasis" |
+| h3_schlussreflexion | GESAMTERGEBNIS | "Geltungsanspruch-Legitimität braucht GESAMTERGEBNIS als Bewertungsbasis" — fehlender SCHLUSSREFLEXION-Container im Outline ist KEIN STOP (Recovery, siehe Abschnitt unten) |
 | h3_exkurs | dokument-vorgängige Konstrukte je EXKURS-Container-Position (KERNBEGRIFFE bei EXKURS in GRUNDLAGENTHEORIE; ERKENNTNISSE bei EXKURS in DURCHFÜHRUNG) | per Container: kein Anker am Dokument-Ort → Container-Eintrag im Status als "abwesender Befund" (kein STOP, weil EXKURS-Beitrag ohne Anker keine Beurteilungsbasis hätte) |
 | h3_werk_deskription | alle Konstrukte der vorigen Phasen, soweit ihr Funktionstyp im Dokument vorhanden ist | STOP wenn ein vorhandener Funktionstyp keine Konstrukte produziert hat |
 | h3_werk_gutacht | WERK_BESCHREIBUNG | STOP wenn fehlt |
@@ -107,6 +107,19 @@ Genau das ist der Daseinsgrund des Orchestrators: er beantwortet pro Phase die F
 ### Konsequenz für FORSCHUNGSDESIGN-Heuristik (Bereinigung)
 
 Die existierende `forschungsdesign.ts`-Heuristik mit ihrem "FORSCHUNGSGEGENSTAND optional, mahne LLM zur Zurückhaltung"-Pattern wird **vor** dem Orchestrator-Anschluss bereinigt: Vorbedingungs-Check entfällt aus der Heuristik (zieht in den Orchestrator), Prompt verliert die "kann fehlen"-Klausel und nimmt FORSCHUNGSGEGENSTAND als Invariante an. Bis zum Orchestrator-Anschluss läuft sie weiterhin per CLI-Skript — dort wird der Vorbedingungs-Check vom Skript erzwungen (heute fehlende Vorbedingung → Skript-Abbruch, kein LLM-Call).
+
+### Konsequenz für SCHLUSSREFLEXION-Heuristik (User-Setzung 2026-05-04)
+
+Ohne dedizierten SCHLUSSREFLEXION-Container im Outline läuft die Heuristik nicht in einen STOP, sondern eine Recovery — Annahme aus der Werk-Praxis: in BAs/Habils mit Fazit-Kapitel verschmilzt SR mit SYNTHESE im Schlussbereich.
+
+1. Letztes Top-Level-Kapitel des Werks identifizieren (letztes Heading mit `effectiveLevel === 1`, nicht excluded).
+2. **Default-Material:** letztes Drittel der ¶ (`Math.max(1, Math.ceil(n/3))`) → LLM-Aufruf mit erweitertem Output-Schema (`needsMoreContext: boolean`).
+3. **Eskalation bei `needsMoreContext=true`:** zweiter LLM-Aufruf mit erweitertem Material — letztes Unterkapitel (falls vorhanden) bzw. ganzes Kapitel.
+4. **Defizit-Befund** ("Werk reflektiert keine Geltung/Grenzen explizit") ist legitimes Resultat und wird als reguläres SR-Konstrukt persistiert; fließt in WERK_GUTACHT ein, statt den Run technisch fehlschlagen zu lassen.
+
+`recoveryStage ∈ {'none', 'last-third', 'last-subchapter', 'last-chapter'}` ist Teil von `function_constructs.content`; UI markiert Recovery-Stand transparent (Critical-Friend-Identität — der Reviewer muss erkennen können, dass es kein dedizierter SR-Container war).
+
+Echter `PreconditionFailedError` nur bei strukturell unvollständigem Werk: kein Top-Level-Kapitel ODER Top-Level-Kapitel ohne Folgeabsätze (typischerweise: nicht-konfirmierte Outline).
 
 ---
 

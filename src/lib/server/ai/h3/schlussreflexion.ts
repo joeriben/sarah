@@ -51,6 +51,7 @@ import { query, queryOne } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
 import { extractAndValidateJSON, type ExtractResult } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
+import { loadEffectiveOutline } from '../../documents/outline.js';
 
 // ── Container-Loading ─────────────────────────────────────────────
 
@@ -141,6 +142,103 @@ export async function loadSchlussreflexionContainers(
 		});
 	}
 	return Array.from(byHeading.values());
+}
+
+// ── Recovery: letztes Kapitel als SR-Material ────────────────────
+//
+// User-Setzung 2026-05-04: ohne SCHLUSSREFLEXION-Container nimmt die
+// Heuristik das letzte Top-Level-Kapitel — in Werken mit Fazit-Kapitel
+// verschmilzt SR häufig mit SYNTHESE im Schlussbereich. Default ist das
+// letzte Drittel der ¶ (min 1); bei needsMoreContext eskaliert der Loop
+// auf das letzte Unterkapitel oder das ganze Kapitel. Defizit-Befund
+// ("Werk leistet keine SR-Diskussion") ist ein valides Resultat.
+
+interface LastChapterRecovery {
+	chapterHeadingId: string;
+	chapterHeadingText: string;
+	chapterParagraphs: SchlussreflexionParagraph[];
+	lastSubchapterHeadingId: string | null;
+	lastSubchapterHeadingText: string | null;
+	lastSubchapterParagraphs: SchlussreflexionParagraph[];
+}
+
+async function loadLastChapterRecovery(
+	documentId: string
+): Promise<LastChapterRecovery | null> {
+	const outline = await loadEffectiveOutline(documentId);
+	if (!outline) return null;
+	const visible = outline.headings.filter((h) => !h.excluded);
+	const topLevel = visible.filter((h) => h.effectiveLevel === 1);
+	if (topLevel.length === 0) return null;
+	const lastChapter = topLevel[topLevel.length - 1];
+
+	const idx = visible.findIndex((h) => h.elementId === lastChapter.elementId);
+	const subsequent = visible.slice(idx + 1);
+	const lastSubchapter =
+		subsequent.length > 0 ? subsequent[subsequent.length - 1] : null;
+
+	const chapterRows = (
+		await query<{
+			paragraph_id: string;
+			char_start: number;
+			char_end: number;
+			text: string;
+		}>(
+			`SELECT p.id AS paragraph_id, p.char_start, p.char_end,
+			        SUBSTRING(dc.full_text FROM p.char_start + 1
+			                              FOR p.char_end - p.char_start) AS text
+			 FROM document_elements p
+			 JOIN document_content dc ON dc.naming_id = p.document_id
+			 WHERE p.document_id = $1
+			   AND p.element_type = 'paragraph'
+			   AND p.section_kind = 'main'
+			   AND p.char_start >= $2
+			 ORDER BY p.char_start`,
+			[documentId, lastChapter.charEnd]
+		)
+	).rows;
+
+	if (chapterRows.length === 0) return null;
+
+	const chapterParagraphs: SchlussreflexionParagraph[] = chapterRows.map(
+		(r, i) => ({
+			paragraphId: r.paragraph_id,
+			charStart: r.char_start,
+			charEnd: r.char_end,
+			text: r.text.trim(),
+			indexInContainer: i,
+			indexInWerk: i + 1,
+		})
+	);
+
+	const lastSubchapterParagraphs: SchlussreflexionParagraph[] = lastSubchapter
+		? chapterParagraphs.filter((p) => p.charStart >= lastSubchapter.charEnd)
+		: [];
+
+	return {
+		chapterHeadingId: lastChapter.elementId,
+		chapterHeadingText: lastChapter.effectiveText,
+		chapterParagraphs,
+		lastSubchapterHeadingId: lastSubchapter?.elementId ?? null,
+		lastSubchapterHeadingText: lastSubchapter?.effectiveText ?? null,
+		lastSubchapterParagraphs,
+	};
+}
+
+function takeLastThird<T>(arr: T[]): T[] {
+	if (arr.length === 0) return [];
+	const n = Math.max(1, Math.ceil(arr.length / 3));
+	return arr.slice(-n);
+}
+
+function reindexParagraphs(
+	paragraphs: SchlussreflexionParagraph[]
+): SchlussreflexionParagraph[] {
+	return paragraphs.map((p, i) => ({
+		...p,
+		indexInContainer: i,
+		indexInWerk: i + 1,
+	}));
 }
 
 // ── Cross-Typ-Reads ────────────────────────────────────────────────
@@ -281,6 +379,7 @@ const SchlussreflexionLLMSchema = z.object({
 	geltungsanspruchText: z.string().min(1),
 	grenzenText: z.string().min(1),
 	anschlussforschungText: z.string().min(1),
+	needsMoreContext: z.boolean(),
 });
 type SchlussreflexionLLMResult = z.infer<typeof SchlussreflexionLLMSchema>;
 
@@ -336,11 +435,15 @@ async function extractSchlussreflexion(
 		'',
 		'Stil: DESKRIPTIV. Du beschreibst, was die SCHLUSSREFLEXION leistet. Du beurteilst NICHT (kein "stark", "lückenhaft", "dünn"). Critical-Friend-hinweise sind erlaubt als deskriptive Beobachtung ("Das Werk reflektiert keine Sample-Grenzen explizit"), nicht als Wertung.',
 		'',
+		'Selbst-Bewertung needsMoreContext:',
+		'  Setze `needsMoreContext: true` NUR, wenn das vorgelegte SR-Material so eng ist, dass eine substantielle Lesart von GELTUNGSANSPRUCH/GRENZEN/ANSCHLUSSFORSCHUNG nicht möglich ist und MEHR Kontext (z.B. das ganze Schluss-Kapitel statt nur dessen letztes Drittel) plausibel zu einem präziseren Befund führen würde. Setze `false`, wenn das Material entweder ausreicht ODER das Werk strukturell keine SR-Diskussion enthält — der Defizit-Befund ("Werk reflektiert keine Grenzen explizit") ist ein valides Resultat, KEIN Grund für mehr Kontext. Im Zweifel `false`.',
+		'',
 		'Antworte ausschließlich als JSON nach diesem Schema:',
 		'{',
 		'  "geltungsanspruchText": "<1–4 Sätze deskriptiv>",',
 		'  "grenzenText": "<1–4 Sätze deskriptiv>",',
-		'  "anschlussforschungText": "<1–4 Sätze deskriptiv>"',
+		'  "anschlussforschungText": "<1–4 Sätze deskriptiv>",',
+		'  "needsMoreContext": false',
 		'}',
 	].join('\n');
 
@@ -420,6 +523,8 @@ async function extractSchlussreflexion(
 
 // ── Persistenz ────────────────────────────────────────────────────
 
+type RecoveryStage = 'none' | 'last-third' | 'last-subchapter' | 'last-chapter';
+
 interface SchlussreflexionContent {
 	geltungsanspruchText: string;
 	grenzenText: string;
@@ -429,6 +534,7 @@ interface SchlussreflexionContent {
 	hadBasis: boolean;
 	llmModel: string;
 	llmTimingMs: number;
+	recoveryStage: RecoveryStage;
 }
 
 async function clearExistingSchlussreflexion(
@@ -519,6 +625,7 @@ export interface SchlussreflexionPassResult {
 	tokens: { input: number; output: number };
 	provider: string;
 	model: string;
+	recoveryStage: RecoveryStage;
 	diagnostics: {
 		fragestellungCount: number;
 		forschungsgegenstandCount: number;
@@ -562,22 +669,40 @@ export async function runSchlussreflexionPass(
 		warnings.push(`GESAMTERGEBNIS: ${geRes.diag.count} Konstrukte vorhanden — jüngstes verwendet.`);
 	}
 
-	// Setzung 2026-05-04: gleiche Architektur wie SYNTHESE — keine
-	// SCHLUSSREFLEXION-Container im Werk → STOP, kein no-op-Return. Spec
-	// docs/h3_orchestrator_spec.md #2 Stuck-Guard würde sonst greifen und
-	// die echte Diagnose verschlucken.
-	//
-	// Recovery-Hinweis: häufig in BAs verschmilzt SCHLUSSREFLEXION mit
-	// SYNTHESE im "Fazit"-Kapitel. Heute kann pro Heading nur EIN Funktions-
-	// typ markiert werden — Reviewer muss die Wahl treffen oder bis zur
-	// Multi-Funktionstyp-Modellierung (Spawn-Task 2026-05-04) warten.
+	// Setzung 2026-05-04: kein dediziertes SCHLUSSREFLEXION-Kapitel im
+	// Outline → Recovery-Pfad statt Hard-Fail (User-Update gegenüber
+	// Mother's STOP-Pattern). Annahme: in Werken mit Fazit-Kapitel
+	// verschmilzt SR mit SYNTHESE im Schlussbereich — letztes Drittel
+	// der ¶ ist die engste plausible Lokalisierung. Defizit-Befund vom
+	// LLM ("keine GELTUNGSANSPRUCH/GRENZEN/ANSCHLUSSFORSCHUNG erkennbar")
+	// ist legitimes Resultat und fließt als Konstrukt in WERK_GUTACHT
+	// ein, statt den Run technisch fehlschlagen zu lassen.
+	let usedContainers: SchlussreflexionContainer[] = containers;
+	let recovery: LastChapterRecovery | null = null;
+	let recoveryStage: RecoveryStage = 'none';
+
 	if (containers.length === 0) {
-		throw new PreconditionFailedError({
-			heuristic: 'SCHLUSSREFLEXION',
-			missing: 'SCHLUSSREFLEXION-Container im Outline',
-			diagnostic:
-				'Kein als SCHLUSSREFLEXION markiertes Kapitel im Werk gefunden — die Heuristik kann ohne SR-Material keinen GELTUNGSANSPRUCH/GRENZEN/ANSCHLUSSFORSCHUNG extrahieren. Reviewer-Aktion: prüfen, ob ein anderes Kapitel (häufig "Fazit", "Schluss", "Diskussion") funktional die Schlussreflexion erfüllt — oft verschmilzt SR mit SYNTHESE im selben Kapitel. Heute kann nur EIN Funktionstyp pro Heading vergeben werden, also entscheiden welche Funktion dominiert. Bis zur Multi-Funktionstyp-Modellierung: Funktionstyp am Heading umtaggen und Pipeline neu triggern. Falls das Werk strukturell keine Schlussreflexion leistet: das ist ein Befund, der im Werk-Gutacht zur Abwertung führt.',
-		});
+		recovery = await loadLastChapterRecovery(documentId);
+		if (!recovery || recovery.chapterParagraphs.length === 0) {
+			throw new PreconditionFailedError({
+				heuristic: 'SCHLUSSREFLEXION',
+				missing: 'Werk-Schluss-Material',
+				diagnostic:
+					'Kein SCHLUSSREFLEXION-Container im Outline und Werk hat keine ableitbaren Schluss-Absätze (kein Top-Level-Kapitel mit Folgeabsätzen). Outline überprüfen — typischerweise Hinweis auf nicht-konfirmierte Outline oder strukturell unvollständiges Werk.',
+			});
+		}
+		const lastThirdParagraphs = takeLastThird(recovery.chapterParagraphs);
+		usedContainers = [
+			{
+				headingId: recovery.chapterHeadingId,
+				headingText: `${recovery.chapterHeadingText} (Recovery: letztes Drittel — kein dediziertes SCHLUSSREFLEXION-Kapitel)`,
+				paragraphs: reindexParagraphs(lastThirdParagraphs),
+			},
+		];
+		recoveryStage = 'last-third';
+		warnings.push(
+			`SCHLUSSREFLEXION-Recovery: kein dedizierter SR-Container — ${lastThirdParagraphs.length} ¶ aus dem letzten Drittel von "${recovery.chapterHeadingText}" als Material genommen.`
+		);
 	}
 
 	if (!fsRes.text) {
@@ -599,20 +724,62 @@ export async function runSchlussreflexionPass(
 
 	const methodenBasis = await loadMethodenAndBasis(caseId, documentId);
 
-	const llmRes = await extractSchlussreflexion({
+	let llmRes = await extractSchlussreflexion({
 		fragestellung: fsRes.text,
 		forschungsgegenstand: fgRes.fg,
 		gesamtergebnis: geRes.ge,
 		methodenText: methodenBasis.methodenText,
 		basisText: methodenBasis.basisText,
-		srContainers: containers,
+		srContainers: usedContainers,
 		documentId,
 		maxTokens,
 		modelOverride,
 	});
+	let llmCallCount = 1;
+
+	if (recovery && llmRes.result.needsMoreContext) {
+		const useSubchapter = recovery.lastSubchapterParagraphs.length > 0;
+		const escalatedParagraphs = useSubchapter
+			? recovery.lastSubchapterParagraphs
+			: recovery.chapterParagraphs;
+		const escalatedHeadingText = useSubchapter
+			? (recovery.lastSubchapterHeadingText ?? recovery.chapterHeadingText)
+			: recovery.chapterHeadingText;
+		const escalatedHeadingId = useSubchapter
+			? (recovery.lastSubchapterHeadingId ?? recovery.chapterHeadingId)
+			: recovery.chapterHeadingId;
+		const escalatedLabel = useSubchapter
+			? `${escalatedHeadingText} (Recovery: ganzes letztes Unterkapitel)`
+			: `${recovery.chapterHeadingText} (Recovery: ganzes letztes Kapitel)`;
+
+		usedContainers = [
+			{
+				headingId: escalatedHeadingId,
+				headingText: escalatedLabel,
+				paragraphs: reindexParagraphs(escalatedParagraphs),
+			},
+		];
+		recoveryStage = useSubchapter ? 'last-subchapter' : 'last-chapter';
+
+		llmRes = await extractSchlussreflexion({
+			fragestellung: fsRes.text,
+			forschungsgegenstand: fgRes.fg,
+			gesamtergebnis: geRes.ge,
+			methodenText: methodenBasis.methodenText,
+			basisText: methodenBasis.basisText,
+			srContainers: usedContainers,
+			documentId,
+			maxTokens,
+			modelOverride,
+		});
+		llmCallCount = 2;
+		warnings.push(
+			`SCHLUSSREFLEXION-Recovery-Eskalation: LLM signalisierte zu wenig Kontext — auf "${escalatedLabel}" erweitert (${escalatedParagraphs.length} ¶).`
+		);
+	}
 
 	const allParagraphIds: string[] = [];
-	for (const c of containers) {
+	for (const c of usedContainers) {
 		for (const p of c.paragraphs) {
 			allParagraphIds.push(p.paragraphId);
 		}
@@ -622,7 +789,7 @@ export async function runSchlussreflexionPass(
 		geltungsanspruchText: llmRes.result.geltungsanspruchText,
 		grenzenText: llmRes.result.grenzenText,
 		anschlussforschungText: llmRes.result.anschlussforschungText,
-		containerOverview: containers.map((c) => ({
+		containerOverview: usedContainers.map((c) => ({
 			headingText: c.headingText,
 			paragraphCount: c.paragraphs.length,
 		})),
@@ -630,6 +797,7 @@ export async function runSchlussreflexionPass(
 		hadBasis: methodenBasis.basisText !== null,
 		llmModel: llmRes.model,
 		llmTimingMs: llmRes.timingMs,
+		recoveryStage,
 	};
 
 	let constructId: string | null = null;
@@ -647,7 +815,7 @@ export async function runSchlussreflexionPass(
 	return {
 		caseId,
 		documentId,
-		srContainers: containers.map((c) => ({
+		srContainers: usedContainers.map((c) => ({
 			headingId: c.headingId,
 			headingText: c.headingText,
 			paragraphCount: c.paragraphs.length,
@@ -662,11 +830,12 @@ export async function runSchlussreflexionPass(
 		anschlussforschungText: content.anschlussforschungText,
 		constructId,
 		deletedPriorCount,
-		llmCalls: 1,
+		llmCalls: llmCallCount,
 		llmTimingMs: llmRes.timingMs,
 		tokens: llmRes.tokens,
 		provider: llmRes.provider,
 		model: llmRes.model,
+		recoveryStage,
 		diagnostics: {
 			fragestellungCount: fsRes.diag.count,
 			forschungsgegenstandCount: fgRes.diag.count,

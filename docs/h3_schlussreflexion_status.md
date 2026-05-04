@@ -2,7 +2,7 @@
 
 Eigenständige Status-Doku (parallel zu `h3_grundlagentheorie_status.md`, `h3_exkurs_status.md`, `h3_synthese_status.md`).
 
-Letztes Update: 2026-05-04 (Erstimplementation, gegen BA H3 dev funktional verifiziert).
+Letztes Update: 2026-05-04 (Erstimplementation gegen BA H3 dev verifiziert; **Recovery-Pfad nachgezogen** — letztes Drittel des letzten Kapitels statt Hard-Fail bei fehlendem SR-Container).
 
 ---
 
@@ -27,6 +27,23 @@ Konkretisierung 2026-05-04 (analog SYNTHESE):
 5. **Schlüsselwort-Vorauswahl** (Mother): heute NICHT als Pre-Filter implementiert. Pragmatisch: ganzer SR-Container an LLM, der erkennt die drei Komponenten selbst aus dem Kontext (analog wie SYNTHESE den ganzen Kontext bekommt). Pre-Filter könnte als Optimierung folgen, falls Container sehr groß werden.
 
 6. **Critical-Friend-Identität**: Texte sind deskriptiv. Bei nicht-explizit-formulierten Komponenten (z.B. Werk benennt keine Grenzen) wird das transparent benannt ("Werk reflektiert keine Methoden-Grenzen explizit"), nicht weggeschoben — als deskriptive Beobachtung, nicht als Wertung.
+
+---
+
+## Recovery-Pfad (User-Setzung 2026-05-04)
+
+Wenn `loadSchlussreflexionContainers` keine SR-Container findet (kein Heading mit `outline_function_type='SCHLUSSREFLEXION'`), läuft kein STOP, sondern eine Recovery:
+
+1. **Letztes Top-Level-Kapitel** identifizieren via `loadEffectiveOutline` (letztes Heading mit `effectiveLevel === 1`, nicht excluded, max `char_start`). Annahme: SR verschmilzt häufig mit SYNTHESE im Fazit-Kapitel.
+2. **Stage 1 (default):** letztes Drittel der ¶ (`Math.max(1, Math.ceil(n/3))`) → LLM-Aufruf. Output-Schema erweitert um `needsMoreContext: boolean`.
+3. **Stage 2 (Eskalation):** bei `needsMoreContext=true` zweiter LLM-Call mit erweitertem Material — letztes Unterkapitel (falls vorhanden) bzw. ganzes Kapitel.
+4. **Defizit-Befund als Resultat:** deskriptive Texte ("Werk diskutiert keinen expliziten Geltungsanspruch", "Werk reflektiert keine Methoden-Grenzen explizit") sind valides Resultat und werden persistiert — kein technischer Fail.
+
+Persistenz: `function_constructs.content.recoveryStage ∈ {'none', 'last-third', 'last-subchapter', 'last-chapter'}` markiert den Pfad. UI sollte Recovery-Modus anzeigen (Critical-Friend-Identität).
+
+Echter `PreconditionFailedError` nur bei strukturell unvollständigem Werk (kein Top-Level-Kapitel im Outline oder Kapitel ohne Folgeabsätze) — typischerweise nicht-konfirmierte Outline.
+
+Prompt-Anweisung im LLM: `needsMoreContext=true` NUR, wenn das vorgelegte Material zu eng für eine substantielle Lesart ist; Defizit-Befund ist explizit KEIN Grund (sonst würde der Loop unnötig eskalieren statt den legitimen Befund zu liefern).
 
 ---
 

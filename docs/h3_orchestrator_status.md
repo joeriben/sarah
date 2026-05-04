@@ -2,7 +2,7 @@
 
 Status der H3-Orchestrator-Integration — der Pipeline-Run-Anschluss von H3 an Mig 038 (`pipeline_runs`-Mechanik). Spec: [`h3_orchestrator_spec.md`](./h3_orchestrator_spec.md). Per-Heuristik-Status: [`h3_implementation_status.md`](./h3_implementation_status.md), [`h3_grundlagentheorie_status.md`](./h3_grundlagentheorie_status.md), [`h3_synthese_status.md`](./h3_synthese_status.md), [`h3_schlussreflexion_status.md`](./h3_schlussreflexion_status.md).
 
-Letztes Update: 2026-05-04 — End-to-end-Integration durch (Migration 049, h3-phases-Modul, Brief-Verkabelung, pipeline-status-Erweiterung, Smoke-Test). Frische Test-Case-Validierung steht aus.
+Letztes Update: 2026-05-04 — Interface-Session-Ergänzungen: SR-Recovery-Heuristik (User-Setzung — letztes Drittel des letzten Kapitels statt STOP bei fehlendem SR-Container) + Outline-Numbering-Counter-Fix. Vorher: End-to-end-Integration durch (Migration 049, h3-phases-Modul, Brief-Verkabelung, pipeline-status-Erweiterung, Smoke-Test). Frische Test-Case-Validierung steht aus.
 
 ---
 
@@ -17,6 +17,8 @@ Letztes Update: 2026-05-04 — End-to-end-Integration durch (Migration 049, h3-p
 | Brief→RunOptions-Verkabelung (`include_h3`) | ✓ Commit `87010d6` |
 | `pipeline-status`-Endpoint um H3-Phase-Felder erweitert | ✓ Commit `87010d6` |
 | Smoke-Test `scripts/test-h3-orchestrator-status.ts` | ✓ Commit `87010d6` |
+| SR-Recovery-Heuristik (letztes Drittel statt STOP, `needsMoreContext`-Eskalation, Defizit-Befund-Persistierung) | ✓ Interface-Session 2026-05-04 |
+| Outline-Numbering-Counter-as-Master (Server + Frontend, Parser-Mismatch via `hasNumberingMismatch`-Flag) | ✓ Interface-Session 2026-05-04 |
 | Frischer End-to-end-Lauf (neuer Case mit `h3_enabled=true`) | offen |
 
 ---
