@@ -69,6 +69,9 @@ import { runDocumentCollapse } from '../ai/hermeneutic/document-collapse.js';
 import { runSectionCollapseSynthetic } from '../ai/hermeneutic/section-collapse-synthetic.js';
 import { runChapterCollapseSynthetic } from '../ai/hermeneutic/chapter-collapse-synthetic.js';
 import { runDocumentCollapseSynthetic } from '../ai/hermeneutic/document-collapse-synthetic.js';
+import { runChapterCollapseRetrograde } from '../ai/hermeneutic/chapter-collapse-retrograde.js';
+import { runSectionCollapseRetrograde } from '../ai/hermeneutic/section-collapse-retrograde.js';
+import { runParagraphRetrograde } from '../ai/hermeneutic/paragraph-retrograde.js';
 import { runMetaSynthesis } from '../ai/hermeneutic/meta-synthesis.js';
 import {
 	listH3WalkSteps,
@@ -94,6 +97,18 @@ export type Phase =
 	| 'section_collapse_synthetic'
 	| 'chapter_collapse_synthetic'
 	| 'document_collapse_synthetic'
+	// H2-Retrograde-Pass (FFN-Backprop-style; opt-in via
+	// RunOptions.retrograde_pass). Verfeinert die Forward-Memos durch
+	// downstream-Kontext: W absorbiert in Chapter-Retro, Chapter-Retro
+	// absorbiert in Subchapter-Retro, Subchapter-Retro absorbiert in
+	// Paragraph-Retro. Idempotenz-Tags
+	// `[kontextualisierend/{chapter|subchapter}/synthetic-retrograde]` und
+	// `[interpretierend-retrograde]` — bracket-position macht sie
+	// kollisionsfrei zu den Forward-`/synthetic]` und `[interpretierend]`-
+	// LIKE-Patterns.
+	| 'chapter_collapse_retrograde'
+	| 'section_collapse_retrograde'
+	| 'paragraph_retrograde'
 	// H3 — linearer Walk über Absatz-Komplexe + Werk-Aggregationen
 	// (User-Setzung 2026-05-04: kein Phase-Layer, ein Walk pro H3-Run).
 	// Atom-Liste pro Walk siehe h3-walk-driver.ts:listH3WalkSteps.
@@ -125,6 +140,15 @@ export const PHASE_ORDER_SYNTHETIC: Phase[] = [
 	'document_collapse_synthetic',
 ];
 
+// H2-Retrograde-Tail (opt-in; FFN-Backprop-style). Top-down: W → Chapter-Retro
+// → Subchapter-Retro → Paragraph-Retro. Wird nur angehängt, wenn
+// RunOptions.retrograde_pass=true gesetzt ist.
+export const PHASE_ORDER_RETROGRADE: Phase[] = [
+	'chapter_collapse_retrograde',
+	'section_collapse_retrograde',
+	'paragraph_retrograde',
+];
+
 export const PHASE_LABEL: Record<Phase, string> = {
 	argumentation_graph: 'Argumentation pro Absatz',
 	argument_validity: 'Argument-Validität (Charity-Pass)',
@@ -135,6 +159,9 @@ export const PHASE_LABEL: Record<Phase, string> = {
 	section_collapse_synthetic: 'Subkapitel-Synthesen (synthetisch)',
 	chapter_collapse_synthetic: 'Hauptkapitel-Synthesen (synthetisch)',
 	document_collapse_synthetic: 'Werk-Synthese (synthetisch)',
+	chapter_collapse_retrograde: 'Hauptkapitel-Retrograde (W-absorbiert)',
+	section_collapse_retrograde: 'Subkapitel-Retrograde (Hauptkap-absorbiert)',
+	paragraph_retrograde: 'Per-Absatz-Retrograde (Subkap-absorbiert)',
 	h3_walk: 'H3 · Walk (Absatz-Komplexe + Werk-Aggregationen)',
 	meta_synthesis: 'Meta-Synthese (Review-Synthese H1+H2 + Literaturbezugs-Anker)',
 };
@@ -157,6 +184,15 @@ export interface RunOptions {
 	// H1-spezifischer Modifikator. Wird auch im 'meta'-Composite-Run für
 	// die H1-Teilstrecke berücksichtigt; ignoriert bei heuristic ∈ {h2, h3}.
 	include_validity?: boolean;
+
+	// H2-spezifischer Modifikator (User-Setzung 2026-05-05): wenn true, hängt
+	// der H2-Walk nach `document_collapse_synthetic` einen retrograden
+	// Verfeinerungs-Pass an (FFN-Backprop-style: W → Chapter-Retro →
+	// Subchapter-Retro → Paragraph-Retro). Default false — der Forward-
+	// Pass ist für sich vollständig; Retrograde ist evaluativ-experimentell.
+	// Auch im 'meta'-Composite-Run für die H2-Teilstrecke berücksichtigt;
+	// ignoriert bei heuristic ∈ {h1, h3}.
+	retrograde_pass?: boolean;
 
 	cost_cap_usd?: number | null;
 }
@@ -302,6 +338,7 @@ function mergeOptions(prev: RunOptions, next: RunOptions): RunOptions {
 	return {
 		heuristic: next.heuristic ?? prev.heuristic ?? 'h1',
 		include_validity: next.include_validity ?? prev.include_validity ?? false,
+		retrograde_pass: next.retrograde_pass ?? prev.retrograde_pass ?? false,
 		cost_cap_usd: next.cost_cap_usd ?? prev.cost_cap_usd ?? null,
 	};
 }
@@ -569,6 +606,57 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 			);
 			return { all, pending: done ? [] : all };
 		}
+		case 'chapter_collapse_retrograde': {
+			const all = await listChapterAtoms(documentId);
+			const done = new Set(
+				(await query<{ heading_id: string }>(
+					`SELECT mc.scope_element_id AS heading_id
+					 FROM memo_content mc
+					 JOIN namings n ON n.id = mc.naming_id
+					 WHERE mc.scope_level = 'chapter'
+					   AND n.inscription LIKE '[kontextualisierend/chapter/synthetic-retrograde]%'
+					   AND n.deleted_at IS NULL`,
+					[]
+				)).rows.map((r) => r.heading_id)
+			);
+			return { all, pending: all.filter((a) => !done.has(a.id)) };
+		}
+		case 'section_collapse_retrograde': {
+			const subchapters = await listSubchapterAtoms(documentId);
+			const done = new Set(
+				(await query<{ heading_id: string }>(
+					`SELECT mc.scope_element_id AS heading_id
+					 FROM memo_content mc
+					 JOIN namings n ON n.id = mc.naming_id
+					 WHERE mc.scope_level = 'subchapter'
+					   AND n.inscription LIKE '[kontextualisierend/subchapter/synthetic-retrograde]%'
+					   AND n.deleted_at IS NULL`,
+					[]
+				)).rows.map((r) => r.heading_id)
+			);
+			return {
+				all: subchapters,
+				pending: subchapters.filter((s) => !done.has(s.id)),
+			};
+		}
+		case 'paragraph_retrograde': {
+			const all = await listParagraphAtoms(documentId);
+			const done = new Set(
+				(await query<{ pid: string }>(
+					`SELECT mc.scope_element_id AS pid
+					 FROM memo_content mc
+					 JOIN namings n ON n.id = mc.naming_id
+					 JOIN document_elements de ON de.id = mc.scope_element_id
+					 WHERE mc.scope_level = 'paragraph'
+					   AND mc.memo_type = 'interpretierend'
+					   AND n.inscription LIKE '[interpretierend-retrograde]%'
+					   AND n.deleted_at IS NULL
+					   AND de.document_id = $1`,
+					[documentId]
+				)).rows.map((r) => r.pid)
+			);
+			return { all, pending: all.filter((a) => !done.has(a.id)) };
+		}
 		case 'meta_synthesis': {
 			// Ein Atom auf Werk-Ebene: meta-synthesis.ts liest beide Werk-
 			// Synthesen (H1+H2) und produziert ein Werk-Memo plus
@@ -784,6 +872,48 @@ async function executeStep(
 				memoId: r.stored?.memoId ?? r.existingMemoId,
 			};
 		}
+		case 'chapter_collapse_retrograde': {
+			const r = await runChapterCollapseRetrograde(caseId, atom.id, userId, {
+				modelOverride: resolveTier('h2.tier1'),
+			});
+			return {
+				skipped: r.skipped,
+				tokens: {
+					input: r.tokens?.input ?? 0,
+					output: r.tokens?.output ?? 0,
+					cacheRead: r.tokens?.cacheRead ?? 0,
+				},
+				memoId: r.stored?.memoId ?? r.existingMemoId,
+			};
+		}
+		case 'section_collapse_retrograde': {
+			const r = await runSectionCollapseRetrograde(caseId, atom.id, userId, {
+				modelOverride: resolveTier('h2.tier1'),
+			});
+			return {
+				skipped: r.skipped,
+				tokens: {
+					input: r.tokens?.input ?? 0,
+					output: r.tokens?.output ?? 0,
+					cacheRead: r.tokens?.cacheRead ?? 0,
+				},
+				memoId: r.stored?.memoId ?? r.existingMemoId,
+			};
+		}
+		case 'paragraph_retrograde': {
+			const r = await runParagraphRetrograde(caseId, atom.id, userId, {
+				modelOverride: resolveTier('h2.tier1'),
+			});
+			return {
+				skipped: r.skipped,
+				tokens: {
+					input: r.tokens?.input ?? 0,
+					output: r.tokens?.output ?? 0,
+					cacheRead: r.tokens?.cacheRead ?? 0,
+				},
+				memoId: r.stored?.memoId ?? r.existingMemoId,
+			};
+		}
 		case 'meta_synthesis': {
 			const r = await runMetaSynthesis(caseId, userId, {
 				modelOverride: resolveTier('h1.tier2'),
@@ -821,8 +951,11 @@ export function phasesForRun(options: RunOptions): Phase[] {
 	switch (heuristic) {
 		case 'h3':
 			return ['h3_walk'];
-		case 'h2':
-			return [...PHASE_ORDER_SYNTHETIC];
+		case 'h2': {
+			const phases: Phase[] = [...PHASE_ORDER_SYNTHETIC];
+			if (options.retrograde_pass) phases.push(...PHASE_ORDER_RETROGRADE);
+			return phases;
+		}
 		case 'h1': {
 			const phases: Phase[] = [...PHASE_ORDER_ANALYTICAL];
 			if (options.include_validity) {
@@ -848,6 +981,7 @@ export function phasesForRun(options: RunOptions): Phase[] {
 				phases.splice(agIdx + 1, 0, 'argument_validity');
 			}
 			phases.push(...PHASE_ORDER_SYNTHETIC);
+			if (options.retrograde_pass) phases.push(...PHASE_ORDER_RETROGRADE);
 			phases.push('meta_synthesis');
 			return phases;
 		}
@@ -942,7 +1076,8 @@ export async function runPipelineLoop(
 			userId,
 			sendEvent,
 			erroredAtomIds,
-			recordAtomError
+			recordAtomError,
+			options.retrograde_pass ?? false
 		);
 		if (!ok) return;
 	} else if (heuristic === 'meta') {
@@ -981,7 +1116,8 @@ export async function runPipelineLoop(
 			userId,
 			sendEvent,
 			erroredAtomIds,
-			recordAtomError
+			recordAtomError,
+			options.retrograde_pass ?? false
 		);
 		if (!h2Ok) return;
 
@@ -1173,7 +1309,8 @@ async function runIterativePhase(
  * also unverändert korrekt.
  */
 async function buildH2HierarchicalPlan(
-	documentId: string
+	documentId: string,
+	options: { retrograde: boolean } = { retrograde: false }
 ): Promise<Array<{ phase: Phase; atom: AtomRef }>> {
 	const plan: Array<{ phase: Phase; atom: AtomRef }> = [];
 	const chapters = await loadChapterUnits(documentId);
@@ -1284,6 +1421,56 @@ async function buildH2HierarchicalPlan(
 		atom: { id: documentId, label: 'Werk-Synthese (synthetisch)' },
 	});
 
+	// Retrograde 2-pass (FFN-Backprop-style refinement): top-down nach
+	// abgeschlossener Forward-Strecke + W. Reihenfolge ist hart sequentiell
+	// chapter → subchapter → paragraph, weil jede Ebene auf der retrograden
+	// Vorgänger-Ebene aufbaut (siehe paragraph-retrograde / section-collapse-
+	// retrograde / chapter-collapse-retrograde).
+	if (options.retrograde) {
+		// Hauptkapitel-Retrograde (W absorbiert).
+		for (const chapter of chapters) {
+			plan.push({
+				phase: 'chapter_collapse_retrograde',
+				atom: {
+					id: chapter.l1.headingId,
+					label: `${chapter.l1.numbering ?? ''} ${chapter.l1.text}`.trim().slice(0, 80),
+					headingId: chapter.l1.headingId,
+				},
+			});
+		}
+
+		// Subkapitel-Retrograde (Hauptkap-Retrograde absorbiert) — nur für
+		// Kapitel mit echtem Subkapitel-Level (2 oder 3); level=1-Kapitel haben
+		// keine section_collapse-Forward-Memos zum Verfeinern.
+		for (const chapter of chapters) {
+			const level = await getPersistedSubchapterLevel(chapter.l1.headingId);
+			const sections =
+				level === 2 || level === 3
+					? chapter.innerHeadings.filter((h) => h.level === level)
+					: [];
+			if (sections.length === 0) continue;
+			for (const section of sections) {
+				plan.push({
+					phase: 'section_collapse_retrograde',
+					atom: {
+						id: section.headingId,
+						label: `${section.numbering ?? ''} ${section.text}`.trim().slice(0, 80),
+						headingId: section.headingId,
+					},
+				});
+			}
+		}
+
+		// Per-Absatz-Retrograde (Subkap-Retrograde bzw. Hauptkap-Retrograde
+		// absorbiert) — für alle Hauptlinien-Absätze, in Dokument-Reihenfolge.
+		for (const p of allParagraphRows) {
+			plan.push({
+				phase: 'paragraph_retrograde',
+				atom: { id: p.id, label: labelForParagraph(p.id) },
+			});
+		}
+	}
+
 	return plan;
 }
 
@@ -1314,9 +1501,10 @@ async function runH2Hierarchical(
 	userId: string,
 	sendEvent: (e: PipelineEvent) => void,
 	erroredAtomIds: Set<string>,
-	recordAtomError: (phase: Phase, atom: AtomRef, message: string) => Promise<void>
+	recordAtomError: (phase: Phase, atom: AtomRef, message: string) => Promise<void>,
+	retrograde: boolean = false
 ): Promise<boolean> {
-	const plan = await buildH2HierarchicalPlan(documentId);
+	const plan = await buildH2HierarchicalPlan(documentId, { retrograde });
 
 	const phaseTotals = new Map<Phase, number>();
 	for (const step of plan) {

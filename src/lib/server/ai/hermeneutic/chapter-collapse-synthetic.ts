@@ -276,12 +276,22 @@ async function loadParagraphInterpretierends(
 
 	const subHeadings = chapter.innerHeadings.filter((h) => h.level >= 2);
 
+	// Linien-Trennung: nur Forward-`[interpretierend]%`-Memos einlesen, nicht
+	// `[interpretierend-retrograde]%`. Filter via EXISTS in der JOIN-ON-Klausel,
+	// damit die LEFT JOIN-Semantik (eine Zeile pro Absatz) auch bei vorhandenem
+	// Retrograde-Pendant erhalten bleibt.
 	const paragraphRows = (
 		await query<{ id: string; char_start: number; interpretierend: string | null }>(
 			`SELECT de.id, de.char_start, mc.content AS interpretierend
 			 FROM document_elements de
 			 LEFT JOIN memo_content mc ON mc.scope_element_id = de.id
 			   AND mc.memo_type = 'interpretierend' AND mc.scope_level = 'paragraph'
+			   AND EXISTS (
+			     SELECT 1 FROM namings n_fwd
+			     WHERE n_fwd.id = mc.naming_id
+			       AND n_fwd.inscription LIKE '[interpretierend]%'
+			       AND n_fwd.deleted_at IS NULL
+			   )
 			 WHERE de.id = ANY($1::uuid[])
 			 ORDER BY de.char_start`,
 			[chapter.paragraphIds]

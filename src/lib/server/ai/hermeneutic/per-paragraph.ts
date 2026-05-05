@@ -211,14 +211,20 @@ export async function loadParagraphContext(
 	const predecessor = idx > 0 ? subPars[idx - 1] : null;
 	const successor = idx < subPars.length - 1 ? subPars[idx + 1] : null;
 
-	// Interpretive chain: prior interpretierende memos in this subchapter
+	// Interpretive chain: prior interpretierende memos in this subchapter.
+	// Linien-Trennung: nur Forward-Memos (`[interpretierend]%`), nicht
+	// `[interpretierend-retrograde]%` — der Retrograde-Pass läuft über die
+	// vollständige Forward-Kette und darf hier nicht eingeflochten werden.
 	const chainRows = (
 		await query<{ char_start: number; content: string }>(
 			`SELECT de.char_start, mc.content
 			 FROM memo_content mc
+			 JOIN namings n ON n.id = mc.naming_id
 			 JOIN document_elements de ON de.id = mc.scope_element_id
 			 WHERE mc.memo_type = 'interpretierend'
 			   AND mc.scope_level = 'paragraph'
+			   AND n.inscription LIKE '[interpretierend]%'
+			   AND n.deleted_at IS NULL
 			   AND de.document_id = $1
 			   AND de.char_start >= $2 AND de.char_start < $3
 			 ORDER BY de.char_start`,

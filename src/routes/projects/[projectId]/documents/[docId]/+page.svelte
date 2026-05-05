@@ -143,6 +143,9 @@
 		| 'section_collapse_synthetic'
 		| 'chapter_collapse_synthetic'
 		| 'document_collapse_synthetic'
+		| 'chapter_collapse_retrograde'
+		| 'section_collapse_retrograde'
+		| 'paragraph_retrograde'
 		| 'h3_exposition'
 		| 'h3_grundlagentheorie'
 		| 'h3_forschungsdesign'
@@ -159,7 +162,7 @@
 		current_index: number;
 		total_in_phase: number | null;
 		last_step_label: string | null;
-		options: { heuristic?: 'h1' | 'h2' | 'h3' | 'meta'; include_validity?: boolean; cost_cap_usd?: number | null };
+		options: { heuristic?: 'h1' | 'h2' | 'h3' | 'meta'; include_validity?: boolean; retrograde_pass?: boolean; cost_cap_usd?: number | null };
 		cancel_requested: boolean;
 		error_message: string | null;
 		accumulated_input_tokens: number;
@@ -312,8 +315,15 @@
 		h3_exkurs: ['h3_grundlagentheorie'],
 	};
 
+	const RETROGRADE_PHASE_LABEL: Record<string, string> = {
+		chapter_collapse_retrograde: 'Hauptkapitel-Retrograde (W-absorbiert)',
+		section_collapse_retrograde: 'Subkapitel-Retrograde (Hauptkap-absorbiert)',
+		paragraph_retrograde: 'Per-Absatz-Retrograde (Subkap-absorbiert)',
+	};
+
 	function phaseLabel(phase: RunPhase): string {
 		if (phase.startsWith('h3_')) return H3_PHASE_LABEL[phase as H3PhaseKey] ?? phase;
+		if (phase.endsWith('_retrograde')) return RETROGRADE_PHASE_LABEL[phase] ?? phase;
 		const key = PHASE_TO_PASS[phase as keyof typeof PHASE_TO_PASS];
 		return key ? PASS_LABEL[key] : phase;
 	}
@@ -390,7 +400,14 @@
 	// gegen die Outline-Coverage und blockiert den Run bei fehlenden Typen.
 	type HeuristicChoice = 'auto' | HeuristicPath;
 	let runActive = $state(false);
-	let runOptions = $state<{ heuristic: HeuristicChoice }>({ heuristic: 'auto' });
+	// retrograde_pass = H2-Modifikator (FFN-Backprop-style 2-Pass:
+	// nach Werk-Synthese werden Hauptkapitel/Subkapitel/Absatz-Memos
+	// retrograd verfeinert). Toggle für Evaluation; Default aus.
+	// Wirkt nur bei heuristic='h2' oder 'meta'.
+	let runOptions = $state<{ heuristic: HeuristicChoice; retrograde_pass: boolean }>({
+		heuristic: 'auto',
+		retrograde_pass: false,
+	});
 	let runEvents = $state<string[]>([]);
 	let runError = $state<string | null>(null);
 	let runEventSource: AbortController | null = null;
@@ -495,9 +512,10 @@
 			const r = await fetch(`/api/cases/${caseInfo.id}/pipeline/run`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-				body: JSON.stringify(
-					runOptions.heuristic === 'auto' ? {} : { heuristic: runOptions.heuristic }
-				),
+				body: JSON.stringify({
+					...(runOptions.heuristic === 'auto' ? {} : { heuristic: runOptions.heuristic }),
+					...(runOptions.retrograde_pass ? { retrograde_pass: true } : {}),
+				}),
 				signal: ac.signal,
 			});
 			if (!r.ok || !r.body) {
@@ -1735,6 +1753,22 @@
 												<span>H3 · Funktionstyp-orchestriert</span>
 											</label>
 										</fieldset>
+										{#if effectiveHeuristic === 'h2' || effectiveHeuristic === 'meta'}
+											<fieldset class="run-modifiers">
+												<legend>H2-Modifikatoren</legend>
+												<label>
+													<input
+														type="checkbox"
+														bind:checked={runOptions.retrograde_pass}
+														disabled={!agEnabled}
+													/>
+													<span>
+														Retrograde-Pass (FFN-Backprop-style)
+														<small>Nach der Werk-Synthese werden Kapitel- → Subkapitel- → Absatz-Memos top-down im Lichte der Werk-Synthese verfeinert. Forward-Memos bleiben erhalten; retrograde Memos werden parallel persistiert.</small>
+													</span>
+												</label>
+											</fieldset>
+										{/if}
 										{#if preRunValidationBlocks}
 											<div class="prerun-block">
 												<strong>Outline unvollständig für H3</strong> — folgende Pflicht-Funktionstypen sind im Outline noch nicht vergeben:
@@ -3367,6 +3401,40 @@
 	}
 	.heuristic-radio input[type='radio'] { cursor: pointer; }
 	.heuristic-radio input[type='radio']:disabled { cursor: not-allowed; }
+	.run-modifiers {
+		flex-basis: 100%;
+		display: flex; flex-direction: column; gap: 0.4rem;
+		margin: 0 0 0.5rem;
+		padding: 0.55rem 0.75rem;
+		border: 1px solid rgba(255,255,255,0.08);
+		border-radius: 4px;
+		background: rgba(255,255,255,0.02);
+	}
+	.run-modifiers legend {
+		font-size: 0.72rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: #9aa0aa;
+		padding: 0 0.3rem;
+	}
+	.run-modifiers label {
+		display: flex; align-items: flex-start; gap: 0.5rem;
+		font-size: 0.82rem; color: #c9cdd5;
+		cursor: pointer; line-height: 1.4;
+	}
+	.run-modifiers label small {
+		display: block;
+		font-size: 0.74rem;
+		color: #8b94a3;
+		margin-top: 0.2rem;
+		line-height: 1.45;
+	}
+	.run-modifiers input[type='checkbox'] {
+		cursor: pointer;
+		margin-top: 0.18rem;
+		flex: none;
+	}
+	.run-modifiers input[type='checkbox']:disabled { cursor: not-allowed; }
 	.prerun-block {
 		flex-basis: 100%;
 		margin: 0 0 0.5rem;

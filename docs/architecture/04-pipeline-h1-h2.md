@@ -41,6 +41,8 @@ Cousin der H1-Linie, kumulativ-sequenziell statt argument-extraktiv. **Vokabular
 
 **`include_validity`** ist H1-only (validity setzt argument_nodes voraus). Codes (In-Vivo-Codes) wurden aus `paragraph_synthetic` entfernt (Commit `fb523c9`, failsafe-Risiko bei nicht-DSGVO Providern).
 
+**`retrograde_pass`** ist H2-only (siehe §8). Wirkt zusätzlich auch auf den `meta`-Composite-Run (H1 → H2 → meta_synthesis), der den retrograden 2. Pass zwischen H2-Forward und meta_synthesis einschiebt. Default off.
+
 ---
 
 ## 2. Orchestrator-Mechanik
@@ -102,10 +104,13 @@ Die `listAtomsForPhase`-Queries filtern bereits-erledigte Atome via Inscription-
 | `section_collapse` | H1 | EXISTS `memo_content` mit Tag `[kontextualisierend/subchapter/graph]` |
 | `chapter_collapse` | H1 | EXISTS `memo_content` mit Tag `[kontextualisierend/chapter/graph]` |
 | `document_collapse` | H1 | EXISTS `memo_content` mit Tag `[kontextualisierend/work/graph]` |
-| `paragraph_synthetic` | H2 | EXISTS `memo_content` mit memo_type='interpretierend' für Paragraph |
+| `paragraph_synthetic` | H2 | EXISTS `memo_content` mit memo_type='interpretierend' Tag `[interpretierend]…` (forward-only) |
 | `section_collapse_synthetic` | H2 | EXISTS `memo_content` mit Tag `[kontextualisierend/subchapter/synthetic]` |
 | `chapter_collapse_synthetic` | H2 | EXISTS `memo_content` mit Tag `[kontextualisierend/chapter/synthetic]` |
 | `document_collapse_synthetic` | H2 | EXISTS `memo_content` mit Tag `[kontextualisierend/work/synthetic]` |
+| `chapter_collapse_retrograde` | H2 (opt.) | EXISTS `memo_content` mit Tag `[kontextualisierend/chapter/synthetic-retrograde]` |
+| `section_collapse_retrograde` | H2 (opt.) | EXISTS `memo_content` mit Tag `[kontextualisierend/subchapter/synthetic-retrograde]` |
+| `paragraph_retrograde` | H2 (opt.) | EXISTS `memo_content` mit memo_type='interpretierend' Tag `[interpretierend-retrograde]…` |
 
 Pass-Vertrag: nach `executeStep` muss `listAtomsForPhase` das Atom als done führen. Verletzung = Code-Bug (Inkongruenz zwischen Done-Set und Pass-Skip/Persist-Bedingung) → wird als generic Error geworfen und vom Fail-Tolerant-Pfad als Atom-Fehler verbucht; Loop läuft mit nächstem Atom weiter (Stuck-Guard ersetzt durch Pass-Vertrag, Commit `c197bc3`, Memory `feedback_stuck_guard_is_symptom_not_solution`).
 
@@ -135,6 +140,9 @@ Pass-Vertrag: nach `executeStep` muss `listAtomsForPhase` das Atom als done füh
 | `section-collapse-synthetic.ts` | H2 / 2 | Subchapter → kontextualisierend memo, aus interpretive chain |
 | `chapter-collapse-synthetic.ts` | H2 / 3 | Chapter → triple-purpose memo (synthese + verlaufswiedergabe + auffaelligkeiten), zwei Eingangs-Modi (paragraphs/subchapter-memos) |
 | `document-collapse-synthetic.ts` | H2 / 4 | Werk → synthese + auffaelligkeiten (kein werk-wiedergabe-Feld) |
+| `chapter-collapse-retrograde.ts` | H2 / R1 | Chapter retrograd: Forward-Chapter + W → revisionierte Chapter-Synthese |
+| `section-collapse-retrograde.ts` | H2 / R2 | Subchapter retrograd: Forward-Subchapter + Retro-Chapter → revisionierte Subchapter-Synthese |
+| `paragraph-retrograde.ts` | H2 / R3 | Per-¶ retrograd: Forward-`[interpretierend]` + Retro-Subchapter → revisionierte interpretierend-Memo |
 | `heading-hierarchy.ts` | (helper) | Subchapter-Level-Wahl (1/2/3), gespeichert in `heading_classifications.aggregation_subchapter_level` — H1 und H2 teilen den Eintrag |
 
 ### 3.1 Section-Collapse Adaptive Subchapter Level
@@ -217,6 +225,9 @@ Die H2-Linie ist Cousin der H1-Linie, baut aber auf der **interpretive chain** (
 | `kontextualisierend` | chapter | H2 | `chapter-collapse-synthetic` (H2/3) | `[kontextualisierend/chapter/synthetic]` | synthese + verlaufswiedergabe + auffaelligkeiten |
 | `kontextualisierend` | work | H1 | `document-collapse` (H1/5) | `[kontextualisierend/work/graph]` | synthese + auffaelligkeiten |
 | `kontextualisierend` | work | H2 | `document-collapse-synthetic` (H2/4) | `[kontextualisierend/work/synthetic]` | synthese + auffaelligkeiten (kein werk-wiedergabe-Feld) |
+| `interpretierend` | paragraph | H2 (R3, opt.) | `paragraph-retrograde` | `[interpretierend-retrograde]…` | revisioniertes Per-¶-Memo, Bezug auf Retro-Subchapter |
+| `kontextualisierend` | subchapter | H2 (R2, opt.) | `section-collapse-retrograde` | `[kontextualisierend/subchapter/synthetic-retrograde]` | revisionierte Subchapter-Synthese, Bezug auf Retro-Chapter |
+| `kontextualisierend` | chapter | H2 (R1, opt.) | `chapter-collapse-retrograde` | `[kontextualisierend/chapter/synthetic-retrograde]` | revisionierte Chapter-Synthese, Bezug auf W |
 | `kapitelverlauf` | chapter | H1 | `chapter-flow-summary` (H1/4b, opt.) | — | Bewegungsbogen |
 
 **Linien-Diskriminator:** `memo_content.naming_inscription` trägt das Tag-Suffix `/graph` (H1) oder `/synthetic` (H2) für Idempotenz-Lookup *und* für linien-reine Loader-Filter (siehe §3.4). H2-Loader liest niemals H1-Vorgänger desselben Werks und vice versa.
@@ -292,3 +303,51 @@ Beide Folgestufen sind nicht Teil der ersten Implementation.
 - **Persistenz**: bestehendes `memo_content`-Pattern (`memo_type='kontextualisierend'`, `scope_level='work'`, Tag-Suffix `/meta` → Naming-Inscription `[kontextualisierend/work/meta]…`); Teil A als markdown-assemblierter prose-Content, Teil-B-Anker und die vier Sektions-Strings als JSONB in `appearances.properties` (`fact_check_anchors`, `synthese_parts`).
 - **Run-Modell**: ein Run mit erweitertem `RunOptions.heuristic = 'meta'` (Composite) — `phasesForRun` kettet `PHASE_ORDER_ANALYTICAL` (± `argument_validity`) → `PHASE_ORDER_SYNTHETIC` → `meta_synthesis` als terminales Glied. Tier-Routing: Meta nutzt `h1.tier2`.
 - **Run-Setup-UI**: Radio "Meta · Review-Synthese" steht zwischen H2 und H3 im exklusiven Heuristik-Selector; nicht als zusätzliche numerische Option, sondern als regulärer vierter Eintrag im selben Radiogruppen-Set.
+
+---
+
+## 8. Retrograde-2-Pass (H2-Modifikator, optional)
+
+**Status:** implementiert 2026-05-05 als FFN-Backprop-style Verfeinerung der H2-Forward-Memos. Default off, schaltbar via `RunOptions.retrograde_pass=true`. Wirkt bei `heuristic='h2'` und beim Composite `heuristic='meta'` (in dem Fall zwischen H2-Forward und `meta_synthesis` eingeschoben).
+
+### 8.1 Idee
+
+Nach der Forward-Strecke (¶ → Subkap → Kap → W) liegt mit der Werk-Synthese ein höchst verdichtetes Bezugsbild vor, das beim sequentiellen Aufbau der einzelnen Schichten noch nicht existierte. Der retrograde 2. Pass läuft deshalb **top-down im Lichte der Werk-Synthese**: jede Ebene wird einmal neu gelesen, **nachdem** die jeweils übergeordnete Ebene retrograd aktualisiert wurde. Die Bewegung entspricht dem Backprop-Schritt einer FFN-Schicht — hier nicht zur Gewichtsanpassung, sondern zur Verfeinerung der natürlichsprachlichen Repräsentation.
+
+### 8.2 Phasen-Reihenfolge
+
+`PHASE_ORDER_RETROGRADE = [chapter_collapse_retrograde, section_collapse_retrograde, paragraph_retrograde]` — wird bei `retrograde_pass=true` an `PHASE_ORDER_SYNTHETIC` angehängt.
+
+| # | Phase | Inputs | Output-Tag |
+|---|-------|--------|------------|
+| R1 | `chapter_collapse_retrograde` | Forward-Chapter (`[…/chapter/synthetic]`) + W (`[…/work/synthetic]`) | `[kontextualisierend/chapter/synthetic-retrograde]…` |
+| R2 | `section_collapse_retrograde` | Forward-Subchapter (`[…/subchapter/synthetic]`) + Retro-Chapter (`[…/chapter/synthetic-retrograde]`) | `[kontextualisierend/subchapter/synthetic-retrograde]…` |
+| R3 | `paragraph_retrograde` | Forward-`[interpretierend]` + Retro-Subchapter (`[…/subchapter/synthetic-retrograde]`) | `[interpretierend-retrograde]…` |
+
+### 8.3 Bewegungen im Prompt (alle drei Module)
+
+Drei explizite, gleichberechtigte Bewegungen — **bestätigen / verschieben / korrigieren**. Der Prompt instruiert ausdrücklich, das Forward-Memo nicht zu wiederholen, wenn nichts verschoben oder korrigiert wird; statt dessen das Bestätigte mit kurzer Begründung zu markieren. Damit liegt der retrograde Ertrag im Delta zur Forward-Schicht, nicht in einer Zweitfassung derselben Lektüre.
+
+### 8.4 Linien-Trennung (kollisionsfrei)
+
+Forward- und retrograde Memos liegen am selben `scope_element_id`. Trennung erfolgt über die Inscription-Bracket-Position:
+- `[interpretierend]…` matcht NICHT `[interpretierend-retrograde]…` (Bracket-Boundary-LIKE).
+- `[kontextualisierend/X/synthetic]…` matcht NICHT `[kontextualisierend/X/synthetic-retrograde]…`.
+
+Forward-Loader (`per-paragraph.ts`, `section-collapse-synthetic.ts`, `chapter-collapse-synthetic.ts`) wurden ergänzt um expliziten `LIKE '[interpretierend]%'`-Filter — damit retrograde Memos den Forward-Pfad nicht polluten, wenn Forward + Retrograde im selben Werk koexistieren.
+
+### 8.5 Idempotenz / Resume
+
+Pro Atom prüft die Retrograde-Funktion vor dem Run, ob bereits ein retrograde-getaggtes Memo am selben `scope_element_id` existiert; falls ja, skip. `listAtomsForPhase` filtert Done-Atome via Inscription-LIKE auf das Retrograde-Tag. Resume-safe wie der Forward-Walk.
+
+### 8.6 Tier-Routing
+
+Alle drei Retrograde-Phasen nutzen `resolveTier('h2.tier1')` — selbe Modell-Klasse wie der H2-Forward-Walk. Die zusätzliche LLM-Rechenzeit ist proportional zur Forward-Strecke (R1: ein Call pro L1-Kapitel, R2: ein Call pro Leaf-Subchapter auf Aggregations-Level, R3: ein Call pro Hauptlinien-Absatz). Praktisch verdoppelt sich der H2-Token-Aufwand bei aktiviertem Retrograde-Pass.
+
+### 8.7 UI-Lage
+
+Checkbox "Retrograde-Pass (FFN-Backprop-style)" in einem `.run-modifiers`-Fieldset unter dem Heuristik-Radio-Selector, sichtbar **nur wenn** `effectiveHeuristic ∈ {h2, meta}`. Default off. Der Master-Run-Trigger sendet das Flag im POST-Body als `retrograde_pass: boolean`; der Server-Endpoint (`/api/cases/[caseId]/pipeline/run`) reicht es als `RunOptions.retrograde_pass` an `runPipelineLoop` weiter.
+
+### 8.8 Persistenz
+
+Pro Schicht parallel zur Forward-Persistenz. Memo-Triade unverändert (`namings` + `appearances` mit `mode='entity'` + `memo_content`); diskriminierend ist das Inscription-Tag. `appearances.properties.source = 'synthetic_retrograde'` markiert R3-Memos zusätzlich auf JSONB-Ebene für Reader/Synthesen-Tab-Filter.

@@ -134,6 +134,11 @@ async function loadCollapseContext(
 	);
 	const subchapterEnd = nextSiblingOrHigher?.charStart ?? docRow.full_text.length;
 
+	// Linien-Trennung: nur Forward-`[interpretierend]%`-Memos einlesen, nicht
+	// `[interpretierend-retrograde]%` — der Retrograde-Pass darf den
+	// Forward-Subkapitel-Synthese-Pass nicht beeinflussen. Filter via EXISTS
+	// in der JOIN-ON-Klausel, damit die LEFT JOIN-Semantik (eine Zeile pro
+	// Absatz) auch bei vorhandenem Retrograde-Pendant erhalten bleibt.
 	const paragraphsWithMemos = (
 		await query<{
 			paragraph_id: string;
@@ -149,6 +154,12 @@ async function loadCollapseContext(
 			 FROM document_elements de
 			 LEFT JOIN memo_content i ON i.scope_element_id = de.id
 			   AND i.memo_type = 'interpretierend' AND i.scope_level = 'paragraph'
+			   AND EXISTS (
+			     SELECT 1 FROM namings n_fwd
+			     WHERE n_fwd.id = i.naming_id
+			       AND n_fwd.inscription LIKE '[interpretierend]%'
+			       AND n_fwd.deleted_at IS NULL
+			   )
 			 WHERE de.document_id = $1
 			   AND de.element_type = 'paragraph'
 			   AND de.section_kind = 'main'
