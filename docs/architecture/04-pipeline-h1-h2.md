@@ -1,6 +1,6 @@
-# 04 — Pipeline H1/H2 (Orchestrator + Hermeneutische Hauptlinie)
+# 04 — Pipeline H1/H2 (Orchestrator + zwei symmetrische Linien)
 
-**Stand: 2026-05-03** · Pipeline-Orchestrator + analytische Hauptlinie + synthetisches Per-¶-Memo als Addendum.
+**Stand: 2026-05-05** · Pipeline-Orchestrator + zwei symmetrische Heuristik-Linien (analytisch / synthetisch-hermeneutisch). Drei-Heuristiken-Architektur: H1, H2, H3 sind exklusiv pro Run (`options.heuristic`).
 
 Eintrittspunkt: `src/lib/server/pipeline/orchestrator.ts`. Per-Heuristik-Implementierung in `src/lib/server/ai/hermeneutic/`.
 
@@ -10,25 +10,34 @@ State: `pipeline_runs`-Tabelle (Mig 038). Max 1 aktiver Run pro Case (DB-Constra
 
 ## 1. Phasen-Reihenfolge
 
-**Analytische Hauptlinie** (Pflicht):
+`phasesForRun(options)` wählt anhand `options.heuristic ∈ {h1, h2, h3}` exklusiv die Linie. Für H3 siehe `05-pipeline-h3.md` (linearer Walk-Driver).
+
+### 1.1 H1 — analytische Linie (`PHASE_ORDER_ANALYTICAL`)
 
 | # | Phase | Ergebnis | Tabelle(n) |
 |---|-------|----------|------------|
 | 1 | `argumentation_graph` | per-¶ Argumente + Kanten + Scaffolding | `argument_nodes`, `argument_edges`, `scaffolding_elements`, `scaffolding_anchors` |
 | 2* | `argument_validity` | Validity + Grounding-Klassifikation pro Argument | `argument_nodes.referential_grounding`, `argument_nodes.validity_assessment` |
-| 3 | `section_collapse` | Subchapter-Synthese (kontextualisierend, L2/L3) | `memo_content` (memo_type='kontextualisierend', scope_level='subchapter') |
-| 4 | `chapter_collapse` | Kapitel-Synthese (synthese + argumentationswiedergabe + auffaelligkeiten) | `memo_content` (scope_level='chapter') |
-| 5 | `document_collapse` | Werk-Synthese (synthese + auffaelligkeiten) | `memo_content` (scope_level='work', `scope_element_id` NULL) |
+| 3 | `section_collapse` | Subchapter-Synthese (kontextualisierend, L2/L3) | `memo_content` (memo_type='kontextualisierend', scope_level='subchapter', Tag `[…/graph]`) |
+| 4 | `chapter_collapse` | Kapitel-Synthese (synthese + argumentationswiedergabe + auffaelligkeiten) | `memo_content` (scope_level='chapter', Tag `[…/graph]`) |
+| 5 | `document_collapse` | Werk-Synthese (synthese + auffaelligkeiten) | `memo_content` (scope_level='work', `scope_element_id` NULL, Tag `[…/graph]`) |
 
-`*` nur wenn `brief.validity_check === true`.
+`*` nur wenn `options.include_validity === true` (Brief-Default `validity_check`).
 
-**Optionales Addendum** (nur wenn `options.include_synthetic === true`, **nach** Hauptlinie):
+### 1.2 H2 — synthetisch-hermeneutische Linie (`PHASE_ORDER_SYNTHETIC`)
 
-| # | Phase | Ergebnis |
-|---|-------|----------|
-| 6 | `paragraph_synthetic` | per-¶ formulierend + interpretierend Memos + bis zu 2 In-Vivo-Codes |
+Cousin der H1-Linie, kumulativ-sequenziell statt argument-extraktiv. **Vokabular-Trennung:** H2-Kapitel-Output trägt `verlaufswiedergabe` (Bewegungstrajektorie) statt H1's `argumentationswiedergabe`. Werk-Ebene hat in H2 *keine* eigene wiedergabe — die Hauptkapitel-`verlaufswiedergaben` der vorgeschalteten Pässe stehen für sich.
 
-Das synthetische Per-¶-Memo ist explizit **Addendum**, nicht Eingang in Section-Collapse — letzterer arbeitet aus dem Argumentation-Graph (Memory `project_pipeline_run_orchestrator`).
+| # | Phase | Ergebnis | Tabelle(n) |
+|---|-------|----------|------------|
+| 1 | `paragraph_synthetic` | per-¶ formulierend + interpretierend Memo (interpretive chain) | `memo_content` (memo_type ∈ {formulierend, interpretierend}, scope_level='paragraph') |
+| 2 | `section_collapse_synthetic` | Subchapter-Synthese aus interpretive chain | `memo_content` (scope_level='subchapter', Tag `[…/synthetic]`) |
+| 3 | `chapter_collapse_synthetic` | Kapitel-Synthese (synthese + verlaufswiedergabe + auffaelligkeiten) | `memo_content` (scope_level='chapter', Tag `[…/synthetic]`) |
+| 4 | `document_collapse_synthetic` | Werk-Synthese (synthese + auffaelligkeiten, *ohne* werk-wiedergabe) | `memo_content` (scope_level='work', Tag `[…/synthetic]`) |
+
+**Linien-rein:** jeder H2-Collapse lädt ausschließlich synthetic-getaggte Vorgänger (Tag-Filter im Loader). H1-Daten desselben Werks bleiben unsichtbar — und vice versa.
+
+**`include_validity`** ist H1-only (validity setzt argument_nodes voraus). Codes (In-Vivo-Codes) wurden aus `paragraph_synthetic` entfernt (Commit `fb523c9`, failsafe-Risiko bei nicht-DSGVO Providern).
 
 ---
 
@@ -39,6 +48,7 @@ startOrResumeRun(caseId, options, userId)
   ↓ (DB: pipeline_runs INSERT oder existing paused row reaktivieren)
 runPipelineLoop(runId)
   ↓
+  phases = phasesForRun(options)                    ← H1 / H2 / H3 exklusiv
   for phase in phases:
      atoms = listAtomsForPhase(runId, phase)        ← idempotenz: filtert "done"
      for atom in atoms:
@@ -47,12 +57,19 @@ runPipelineLoop(runId)
         try executeStep(phase, atom)
             ↓
             executeStep dispatcht:
-              argumentation_graph  → runArgumentationGraphPass()
-              argument_validity    → runArgumentValidityPass()
-              section_collapse     → runGraphCollapse()       (subchapter)
-              chapter_collapse     → runChapterCollapse()
-              document_collapse    → runDocumentCollapse()
-              paragraph_synthetic  → runParagraphPass()
+              # H1-Linie
+              argumentation_graph         → runArgumentationGraphPass()
+              argument_validity           → runArgumentValidityPass()
+              section_collapse            → runGraphCollapse()       (subchapter)
+              chapter_collapse            → runChapterCollapse()
+              document_collapse           → runDocumentCollapse()
+              # H2-Linie
+              paragraph_synthetic         → runParagraphPass()
+              section_collapse_synthetic  → runSectionCollapseSynthetic()
+              chapter_collapse_synthetic  → runChapterCollapseSynthetic()
+              document_collapse_synthetic → runDocumentCollapseSynthetic()
+              # H3 (linearer Walk, siehe 05-pipeline-h3.md)
+              h3_walk                     → runH3Walk()
         catch error:
             atom_errors.push({...}); continue        ← fail-tolerant
         updateProgress(tokens, current_phase/index)
@@ -68,18 +85,21 @@ markCompleted(runId)  oder markFailed(...)
 
 ### 2.2 Idempotenz pro Phase
 
-Die `listAtomsForPhase`-Queries filtern bereits-erledigte Atome:
+Die `listAtomsForPhase`-Queries filtern bereits-erledigte Atome via Inscription-Tag-Filter:
 
-| Phase | Done-Kriterium |
-|-------|----------------|
-| `argumentation_graph` | EXISTS `argument_nodes` ODER `scaffolding_elements` für Paragraph |
-| `argument_validity` | NOT NULL `argument_nodes.validity_assessment` für Paragraph |
-| `section_collapse` | EXISTS `memo_content` mit Tag `[kontextualisierend/subchapter/graph]` |
-| `chapter_collapse` | EXISTS `memo_content` mit Tag `[kontextualisierend/chapter/graph]` |
-| `document_collapse` | EXISTS `memo_content` mit Tag `[kontextualisierend/work/graph]` |
-| `paragraph_synthetic` | EXISTS `memo_content` mit memo_type='formulierend' für Paragraph |
+| Phase | Linie | Done-Kriterium |
+|-------|-------|----------------|
+| `argumentation_graph` | H1 | EXISTS `argument_nodes` ODER `scaffolding_elements` für Paragraph |
+| `argument_validity` | H1 | NOT NULL `argument_nodes.validity_assessment` für Paragraph |
+| `section_collapse` | H1 | EXISTS `memo_content` mit Tag `[kontextualisierend/subchapter/graph]` |
+| `chapter_collapse` | H1 | EXISTS `memo_content` mit Tag `[kontextualisierend/chapter/graph]` |
+| `document_collapse` | H1 | EXISTS `memo_content` mit Tag `[kontextualisierend/work/graph]` |
+| `paragraph_synthetic` | H2 | EXISTS `memo_content` mit memo_type='interpretierend' für Paragraph |
+| `section_collapse_synthetic` | H2 | EXISTS `memo_content` mit Tag `[kontextualisierend/subchapter/synthetic]` |
+| `chapter_collapse_synthetic` | H2 | EXISTS `memo_content` mit Tag `[kontextualisierend/chapter/synthetic]` |
+| `document_collapse_synthetic` | H2 | EXISTS `memo_content` mit Tag `[kontextualisierend/work/synthetic]` |
 
-Pass-Vertrag: nach `executeStep` muss `listAtomsForPhase` das Atom als done führen. Verletzung = Code-Bug (Inkongruenz zwischen Done-Set und Pass-Skip/Persist-Bedingung) → wird als generic Error geworfen und vom Fail-Tolerant-Pfad als Atom-Fehler verbucht; Loop läuft mit nächstem Atom weiter.
+Pass-Vertrag: nach `executeStep` muss `listAtomsForPhase` das Atom als done führen. Verletzung = Code-Bug (Inkongruenz zwischen Done-Set und Pass-Skip/Persist-Bedingung) → wird als generic Error geworfen und vom Fail-Tolerant-Pfad als Atom-Fehler verbucht; Loop läuft mit nächstem Atom weiter (Stuck-Guard ersetzt durch Pass-Vertrag, Commit `c197bc3`, Memory `feedback_stuck_guard_is_symptom_not_solution`).
 
 ### 2.3 Fail-Tolerant-Mode
 
@@ -92,19 +112,22 @@ Pass-Vertrag: nach `executeStep` muss `listAtomsForPhase` das Atom als done füh
 
 ## 3. Heuristik-Module (`src/lib/server/ai/hermeneutic/`)
 
-| Datei | Phase | Zweck |
-|-------|-------|-------|
-| `argumentation-graph.ts` | 1 | Per-¶ LLM-Call: Argumente (claim+premises+anchor_phrase+grounding) + Edges + Scaffolding |
-| `argumentation-graph-prose-parser.ts` | 1 | Parser für Prose-Format-Output |
-| `argument-validity.ts` | 2 | Charity-Pass: bewertet validity_assessment pro Node |
-| `validity-helpers.ts` | 2 | Fallacy-Taxonomie + `extractFallacy()`, `formatFallacyLine()` |
-| `section-collapse.ts` | 3 | Subchapter → kontextualisierend memo, aus per-¶-AG-Daten |
-| `section-collapse-from-graph.ts` | 3 | Helper: Graph-Konsolidierung pro Subchapter |
-| `chapter-collapse.ts` | 4 | Chapter → triple-purpose memo (synthese + argumentationswiedergabe + auffaelligkeiten) |
-| `chapter-flow-summary.ts` | 4b | optional: kapitelverlauf-Memo (Bewegungsbogen) |
-| `document-collapse.ts` | 5 | Werk → synthese + auffaelligkeiten |
-| `per-paragraph.ts` | 6 | synthetisches per-¶-Memo (formulierend + interpretierend + In-Vivo-Codes) |
-| `heading-hierarchy.ts` | (helper) | Subchapter-Level-Wahl (1/2/3), gespeichert in `heading_classifications.aggregation_subchapter_level` |
+| Datei | Linie / Phase | Zweck |
+|-------|---------------|-------|
+| `argumentation-graph.ts` | H1 / 1 | Per-¶ LLM-Call: Argumente (claim+premises+anchor_phrase+grounding) + Edges + Scaffolding |
+| `argumentation-graph-prose-parser.ts` | H1 / 1 | Parser für Prose-Format-Output |
+| `argument-validity.ts` | H1 / 2 | Charity-Pass: bewertet validity_assessment pro Node |
+| `validity-helpers.ts` | H1 / 2 | Fallacy-Taxonomie + `extractFallacy()`, `formatFallacyLine()` |
+| `section-collapse.ts` | H1 / 3 | Subchapter → kontextualisierend memo, aus per-¶-AG-Daten |
+| `section-collapse-from-graph.ts` | H1 / 3 | Helper: Graph-Konsolidierung pro Subchapter |
+| `chapter-collapse.ts` | H1 / 4 | Chapter → triple-purpose memo (synthese + argumentationswiedergabe + auffaelligkeiten) |
+| `chapter-flow-summary.ts` | H1 / 4b | optional: kapitelverlauf-Memo (Bewegungsbogen) |
+| `document-collapse.ts` | H1 / 5 | Werk → synthese + auffaelligkeiten |
+| `per-paragraph.ts` | H2 / 1 | Per-¶ formulierend + interpretierend Memo (interpretive chain — Grundlage der H2-Aggregation) |
+| `section-collapse-synthetic.ts` | H2 / 2 | Subchapter → kontextualisierend memo, aus interpretive chain |
+| `chapter-collapse-synthetic.ts` | H2 / 3 | Chapter → triple-purpose memo (synthese + verlaufswiedergabe + auffaelligkeiten), zwei Eingangs-Modi (paragraphs/subchapter-memos) |
+| `document-collapse-synthetic.ts` | H2 / 4 | Werk → synthese + auffaelligkeiten (kein werk-wiedergabe-Feld) |
+| `heading-hierarchy.ts` | (helper) | Subchapter-Level-Wahl (1/2/3), gespeichert in `heading_classifications.aggregation_subchapter_level` — H1 und H2 teilen den Eintrag |
 
 ### 3.1 Section-Collapse Adaptive Subchapter Level
 
@@ -128,7 +151,31 @@ Aggregiert alle L1-Chapter-Synthesen (+ Flow-Summaries falls vorhanden) zu Werk-
 - `synthese` (3 mandatory components).
 - `auffaelligkeiten` (Werk-weite Beobachtungen).
 
-`scope_element_id` ist NULL — Werk-Ebene hat kein `document_element`-Anker.
+`scope_element_id` ist NULL — Werk-Ebene hat kein `document_element`-Anker. Werk-Bezug über `appearances.properties.document_id`.
+
+### 3.4 H2-Linie — kumulativ-sequenziell
+
+Die H2-Linie ist Cousin der H1-Linie, baut aber auf der **interpretive chain** (Folge der `interpretierend`-Per-¶-Memos im Subkapitel-Kontext) statt auf dem Argumentations-Graph auf.
+
+**Architekturprinzip *linien-rein***: jeder H2-Loader filtert Inscription-Tag auf `[…/synthetic]%`. Ein H2-Chapter-Collapse sieht keine H1-Subkapitel-Memos desselben Werks (Tag-Mismatch); ein H2-Document-Collapse keine H1-Chapter-Memos. Das gilt auch in die Gegenrichtung. Beide Linien können seriell auf demselben Werk laufen, kollidieren aber nicht.
+
+**Vokabular-Trennung von H1**:
+- H1-Chapter-Output: `synthese + argumentationswiedergabe + auffaelligkeiten`.
+- H2-Chapter-Output: `synthese + verlaufswiedergabe + auffaelligkeiten`.
+- *verlaufswiedergabe* trägt die hermeneutische Bewegung im Kapitel (Trajektorie der Argumentations-/Lese-Bewegung), nicht ein argumentationsstruktur-zentriertes Skelett.
+- H2-Document hat kein wiedergabe-Feld — Werk-`verlaufswiedergaben` der vorgeschalteten Hauptkapitel-Pässe stehen für sich.
+
+**4 Pflichtbestandteile** (H2-Chapter, gespiegelt aus H1, mit hermeneutischer Diktion + Opt-Out-Klauseln): Hermeneutische Bewegung / Kernbewegung mit Refs / Werk-Architektur-Verortung / Hermeneutische Tragfähigkeit.
+
+**3 Pflichtbestandteile** (H2-Document): Forschungsbeitrag-Diagnose / Gesamtkohärenz und Werk-Architektur / Niveau-Beurteilung mit Werktyp-Akzent.
+
+**Dual-Mode-Loader** im chapter-collapse-synthetic:
+- `mode='paragraphs'` (Aggregation-Level 1, flat chapter): Direktaggregation aus den `interpretierend`-Per-¶-Memos.
+- `mode='subchapter-memos'` (Level 2/3, strukturiert): Aggregation aus den vorgeschalteten subchapter-synthetischen Memos.
+
+**Storage**:
+- Inhalt → `memo_content.content` (Synthese-Prosa).
+- Nicht-Content-Felder (`verlaufswiedergabe`, `auffaelligkeiten`) → `appearances.properties` (JSONB-Beiwerk pro Memo).
 
 ---
 
@@ -152,16 +199,23 @@ Aggregiert alle L1-Chapter-Synthesen (+ Flow-Summaries falls vorhanden) zu Werk-
 
 ## 5. Memo-Ontologie (Pipeline-Slice)
 
-| memo_type | scope_level | Erzeuger | Inhalt |
-|-----------|-------------|----------|--------|
-| `formulierend` | paragraph | per-paragraph (Phase 6) | reformulierende Wiedergabe |
-| `interpretierend` | paragraph | per-paragraph (Phase 6) | Interpretation + In-Vivo-Codes |
-| `kontextualisierend` | subchapter | section-collapse (Phase 3) | Verdichtung aus AG-Daten |
-| `kontextualisierend` | chapter | chapter-collapse (Phase 4) | triple-output |
-| `kontextualisierend` | work | document-collapse (Phase 5) | Werk-Synthese |
-| `kapitelverlauf` | chapter | chapter-flow-summary (Phase 4b, opt.) | Bewegungsbogen |
+| memo_type | scope_level | Linie | Erzeuger | Inscription-Tag | Inhalt |
+|-----------|-------------|-------|----------|-----------------|--------|
+| `formulierend` | paragraph | H2 | `per-paragraph` (H2/1) | — | reformulierende Wiedergabe |
+| `interpretierend` | paragraph | H2 | `per-paragraph` (H2/1) | — | Interpretation (Codes entfernt, Commit fb523c9) |
+| `kontextualisierend` | subchapter | H1 | `section-collapse` (H1/3) | `[kontextualisierend/subchapter/graph]` | Verdichtung aus AG-Daten |
+| `kontextualisierend` | subchapter | H2 | `section-collapse-synthetic` (H2/2) | `[kontextualisierend/subchapter/synthetic]` | Verdichtung aus interpretive chain |
+| `kontextualisierend` | chapter | H1 | `chapter-collapse` (H1/4) | `[kontextualisierend/chapter/graph]` | synthese + argumentationswiedergabe + auffaelligkeiten |
+| `kontextualisierend` | chapter | H2 | `chapter-collapse-synthetic` (H2/3) | `[kontextualisierend/chapter/synthetic]` | synthese + verlaufswiedergabe + auffaelligkeiten |
+| `kontextualisierend` | work | H1 | `document-collapse` (H1/5) | `[kontextualisierend/work/graph]` | synthese + auffaelligkeiten |
+| `kontextualisierend` | work | H2 | `document-collapse-synthetic` (H2/4) | `[kontextualisierend/work/synthetic]` | synthese + auffaelligkeiten (kein werk-wiedergabe-Feld) |
+| `kapitelverlauf` | chapter | H1 | `chapter-flow-summary` (H1/4b, opt.) | — | Bewegungsbogen |
 
-`memo_content.naming_inscription` trägt Tags wie `[kontextualisierend/chapter/graph]` für Idempotenz-Lookup.
+**Linien-Diskriminator:** `memo_content.naming_inscription` trägt das Tag-Suffix `/graph` (H1) oder `/synthetic` (H2) für Idempotenz-Lookup *und* für linien-reine Loader-Filter (siehe §3.4). H2-Loader liest niemals H1-Vorgänger desselben Werks und vice versa.
+
+**Storage-Pattern (alle kontextualisierend-Memos):**
+- Synthese-Prosa → `memo_content.content`.
+- Nicht-Content-Felder (`argumentationswiedergabe` bei H1-Chapter, `verlaufswiedergabe` bei H2-Chapter, `auffaelligkeiten` jeweils) → `appearances.properties` (JSONB).
 
 **Beachte:** `docs/design-memo-ontology.md` adressiert zusätzlich Description-Memos (am Code, am Naming-Akt) — die liegen außerhalb dieser Pipeline. Pipeline-Code implementiert nur die analytischen Memo-Typen oben.
 

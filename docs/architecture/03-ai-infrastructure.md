@@ -166,7 +166,7 @@ Bei Parse- oder Schema-Failure folgt ein **Self-Repair-Retry**: Modell sieht den
 
 Telemetrie pro Aufruf nach `pipeline_call_log` (Mig 051): `attempts`, `parseStrategy='json'|'prose'`, `outcome`, Token-Breakdown — getrennt von `ai_interactions`, da run-gebunden.
 
-**Welt-3-Module verwenden Prose** (per-paragraph + 5 Collapse-Module): die LLM erzeugt dort Memo-Prosa mit Auffälligkeits-/Code-Listen. **Welt-4-Module (Argumentation Graph, Validity, H3-Konstrukte) bleiben JSON.**
+**Welt-3-Module verwenden Prose** (per-paragraph + 7 Collapse-Module: H1-Triade `section/chapter/document` + H2-Triade `section/chapter/document-synthetic` + optionale `chapter-flow-summary`): die LLM erzeugt dort Memo-Prosa mit Auffälligkeits-/Code-Listen. **Welt-4-Module (Argumentation Graph, Validity, H3-Konstrukte) bleiben JSON.**
 
 ---
 

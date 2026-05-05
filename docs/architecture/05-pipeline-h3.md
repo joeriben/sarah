@@ -1,6 +1,6 @@
 # 05 — Pipeline H3 (Funktionstyp-Heuristiken)
 
-**Stand: 2026-05-03** · Drei-Heuristiken-Architektur, Funktionstyp-Zuweisung, per-Funktionstyp-Implementierungs-Stand.
+**Stand: 2026-05-05** · Drei-Heuristiken-Architektur, Funktionstyp-Zuweisung, per-Funktionstyp-Implementierungs-Stand.
 
 H3 ist nicht "tiefer als H2", sondern eine **dritte Heuristik gleichrangig zu H1/H2** (Memory `project_three_heuristics_architecture`). Routing zwischen H1/H2/H3 ist **Falltyp-deterministisch** (siehe `06-cases-briefs-falltyp.md`), **nicht** User-Toggle.
 
@@ -12,11 +12,11 @@ Eintrittspunkt: `src/lib/server/pipeline/function-type-assignment.ts` (Pre-Heuri
 
 | Heuristik | Skalierung | Rolle |
 |-----------|-----------|-------|
-| **H1** | Werk-skaliert (paragraph→subchapter→chapter→work) | analytische Hauptlinie (siehe `04-pipeline-h1-h2.md`) |
-| **H2** | per-Paragraph synthetisch | formulierend + interpretierend, ergänzend |
+| **H1** | Werk-skaliert (paragraph→subchapter→chapter→work) | analytische Hauptlinie, argument-extraktiv über Argumentations-Graph (siehe `04-pipeline-h1-h2.md` §1.1) |
+| **H2** | Werk-skaliert (paragraph→subchapter→chapter→work) | synthetisch-hermeneutische Hauptlinie, kumulativ-sequenziell über interpretive chain; symmetrisch zu H1, eigenständige Vokabel-Schicht (`verlaufswiedergabe` statt `argumentationswiedergabe`) — siehe `04-pipeline-h1-h2.md` §1.2/§3.4 |
 | **H3** | per-Funktionstyp (Werk-strukturell) | Funktionstyp-spezifische Konstrukte (FRAGESTELLUNG, METHODOLOGIE, BASIS, VERWEIS_PROFIL, FORSCHUNGSGEGENSTAND, BEFUND, …) |
 
-H3 läuft **nach** Outline-Confirm und setzt korrekt klassifizierte Funktionstypen voraus.
+H1 und H2 sind exklusiv pro Run (`options.heuristic`), aber linien-rein parallelisierbar auf demselben Werk (Tag-Filter `[…/graph]` vs `[…/synthetic]`). H3 läuft **nach** Outline-Confirm und setzt korrekt klassifizierte Funktionstypen voraus.
 
 ---
 
