@@ -93,6 +93,24 @@ export const KNOWN_ROUTES: RouteOption[] = [
 		region: 'US',
 		dsgvo: false,
 	},
+	{
+		provider: 'mammouth',
+		model: 'kimi-k2.5',
+		label: 'kimi-k2.5 (Mammouth, EU-vermittelt)',
+		inputUSDPerMTok: 0.45,
+		outputUSDPerMTok: 2.25,
+		region: 'EU',
+		dsgvo: true,
+	},
+	{
+		provider: 'openrouter',
+		model: 'moonshotai/kimi-k2.5',
+		label: 'kimi-k2.5 (OpenRouter)',
+		inputUSDPerMTok: 0.45,
+		outputUSDPerMTok: 2.25,
+		region: 'US',
+		dsgvo: false,
+	},
 ];
 
 export interface TierCandidate {
@@ -113,6 +131,8 @@ const MIMO: TierModel = { provider: 'openrouter', model: 'xiaomi/mimo-v2.5-pro' 
 const SONNET_OR: TierModel = { provider: 'openrouter', model: 'anthropic/claude-sonnet-4.6' };
 const SONNET_MAMMOUTH: TierModel = { provider: 'mammouth', model: 'claude-sonnet-4-6' };
 const OPUS_OR: TierModel = { provider: 'openrouter', model: 'anthropic/claude-opus-4.7' };
+const KIMI_MAMMOUTH: TierModel = { provider: 'mammouth', model: 'kimi-k2.5' };
+const KIMI_OR: TierModel = { provider: 'openrouter', model: 'moonshotai/kimi-k2.5' };
 
 export const TIER_REGISTRY: Record<Tier, TierMeta> = {
 	'h1.tier1': {
@@ -185,6 +205,14 @@ export const TIER_REGISTRY: Record<Tier, TierMeta> = {
 			{
 				...MISTRAL,
 				note: 'Nicht systematisch für H2-Memo gemessen, Memory-Vermerk: „bleibt konkurrenzfähig" (mimo-evaluation-Notiz). Günstigste Option, EU-DSGVO — wenn EU-Pflicht.',
+			},
+			{
+				...KIMI_MAMMOUTH,
+				note: 'Noch nicht für H2-Memo gemessen — Vergleichskandidat 2026-05-05. Preis-Profil ähnlich Mistral (~0.45/2.25 USD/Mtok), aber via Mammouth EU-vermittelt. Cache-Pass-Through über Mammouth wird empirisch geprüft.',
+			},
+			{
+				...KIMI_OR,
+				note: 'OpenRouter-Fallback, falls Mammouth-Variante ausfällt; preisidentisch (~0.45/2.25 USD/Mtok). Nicht DSGVO-konform.',
 			},
 			{
 				...SONNET_OR,
