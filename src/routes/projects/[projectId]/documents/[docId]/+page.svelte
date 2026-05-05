@@ -1127,46 +1127,6 @@
 		return { withMemo, total };
 	});
 
-	// H3-Konstrukte für den Document-Reader: pro Konstrukt am ersten Anker-¶
-	// einhängen (in Dokumentreihenfolge). Werk-aggregierte Konstrukte
-	// (FORSCHUNGSGEGENSTAND, GESAMTERGEBNIS, GELTUNGSANSPRUCH) haben viele
-	// Anker — eine Anzeige an jedem Anker wäre Rauschen. WERK_BESCHREIBUNG/
-	// WERK_GUTACHT sind Meta-Analysen über die anderen Konstrukte und gehören
-	// nach `feedback_werk_desk_gut_are_meta_analyses.md` an den Outline-Tab-Top,
-	// nicht in den Volltext-Stream — daher hier ausgefiltert.
-	const paragraphPositionById = $derived.by(() => {
-		const m = new Map<string, number>();
-		paragraphs.forEach((p, i) => m.set(p.id, i));
-		return m;
-	});
-	const h3ConstructsByElement = $derived.by(() => {
-		const out: Record<string, H3ConstructDto[]> = {};
-		if (!werkConstructs) return out;
-		for (const c of werkConstructs) {
-			if (c.construct_kind === 'WERK_BESCHREIBUNG' || c.construct_kind === 'WERK_GUTACHT') continue;
-			if (!c.anchor_element_ids || c.anchor_element_ids.length === 0) continue;
-			let firstId: string | null = null;
-			let firstPos = Number.POSITIVE_INFINITY;
-			for (const aid of c.anchor_element_ids) {
-				const pos = paragraphPositionById.get(aid);
-				if (pos === undefined) continue;
-				if (pos < firstPos) {
-					firstPos = pos;
-					firstId = aid;
-				}
-			}
-			if (!firstId) continue;
-			(out[firstId] ??= []).push(c);
-		}
-		return out;
-	});
-	const h3ConstructTotal = $derived.by(() => {
-		if (!werkConstructs) return 0;
-		return werkConstructs.filter(
-			(c) => c.construct_kind !== 'WERK_BESCHREIBUNG' && c.construct_kind !== 'WERK_GUTACHT'
-		).length;
-	});
-
 	// TOC-Sidebar: nur in Dokument- und Outline-Tabs sichtbar (in den anderen
 	// Tabs gibt es keine Heading-verankerten Anker, sie wäre dort sinnlos).
 	const tocVisible = $derived(
@@ -2000,35 +1960,27 @@
 							ausgeführter Argumentations-Graph-Pipeline.
 						</p>
 					</div>
-				{:else if totalProcessed.withMemo === 0 && h3ConstructTotal === 0}
+				{:else if totalProcessed.withMemo === 0}
 					<div class="placeholder">
-						<h2>Noch keine Analyse-Ausgaben</h2>
+						<h2>Noch keine Argumente extrahiert</h2>
 						<p>
-							Die dokumentenzentrierte Ansicht zeigt Argumente (Argumentations-Graph)
-							und H3-Konstrukte (Funktionstyp-Heuristik) am Volltext, sobald die
-							Pipeline gelaufen ist. Wechsle zum
-							<button class="link-btn" onclick={() => selectView('pipeline')}>Pipeline-Tab</button>,
+							Die dokumentenzentrierte Ansicht zeigt Argumente am Volltext,
+							sobald die analytische Pipeline (Argumentations-Graph) gelaufen
+							ist. Wechsle zum <button class="link-btn" onclick={() => selectView('pipeline')}>Pipeline-Tab</button>,
 							um den Run zu starten.
 						</p>
 					</div>
 				{:else}
 					<div class="dokument-intro">
 						<p>
-							Volltext mit Argumenten und H3-Konstrukten (und ggf. Codes/Beziehungen/Stützstrukturen)
+							Volltext mit Argumenten (und ggf. Codes/Beziehungen/Stützstrukturen)
 							am jeweiligen Absatz. Umkehrung der Outline-Sicht: Statt von der
 							Synthese zu den Argumenten geht der Blick hier vom Dokument
 							ausgehend.
 						</p>
-						{#if totalProcessed.withMemo > 0}
-							<span class="coverage-tag" class:done={totalProcessed.withMemo === totalProcessed.total}>
-								{totalProcessed.withMemo}/{totalProcessed.total} ¶ analytisch erfasst
-							</span>
-						{/if}
-						{#if h3ConstructTotal > 0}
-							<span class="coverage-tag h3-tag">
-								{h3ConstructTotal} H3-Konstrukte
-							</span>
-						{/if}
+						<span class="coverage-tag" class:done={totalProcessed.withMemo === totalProcessed.total}>
+							{totalProcessed.withMemo}/{totalProcessed.total} ¶ analytisch erfasst
+						</span>
 					</div>
 					<DocumentReader
 						{elements}
@@ -2036,7 +1988,6 @@
 						{codesByElement}
 						{synthesesByHeading}
 						{analysisByElement}
-						{h3ConstructsByElement}
 					/>
 				{/if}
 			</section>
@@ -2654,11 +2605,6 @@
 		background: rgba(110, 231, 183, 0.08);
 		color: #6ee7b7;
 		border-color: rgba(110, 231, 183, 0.25);
-	}
-	.coverage-tag.h3-tag {
-		background: rgba(103, 232, 249, 0.08);
-		color: #67e8f9;
-		border-color: rgba(103, 232, 249, 0.25);
 	}
 	.anchor-link {
 		display: inline;

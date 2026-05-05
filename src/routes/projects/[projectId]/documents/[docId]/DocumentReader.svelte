@@ -23,25 +23,12 @@
 		ParagraphEdge,
 	} from './+page.server.js';
 
-	// H3-Konstrukt-DTO — werk-skopierte Funktionstyp-Heuristik-Outputs
-	// (FRAGESTELLUNG, FORSCHUNGSGEGENSTAND, METHODOLOGIE, BEFUND, …). Werden
-	// am ersten Anker-¶ pro Konstrukt eingehängt (Werk-aggregierte Konstrukte
-	// wie FORSCHUNGSGEGENSTAND haben viele Anker; eine Anzeige an jedem ¶
-	// wäre Rauschen — der Reader bekommt sie pro elementId konsolidiert).
-	export type H3ConstructForReader = {
-		id: string;
-		outline_function_type: string;
-		construct_kind: string;
-		content: Record<string, unknown>;
-	};
-
 	interface Props {
 		elements: DocumentElement[];
 		memosByElement: Record<string, ParagraphMemo[]>;
 		codesByElement: Record<string, CodeAnchor[]>;
 		synthesesByHeading: Record<string, HeadingSynthesis>;
 		analysisByElement: Record<string, ParagraphAnalysis>;
-		h3ConstructsByElement?: Record<string, H3ConstructForReader[]>;
 		scrollTarget?: { elementId: string; argumentId?: string } | null;
 	}
 
@@ -51,48 +38,8 @@
 		codesByElement,
 		synthesesByHeading,
 		analysisByElement,
-		h3ConstructsByElement = {},
 		scrollTarget = null,
 	}: Props = $props();
-
-	const H3_CONSTRUCT_LABEL: Record<string, string> = {
-		FRAGESTELLUNG: 'Fragestellung',
-		MOTIVATION: 'Motivation',
-		VERWEIS_PROFIL: 'Verweis-Profil',
-		BLOCK_ROUTING: 'Block-Routing',
-		REPRODUKTIV_BEFUND: 'Reproduktive Würdigung',
-		DISKURSIV_BEZUG_BEFUND: 'Diskursive Bezüge',
-		FORSCHUNGSGEGENSTAND: 'Forschungsgegenstand',
-		METHODOLOGIE: 'Methodologie',
-		METHODEN: 'Methoden',
-		BASIS: 'Basis (Korpus / Sample)',
-		AUFBAU_SKIZZE: 'Aufbau-Skizze',
-		HOTSPOT: 'Hotspot',
-		BEFUND: 'Befund',
-		GESAMTERGEBNIS: 'Gesamtergebnis',
-		GELTUNGSANSPRUCH: 'Geltungsanspruch',
-	};
-
-	function h3ConstructLabel(k: string): string {
-		return H3_CONSTRUCT_LABEL[k] ?? k;
-	}
-
-	function h3ConstructText(c: H3ConstructForReader): string {
-		const candidates = ['text', 'summary', 'description', 'befund', 'finding'];
-		for (const k of candidates) {
-			const v = (c.content as Record<string, unknown>)[k];
-			if (typeof v === 'string' && v.trim().length > 0) return v;
-		}
-		// Fallback: ersten String-Wert nehmen, damit es überhaupt sichtbar ist
-		for (const v of Object.values(c.content ?? {})) {
-			if (typeof v === 'string' && v.trim().length > 0) return v;
-		}
-		return '';
-	}
-
-	function h3ListFor(id: string): H3ConstructForReader[] {
-		return h3ConstructsByElement[id] ?? [];
-	}
 
 	function premiseLabel(p: { type: 'stated' | 'carried' | 'background'; from_paragraph?: number }): string {
 		if (p.type === 'stated') return 'im Absatz';
@@ -405,8 +352,7 @@
 			{@const codes = codesFor(el.id)}
 			{@const analysis = analysisFor(el.id)}
 			{@const showAnalysis = hasAnyAnalysis(analysis)}
-			{@const h3List = h3ListFor(el.id)}
-			{@const hasRightPane = !!interpr || !!formul || codes.length > 0 || showAnalysis || h3List.length > 0}
+			{@const hasRightPane = !!interpr || !!formul || codes.length > 0 || showAnalysis}
 			{@const pos = positionInDocument.get(el.id)}
 			<article class="doc-paragraph" class:no-memo={!hasRightPane} id="para-{el.id}">
 				<div class="para-text">
@@ -417,23 +363,6 @@
 				</div>
 				{#if hasRightPane}
 					<aside class="memo-pane">
-						{#if h3List.length > 0}
-							<div class="h3-block">
-								<div class="memo-label h3-label">H3-Konstrukte ({h3List.length})</div>
-								{#each h3List as c (c.id)}
-									{@const text = h3ConstructText(c)}
-									<div class="h3-construct">
-										<div class="h3-head">
-											<span class="h3-kind">{h3ConstructLabel(c.construct_kind)}</span>
-											<span class="h3-fn">{c.outline_function_type.toLowerCase()}</span>
-										</div>
-										{#if text}
-											<div class="h3-text">{text}</div>
-										{/if}
-									</div>
-								{/each}
-							</div>
-						{/if}
 						{#if formul}
 							<div class="memo memo-formulierend">
 								<div class="memo-label">formulierend</div>
@@ -654,41 +583,6 @@
 		border-radius: 0 4px 4px 0;
 	}
 	.analysis-label { color: #a5b4fc !important; }
-
-	/* H3-Block: strukturelle Werk-Sicht (Funktionstyp-Konstrukte). Eigene
-	   neutrale Farbachse (cyan), damit nicht mit AG-Analyse-Block (indigo)
-	   oder Reviewer-Signal-Skala verwechselt. */
-	.h3-block {
-		display: flex; flex-direction: column;
-		gap: 0.4rem;
-		padding: 0.5rem 0.7rem;
-		border-left: 2px solid rgba(103, 232, 249, 0.4);
-		background: rgba(103, 232, 249, 0.03);
-		border-radius: 0 4px 4px 0;
-	}
-	.h3-label { color: #67e8f9 !important; }
-	.h3-construct {
-		display: flex; flex-direction: column; gap: 0.25rem;
-		padding: 0.4rem 0.55rem;
-		border-radius: 4px;
-		background: rgba(255,255,255,0.025);
-	}
-	.h3-head { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
-	.h3-kind {
-		font-weight: 600; color: #cffafe; font-size: 0.82rem;
-	}
-	.h3-fn {
-		font-family: 'JetBrains Mono', monospace;
-		font-size: 0.66rem;
-		text-transform: lowercase;
-		letter-spacing: 0.02em;
-		padding: 1px 6px;
-		border-radius: 3px;
-		font-weight: 500;
-		background: rgba(255, 255, 255, 0.04);
-		color: #8b8fa3;
-	}
-	.h3-text { color: #c9cdd5; line-height: 1.5; font-size: 0.84rem; }
 
 	.arg-block {
 		padding: 0.5rem 0.6rem;
