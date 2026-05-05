@@ -47,6 +47,11 @@ import {
 	type GrundlagentheorieParagraph,
 } from './grundlagentheorie.js';
 import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
+import {
+	loadH3CaseContext,
+	formatWerktypLine,
+	type H3BriefContext,
+} from './werk-shared.js';
 
 // ── Routing-Konstrukt einlesen ────────────────────────────────────
 
@@ -234,6 +239,7 @@ interface DiskursivBezugInput {
 	paragraphs: GrundlagentheorieParagraph[];
 	containerLabel: string;
 	fragestellung: string;
+	brief: H3BriefContext;
 	documentId: string;
 	modelOverride?: { provider: Provider; model: string };
 	maxTokens: number;
@@ -252,6 +258,8 @@ async function diskursivBezugPruefen(input: DiskursivBezugInput): Promise<{
 	// (rot/gelb/grün = Wertung Problem/Ambivalenz/OK).
 	const system = [
 		'Du bist ein analytisches Werkzeug, das einen zusammenhängenden Textblock aus einem Theoriekapitel auf seinen Bezug zur Forschungsfragestellung der Arbeit klassifiziert.',
+		'',
+		formatWerktypLine(input.brief),
 		'',
 		'Bezugs-Modi:',
 		'  - "explizit"   = der Block nennt die Fragestellung beim Namen oder paraphrasiert sie deutlich; es wird sichtbar gemacht, dass das Material auf die Fragestellung bezogen wird.',
@@ -520,6 +528,8 @@ export async function runDiskursivBezugForComplex(
 	const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
 	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 
+	const { brief } = await loadH3CaseContext(caseId);
+
 	const container = await loadGrundlagentheorieParagraphsForComplex(documentId, complex);
 	if (container.paragraphs.length === 0) {
 		throw new Error(
@@ -579,6 +589,7 @@ export async function runDiskursivBezugForComplex(
 			paragraphs: blockParagraphs,
 			containerLabel: container.headingText,
 			fragestellung,
+			brief,
 			documentId,
 			modelOverride,
 			maxTokens,
@@ -665,15 +676,7 @@ export async function runDiskursivBezugPass(
 	const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
 	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId } = await loadH3CaseContext(caseId);
 
 	const walk = await loadH3ComplexWalk(documentId);
 	const gthComplexes = walk.filter((c) => c.functionType === 'GRUNDLAGENTHEORIE');

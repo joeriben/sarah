@@ -51,6 +51,11 @@ import { chat, getModel, getProvider, type Provider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import { loadH3ComplexWalk } from '../../pipeline/h3-complex-walk.js';
+import {
+	loadH3CaseContext,
+	formatWerktypLine,
+	type H3BriefContext,
+} from './werk-shared.js';
 
 type ModelOverride = { provider: Provider; model: string };
 
@@ -553,6 +558,7 @@ const AufbauSkizzeLlmSchema = z.object({
 async function findAufbauSkizzeLlm(
 	documentId: string,
 	bezugsrahmen: Bezugsrahmen,
+	brief: H3BriefContext,
 	modelOverride?: ModelOverride
 ): Promise<{ finding: AufbauSkizzeFinding | null; tokens: { input: number; output: number } }> {
 	const expoParagraphs = await loadExpositionAllParagraphs(documentId);
@@ -562,6 +568,8 @@ async function findAufbauSkizzeLlm(
 
 	const system = [
 		'Du bist ein analytisches Werkzeug. Aufgabe: in den vorgelegten Absätzen aus der Einleitung einer wissenschaftlichen Arbeit prüfen, ob eine AUFBAU-SKIZZE (Plan/Vorgehensweise des Werks) erkennbar ist.',
+		'',
+		formatWerktypLine(brief),
 		'',
 		'Eine AUFBAU-SKIZZE ist ein Text, der die Gliederung/Vorgehensweise der Arbeit beschreibt — typischerweise mit sequentieller Reihenfolge ("Im ersten Teil … im zweiten Teil … abschließend …") oder Werk-Selbstreferenz ("Die Arbeit gliedert sich in …", "Im Folgenden wird …").',
 		'',
@@ -674,6 +682,7 @@ async function methodikExtrahieren(
 	containerLabel: string | null,
 	strategy: Provenance,
 	documentId: string,
+	brief: H3BriefContext,
 	modelOverride?: ModelOverride
 ): Promise<{ result: MethodikResult; tokens: { input: number; output: number } }> {
 	const fragestellung = bezugsrahmen.fragestellungText;
@@ -692,6 +701,8 @@ async function methodikExtrahieren(
 
 	const system = [
 		'Du bist ein analytisches Werkzeug, das aus methodischem Material einer wissenschaftlichen Arbeit drei Konstrukte extrahiert: METHODOLOGIE, METHODEN und BASIS.',
+		'',
+		formatWerktypLine(brief),
 		'',
 		'Begriffe (Erziehungswissenschaft / qualitative Sozialforschung):',
 		'  - METHODOLOGIE: die epistemische Grundhaltung der Untersuchung — welcher Forschungslogik folgt die Arbeit (qualitativ-rekonstruktiv, hermeneutisch, diskursanalytisch, theoretisch-vergleichend, etc.)? Welche Erkenntnisweise wird beansprucht?',
@@ -815,15 +826,7 @@ export async function runForschungsdesignPass(
 	options: ForschungsdesignPassOptions = {}
 ): Promise<ForschungsdesignPassResult> {
 	const { modelOverride } = options;
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId, brief } = await loadH3CaseContext(caseId);
 
 	// HARTE Vorbedingungen prüfen, bevor Sammel- oder LLM-Arbeit anläuft.
 	// Spec: docs/h3_orchestrator_spec.md #2.
@@ -885,7 +888,7 @@ export async function runForschungsdesignPass(
 			};
 		}
 
-		const llm = await findAufbauSkizzeLlm(documentId, bezugsrahmen, modelOverride);
+		const llm = await findAufbauSkizzeLlm(documentId, bezugsrahmen, brief, modelOverride);
 		if (llm.finding) {
 			const id = await persistAufbauSkizze(caseId, documentId, llm.finding);
 			return {
@@ -929,6 +932,7 @@ export async function runForschungsdesignPass(
 		collected.containerLabel,
 		collected.strategy,
 		documentId,
+		brief,
 		modelOverride
 	);
 

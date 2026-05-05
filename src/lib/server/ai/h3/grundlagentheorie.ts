@@ -32,6 +32,7 @@
 import { query, queryOne } from '../../db/index.js';
 import { PreconditionFailedError } from './precondition.js';
 import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
+import { loadH3CaseContext } from './werk-shared.js';
 
 // ── Container-Auflösung GRUNDLAGENTHEORIE ─────────────────────────
 
@@ -978,15 +979,7 @@ export async function runGrundlagentheoriePass(
 ): Promise<GrundlagentheoriePassResult> {
 	const persistConstructs = options.persistConstructs !== false;
 
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId } = await loadH3CaseContext(caseId);
 
 	const walk = await loadH3ComplexWalk(documentId);
 	const gthComplexes = walk.filter((c) => c.functionType === 'GRUNDLAGENTHEORIE');

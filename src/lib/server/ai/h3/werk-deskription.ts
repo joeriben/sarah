@@ -39,6 +39,10 @@ import {
 	buildOutlineSummary,
 	buildConstructsBlock,
 	buildMemosBlock,
+	loadH3CaseContext,
+	formatWerktypLine,
+	formatKriterienBlock,
+	type H3BriefContext,
 } from './werk-shared.js';
 
 // ── LLM-Call ──────────────────────────────────────────────────────
@@ -53,6 +57,7 @@ interface ExtractWerkBeschreibungInput {
 	constructsBlock: string;
 	memosBlock: string | null;
 	headingCount: number;
+	brief: H3BriefContext;
 	documentId: string;
 	maxTokens: number;
 	modelOverride?: { provider: Provider; model: string };
@@ -65,8 +70,12 @@ async function extractWerkBeschreibung(input: ExtractWerkBeschreibungInput): Pro
 	timingMs: number;
 	tokens: { input: number; output: number };
 }> {
+	const kriterien = formatKriterienBlock(input.brief);
 	const system = [
 		'Du bist ein analytisches Werkzeug, das aus den persistierten Funktionstyp-Konstrukten eines Werks (FRAGESTELLUNG, FORSCHUNGSGEGENSTAND, METHODEN, BEFUNDEN, GESAMTERGEBNIS, GELTUNGSANSPRUCH usw.) eine zusammenhängende Werk-Beschreibung erzeugst — gemeinsam mit der Outline-Struktur und ggf. hermeneutischen Memo-Synthesen aus einem H1-/H2-Vorlauf.',
+		'',
+		formatWerktypLine(input.brief),
+		...(kriterien ? ['', kriterien] : []),
 		'',
 		'Aufgabe:',
 		'  Eine kohärente, deskriptive Inhaltszusammenfassung des Werks. 8–18 Sätze. Folge dem strukturellen Aufbau (was der erste Teil leistet, was der zweite leistet, …), benenne den Forschungsgegenstand, die Methodik, die zentralen Befunde, das Gesamtergebnis und die Reflexion. Keine Wertung.',
@@ -231,15 +240,7 @@ export async function runWerkDeskriptionPass(
 	const modelOverride = options.modelOverride ?? resolveTier('h3.tier3');
 	const warnings: string[] = [];
 
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId, brief } = await loadH3CaseContext(caseId);
 
 	const outline = await loadEffectiveOutline(documentId);
 	if (!outline) {
@@ -284,6 +285,7 @@ export async function runWerkDeskriptionPass(
 		constructsBlock,
 		memosBlock,
 		headingCount,
+		brief,
 		documentId,
 		maxTokens,
 		modelOverride,

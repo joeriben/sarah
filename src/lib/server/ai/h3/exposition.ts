@@ -38,6 +38,11 @@ import { chat, getModel, getProvider, type Provider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
+import {
+	loadH3CaseContext,
+	formatWerktypLine,
+	type H3BriefContext,
+} from './werk-shared.js';
 
 type ModelOverride = { provider: Provider; model: string };
 
@@ -152,10 +157,13 @@ async function rekonstruiereFragestellung(
 	candidateParagraphs: ExpositionParagraph[],
 	containerLabel: string,
 	documentId: string,
+	brief: H3BriefContext,
 	modelOverride?: ModelOverride
 ): Promise<{ result: RekonstruktionResult; tokens: { input: number; output: number } }> {
 	const system = [
 		'Du bist ein analytisches Werkzeug, das aus dem Einleitungs-Material einer wissenschaftlichen Arbeit die TATSÄCHLICHE FRAGESTELLUNG rekonstruiert.',
+		'',
+		formatWerktypLine(brief),
 		'',
 		'Eine wissenschaftliche Fragestellung ist NICHT identisch mit einer grammatischen Frage. Sie führt zwei Komponenten zusammen:',
 		'  (1) das PROBLEMFELD — der Untersuchungsgegenstand mit seiner offenen, klärungsbedürftigen Frage,',
@@ -235,9 +243,12 @@ async function beurteileFragestellung(
 	candidateParagraphs: ExpositionParagraph[],
 	containerLabel: string,
 	documentId: string,
+	brief: H3BriefContext,
 	modelOverride?: ModelOverride
 ): Promise<{ result: BeurteilungResult; tokens: { input: number; output: number } }> {
 	const system = [
+		formatWerktypLine(brief),
+		'',
 		'Du bekommst die Absätze einer Werk-Einleitung, in denen die Forschungsfragestellung der Arbeit formuliert ist. Beurteile diese Fragestellung in einem einzigen Satz, auf Basis einer selbst-gerankten Auswahl dieser fünf Kriterien:',
 		'  - sachliche Konsistenz',
 		'  - logische Konsistenz',
@@ -293,10 +304,13 @@ async function fasseMotivationZusammen(
 	motivationParagraphs: ExpositionParagraph[],
 	containerLabel: string,
 	documentId: string,
+	brief: H3BriefContext,
 	modelOverride?: ModelOverride
 ): Promise<{ result: MotivationResult; tokens: { input: number; output: number } }> {
 	const system = [
 		'Du bist ein analytisches Werkzeug, das aus dem Einleitungs-Material einer wissenschaftlichen Arbeit die MOTIVATION der Untersuchung knapp zusammenfasst.',
+		'',
+		formatWerktypLine(brief),
 		'',
 		'Aufgabe: aus den vorgegebenen Absätzen, die der Forschungsfrage vorausgehen, die Motivation der Arbeit in 1–3 Sätzen prägnant zusammenfassen — was treibt die Untersuchung an, welche Lücke / welches Problem / welcher gesellschaftliche Bezug wird genannt.',
 		'',
@@ -350,10 +364,13 @@ async function llmFallbackVollerContainer(
 	paragraphs: ExpositionParagraph[],
 	containerLabel: string,
 	documentId: string,
+	brief: H3BriefContext,
 	modelOverride?: ModelOverride
 ): Promise<{ result: FallbackResult; tokens: { input: number; output: number } }> {
 	const system = [
 		'Du bist ein analytisches Werkzeug. Eine deterministische Vorprüfung hat im Einleitungs-Container kein Frage-Marker-Muster gefunden; jetzt sollst du den ganzen Container prüfen.',
+		'',
+		formatWerktypLine(brief),
 		'',
 		'Aufgaben:',
 		'  1. Identifiziere, in welchen Absätzen die FORSCHUNGSFRAGESTELLUNG steckt (Indizes der nummerierten Liste).',
@@ -539,6 +556,7 @@ export async function runBeurteilungForComplex(
 	}
 
 	const modelOverride = options.modelOverride;
+	const { brief } = await loadH3CaseContext(caseId);
 	const paragraphs = await loadExpositionParagraphsForComplex(documentId, complex);
 	const containerLabel = complex.headingText;
 
@@ -557,7 +575,7 @@ export async function runBeurteilungForComplex(
 	} else {
 		// Fallback: LLM identifiziert die Fragestellungs-¶ über den ganzen Komplex.
 		usedFallback = true;
-		const fb = await llmFallbackVollerContainer(paragraphs, containerLabel, documentId, modelOverride);
+		const fb = await llmFallbackVollerContainer(paragraphs, containerLabel, documentId, brief, modelOverride);
 		llmCalls += 1;
 		totalInput += fb.tokens.input;
 		totalOutput += fb.tokens.output;
@@ -591,6 +609,7 @@ export async function runBeurteilungForComplex(
 		fragestellungParagraphs,
 		containerLabel,
 		documentId,
+		brief,
 		modelOverride
 	);
 	llmCalls += 1;
@@ -626,15 +645,7 @@ export async function runBeurteilungForComplex(
  * Lädt den Walk, sucht den ersten EXPOSITION-Komplex und delegiert.
  */
 export async function runBeurteilungOnly(caseId: string): Promise<BeurteilungPassResult> {
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId } = await loadH3CaseContext(caseId);
 
 	const walk = await loadH3ComplexWalk(documentId);
 	const complex = walk.find((c) => c.functionType === 'EXPOSITION');
@@ -663,6 +674,7 @@ export async function runExpositionForComplex(
 	}
 
 	const modelOverride = options.modelOverride;
+	const { brief } = await loadH3CaseContext(caseId);
 	const paragraphs = await loadExpositionParagraphsForComplex(documentId, complex);
 	const containerLabel = complex.headingText;
 
@@ -687,6 +699,7 @@ export async function runExpositionForComplex(
 			fragestellungParagraphs,
 			containerLabel,
 			documentId,
+			brief,
 			modelOverride
 		);
 		llmCalls += 1;
@@ -701,6 +714,7 @@ export async function runExpositionForComplex(
 					motivationParagraphs,
 					containerLabel,
 					documentId,
+					brief,
 					modelOverride
 				);
 				llmCalls += 1;
@@ -714,7 +728,7 @@ export async function runExpositionForComplex(
 	// Fallback: Parser fand nichts ODER Parser-Treffer wurde vom LLM verworfen.
 	if (!fragestellungText) {
 		usedFallback = true;
-		const fb = await llmFallbackVollerContainer(paragraphs, containerLabel, documentId, modelOverride);
+		const fb = await llmFallbackVollerContainer(paragraphs, containerLabel, documentId, brief, modelOverride);
 		llmCalls += 1;
 		totalInput += fb.tokens.input;
 		totalOutput += fb.tokens.output;
@@ -786,15 +800,7 @@ export async function runExpositionForComplex(
  * Lädt den Walk, sucht den ersten EXPOSITION-Komplex und delegiert.
  */
 export async function runExpositionPass(caseId: string): Promise<ExpositionPassResult> {
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId } = await loadH3CaseContext(caseId);
 
 	const walk = await loadH3ComplexWalk(documentId);
 	const complex = walk.find((c) => c.functionType === 'EXPOSITION');

@@ -55,6 +55,12 @@ import { chat, type Provider } from '../client.js';
 import { resolveTier } from '../model-tiers.js';
 import { extractAndValidateJSON, type ExtractResult } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
+import {
+	loadH3CaseContext,
+	formatWerktypLine,
+	formatKriterienBlock,
+	type H3BriefContext,
+} from './werk-shared.js';
 
 // ── Container-Loading ─────────────────────────────────────────────
 
@@ -295,6 +301,7 @@ interface ExtractGesamtergebnisInput {
 	forschungsgegenstand: ForschungsgegenstandSnippet;
 	syntheseContainers: SyntheseContainer[];
 	befunds: BefundFromDb[];
+	brief: H3BriefContext;
 	documentId: string;
 	maxTokens: number;
 	modelOverride?: { provider: Provider; model: string };
@@ -307,8 +314,12 @@ async function extractGesamtergebnis(input: ExtractGesamtergebnisInput): Promise
 	timingMs: number;
 	tokens: { input: number; output: number };
 }> {
+	const kriterien = formatKriterienBlock(input.brief);
 	const system = [
 		'Du bist ein analytisches Werkzeug, das aus den SYNTHESE-Kapiteln einer wissenschaftlichen Arbeit deren GESAMTERGEBNIS extrahiert und prüft, welche der zuvor in der DURCHFÜHRUNG extrahierten BEFUNDE in der SYNTHESE adressiert werden.',
+		'',
+		formatWerktypLine(input.brief),
+		...(kriterien ? ['', kriterien] : []),
 		'',
 		'Begriffe (für das Verständnis der Aufgabe):',
 		'',
@@ -551,15 +562,7 @@ export async function runSynthesePass(
 	const modelOverride = options.modelOverride ?? resolveTier('h3.tier2');
 	const warnings: string[] = [];
 
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId, brief } = await loadH3CaseContext(caseId);
 
 	const containers = await loadSyntheseContainers(documentId);
 
@@ -626,6 +629,7 @@ export async function runSynthesePass(
 		forschungsgegenstand: fgRes.fg,
 		syntheseContainers: containers,
 		befunds,
+		brief,
 		documentId,
 		maxTokens,
 		modelOverride,

@@ -42,6 +42,11 @@ import {
 	type GrundlagentheorieParagraph,
 } from './grundlagentheorie.js';
 import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
+import {
+	loadH3CaseContext,
+	formatWerktypLine,
+	type H3BriefContext,
+} from './werk-shared.js';
 
 // ── Routing-Konstrukt einlesen ────────────────────────────────────
 
@@ -120,6 +125,7 @@ interface BlockWuerdigungInput {
 	block: RoutedBlockFromDb;
 	paragraphs: GrundlagentheorieParagraph[];
 	containerLabel: string;
+	brief: H3BriefContext;
 	documentId: string;
 	modelOverride?: { provider: Provider; model: string };
 }
@@ -137,6 +143,8 @@ async function blockWuerdigung(input: BlockWuerdigungInput): Promise<{
 	// gut die Wiedergabe ist; das macht ECKPUNKT_CHECK separat).
 	const system = [
 		'Du bist ein analytisches Werkzeug, das einen zusammenhängenden Textblock aus einem Theoriekapitel einer wissenschaftlichen Arbeit synthetisch-hermeneutisch würdigt.',
+		'',
+		formatWerktypLine(input.brief),
 		'',
 		'Aufgabe: Fasse zusammen, WAS dieser Textblock inhaltlich entfaltet — welche Begriffe, welche Theoriestücke, welche Linie wird vom Text durch den Block gezogen.',
 		'',
@@ -214,6 +222,7 @@ interface EckpunktCheckInput {
 	block: RoutedBlockFromDb;
 	paragraphs: GrundlagentheorieParagraph[];
 	containerLabel: string;
+	brief: H3BriefContext;
 	documentId: string;
 	modelOverride?: { provider: Provider; model: string };
 }
@@ -227,6 +236,8 @@ async function eckpunktCheck(input: EckpunktCheckInput): Promise<{
 }> {
 	const system = [
 		'Du bist ein analytisches Werkzeug, das die Wiedergabe-Qualität eines reproduktiven Textblocks aus einem Theoriekapitel auf drei Achsen analysiert.',
+		'',
+		formatWerktypLine(input.brief),
 		'',
 		'Drei Achsen:',
 		'',
@@ -465,6 +476,7 @@ export async function runReproductiveBlockForComplex(
 	const persistConstructs = options.persistConstructs !== false;
 	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 
+	const { brief } = await loadH3CaseContext(caseId);
 	const container = await loadGrundlagentheorieParagraphsForComplex(documentId, complex);
 	if (container.paragraphs.length === 0) {
 		throw new Error(
@@ -521,6 +533,7 @@ export async function runReproductiveBlockForComplex(
 			block,
 			paragraphs: blockParagraphs,
 			containerLabel: container.headingText,
+			brief,
 			documentId,
 			modelOverride,
 		});
@@ -536,6 +549,7 @@ export async function runReproductiveBlockForComplex(
 			block,
 			paragraphs: blockParagraphs,
 			containerLabel: container.headingText,
+			brief,
 			documentId,
 			modelOverride,
 		});
@@ -632,15 +646,7 @@ export async function runReproductiveBlockPass(
 ): Promise<ReproductivePassResult> {
 	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId } = await loadH3CaseContext(caseId);
 
 	const walk = await loadH3ComplexWalk(documentId);
 	const gthComplexes = walk.filter((c) => c.functionType === 'GRUNDLAGENTHEORIE');

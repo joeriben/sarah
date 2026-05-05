@@ -47,6 +47,11 @@ import {
 	buildOutlineSummary,
 	buildConstructsBlock,
 	buildMemosBlock,
+	loadH3CaseContext,
+	formatWerktypLine,
+	formatKriterienBlock,
+	formatPersonaBlock,
+	type H3BriefContext,
 } from './werk-shared.js';
 
 // ── Cross-Reads für a/c (FRAGESTELLUNG, WERK_BESCHREIBUNG) ────────
@@ -113,6 +118,7 @@ interface ExtractStageAInput {
 	fragestellungText: string;
 	constructsBlock: string;
 	outlineSummary: string;
+	brief: H3BriefContext;
 	documentId: string;
 	maxTokens: number;
 	modelOverride?: { provider: Provider; model: string };
@@ -125,8 +131,14 @@ async function extractStageA(input: ExtractStageAInput): Promise<{
 	timingMs: number;
 	tokens: { input: number; output: number };
 }> {
+	const personaA = formatPersonaBlock(input.brief);
+	const kriterienA = formatKriterienBlock(input.brief);
 	const system = [
+		...(personaA ? [personaA, ''] : []),
 		'Du bist ein analytisches Werkzeug, das ein wissenschaftliches Werk im Lichte seiner FRAGESTELLUNG analysiert. Du arbeitest auf der Werk-Beschreibung (deskriptive Aggregation aller Funktionstyp-Konstrukte), der Outline und der ursprünglichen FRAGESTELLUNG. Output ist eine Critical-Friend-Analyse, KEIN Urteil.',
+		'',
+		formatWerktypLine(input.brief),
+		...(kriterienA ? ['', kriterienA] : []),
 		'',
 		'Aufgabe (Stage a — Werk-im-Lichte-der-Fragestellung):',
 		'  Ein längerer Absatz (6–12 Sätze), der das Werk in Bezug auf die FRAGESTELLUNG analysiert: greift die Arbeit auf, was die Fragestellung verlangt? Wo fokussiert sie, wo verschiebt sich der Fokus, wo bleibt die Antwort implizit? Indikatoren-Hinweise (gelb=Ambivalenz, rot=Problem) sind ERLAUBT als deskriptive Beobachtung — nicht als kategorisches Urteil.',
@@ -208,6 +220,7 @@ interface ExtractStageBInput {
 	fragestellungText: string;
 	constructsBlock: string;
 	constructCountsByType: Record<string, number>;
+	brief: H3BriefContext;
 	documentId: string;
 	maxTokens: number;
 	modelOverride?: { provider: Provider; model: string };
@@ -220,8 +233,14 @@ async function extractStageB(input: ExtractStageBInput): Promise<{
 	timingMs: number;
 	tokens: { input: number; output: number };
 }> {
+	const personaB = formatPersonaBlock(input.brief);
+	const kriterienB = formatKriterienBlock(input.brief);
 	const system = [
+		...(personaB ? [personaB, ''] : []),
 		'Du bist ein analytisches Werkzeug, das ein wissenschaftliches Werk auf sechs funktionstyp-gebundene Achsen prüft. Pro Achse vergibst du einen Indikator (gelb=Ambivalenz/Hotspot, rot=Problem) ODER `null` wenn die Achse strukturell unauffällig ist oder das Werk den Funktionstyp nicht enthält. Strukturierend, NICHT erschöpfend — nicht jede Achse braucht einen Indikator. Grün gibt es nicht (das wäre ein Pauschal-Bestätigung, die der Critical-Friend-Identität widerspricht).',
+		'',
+		formatWerktypLine(input.brief),
+		...(kriterienB ? ['', kriterienB] : []),
 		'',
 		'Die sechs Achsen (Reihenfolge fix einzuhalten):',
 		'  1. FRAGESTELLUNG-Qualität',
@@ -332,6 +351,7 @@ interface ExtractStageCInput {
 	werkBeschreibungText: string;
 	fragestellungText: string;
 	gatingDisabled: boolean;
+	brief: H3BriefContext;
 	documentId: string;
 	maxTokens: number;
 	modelOverride?: { provider: Provider; model: string };
@@ -348,9 +368,15 @@ async function extractStageC(input: ExtractStageCInput): Promise<{
 		? '\n  HINWEIS (Test-Modus): Diese c-Stage läuft ohne hochgeladenes Reviewer-Gutachten (`review_draft`). Im Vollausbau wäre c gated durch das eigene Urteil des Users, der dialogische Block (d/e/f) folgt. Heute ist c-Output ein deskriptiv-aggregierendes Gesamtbild aus a + b — KEIN Verdikt, KEIN Urteil. Im Output-Text DARF NICHT der Eindruck erweckt werden, dass dies ein abschließendes Gutachten sei.'
 		: '';
 
+	const personaC = formatPersonaBlock(input.brief);
+	const kriterienC = formatKriterienBlock(input.brief);
 	const system = [
+		...(personaC ? [personaC, ''] : []),
 		'Du bist ein analytisches Werkzeug, das aus Stage a (Werk-im-Lichte-der-Fragestellung) und Stage b (Hotspot-Würdigung pro funktionstyp-gebundener Achse) ein zusammenhängendes Gesamtbild des Werks aggregiert.' +
 			gatingNote,
+		'',
+		formatWerktypLine(input.brief),
+		...(kriterienC ? ['', kriterienC] : []),
 		'',
 		'Aufgabe (Stage c — aggregiertes Gesamtbild):',
 		'  Ein Absatz (5–10 Sätze), der die Befunde von a und b zu einem deskriptiv-aggregierenden Gesamtbild zusammenführt. Keine neuen Urteile, kein Verdikt — du verbindest a und b. Wo Hotspot-Indikatoren (gelb/rot) aus b auftauchen, hebe sie als zentrale Beobachtungen hervor; wo Achsen unauffällig sind, das deskriptiv benennen.',
@@ -537,15 +563,7 @@ export async function runWerkGutachtPass(
 	const modelOverride = options.modelOverride ?? resolveTier('h3.tier3');
 	const warnings: string[] = [];
 
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId, brief } = await loadH3CaseContext(caseId);
 
 	const outline = await loadEffectiveOutline(documentId);
 	if (!outline) {
@@ -604,6 +622,7 @@ export async function runWerkGutachtPass(
 		fragestellungText,
 		constructsBlock,
 		outlineSummary,
+		brief,
 		documentId,
 		maxTokens: maxTokensA,
 		modelOverride,
@@ -615,6 +634,7 @@ export async function runWerkGutachtPass(
 		fragestellungText,
 		constructsBlock,
 		constructCountsByType: countsByType,
+		brief,
 		documentId,
 		maxTokens: maxTokensB,
 		modelOverride,
@@ -631,6 +651,7 @@ export async function runWerkGutachtPass(
 		werkBeschreibungText,
 		fragestellungText,
 		gatingDisabled,
+		brief,
 		documentId,
 		maxTokens: maxTokensC,
 		modelOverride,

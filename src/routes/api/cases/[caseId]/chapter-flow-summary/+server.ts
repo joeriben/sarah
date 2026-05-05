@@ -16,6 +16,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
 import { runChapterFlowSummary } from '$lib/server/ai/hermeneutic/chapter-flow-summary.js';
+import { resolveTier } from '$lib/server/ai/model-tiers.js';
 import { queryOne } from '$lib/server/db/index.js';
 
 export const POST: RequestHandler = async ({ params, locals, request }) => {
@@ -45,7 +46,14 @@ export const POST: RequestHandler = async ({ params, locals, request }) => {
 	}
 
 	try {
-		const run = await runChapterFlowSummary(caseId, userId, { force: body.force === true });
+		// Tier-Routing: chapter_flow_summary ist im TIER_REGISTRY als h1.tier2
+		// gelistet (Synthese-Stufe entlang der Outline). Ohne expliziten
+		// Override würde der Pass auf das globale ai-settings-Modell fallen
+		// und das Tier-Routing umgehen — deshalb hier der Override.
+		const run = await runChapterFlowSummary(caseId, userId, {
+			force: body.force === true,
+			modelOverride: resolveTier('h1.tier2'),
+		});
 		return json(run, { status: 200 });
 	} catch (e: unknown) {
 		const message = e instanceof Error ? e.message : String(e);

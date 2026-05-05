@@ -67,6 +67,12 @@ import { resolveTier } from '../model-tiers.js';
 import { extractAndValidateJSON, type ExtractResult } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
+import {
+	loadH3CaseContext,
+	formatWerktypLine,
+	formatKriterienBlock,
+	type H3BriefContext,
+} from './werk-shared.js';
 
 // ── Container-Loading ─────────────────────────────────────────────
 
@@ -309,6 +315,7 @@ interface ExtractRespecInput {
 	priorForschungsgegenstandText: string;
 	priorSubjectKeywords: string[];
 	exkursContainer: ExkursContainer;
+	brief: H3BriefContext;
 	documentId: string;
 	maxTokens: number;
 	modelOverride?: { provider: Provider; model: string };
@@ -321,8 +328,12 @@ async function extractRespec(input: ExtractRespecInput): Promise<{
 	timingMs: number;
 	tokens: { input: number; output: number };
 }> {
+	const kriterien = formatKriterienBlock(input.brief);
 	const system = [
 		'Du bist ein analytisches Werkzeug, das aus einem EXKURS einer wissenschaftlichen Arbeit eine RE-SPEZIFIKATION des bisherigen FORSCHUNGSGEGENSTANDs ableitet.',
+		'',
+		formatWerktypLine(input.brief),
+		...(kriterien ? ['', kriterien] : []),
 		'',
 		'Begriffe (für das Verständnis der Aufgabe):',
 		'',
@@ -716,6 +727,7 @@ export async function runExkursForComplex(
 	const modelOverride = options.modelOverride ?? resolveTier('h3.tier2');
 	const warnings: string[] = [];
 
+	const { brief } = await loadH3CaseContext(caseId);
 	const container = await loadExkursParagraphsForComplex(documentId, complex);
 
 	const fsRes = await loadFragestellungWithDiagnostics(caseId, documentId);
@@ -788,6 +800,7 @@ export async function runExkursForComplex(
 		priorForschungsgegenstandText: priorText,
 		priorSubjectKeywords: priorKeywords,
 		exkursContainer: container,
+		brief,
 		documentId,
 		maxTokens,
 		modelOverride,
@@ -872,15 +885,7 @@ export async function runExkursPass(
 	caseId: string,
 	options: ExkursPassOptions = {}
 ): Promise<ExkursPassResult> {
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId } = await loadH3CaseContext(caseId);
 
 	const walk = await loadH3ComplexWalk(documentId);
 	const exkursComplexes = walk.filter((c) => c.functionType === 'EXKURS');

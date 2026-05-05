@@ -6,8 +6,107 @@
 // Material — alle persistierten Funktionstyp-Konstrukte des Werks plus
 // Outline-Struktur plus optional H1/H2-Collapse-Memos.
 
-import { query } from '../../db/index.js';
+import { query, queryOne } from '../../db/index.js';
 import type { EffectiveHeading } from '../../documents/outline.js';
+
+// ── Case + Brief Context ─────────────────────────────────────────
+//
+// H3-Module brauchten bislang nur `central_document_id` aus der Case-Zeile;
+// der angeknüpfte assessment_brief blieb für H3 unsichtbar. Damit fuhren
+// alle H3-Auswertungen mit identischen Prompts — ohne Forscher-Lesefolie
+// und ohne Werktyp-Differenzierung (BA vs. MA vs. Promotion vs. Habil).
+// Dieser Loader bringt H3 auf das gleiche Brief-Niveau wie H1/H2: Werktyp
+// (Stufe-Differenzierung), Kriterien (Lesefolie für aggregierende Module)
+// und Persona (Forscher-Identität für Werk-Meta-Module).
+
+export interface H3BriefContext {
+	name: string;
+	workType: string;
+	criteria: string;
+	persona: string;
+}
+
+export interface H3CaseContext {
+	centralDocumentId: string;
+	brief: H3BriefContext;
+}
+
+/**
+ * Lädt Case + angeknüpften Brief in einem Query. Wirft bei fehlendem
+ * Case, fehlendem central_document_id, oder fehlendem Brief. H3 setzt
+ * eine Brief-Bindung voraus — analog zu H1, das `if (!caseRow.criteria)
+ * throw` als harten Pre-Check fährt.
+ */
+export async function loadH3CaseContext(caseId: string): Promise<H3CaseContext> {
+	const row = await queryOne<{
+		central_document_id: string | null;
+		brief_name: string | null;
+		brief_work_type: string | null;
+		brief_criteria: string | null;
+		brief_persona: string | null;
+	}>(
+		`SELECT c.central_document_id,
+		        b.name AS brief_name,
+		        b.work_type AS brief_work_type,
+		        b.criteria AS brief_criteria,
+		        b.persona AS brief_persona
+		 FROM cases c
+		 LEFT JOIN assessment_briefs b ON b.id = c.assessment_brief_id
+		 WHERE c.id = $1`,
+		[caseId]
+	);
+	if (!row) throw new Error(`Case not found: ${caseId}`);
+	if (!row.central_document_id) {
+		throw new Error(`Case ${caseId} has no central_document_id`);
+	}
+	if (!row.brief_name || row.brief_work_type === null) {
+		throw new Error(
+			`Case ${caseId} has no assessment_brief — H3 requires a brief for work-type-aware extraction.`
+		);
+	}
+	return {
+		centralDocumentId: row.central_document_id,
+		brief: {
+			name: row.brief_name,
+			workType: row.brief_work_type,
+			criteria: row.brief_criteria ?? '',
+			persona: row.brief_persona ?? '',
+		},
+	};
+}
+
+/**
+ * Werktyp-Zeile für den System-Prompt. Format wörtlich aus H1
+ * übernommen (`Werktyp: ${brief.work_type}`); raw Enum-String ohne
+ * Label-Mapping, damit das Prompt-Vokabular kongruent zu H1 bleibt.
+ */
+export function formatWerktypLine(brief: H3BriefContext): string {
+	return `Werktyp: ${brief.workType}`;
+}
+
+/**
+ * Kriterien-Block ([KRITERIEN ALS LESEFOLIE]) für aggregierende H3-Module
+ * (Synthese / Schlussreflexion / Exkurs / Werk-Beschreibung / Werk-Gutacht).
+ * Liefert `null`, wenn der Brief keine Kriterien enthält — Caller entscheidet,
+ * ob das ein Fehler ist oder ob der Block einfach entfällt.
+ */
+export function formatKriterienBlock(brief: H3BriefContext): string | null {
+	const c = brief.criteria.trim();
+	if (!c) return null;
+	return `[KRITERIEN ALS LESEFOLIE]\n${c}`;
+}
+
+/**
+ * Persona-Block ([PERSONA]) für Werk-Meta-Module (WERK_GUTACHT,
+ * SCHLUSSREFLEXION). Kommt VOR der modul-spezifischen Persona —
+ * etabliert Forscher-Identität, dann übernimmt die modul-spezifische
+ * Anweisung das Was-konkret-zu-tun-ist.
+ */
+export function formatPersonaBlock(brief: H3BriefContext): string | null {
+	const p = brief.persona.trim();
+	if (!p) return null;
+	return `[PERSONA]\n${p}`;
+}
 
 // ── Konstrukt-Aggregat ────────────────────────────────────────────
 

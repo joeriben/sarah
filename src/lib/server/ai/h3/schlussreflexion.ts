@@ -53,6 +53,13 @@ import { resolveTier } from '../model-tiers.js';
 import { extractAndValidateJSON, type ExtractResult } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import { loadEffectiveOutline } from '../../documents/outline.js';
+import {
+	loadH3CaseContext,
+	formatWerktypLine,
+	formatKriterienBlock,
+	formatPersonaBlock,
+	type H3BriefContext,
+} from './werk-shared.js';
 
 // ── Container-Loading ─────────────────────────────────────────────
 
@@ -391,6 +398,7 @@ interface ExtractSchlussreflexionInput {
 	methodenText: string | null;
 	basisText: string | null;
 	srContainers: SchlussreflexionContainer[];
+	brief: H3BriefContext;
 	documentId: string;
 	maxTokens: number;
 	modelOverride?: { provider: Provider; model: string };
@@ -405,8 +413,14 @@ async function extractSchlussreflexion(
 	timingMs: number;
 	tokens: { input: number; output: number };
 }> {
+	const persona = formatPersonaBlock(input.brief);
+	const kriterien = formatKriterienBlock(input.brief);
 	const system = [
+		...(persona ? [persona, ''] : []),
 		'Du bist ein analytisches Werkzeug, das aus dem/den SCHLUSSREFLEXION-Kapitel(n) einer wissenschaftlichen Arbeit drei Komponenten extrahiert: GELTUNGSANSPRUCH, GRENZEN, ANSCHLUSSFORSCHUNG.',
+		'',
+		formatWerktypLine(input.brief),
+		...(kriterien ? ['', kriterien] : []),
 		'',
 		'Begriffe (für das Verständnis der Aufgabe):',
 		'',
@@ -639,15 +653,7 @@ export async function runSchlussreflexionPass(
 	const modelOverride = options.modelOverride ?? resolveTier('h3.tier2');
 	const warnings: string[] = [];
 
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId, brief } = await loadH3CaseContext(caseId);
 
 	const containers = await loadSchlussreflexionContainers(documentId);
 
@@ -732,6 +738,7 @@ export async function runSchlussreflexionPass(
 		methodenText: methodenBasis.methodenText,
 		basisText: methodenBasis.basisText,
 		srContainers: usedContainers,
+		brief,
 		documentId,
 		maxTokens,
 		modelOverride,
@@ -769,6 +776,7 @@ export async function runSchlussreflexionPass(
 			methodenText: methodenBasis.methodenText,
 			basisText: methodenBasis.basisText,
 			srContainers: usedContainers,
+			brief,
 			documentId,
 			maxTokens,
 			modelOverride,

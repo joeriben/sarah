@@ -36,6 +36,11 @@ import {
 	type GrundlagentheorieParagraph,
 } from './grundlagentheorie.js';
 import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
+import {
+	loadH3CaseContext,
+	formatWerktypLine,
+	type H3BriefContext,
+} from './werk-shared.js';
 
 // ── Verdachts-Block-Identifikation (deterministisch) ───────────────
 
@@ -189,6 +194,7 @@ interface WiedergabePruefenInput {
 	block: SuspicionBlock;
 	paragraphs: GrundlagentheorieParagraph[];
 	containerLabel: string;
+	brief: H3BriefContext;
 	documentId: string;
 	modelOverride?: { provider: Provider; model: string };
 }
@@ -204,6 +210,8 @@ async function wiedergabePruefen(
 }> {
 	const system = [
 		'Du bist ein analytisches Werkzeug, das einen zusammenhängenden Textblock aus einem Theoriekapitel einer wissenschaftlichen Arbeit auf seinen Modus klassifiziert.',
+		'',
+		formatWerktypLine(input.brief),
 		'',
 		'Modus-Unterscheidung:',
 		'  - "wiedergabe": der Block referiert/paraphrasiert vorhandenes Wissen einer (oder weniger) Quelle(n), ohne dass eine eigene argumentative Linie entwickelt wird. Typische Indikatoren: konsekutive Bezugnahme auf denselben Autor, lehrbuchartige Darstellung, fehlende eigenständige Verknüpfung oder Problematisierung.',
@@ -430,6 +438,7 @@ export async function runRoutingForComplex(
 	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 	const thresholds = { minClusterLen, minCitationGapLen };
 
+	const { brief } = await loadH3CaseContext(caseId);
 	const container = await loadGrundlagentheorieParagraphsForComplex(documentId, complex);
 	if (container.paragraphs.length === 0) {
 		throw new Error(
@@ -462,6 +471,7 @@ export async function runRoutingForComplex(
 			block,
 			paragraphs: blockParagraphs,
 			containerLabel: container.headingText,
+			brief,
 			documentId,
 			modelOverride,
 		});
@@ -536,15 +546,7 @@ export async function runRoutingPass(
 	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 	const thresholds = { minClusterLen, minCitationGapLen };
 
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId } = await loadH3CaseContext(caseId);
 
 	const walk = await loadH3ComplexWalk(documentId);
 	const gthComplexes = walk.filter((c) => c.functionType === 'GRUNDLAGENTHEORIE');

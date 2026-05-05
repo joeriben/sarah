@@ -45,6 +45,11 @@ import { runArgumentationGraphPass } from '../hermeneutic/argumentation-graph.js
 import { runArgumentValidityPass } from '../hermeneutic/argument-validity.js';
 import { extractInlineCitations } from './grundlagentheorie.js';
 import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
+import {
+	loadH3CaseContext,
+	formatWerktypLine,
+	type H3BriefContext,
+} from './werk-shared.js';
 
 type ModelOverride = { provider: Provider; model: string };
 
@@ -411,15 +416,7 @@ export async function runDurchfuehrungStep1ForComplex(
 export async function runDurchfuehrungPassStep1(
 	caseId: string
 ): Promise<DurchfuehrungPassResult> {
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId } = await loadH3CaseContext(caseId);
 
 	const walk = await loadH3ComplexWalk(documentId);
 	const dfComplexes = walk.filter((c) => c.functionType === 'DURCHFUEHRUNG');
@@ -620,15 +617,7 @@ export async function runDurchfuehrungPassStep2(
 	caseId: string,
 	options: DurchfuehrungStep2Options = {}
 ): Promise<DurchfuehrungStep2Result> {
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId } = await loadH3CaseContext(caseId);
 
 	const hotspots = await loadHotspotsFromContainers(caseId, documentId);
 	return runDurchfuehrungStep2OverHotspots(caseId, documentId, hotspots, options.modelOverride);
@@ -1032,15 +1021,7 @@ export async function runDurchfuehrungStep3ForComplex(
 export async function runDurchfuehrungPassStep3(
 	caseId: string
 ): Promise<DurchfuehrungStep3Result> {
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId } = await loadH3CaseContext(caseId);
 
 	const walk = await loadH3ComplexWalk(documentId);
 	const dfComplexes = walk.filter((c) => c.functionType === 'DURCHFUEHRUNG');
@@ -1200,9 +1181,11 @@ const BefundExtractSchema = z.object({
 });
 type BefundExtractResult = z.infer<typeof BefundExtractSchema>;
 
-function buildBefundSystemPrompt(): string {
+function buildBefundSystemPrompt(brief: H3BriefContext): string {
 	return [
 		'Du bist ein analytisches Werkzeug, das aus einem Befund-verdächtigen Absatz einer DURCHFÜHRUNG den eigentlichen BEFUND extrahiert.',
+		'',
+		formatWerktypLine(brief),
 		'',
 		'BEFUND meint hier: das tatsächliche empirische oder theoretische Ergebnis, das die Arbeit an dieser Stelle aus ihrer Analyse zieht. Nicht: methodische Roadmap-Bemerkungen, neutrale Beschreibungen des Materials, Rückverweise ohne neuen Inhalt, Vorbemerkungen zur Ergebnisdarstellung.',
 		'',
@@ -1305,6 +1288,7 @@ async function runDurchfuehrungStep4OverContainer(
 	documentId: string,
 	container: DurchfuehrungContainer,
 	hotspotToContainer: Map<string, string>,
+	brief: H3BriefContext,
 	modelOverride?: ModelOverride
 ): Promise<{
 	hotspots: DurchfuehrungStep4HotspotResult[];
@@ -1351,7 +1335,7 @@ async function runDurchfuehrungStep4OverContainer(
 		let perError: string | null = null;
 
 		try {
-			const system = buildBefundSystemPrompt();
+			const system = buildBefundSystemPrompt(brief);
 			const user = buildBefundUserMessage(
 				container.headingText,
 				h.text,
@@ -1480,6 +1464,7 @@ export async function runDurchfuehrungStep4ForComplex(
 		);
 	}
 	const { modelOverride } = options;
+	const { brief } = await loadH3CaseContext(caseId);
 	const container = await loadDurchfuehrungParagraphsForComplex(documentId, complex);
 	const hotspotToContainer = await loadHotspotToContainerMapForComplex(
 		caseId,
@@ -1494,6 +1479,7 @@ export async function runDurchfuehrungStep4ForComplex(
 		documentId,
 		container,
 		hotspotToContainer,
+		brief,
 		modelOverride
 	);
 
@@ -1519,15 +1505,7 @@ export async function runDurchfuehrungPassStep4(
 	caseId: string,
 	options: DurchfuehrungStep4Options = {}
 ): Promise<DurchfuehrungStep4Result> {
-	const caseRow = await queryOne<{ central_document_id: string | null }>(
-		`SELECT central_document_id FROM cases WHERE id = $1`,
-		[caseId]
-	);
-	if (!caseRow) throw new Error(`Case not found: ${caseId}`);
-	if (!caseRow.central_document_id) {
-		throw new Error(`Case ${caseId} has no central_document_id`);
-	}
-	const documentId = caseRow.central_document_id;
+	const { centralDocumentId: documentId } = await loadH3CaseContext(caseId);
 	const { modelOverride } = options;
 
 	const walk = await loadH3ComplexWalk(documentId);
