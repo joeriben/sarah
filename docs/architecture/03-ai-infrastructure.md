@@ -63,6 +63,8 @@ Die Pipeline ordnet jede LLM-Aufgabe einem **Tier** zu (`h1.tier1` … `h3.tier3
 
 **Introspektion:** `describeTiers()` listet pro Tier beschreibung + resolved Modell (default oder override) + evaluation-Status — Basis für Settings-UI und CLI-Diagnose.
 
+**UI-Surface:** `/settings?tab=tiers` rendert pro Tier Default + Override-Editor + Reset + Evaluation-Notiz; backend `/api/settings/tiers` (GET listet, POST setzt oder löscht via `clear: true`) schreibt nur das `tiers`-Feld in `ai-settings.json` und lässt provider/model/delegationAgent/language unangetastet.
+
 **Verlauf:** Vor diesem Refactor (vor 2026-05-05) lag das Routing dreigeteilt vor: H1/H2 nutzten den globalen `ai-settings.json`-Default, H3 hardcodierte `DEFAULT_*_MODEL`-Konstanten in 9 Modulen, validierte Alternativen (Mistral, Sonnet via Mammouth, mimo) waren strukturell unsichtbar. Tier-Refactor 2026-05-05 hat alle Dispatch-Stellen vereinheitlicht und das Wissen über validierte Alternativen aus den Memories in TIER_REGISTRY.evaluation gespiegelt.
 
 ### 2a. Two-Track-Strategie (Memory `project_two_track_model_strategy`)

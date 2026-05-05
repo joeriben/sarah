@@ -65,7 +65,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 	}
 
-	// Save settings
+	// Save settings (preserve tier-overrides — `tiers` is managed via
+	// /api/settings/tiers and must not be lost when the global provider/model
+	// changes here).
 	const current = loadSettings();
 	const newSettings = {
 		provider: (provider as Provider) || current.provider,
@@ -75,7 +77,8 @@ export const POST: RequestHandler = async ({ request }) => {
 			: current.delegationAgent,
 		language: language !== undefined
 			? (language in SUPPORTED_LANGUAGES ? language : undefined)
-			: current.language
+			: current.language,
+		tiers: current.tiers
 	};
 	saveSettings(newSettings);
 

@@ -5,14 +5,15 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 
-	type SettingsTab = 'provider' | 'usage' | 'library' | 'briefs';
+	type SettingsTab = 'provider' | 'tiers' | 'usage' | 'library' | 'briefs';
 	let activeTab: SettingsTab = $state('provider');
 
 	// Sync activeTab from URL ?tab=briefs etc. (also fires on direct deep-link load).
 	$effect(() => {
 		const t = $page.url.searchParams.get('tab') as SettingsTab | null;
-		if (t && ['provider', 'usage', 'library', 'briefs'].includes(t) && activeTab !== t) {
+		if (t && ['provider', 'tiers', 'usage', 'library', 'briefs'].includes(t) && activeTab !== t) {
 			activeTab = t;
+			if (t === 'tiers') loadTiers();
 			if (t === 'usage') fetchUsage();
 			if (t === 'library') loadLibrary();
 			if (t === 'briefs') loadBriefs();
@@ -24,6 +25,7 @@
 		const url = new URL(window.location.href);
 		url.searchParams.set('tab', t);
 		history.replaceState({}, '', url.toString());
+		if (t === 'tiers') loadTiers();
 		if (t === 'usage') fetchUsage();
 		if (t === 'library') loadLibrary();
 		if (t === 'briefs') loadBriefs();
@@ -84,6 +86,106 @@
 			await loadBriefs();
 		}
 		briefDeleting = null;
+	}
+
+	// ── Tiers (model-routing) ─────────────────────────────────
+	interface TierProvider {
+		id: string;
+		label: string;
+		defaultModel: string;
+		region: string;
+		dsgvo: boolean;
+	}
+	interface TierRow {
+		tier: string;
+		description: string;
+		resolved: { provider: string; model: string };
+		overridden: boolean;
+		default: { provider: string; model: string };
+		evaluation: string;
+	}
+	let tierRows = $state<TierRow[]>([]);
+	let tierProviders = $state<TierProvider[]>([]);
+	let tiersLoading = $state(false);
+	let tiersError = $state<string | null>(null);
+	// per-tier draft state (provider+model the user is editing, not yet saved)
+	let tierDraft = $state<Record<string, { provider: string; model: string }>>({});
+	let tierBusy = $state<string | null>(null);
+	let tierExpanded = $state<Record<string, boolean>>({});
+
+	async function loadTiers() {
+		tiersLoading = true;
+		tiersError = null;
+		try {
+			const res = await fetch('/api/settings/tiers');
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const data = await res.json();
+			tierRows = data.tiers;
+			tierProviders = data.providers;
+			// Seed drafts with the currently-resolved values, so editing starts
+			// from "what's running right now" — whether default or override.
+			const drafts: Record<string, { provider: string; model: string }> = {};
+			for (const r of tierRows) {
+				drafts[r.tier] = { provider: r.resolved.provider, model: r.resolved.model };
+			}
+			tierDraft = drafts;
+		} catch (e: any) {
+			tiersError = e.message;
+		} finally {
+			tiersLoading = false;
+		}
+	}
+
+	function tierDraftDiffersFromResolved(t: TierRow): boolean {
+		const d = tierDraft[t.tier];
+		if (!d) return false;
+		return d.provider !== t.resolved.provider || d.model.trim() !== t.resolved.model;
+	}
+
+	async function setTierOverride(tier: string) {
+		const d = tierDraft[tier];
+		if (!d || !d.provider || !d.model.trim()) return;
+		tierBusy = tier;
+		try {
+			const res = await fetch('/api/settings/tiers', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ tier, provider: d.provider, model: d.model.trim() })
+			});
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({}));
+				throw new Error(body.error || `HTTP ${res.status}`);
+			}
+			await loadTiers();
+		} catch (e: any) {
+			tiersError = e.message;
+		} finally {
+			tierBusy = null;
+		}
+	}
+
+	async function clearTierOverride(tier: string) {
+		tierBusy = tier;
+		try {
+			const res = await fetch('/api/settings/tiers', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ tier, clear: true })
+			});
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({}));
+				throw new Error(body.error || `HTTP ${res.status}`);
+			}
+			await loadTiers();
+		} catch (e: any) {
+			tiersError = e.message;
+		} finally {
+			tierBusy = null;
+		}
+	}
+
+	function toggleTierExpanded(tier: string) {
+		tierExpanded = { ...tierExpanded, [tier]: !tierExpanded[tier] };
 	}
 
 	// ── Provider state ────────────────────────────────────────
@@ -405,6 +507,9 @@
 		<button class="tab" class:active={activeTab === 'provider'} onclick={() => switchTab('provider')}>
 			AI Provider
 		</button>
+		<button class="tab" class:active={activeTab === 'tiers'} onclick={() => switchTab('tiers')}>
+			Modell-Tiers
+		</button>
 		<button class="tab" class:active={activeTab === 'usage'} onclick={() => switchTab('usage')}>
 			Usage
 		</button>
@@ -554,6 +659,112 @@
 			{/if}
 		{/if}
 
+	{/if}
+
+	{#if activeTab === 'tiers'}
+		<!-- ═══════ Modell-Tiers (Routing pro Heuristik-Stufe) ═══════ -->
+		<div class="section">
+			<h2>Modell-Tiers</h2>
+			<p class="section-hint">
+				Pro Heuristik-Stufe (H1/H2/H3) ein Tier mit Default + optionalem Override.
+				Default = im Code festgelegtes „bestes validiertes Modell" für diesen Tier.
+				Override = User-Setzung in <code>ai-settings.json</code>, gilt sofort für
+				den nächsten Pipeline-Run. Die hier gewählten Modelle werden vom
+				Orchestrator und vom H3-Walk-Driver an jedem Dispatch-Punkt explizit
+				durchgereicht — kein globaler Fallback mehr. Quellort:
+				<code>src/lib/server/ai/model-tiers.ts</code>.
+			</p>
+
+			{#if tiersError}
+				<div class="message message-error">{tiersError}</div>
+			{/if}
+
+			{#if tiersLoading}
+				<div class="loading">Lade Tier-Konfiguration…</div>
+			{:else}
+				<div class="tier-list">
+					{#each tierRows as t (t.tier)}
+						<div class="tier-row" class:tier-overridden={t.overridden}>
+							<div class="tier-row-head">
+								<div class="tier-name-block">
+									<code class="tier-id">{t.tier}</code>
+									{#if t.overridden}
+										<span class="tier-badge badge-override">Override aktiv</span>
+									{:else}
+										<span class="tier-badge badge-default">Default</span>
+									{/if}
+								</div>
+								<button
+									type="button"
+									class="tier-eval-toggle"
+									onclick={() => toggleTierExpanded(t.tier)}
+									title="Evaluation-Notiz anzeigen"
+								>
+									{tierExpanded[t.tier] ? '− Eval' : '+ Eval'}
+								</button>
+							</div>
+
+							<p class="tier-description">{t.description}</p>
+
+							<div class="tier-editor">
+								<select
+									class="input-field tier-provider-select"
+									bind:value={tierDraft[t.tier].provider}
+								>
+									{#each tierProviders as p}
+										<option value={p.id}>{p.label} — {p.region}</option>
+									{/each}
+								</select>
+								<input
+									type="text"
+									class="input-field tier-model-input"
+									bind:value={tierDraft[t.tier].model}
+									placeholder="Model name"
+									autocomplete="off"
+									data-1p-ignore
+									data-lpignore="true"
+									data-form-type="other"
+								/>
+								<button
+									type="button"
+									class="btn btn-primary btn-sm"
+									onclick={() => setTierOverride(t.tier)}
+									disabled={tierBusy === t.tier || !tierDraftDiffersFromResolved(t)}
+								>
+									{tierBusy === t.tier ? '…' : 'Speichern'}
+								</button>
+								{#if t.overridden}
+									<button
+										type="button"
+										class="btn btn-secondary btn-sm"
+										onclick={() => clearTierOverride(t.tier)}
+										disabled={tierBusy === t.tier}
+										title="Override löschen, Default wieder aktivieren"
+									>
+										Reset
+									</button>
+								{/if}
+							</div>
+
+							<div class="tier-meta-row">
+								<span class="tier-meta-label">Default:</span>
+								<code class="tier-meta-value">{t.default.provider} / {t.default.model}</code>
+								<span class="tier-meta-spacer"></span>
+								<span class="tier-meta-label">Aktiv:</span>
+								<code class="tier-meta-value tier-meta-resolved">{t.resolved.provider} / {t.resolved.model}</code>
+							</div>
+
+							{#if tierExpanded[t.tier]}
+								<div class="tier-evaluation">
+									<div class="tier-evaluation-label">Evaluation / Lücken</div>
+									<p>{t.evaluation}</p>
+								</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
 	{/if}
 
 	{#if activeTab === 'usage'}
@@ -856,6 +1067,10 @@
 		max-width: 900px;
 		margin: 0 auto;
 		padding: 2rem 1.5rem;
+		/* Layout's .content has overflow: hidden (scroll is delegated to pages).
+		   Make the settings page its own scroll container. */
+		height: 100%;
+		overflow-y: auto;
 	}
 
 	.settings-header {
@@ -1317,5 +1532,143 @@
 	.coach-btn-sm:hover {
 		color: #ef4444;
 		background: rgba(239, 68, 68, 0.1);
+	}
+
+	/* ── Tier-Editor ────────────────────────── */
+	.tier-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.7rem;
+	}
+	.tier-row {
+		background: rgba(255, 255, 255, 0.02);
+		border: 1px solid #2a2d3a;
+		border-radius: 8px;
+		padding: 0.85rem 1rem;
+	}
+	.tier-row.tier-overridden {
+		border-color: #a5b4fc;
+		background: rgba(165, 180, 252, 0.04);
+	}
+	.tier-row-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 0.4rem;
+		gap: 0.6rem;
+	}
+	.tier-name-block {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+	}
+	.tier-id {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.85rem;
+		color: #e1e4e8;
+		font-weight: 600;
+	}
+	.tier-badge {
+		font-size: 0.7rem;
+		padding: 0.1rem 0.45rem;
+		border-radius: 4px;
+		font-weight: 500;
+	}
+	.badge-default {
+		background: rgba(255, 255, 255, 0.05);
+		color: #6b7280;
+	}
+	.badge-override {
+		background: rgba(165, 180, 252, 0.15);
+		color: #a5b4fc;
+	}
+	.tier-eval-toggle {
+		background: none;
+		border: none;
+		color: #6b7280;
+		font-size: 0.72rem;
+		cursor: pointer;
+		padding: 0.15rem 0.45rem;
+		border-radius: 3px;
+		font-family: 'JetBrains Mono', monospace;
+	}
+	.tier-eval-toggle:hover {
+		color: #a5b4fc;
+		background: rgba(165, 180, 252, 0.06);
+	}
+	.tier-description {
+		font-size: 0.78rem;
+		color: #c9cdd5;
+		margin: 0 0 0.6rem;
+		line-height: 1.45;
+	}
+	.tier-editor {
+		display: flex;
+		gap: 0.4rem;
+		align-items: center;
+		flex-wrap: wrap;
+		margin-bottom: 0.5rem;
+	}
+	.tier-provider-select {
+		flex: 0 0 220px;
+		max-width: 220px;
+		padding: 0.4rem 0.6rem;
+		font-size: 0.8rem;
+		font-family: inherit;
+	}
+	.tier-model-input {
+		flex: 1;
+		min-width: 220px;
+		max-width: none;
+		padding: 0.4rem 0.6rem;
+		font-size: 0.8rem;
+	}
+	.tier-row .btn-sm {
+		padding: 0.4rem 0.8rem;
+		font-size: 0.78rem;
+	}
+	.tier-meta-row {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.72rem;
+		color: #6b7280;
+		flex-wrap: wrap;
+	}
+	.tier-meta-label {
+		color: #4b5563;
+	}
+	.tier-meta-value {
+		font-family: 'JetBrains Mono', monospace;
+		color: #8b8fa3;
+		font-size: 0.72rem;
+	}
+	.tier-meta-resolved {
+		color: #c9cdd5;
+	}
+	.tier-meta-spacer {
+		flex: 0 0 1rem;
+	}
+	.tier-evaluation {
+		margin-top: 0.6rem;
+		padding: 0.6rem 0.8rem;
+		background: rgba(255, 255, 255, 0.03);
+		border-left: 2px solid #4b5563;
+		border-radius: 0 4px 4px 0;
+	}
+	.tier-evaluation-label {
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: #6b7280;
+		margin-bottom: 0.3rem;
+		font-weight: 600;
+	}
+	.tier-evaluation p {
+		margin: 0;
+		font-size: 0.78rem;
+		color: #c9cdd5;
+		line-height: 1.5;
+		white-space: pre-wrap;
 	}
 </style>
