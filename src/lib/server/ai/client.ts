@@ -36,28 +36,18 @@ export const PROVIDERS: Record<Provider, ProviderDef> = {
 
 // ── Settings persistence ──────────────────────────────────────────
 
-export interface DelegationAgent {
-	provider: Provider;
-	model: string;
-}
-
 export interface AiSettings {
 	provider: Provider;
 	model: string;
-	/** Sub-agent for delegation (cheaper/faster model for simple tasks) */
-	delegationAgent?: DelegationAgent;
 	/** Analysis language — codes, memos, and AI output will use this language */
 	language?: string;
 	/**
-	 * Per-Tier-Overrides (siehe `model-tiers.ts`). Schlüssel sind Tier-IDs
-	 * (`h1.tier1`, `h1.tier2`, `h2.tier1`, `h3.tier1`, `h3.tier2`, `h3.tier3`),
-	 * Werte das gewünschte Provider+Model. Fehlt ein Tier-Override, greift
-	 * der TIER_REGISTRY-Default. `provider` + `model` (ohne tiers) bleiben
-	 * als globaler Fallback für Test-Calls außerhalb der Pipeline (z.B.
-	 * testConnection) bestehen.
-	 *
-	 * Erlaubt das transparente Konfigurieren validierter Modell-Stacks
-	 * (Mistral+Sonnet, mimo-only, Opus für Werk-Meta) ohne Code-Änderung.
+	 * User-Wahl pro Heuristik-Stufe (siehe `model-tiers.ts`). Schlüssel sind
+	 * Tier-IDs (`h1.tier1`, `h1.tier2`, `h2.tier1`, `h3.tier1`, `h3.tier2`,
+	 * `h3.tier3`), Werte das gewählte Provider+Model. Fehlt ein Eintrag,
+	 * greift die TIER_REGISTRY-Empfehlung. `provider` + `model` (ohne tiers)
+	 * sind globaler Fallback für Test-Calls außerhalb der Pipeline (z.B.
+	 * testConnection).
 	 */
 	tiers?: Partial<Record<string, { provider: Provider; model: string }>>;
 }
@@ -89,13 +79,6 @@ export function loadSettings(): AiSettings {
 			provider: parsed.provider && parsed.provider in PROVIDERS ? parsed.provider : DEFAULT_SETTINGS.provider,
 			model: parsed.model || ''
 		};
-		// Load delegation agent if configured
-		if (parsed.delegationAgent?.provider && parsed.delegationAgent.provider in PROVIDERS) {
-			settings.delegationAgent = {
-				provider: parsed.delegationAgent.provider,
-				model: parsed.delegationAgent.model || ''
-			};
-		}
 		// Load language preference
 		if (parsed.language && parsed.language in SUPPORTED_LANGUAGES) {
 			settings.language = parsed.language;

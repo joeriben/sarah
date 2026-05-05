@@ -1,14 +1,16 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Tier-Overrides für Modell-Routing — siehe `src/lib/server/ai/model-tiers.ts`.
+// Tier-Wahl pro Heuristik-Stufe — siehe `src/lib/server/ai/model-tiers.ts`.
 //
-// GET   → describeTiers()-Liste + Provider-Inventar (für UI-Selects).
-// POST  → setzt oder löscht ein Tier-Override:
+// GET   → describeTiers(): pro Tier seine kuratierte candidates-Liste
+//         (gefiltert + tier-spezifisch annotiert), aktuelle Wahl und
+//         Empfehlung. Jede Candidate hat Stammdaten (label/Preis/Region/DSGVO)
+//         und tier-spezifische `note` aus TIER_REGISTRY.
+// POST  → setzt oder löscht die User-Wahl für einen Tier:
 //           Body { tier, provider, model } setzt
-//           Body { tier, clear: true }     löscht
-//         Andere Settings (provider/model/delegationAgent/language) bleiben
-//         unangetastet — dies ist explizit nur die Tier-Mutation.
+//           Body { tier, clear: true }     löscht (Empfehlung wird wieder wirksam)
+//         Andere Settings (provider/model/language) bleiben unangetastet.
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
@@ -23,15 +25,7 @@ import { describeTiers, TIER_REGISTRY, type Tier } from '$lib/server/ai/model-ti
 const VALID_TIERS = new Set(Object.keys(TIER_REGISTRY));
 
 export const GET: RequestHandler = async () => {
-	const tiers = describeTiers();
-	const providers = Object.entries(PROVIDERS).map(([id, def]) => ({
-		id,
-		label: def.label,
-		defaultModel: def.defaultModel,
-		region: def.region,
-		dsgvo: def.dsgvo
-	}));
-	return json({ tiers, providers });
+	return json({ tiers: describeTiers() });
 };
 
 export const POST: RequestHandler = async ({ request }) => {

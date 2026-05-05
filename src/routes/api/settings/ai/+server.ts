@@ -35,25 +35,21 @@ export const GET: RequestHandler = async () => {
 	return json({
 		provider: settings.provider,
 		model: settings.model || PROVIDERS[settings.provider].defaultModel,
-		delegationAgent: settings.delegationAgent || null,
 		language: settings.language || 'auto',
 		languages: SUPPORTED_LANGUAGES,
 		providers
 	});
 };
 
-// POST: update settings (provider, model, apiKey, delegationAgent)
+// POST: update settings (provider, model, apiKey, language).
+// Pipeline-Routing läuft über /api/settings/tiers; provider+model hier sind
+// nur noch der globale Fallback für testConnection().
 export const POST: RequestHandler = async ({ request }) => {
 	const body = await request.json();
-	const { provider, model, apiKey, delegationAgent, language } = body;
+	const { provider, model, apiKey, language } = body;
 
 	if (provider && !(provider in PROVIDERS)) {
 		return json({ error: `Unknown provider: ${provider}` }, { status: 400 });
-	}
-
-	// Validate delegation agent if provided
-	if (delegationAgent && delegationAgent.provider && !(delegationAgent.provider in PROVIDERS)) {
-		return json({ error: `Unknown delegation provider: ${delegationAgent.provider}` }, { status: 400 });
 	}
 
 	// Save API key if provided
@@ -72,9 +68,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	const newSettings = {
 		provider: (provider as Provider) || current.provider,
 		model: model !== undefined ? model : current.model,
-		delegationAgent: delegationAgent !== undefined
-			? (delegationAgent?.provider ? delegationAgent : undefined)
-			: current.delegationAgent,
 		language: language !== undefined
 			? (language in SUPPORTED_LANGUAGES ? language : undefined)
 			: current.language,

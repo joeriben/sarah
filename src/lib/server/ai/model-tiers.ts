@@ -1,41 +1,21 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Model-Tiers — einheitliches, transparentes Modell-Routing über H1/H2/H3.
+// Model-Tiers — Modell-Routing pro Heuristik-Stufe (H1/H2/H3) auf Basis der
+// differenzierten Test-Ergebnisse aus den Memory-Einträgen
+// `project_mimo_evaluation` und `project_mistral_sonnet_stack_validated`.
 //
-// Hintergrund (Memory `project_two_track_model_strategy`,
-// `project_mistral_sonnet_stack_validated`, `project_mimo_evaluation`):
-// Wir haben für mehrere Funktionsbereiche der Pipeline ALTERNATIVE Modelle
-// validiert (Mistral-Large + Sonnet-via-Mammouth, mimo-v2.5-pro), die jeweils
-// auf Goldstand-Niveau kommen oder dort hinkommen. Die Ergebnisse waren
-// bislang strukturell nicht greifbar:
+// Pro Tier:
+//   - `recommended`: das Modell, das laut Tests für diesen Tier am besten
+//     fährt (Substanz × Kosten × Coverage).
+//   - `candidates`: nur Routen, deren Eignung für DIESEN Tier belegt oder
+//     glaubhaft ist; jede mit einer tier-spezifischen Notiz, was der Test
+//     genau gezeigt hat. Routen ohne Befund kommen nicht in den Pool.
 //
-//   - der orchestrator schickte H1 ohne modelOverride durch chat() → globaler
-//     Default; Validität-Befunde für Mistral oder mimo ohne Wirkung.
-//   - H3-Module hardcodierten DEFAULT_*_MODEL = Sonnet pro Modul; eine
-//     Änderung verlangte Edits in 9 Dateien.
-//   - es gab keine Stelle, an der man "was läuft auf welchem Modell" lesen
-//     konnte; die Heterogenität war unauffindbar.
-//
-// Dieses Modul macht das System transparent und konsistent:
-//
-//   1. Jede Heuristik (H1/H2/H3) hat numerierte Tiers (h1.tier1, h1.tier2, …),
-//      die entlang der Aufgaben-Komplexität geclustert sind:
-//        - tier1: basal/extraktiv (AG, validity, FRAGESTELLUNG, BEFUND, …)
-//        - tier2: synthetisch (section/chapter/document collapse, SYNTHESE, …)
-//        - tier3: werk-Meta (WERK_BESCHREIBUNG, WERK_GUTACHT)
-//   2. TIER_REGISTRY trägt pro Tier eine Beschreibung, einen Default (das
-//      heute aktuell beste validierte Modell für diesen Tier) und einen
-//      Evaluation-Status (was wurde getestet?).
-//   3. resolveTier(tier) konsultiert ai-settings.json `tiers` — der User kann
-//      pro Tier einen abweichenden Provider+Model setzen, ohne Code-Änderung.
-//   4. Jede Dispatch-Stelle im Orchestrator und im H3-Walk-Driver übergibt
-//      `modelOverride: resolveTier(tier)`. Damit ist die Routing-Entscheidung
-//      vollständig hier konzentriert.
-//
-// Ein neues Modell zu evaluieren heißt jetzt: Tier-Override in ai-settings.json
-// setzen, Run triggern, Resultat ablesen. Bestätigt sich der Vorteil:
-// TIER_REGISTRY[…].default umsetzen + evaluation-Status erweitern.
+// Eine Route kann in einem Tier empfohlen sein und in einem anderen fehlen
+// (Mistral ist h1.tier1-Empfehlung, kommt in h1.tier2 nicht vor weil collapse
+// nie getestet wurde). KNOWN_ROUTES hält die tier-unabhängigen Stammdaten
+// (Label, Preis, Region, DSGVO).
 
 import type { Provider } from './client.js';
 import { loadSettings } from './client.js';
@@ -53,61 +33,169 @@ export interface TierModel {
 	model: string;
 }
 
-export interface TierMeta {
-	/** Was läuft auf diesem Tier? Welche LLM-Aufgaben? */
-	description: string;
-	/** Welches Modell läuft als Default? (Bestes validiertes Modell für diesen Tier zum heutigen Zeitpunkt.) */
-	default: TierModel;
-	/** Was ist evaluiert, was sind offene Lücken? Knapper Lebenslauf der Tier-Entscheidung. */
-	evaluation: string;
+/**
+ * Tier-unabhängige Stammdaten einer Route. Preis in USD pro Million Tokens
+ * (input / output). `null` = nicht verifiziert.
+ */
+export interface RouteOption {
+	provider: Provider;
+	model: string;
+	label: string;
+	inputUSDPerMTok: number | null;
+	outputUSDPerMTok: number | null;
+	region: string;
+	dsgvo: boolean;
 }
 
-// Defaults reflektieren den heutigen tatsächlichen Status (vor diesem
-// Refactor): H1/H2 = mimo (war globaler ai-settings.json-Wert),
-// H3 = sonnet (war in jedem H3-Modul als DEFAULT_*_MODEL hardcoded).
-// Damit bewahrt der Refactor Verhalten — tier-overrides in settings sind
-// die Knöpfe, mit denen alternative validierte Stacks (Mistral, Sonnet via
-// Mammouth) ausprobiert oder wieder aktiviert werden.
+export const KNOWN_ROUTES: RouteOption[] = [
+	{
+		provider: 'mistral',
+		model: 'mistral-large-latest',
+		label: 'mistral-large (Mistral nativ EU)',
+		inputUSDPerMTok: 0.5,
+		outputUSDPerMTok: 1.5,
+		region: 'EU',
+		dsgvo: true,
+	},
+	{
+		provider: 'openrouter',
+		model: 'xiaomi/mimo-v2.5-pro',
+		label: 'mimo-v2.5-pro (OpenRouter)',
+		inputUSDPerMTok: 1.0,
+		outputUSDPerMTok: 3.0,
+		region: 'US',
+		dsgvo: false,
+	},
+	{
+		provider: 'openrouter',
+		model: 'anthropic/claude-sonnet-4.6',
+		label: 'claude-sonnet-4.6 (OpenRouter)',
+		inputUSDPerMTok: 3.0,
+		outputUSDPerMTok: 15.0,
+		region: 'US',
+		dsgvo: false,
+	},
+	{
+		provider: 'mammouth',
+		model: 'claude-sonnet-4-6',
+		label: 'claude-sonnet-4-6 (Mammouth, EU-vermittelt)',
+		inputUSDPerMTok: 3.0,
+		outputUSDPerMTok: 15.0,
+		region: 'EU',
+		dsgvo: true,
+	},
+	{
+		provider: 'openrouter',
+		model: 'anthropic/claude-opus-4.7',
+		label: 'claude-opus-4.7 (OpenRouter)',
+		inputUSDPerMTok: 5.0,
+		outputUSDPerMTok: 25.0,
+		region: 'US',
+		dsgvo: false,
+	},
+];
+
+export interface TierCandidate {
+	provider: Provider;
+	model: string;
+	/** Was sagen die Tests speziell zu dieser Route IN DIESEM Tier? */
+	note: string;
+}
+
+export interface TierMeta {
+	description: string;
+	recommended: TierModel;
+	candidates: TierCandidate[];
+}
+
+const MISTRAL: TierModel = { provider: 'mistral', model: 'mistral-large-latest' };
+const MIMO: TierModel = { provider: 'openrouter', model: 'xiaomi/mimo-v2.5-pro' };
+const SONNET_OR: TierModel = { provider: 'openrouter', model: 'anthropic/claude-sonnet-4.6' };
+const SONNET_MAMMOUTH: TierModel = { provider: 'mammouth', model: 'claude-sonnet-4-6' };
+const OPUS_OR: TierModel = { provider: 'openrouter', model: 'anthropic/claude-opus-4.7' };
+
 export const TIER_REGISTRY: Record<Tier, TierMeta> = {
 	'h1.tier1': {
 		description:
 			'H1 basal — Argumentationsgraph + Validity-Check pro Absatz. ' +
 			'Pflichten: §:A-Anker erhalten, dichte argumentative Struktur extrahieren, ' +
 			'Fallacy-Whitelist anwenden. Hohe Calls-pro-Werk, deutsche Akademiesprache.',
-		default: { provider: 'openrouter', model: 'xiaomi/mimo-v2.5-pro' },
-		evaluation:
-			'mimo-v2.5-pro: validiert (Memory `project_mimo_evaluation`) — H1-tragfähig ' +
-			'für synth/AG/validity bei 2×–23× Kostenersparnis ggü. Sonnet-direct. ' +
-			'Mistral-Large-2512 (nativ EU): validiert auf BA-Chapter 4 (Memory ' +
-			'`project_mistral_sonnet_stack_validated`) — Goldstand-Niveau, EU-DSGVO-safe. ' +
-			'Sonnet-direct/-via-OpenRouter: Goldstand-Referenz. ' +
-			'Lücke: H3-Begleitlauf (durchfuehrung Step 2 ruft AG intern) noch nicht ' +
-			'gegen Mistral/mimo gemessen.',
+		recommended: MISTRAL,
+		candidates: [
+			{
+				...MISTRAL,
+				note: 'End-to-end validiert auf BA-Chapter 4 (50 ¶, basal+AG); keine Substanz-Schwäche im end-to-end-Stack. Günstigste Route + EU-DSGVO. Implicit Caching ab Call 3-4.',
+			},
+			{
+				...MIMO,
+				note: 'Validiert auf §1-§5 von 1.1.1 (5 ¶ Spot-Test). AG tragfähig, validity 17/18 konvergent mit Sonnet/Opus. Doppelt so teuer wie Mistral ohne gemessenen Substanz-Vorteil. Reasoning-Klasse: maxTokens für dichte Absätze ggf. verdoppeln.',
+			},
+			{
+				...SONNET_OR,
+				note: 'Goldstand-Referenz für AG/validity. ~6× teurer als Mistral, kein gemessener Vorteil über mimo oder Mistral. Für Vergleichsläufe.',
+			},
+			{
+				...SONNET_MAMMOUTH,
+				note: 'Wie Sonnet OR (Goldstand-Referenz, ~6× teurer als Mistral), EU-vermittelt über Mammouth.',
+			},
+			{
+				...OPUS_OR,
+				note: 'Höchstens gleichauf mit mimo/Sonnet, ~10× teurer als Mistral. Strengere Validity-Diagnose nur in Einzelfällen (§5/A4 petitio_principii bei opus, mimo+Sonnet Charity-tragfähig).',
+			},
+		],
 	},
 	'h1.tier2': {
 		description:
 			'H1 Synthese-Stufen — section_collapse / chapter_collapse / document_collapse / ' +
 			'chapter-flow-summary. Aggregiert Argumentations-Graphen entlang der Outline. ' +
 			'Wenige Calls pro Werk, lange Kontexte, prosa-shaped Output.',
-		default: { provider: 'openrouter', model: 'xiaomi/mimo-v2.5-pro' },
-		evaluation:
-			'mimo-v2.5-pro: validiert für section/chapter/document collapse ' +
-			'(Memory `project_mimo_evaluation`). ' +
-			'Sonnet via Mammouth: validiert auf BA-Chapter 4, EU-vermittelt ' +
-			'(Memory `project_mistral_sonnet_stack_validated`). ' +
-			'Sonnet-direct: Goldstand-Referenz.',
+		recommended: MIMO,
+		candidates: [
+			{
+				...MIMO,
+				note: 'Klarster Kandidat: Section-Collapse substanziell stärker als Sonnet/Opus (paragraphen-präziser, eigene edges-bezogene Lese-Schicht), Chapter-Collapse opus-grade (findet eine Auffälligkeit mehr als Opus). 3× günstiger als Sonnet, 18× günstiger als Opus.',
+			},
+			{
+				...SONNET_OR,
+				note: 'End-to-end validiert für section/chapter (BA-Chapter 4), Goldstand-Niveau. 3× teurer als mimo ohne gemessenen Vorteil.',
+			},
+			{
+				...SONNET_MAMMOUTH,
+				note: 'Wie Sonnet OR (end-to-end validiert), EU-vermittelt — die in Memory `project_mistral_sonnet_stack_validated` getestete Route.',
+			},
+			{
+				...OPUS_OR,
+				note: 'Auf section/chapter-Collapse hinter mimo (mimo findet eine Auffälligkeit mehr); Default-Belegung als Premium-Referenz, ~8× teurer als mimo.',
+			},
+			// Mistral fehlt bewusst: collapse wurde im Mistral+Sonnet-Stack vom
+			// Sonnet-Teil übernommen, Mistral-collapse ist ungetestet.
+		],
 	},
 	'h2.tier1': {
 		description:
 			'H2 synthetisches Per-Absatz-Memo. Interpretierende Zusammenfassung mit ' +
 			'auffaelligkeiten[]/codes[]-Listen pro Absatz. Mittlere Komplexität, ' +
 			'prosa-shaped Output (Section-Headered-Prose).',
-		default: { provider: 'openrouter', model: 'xiaomi/mimo-v2.5-pro' },
-		evaluation:
-			'mimo-v2.5-pro: validiert für synthetisches Memo ' +
-			'(Memory `project_mimo_evaluation`). ' +
-			'Sonnet-direct: Goldstand-Referenz. ' +
-			'Lücke: keine systematische Vergleichsmessung Mistral vs. mimo für H2-Memo.',
+		recommended: MIMO,
+		candidates: [
+			{
+				...MIMO,
+				note: 'Validiert: ≈ Sonnet in Inhalt + Code-Labels, kein Schärfungs-Plus (5-¶ Spot-Test). 3× günstiger als Sonnet.',
+			},
+			{
+				...MISTRAL,
+				note: 'Nicht systematisch für H2-Memo gemessen, Memory-Vermerk: „bleibt konkurrenzfähig" (mimo-evaluation-Notiz). Günstigste Option, EU-DSGVO — wenn EU-Pflicht.',
+			},
+			{
+				...SONNET_OR,
+				note: 'Goldstand-Referenz, 3× teurer als mimo ohne gemessenen Vorteil. Für Vergleichsläufe.',
+			},
+			{
+				...SONNET_MAMMOUTH,
+				note: 'Wie Sonnet OR, EU-vermittelt.',
+			},
+			// Opus fehlt bewusst: H2-Memo wurde nicht systematisch gegen Opus gemessen.
+		],
 	},
 	'h3.tier1': {
 		description:
@@ -115,84 +203,172 @@ export const TIER_REGISTRY: Record<Tier, TierMeta> = {
 			'FORSCHUNGSDESIGN (METHODIK/AUFBAUSKIZZE), FORSCHUNGSGEGENSTAND, ' +
 			'GRUNDLAGENTHEORIE-Sub-Tools (Routing/Reproductive/Discursive), ' +
 			'DURCHFUEHRUNG-BEFUND-Extraktion. Eng instruierte JSON/Prose-Outputs.',
-		default: { provider: 'openrouter', model: 'anthropic/claude-sonnet-4.6' },
-		evaluation:
-			'Sonnet via OpenRouter: Status-quo (vor Refactor in jedem H3-Modul als ' +
-			'DEFAULT_*_MODEL hardcoded). ' +
-			'Lücke: H3 noch nicht gegen Mistral oder mimo systematisch evaluiert ' +
-			'(Memory `project_mimo_evaluation`: H3 explizit als nicht abgedeckt markiert; ' +
-			'`project_two_track_model_strategy`: H3 noch nicht budget-validiert).',
+		recommended: MIMO,
+		candidates: [
+			{
+				...MIMO,
+				note: 'Nur EXPOSITION direkt getestet („Test diskriminiert nicht; mimo ≈ Sonnet"). Restliche Module dieses Tiers (FORSCHUNGSDESIGN, FORSCHUNGSGEGENSTAND, GRUNDLAGENTHEORIE, DURCHFUEHRUNG) sind nicht systematisch validiert; per User-Lesart 2026-05-05 angenommen, dass die H1/H2-Befunde übertragen.',
+			},
+			{
+				...SONNET_OR,
+				note: 'Bisheriger Hardcode-Default vor Tier-Refactor. EXPOSITION ≈ mimo; sonst keine systematische Vergleichsmessung. 3× teurer als mimo.',
+			},
+			{
+				...SONNET_MAMMOUTH,
+				note: 'Wie Sonnet OR, EU-vermittelt.',
+			},
+			// Opus, Mistral fehlen: nie an H3 getestet.
+		],
 	},
 	'h3.tier2': {
 		description:
 			'H3 synthetische Stufen — SYNTHESE (GESAMTERGEBNIS), EXKURS (KERNERGEBNIS), ' +
 			'SCHLUSSREFLEXION (Geltungsanspruch). Werk-aggregierte Synthese-Outputs ' +
 			'mit Erkenntnis-Integration entlang Befund-Liste.',
-		default: { provider: 'openrouter', model: 'anthropic/claude-sonnet-4.6' },
-		evaluation:
-			'Sonnet via OpenRouter: Status-quo. ' +
-			'Lücke: keine Vergleichsmessung. Synthese-Stufen sind plausibel anspruchsvoller ' +
-			'als Extrakt-Stufen (mehr Kontext-Integration), eine Höher-Tier-Wahl ' +
-			'(Opus / Sonnet) ist für die Default-Belegung verteidigbar.',
+		recommended: MIMO,
+		candidates: [
+			{
+				...MIMO,
+				note: 'Keine direkten Tests für H3-Synthese-Stufen. Empfehlung beruht auf User-Lesart 2026-05-05 („Sonnet in keinem getesteten Bereich überlegen") und Übertrag aus h1.tier2-Collapse-Stärke.',
+			},
+			{
+				...SONNET_OR,
+				note: 'Bisheriger Hardcode-Default vor Tier-Refactor. Keine Vergleichsmessung. 3× teurer als mimo.',
+			},
+			{
+				...SONNET_MAMMOUTH,
+				note: 'Wie Sonnet OR, EU-vermittelt.',
+			},
+		],
 	},
 	'h3.tier3': {
 		description:
 			'H3 Werk-Meta-Reflexionen — WERK_BESCHREIBUNG (Strukturzusammenfassung), ' +
 			'WERK_GUTACHT (Kollegial-Review-Skizze). Reflektieren die anderen H3-Konstrukte ' +
 			'auf Werk-Ebene; mehrstufige Komposition mit Outline+Konstrukt-Liste+Memos.',
-		default: { provider: 'openrouter', model: 'anthropic/claude-sonnet-4.6' },
-		evaluation:
-			'Sonnet via OpenRouter: Status-quo. ' +
-			'Lücke: keine Vergleichsmessung. Werk-Meta verlangt Integration über die ' +
-			'gesamte Konstruktbasis, ist plausibel der anspruchsvollste Schritt — ' +
-			'eine Opus-Default-Belegung wäre für kritische Reviews verteidigbar.',
+		recommended: MIMO,
+		candidates: [
+			{
+				...MIMO,
+				note: 'Keine direkten Tests. Empfehlung beruht auf User-Lesart 2026-05-05; Werk-Meta integriert über die gesamte Konstruktbasis und ist plausibel der anspruchsvollste Schritt — für kritische Reviews ist Opus eine verteidigbare Höher-Tier-Wahl, aber ohne Messung.',
+			},
+			{
+				...SONNET_OR,
+				note: 'Bisheriger Hardcode-Default vor Tier-Refactor. Keine Vergleichsmessung. 3× teurer als mimo.',
+			},
+			{
+				...SONNET_MAMMOUTH,
+				note: 'Wie Sonnet OR, EU-vermittelt.',
+			},
+		],
 	},
 };
 
 /**
- * Resolves the model for a given tier, consulting user-overrides in
- * ai-settings.json `tiers` first, falling back to TIER_REGISTRY default.
- *
- * Use at every dispatch site (orchestrator, h3-walk-driver) instead of letting
- * chat() fall back to the global provider/model. This makes the routing
- * decision audit-able in one place (TIER_REGISTRY) and tweakable via settings.
+ * Liefert das Modell für einen Tier — User-Wahl aus ai-settings.json `tiers`,
+ * sonst die Empfehlung. Wird an jedem Dispatch-Punkt aufgerufen.
  */
 export function resolveTier(tier: Tier): TierModel {
 	const settings = loadSettings();
-	const override = settings.tiers?.[tier];
-	if (override && override.provider && override.model) {
-		return { provider: override.provider, model: override.model };
+	const choice = settings.tiers?.[tier];
+	if (choice && choice.provider && choice.model) {
+		return { provider: choice.provider, model: choice.model };
 	}
-	return TIER_REGISTRY[tier].default;
+	return TIER_REGISTRY[tier].recommended;
 }
 
-/**
- * Lists all tiers with their effective resolved model (default or override).
- * Useful for settings-page rendering and CLI introspection — answers the
- * question "what would run on what" without touching the pipeline.
- */
-export function describeTiers(): Array<{
+export interface DescribedCandidate {
+	provider: Provider;
+	model: string;
+	note: string;
+	label: string;
+	inputUSDPerMTok: number | null;
+	outputUSDPerMTok: number | null;
+	region: string;
+	dsgvo: boolean;
+	isRecommended: boolean;
+}
+
+export interface DescribedTier {
 	tier: Tier;
 	description: string;
 	resolved: TierModel;
-	overridden: boolean;
-	default: TierModel;
-	evaluation: string;
-}> {
+	recommended: TierModel;
+	isRecommended: boolean;
+	candidates: DescribedCandidate[];
+}
+
+/**
+ * Tier-Beschreibung mit Candidates (gefiltert + tier-spezifisch annotiert),
+ * Stammdaten aus KNOWN_ROUTES gejoined. Routen, die in KNOWN_ROUTES fehlen,
+ * werden übersprungen (defensive: deutet auf Inkonsistenz hin, sollte bei
+ * Tests crashen, hier silent).
+ */
+export function describeTiers(): DescribedTier[] {
 	const settings = loadSettings();
 	return (Object.keys(TIER_REGISTRY) as Tier[]).map((tier) => {
 		const meta = TIER_REGISTRY[tier];
-		const override = settings.tiers?.[tier];
-		const overridden = !!(override && override.provider && override.model);
+		const choice = settings.tiers?.[tier];
+		const hasUserChoice = !!(choice && choice.provider && choice.model);
+		const resolved: TierModel = hasUserChoice
+			? { provider: choice.provider, model: choice.model }
+			: meta.recommended;
+		const isRecommended =
+			resolved.provider === meta.recommended.provider &&
+			resolved.model === meta.recommended.model;
+
+		const candidates: DescribedCandidate[] = [];
+		for (const c of meta.candidates) {
+			const route = KNOWN_ROUTES.find(
+				(r) => r.provider === c.provider && r.model === c.model
+			);
+			if (!route) continue;
+			candidates.push({
+				provider: c.provider,
+				model: c.model,
+				note: c.note,
+				label: route.label,
+				inputUSDPerMTok: route.inputUSDPerMTok,
+				outputUSDPerMTok: route.outputUSDPerMTok,
+				region: route.region,
+				dsgvo: route.dsgvo,
+				isRecommended:
+					c.provider === meta.recommended.provider && c.model === meta.recommended.model,
+			});
+		}
+
+		// Falls die User-Wahl außerhalb der candidates-Liste liegt (alte Setzung,
+		// die eine inzwischen aussortierte Route trifft): trotzdem einreihen,
+		// damit der Picker konsistent ist und die Wahl sichtbar/wechselbar bleibt.
+		const resolvedInList = candidates.some(
+			(c) => c.provider === resolved.provider && c.model === resolved.model
+		);
+		if (!resolvedInList) {
+			const route = KNOWN_ROUTES.find(
+				(r) => r.provider === resolved.provider && r.model === resolved.model
+			);
+			if (route) {
+				candidates.push({
+					provider: resolved.provider,
+					model: resolved.model,
+					note: 'Aktuelle Wahl liegt außerhalb der für diesen Tier validierten Routen.',
+					label: route.label,
+					inputUSDPerMTok: route.inputUSDPerMTok,
+					outputUSDPerMTok: route.outputUSDPerMTok,
+					region: route.region,
+					dsgvo: route.dsgvo,
+					isRecommended: false,
+				});
+			}
+		}
+
 		return {
 			tier,
 			description: meta.description,
-			resolved: overridden
-				? { provider: override.provider, model: override.model }
-				: meta.default,
-			overridden,
-			default: meta.default,
-			evaluation: meta.evaluation,
+			resolved,
+			recommended: meta.recommended,
+			isRecommended,
+			candidates,
 		};
 	});
 }
