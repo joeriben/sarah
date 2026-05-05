@@ -56,6 +56,7 @@ import { runChapterCollapse } from '../ai/hermeneutic/chapter-collapse.js';
 import { runDocumentCollapse } from '../ai/hermeneutic/document-collapse.js';
 import { runSectionCollapseSynthetic } from '../ai/hermeneutic/section-collapse-synthetic.js';
 import { runChapterCollapseSynthetic } from '../ai/hermeneutic/chapter-collapse-synthetic.js';
+import { runDocumentCollapseSynthetic } from '../ai/hermeneutic/document-collapse-synthetic.js';
 import {
 	listH3WalkSteps,
 	walkStepId,
@@ -524,12 +525,22 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 			);
 			return { all, pending: all.filter((a) => !done.has(a.id)) };
 		}
-		// H2-Synthese-Linie (document): Wire-up folgt in Schritt 4 der
-		// H2-Restitution. Stub-Throw bis dahin.
-		case 'document_collapse_synthetic':
-			throw new Error(
-				`listAtomsForPhase: Phase ${phase} ist registriert, aber das Modul-Wire-up steht aus (H2-Restitution Schritt 4).`
+		case 'document_collapse_synthetic': {
+			const all: AtomRef[] = [{ id: documentId, label: 'Werk-Synthese (synthetisch)' }];
+			const done = await queryOne<{ id: string }>(
+				`SELECT n.id
+				 FROM namings n
+				 JOIN appearances a ON a.naming_id = n.id AND a.mode = 'entity'
+				 JOIN memo_content mc ON mc.naming_id = n.id
+				 WHERE n.inscription LIKE '[kontextualisierend/work/synthetic]%'
+				   AND mc.scope_level = 'work'
+				   AND a.properties->>'document_id' = $1
+				   AND n.deleted_at IS NULL
+				 LIMIT 1`,
+				[documentId]
 			);
+			return { all, pending: done ? [] : all };
+		}
 		// H3-Walk wird NICHT durch die generische Atom-Schleife geführt — er
 		// hat einen eigenen Loop runH3Walk mit walk-step-spezifischer Done-/
 		// Validation-Prüfung und fail-fast-Semantik. Wenn diese Funktion mit
@@ -712,12 +723,20 @@ async function executeStep(
 				memoId: r.stored?.memoId ?? r.existingMemoId,
 			};
 		}
-		// H2-Synthese-Linie (document): Wire-up folgt in Schritt 4 der
-		// H2-Restitution. Stub-Throw bis dahin.
-		case 'document_collapse_synthetic':
-			throw new Error(
-				`executeStep: Phase ${phase} ist registriert, aber das Modul-Wire-up steht aus (H2-Restitution Schritt 4).`
-			);
+		case 'document_collapse_synthetic': {
+			const r = await runDocumentCollapseSynthetic(caseId, userId, {
+				modelOverride: resolveTier('h2.tier1'),
+			});
+			return {
+				skipped: r.skipped,
+				tokens: {
+					input: r.tokens?.input ?? 0,
+					output: r.tokens?.output ?? 0,
+					cacheRead: r.tokens?.cacheRead ?? 0,
+				},
+				memoId: r.stored?.memoId ?? r.existingMemoId,
+			};
+		}
 		// H3-Walk hat einen eigenen Loop (runH3Walk) mit walk-step-spezifischer
 		// Dispatch-Logik. Hier ist h3_walk unerreichbar (siehe runPipelineLoop
 		// Branch).
