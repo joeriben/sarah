@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Per-paragraph hermeneutic pass.
+// Per-paragraph hermeneutic pass (H2 — paragraph_synthetic).
 //
 // Pulls the paragraph and its surrounding context, assembles the cached system
 // block (persona, criteria, work header, completed sections, interpretive
 // chain in current subchapter) and a fresh user message (predecessor +
 // current paragraph + successor + position label), calls the LLM, parses the
-// structured JSON response, and writes the formulierend + interpretierend
-// memos plus 0..3 in-vivo-code namings with char anchors.
+// structured prose response, and writes the formulierend + interpretierend
+// memos.
 //
 // The interpretive chain in the current subchapter is the architectural
 // device that makes the section-end kontextualisierende memo synthesizable:
@@ -29,28 +29,9 @@ import {
 
 // ── Output schema ─────────────────────────────────────────────────
 
-// Kernthesen-Code: a self-contained, retrieval-grade handle for the
-// paragraph's argumentative core. The label must be unambiguous out of
-// context (a future retrieval layer uses codes plus chapter titles to
-// surface relevant paragraphs — fragments like "Wiederholung und
-// Veränderung" or "long durée" fail that test). The anchor_phrase is an
-// optional verbatim substring used for char-level binding; when no clean
-// in-vivo phrase exists, anchor_phrase stays empty and the code anchors
-// to the whole paragraph.
-const CodeSchema = z.object({
-	label: z.string().min(1).max(100),
-	// Cap 500 (sanity, was 80) — substring-binding via indexOf() works for any
-	// length; prompt asks for ≤ 4 Wörter, but enforcing as a hard schema gate
-	// rejected ~12% of Mistral synth outputs. Length > 80 emits a style warning
-	// (analogous to AG) instead of throwing.
-	anchor_phrase: z.string().max(500).default(''),
-	rationale: z.string().min(1).max(500),
-});
-
 const ParagraphPassResultSchema = z.object({
 	formulierend: z.string().min(1).optional(),  // present iff brief.include_formulierend
 	interpretierend: z.string().min(1),
-	codes: z.array(CodeSchema).max(2),
 });
 
 export type ParagraphPassResult = z.infer<typeof ParagraphPassResultSchema>;
@@ -58,9 +39,6 @@ export type ParagraphPassResult = z.infer<typeof ParagraphPassResultSchema>;
 // Section-Headered-Prose-Schema. FORMULIEREND is conditionally included; if
 // the brief opts out, the section is omitted from the spec entirely so the
 // parser does not default an empty string that would fail Zod's min(1).
-//
-// CODES list-element field `anchor_phrase` may be empty (oneline parses ''
-// fine; the schema's max(500).default('') tolerates absent or empty).
 function buildSectionSpec(caseCtx: CaseContext): SectionSpec {
 	const singletons: Record<string, FieldKind> = {
 		INTERPRETIEREND: 'multiline',
@@ -70,15 +48,7 @@ function buildSectionSpec(caseCtx: CaseContext): SectionSpec {
 	}
 	return {
 		singletons,
-		lists: {
-			CODES: {
-				fields: {
-					label: 'oneline',
-					anchor_phrase: 'oneline',
-					rationale: 'oneline',
-				},
-			},
-		},
+		lists: {},
 	};
 }
 
@@ -379,40 +349,7 @@ function buildOutputFormatSection(caseCtx: CaseContext): string {
 
 	return `
 ${formatDesc}
-${formulierendHint}${interpretierendHint}
-
-Inhalt jeder CODES-N-Sektion (Felder):
-- label: 3–5 Wörter, self-contained, retrieval-tauglich — auch isoliert vom Absatzkontext eindeutig verständlich
-- anchor_phrase: EXAKTE in-vivo-Wortgruppe aus dem aktuellen Absatz, höchstens 4 Wörter, oder leer wenn keine geeignete wörtliche Verankerung existiert
-- rationale: warum dieser Begriff die Kernthese / den argumentativen Schlüssel des Absatzes trägt, 1 Satz
-
-**Kernthesen-Codes** — keine beliebigen markanten Begriffe, sondern die argumentativen Kerne des Absatzes. 0–2 pro Absatz. (Bei 0 Codes: lasse alle CODES-Sektionen weg.)
-
-Zwei harte Anforderungen pro Code:
-(a) **Self-contained**: Das \`label\` ist auch ohne Absatzkontext eindeutig verständlich. Ein späteres Retrieval-System wird Codes verwenden, um relevante Absätze zu finden — Codes wie "Wiederholung und Veränderung", "long durée", "bis in die Gegenwart" sind isoliert mehrdeutig und damit retrieval-untauglich.
-(b) **In-vivo verankert** wo möglich: \`anchor_phrase\` ist eine wörtliche Wortgruppe aus dem Absatz, dient der char-genauen Verankerung. Wenn keine geeignete wörtliche Wortgruppe existiert, bleibt \`anchor_phrase\` leer.
-
-Drei Muster in Präferenz-Reihenfolge:
-
-1. **In-vivo + self-contained** (Ideal): label und anchor_phrase identisch. Beispiel:
-   ## CODES 1
-   label: Cultural Turn
-   anchor_phrase: Cultural Turn
-   rationale: Markiert die methodologische Wende des Absatzes hin zur Kultur als Analyse-Einheit
-
-2. **In-vivo mit Topic-Prefix**: wörtliche Wortgruppe + ergänzender Topic-Bezug. Beispiel:
-   ## CODES 1
-   label: Kultur: Wiederholung und Veränderung
-   anchor_phrase: Wiederholung und Veränderung
-   rationale: Charakterisiert Kultur als iterativen Prozess gegenüber statischen Begriffen
-
-3. **Paraphrase** (Notlösung): label ohne wörtlichen Anker. Beispiel:
-   ## CODES 1
-   label: Kultur als iterativer Prozess
-   anchor_phrase:
-   rationale: Verdichtet die abschnittsleitende These ohne wörtliche Stütze
-
-Wenn der Absatz keine kristalline Kernthese trägt, lieber keinen Code als einen schwachen oder mehrdeutigen.`;
+${formulierendHint}${interpretierendHint}`;
 }
 
 export function buildUserMessage(paraCtx: ParagraphContext): string {
@@ -443,8 +380,6 @@ Erzeuge die Sektionen für den AKTUELLEN ABSATZ.`;
 interface StoreResult {
 	interpretierendMemoId: string;
 	formulierendMemoId: string | null;
-	codeIds: string[];
-	unanchoredCodes: string[];
 }
 
 async function storeResult(
@@ -514,48 +449,7 @@ async function storeResult(
 		}
 		const interpretierendMemoId = await insertParagraphMemo('interpretierend', result.interpretierend);
 
-		const codeIds: string[] = [];
-		const unanchoredCodes: string[] = [];
-
-		for (const code of result.codes) {
-			const codeNaming = await client.query(
-				`INSERT INTO namings (project_id, inscription, created_by)
-				 VALUES ($1, $2, $3) RETURNING id`,
-				[caseCtx.projectId, code.label, userId]
-			);
-			const codeId = codeNaming.rows[0].id;
-			codeIds.push(codeId);
-
-			// Anchor strategy:
-			// - non-empty anchor_phrase that substring-matches → precise char anchor
-			// - empty anchor_phrase OR no match → anchor spans the whole paragraph
-			//   (the code is still bound to the paragraph element, just without a
-			//   highlighted span; retrieval can still find it via element_id)
-			let charStart: number;
-			let charEnd: number;
-			if (code.anchor_phrase) {
-				const idx = paraCtx.text.indexOf(code.anchor_phrase);
-				if (idx === -1) {
-					unanchoredCodes.push(code.label);
-					charStart = paraCtx.charStart;
-					charEnd = paraCtx.charEnd;
-				} else {
-					charStart = paraCtx.charStart + idx;
-					charEnd = charStart + code.anchor_phrase.length;
-				}
-			} else {
-				charStart = paraCtx.charStart;
-				charEnd = paraCtx.charEnd;
-			}
-
-			await client.query(
-				`INSERT INTO code_anchors (code_naming_id, element_id, char_start, char_end)
-				 VALUES ($1, $2, $3, $4)`,
-				[codeId, paraCtx.paragraphId, charStart, charEnd]
-			);
-		}
-
-		return { interpretierendMemoId, formulierendMemoId, codeIds, unanchoredCodes };
+		return { interpretierendMemoId, formulierendMemoId };
 	});
 }
 
