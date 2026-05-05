@@ -39,12 +39,31 @@
 
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
-import { chat, getModel, getProvider } from '../client.js';
+import { chat, getModel, getProvider, type Provider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { runArgumentationGraphPass } from '../hermeneutic/argumentation-graph.js';
 import { runArgumentValidityPass } from '../hermeneutic/argument-validity.js';
 import { extractInlineCitations } from './grundlagentheorie.js';
 import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
+
+type ModelOverride = { provider: Provider; model: string };
+
+/**
+ * Options for DURCHFÜHRUNG Step 2 — der einzige Schritt, der intern H1-Tools
+ * aufruft (AG + Validity). Sein modelOverride ist der H1.tier1-Override und
+ * wird an die H1-Pass-Aufrufe durchgereicht.
+ */
+export interface DurchfuehrungStep2Options {
+	modelOverride?: ModelOverride;
+}
+
+/**
+ * Options for DURCHFÜHRUNG Step 4 (BEFUND-Extract) — H3-Tool, eigener
+ * H3.tier1-Override.
+ */
+export interface DurchfuehrungStep4Options {
+	modelOverride?: ModelOverride;
+}
 
 // ── Closure-Marker für Befund-Stellen ─────────────────────────────
 //
@@ -581,7 +600,8 @@ export interface DurchfuehrungStep2Result {
 export async function runDurchfuehrungStep2ForComplex(
 	caseId: string,
 	documentId: string,
-	complex: H3Complex
+	complex: H3Complex,
+	options: DurchfuehrungStep2Options = {}
 ): Promise<DurchfuehrungStep2Result> {
 	if (complex.functionType !== 'DURCHFUEHRUNG') {
 		throw new Error(
@@ -589,7 +609,7 @@ export async function runDurchfuehrungStep2ForComplex(
 		);
 	}
 	const hotspots = await loadHotspotsForComplex(caseId, documentId, complex.paragraphIds);
-	return runDurchfuehrungStep2OverHotspots(caseId, documentId, hotspots);
+	return runDurchfuehrungStep2OverHotspots(caseId, documentId, hotspots, options.modelOverride);
 }
 
 /**
@@ -597,7 +617,8 @@ export async function runDurchfuehrungStep2ForComplex(
  * und ruft pro Komplex Step 2 auf — aggregiert das Werk-Ergebnis.
  */
 export async function runDurchfuehrungPassStep2(
-	caseId: string
+	caseId: string,
+	options: DurchfuehrungStep2Options = {}
 ): Promise<DurchfuehrungStep2Result> {
 	const caseRow = await queryOne<{ central_document_id: string | null }>(
 		`SELECT central_document_id FROM cases WHERE id = $1`,
@@ -610,13 +631,14 @@ export async function runDurchfuehrungPassStep2(
 	const documentId = caseRow.central_document_id;
 
 	const hotspots = await loadHotspotsFromContainers(caseId, documentId);
-	return runDurchfuehrungStep2OverHotspots(caseId, documentId, hotspots);
+	return runDurchfuehrungStep2OverHotspots(caseId, documentId, hotspots, options.modelOverride);
 }
 
 async function runDurchfuehrungStep2OverHotspots(
 	caseId: string,
 	documentId: string,
-	hotspots: { paragraphId: string; charStart: number; charEnd: number; markerNames: string[] }[]
+	hotspots: { paragraphId: string; charStart: number; charEnd: number; markerNames: string[] }[],
+	modelOverride?: ModelOverride
 ): Promise<DurchfuehrungStep2Result> {
 	const acc = {
 		input: 0,
@@ -647,7 +669,7 @@ async function runDurchfuehrungStep2OverHotspots(
 		// Folgehotspots im selben Container hat und parallele Calls kein
 		// echtes Throughput-Plus bringen, dafür aber Rate-Limit-Risiko.
 		try {
-			const ag = await runArgumentationGraphPass(caseId, h.paragraphId);
+			const ag = await runArgumentationGraphPass(caseId, h.paragraphId, { modelOverride });
 			if (ag.skipped) {
 				agSkipped = true;
 				skippedAg += 1;
@@ -685,7 +707,7 @@ async function runDurchfuehrungStep2OverHotspots(
 
 		// Validity-Pass — nur wenn AG erfolgreich war (egal ob skipped).
 		try {
-			const v = await runArgumentValidityPass(caseId, h.paragraphId);
+			const v = await runArgumentValidityPass(caseId, h.paragraphId, { modelOverride });
 			if (v.skipped) {
 				validitySkipped = true;
 				skippedValidity += 1;
@@ -1282,7 +1304,8 @@ async function runDurchfuehrungStep4OverContainer(
 	caseId: string,
 	documentId: string,
 	container: DurchfuehrungContainer,
-	hotspotToContainer: Map<string, string>
+	hotspotToContainer: Map<string, string>,
+	modelOverride?: ModelOverride
 ): Promise<{
 	hotspots: DurchfuehrungStep4HotspotResult[];
 	tokens: { input: number; output: number };
@@ -1346,6 +1369,7 @@ async function runDurchfuehrungStep4OverContainer(
 				maxTokens: 1200,
 				responseFormat: 'json',
 				documentIds: [documentId],
+				modelOverride,
 			});
 			tokIn = response.inputTokens;
 			tokOut = response.outputTokens;
@@ -1447,13 +1471,15 @@ async function runDurchfuehrungStep4OverContainer(
 export async function runDurchfuehrungStep4ForComplex(
 	caseId: string,
 	documentId: string,
-	complex: H3Complex
+	complex: H3Complex,
+	options: DurchfuehrungStep4Options = {}
 ): Promise<DurchfuehrungStep4Result> {
 	if (complex.functionType !== 'DURCHFUEHRUNG') {
 		throw new Error(
 			`runDurchfuehrungStep4ForComplex erwartet functionType='DURCHFUEHRUNG', erhielt '${complex.functionType}' (heading=${complex.headingId})`
 		);
 	}
+	const { modelOverride } = options;
 	const container = await loadDurchfuehrungParagraphsForComplex(documentId, complex);
 	const hotspotToContainer = await loadHotspotToContainerMapForComplex(
 		caseId,
@@ -1467,7 +1493,8 @@ export async function runDurchfuehrungStep4ForComplex(
 		caseId,
 		documentId,
 		container,
-		hotspotToContainer
+		hotspotToContainer,
+		modelOverride
 	);
 
 	return {
@@ -1477,8 +1504,8 @@ export async function runDurchfuehrungStep4ForComplex(
 		befundsExtracted: r.befundsExtracted,
 		nullResults: r.nullResults,
 		tokens: r.tokens,
-		model: getModel(),
-		provider: getProvider(),
+		model: modelOverride?.model ?? getModel(),
+		provider: modelOverride?.provider ?? getProvider(),
 		hotspots: r.hotspots,
 		errors: r.errors,
 	};
@@ -1489,7 +1516,8 @@ export async function runDurchfuehrungStep4ForComplex(
  * und ruft pro Komplex Step 4 auf — aggregiert das Werk-Ergebnis.
  */
 export async function runDurchfuehrungPassStep4(
-	caseId: string
+	caseId: string,
+	options: DurchfuehrungStep4Options = {}
 ): Promise<DurchfuehrungStep4Result> {
 	const caseRow = await queryOne<{ central_document_id: string | null }>(
 		`SELECT central_document_id FROM cases WHERE id = $1`,
@@ -1500,6 +1528,7 @@ export async function runDurchfuehrungPassStep4(
 		throw new Error(`Case ${caseId} has no central_document_id`);
 	}
 	const documentId = caseRow.central_document_id;
+	const { modelOverride } = options;
 
 	const walk = await loadH3ComplexWalk(documentId);
 	const dfComplexes = walk.filter((c) => c.functionType === 'DURCHFUEHRUNG');
@@ -1511,7 +1540,7 @@ export async function runDurchfuehrungPassStep4(
 	let nullResults = 0;
 
 	for (const complex of dfComplexes) {
-		const r = await runDurchfuehrungStep4ForComplex(caseId, documentId, complex);
+		const r = await runDurchfuehrungStep4ForComplex(caseId, documentId, complex, options);
 		accTokens.input += r.tokens.input;
 		accTokens.output += r.tokens.output;
 		befundsExtracted += r.befundsExtracted;
@@ -1527,8 +1556,8 @@ export async function runDurchfuehrungPassStep4(
 		befundsExtracted,
 		nullResults,
 		tokens: accTokens,
-		model: getModel(),
-		provider: getProvider(),
+		model: modelOverride?.model ?? getModel(),
+		provider: modelOverride?.provider ?? getProvider(),
 		hotspots: hotspotResults,
 		errors,
 	};

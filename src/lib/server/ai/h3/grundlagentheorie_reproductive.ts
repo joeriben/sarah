@@ -33,6 +33,7 @@
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, getModel, getProvider, type Provider } from '../client.js';
+import { resolveTier } from '../model-tiers.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import {
@@ -411,16 +412,6 @@ export interface ReproductivePassResult {
 	containers: ContainerReproductiveResult[];
 }
 
-// Default-Modell: Sonnet 4.6 via OpenRouter — selber Default wie der
-// Routing-Pass (grundlagentheorie_routing.ts). Begründung: Block-Würdigung
-// (H2 synthetisch) und 3-Achsen-Klassifikation sind im selben Komplexitäts-
-// Bereich wie das Routing; ein im Repo etabliertes Modell ohne Premium-
-// Aufschlag. Tunable via options.modelOverride.
-const DEFAULT_REPRODUCTIVE_MODEL: { provider: Provider; model: string } = {
-	provider: 'openrouter',
-	model: 'anthropic/claude-sonnet-4.6',
-};
-
 /**
  * Anchor-skopierter DELETE für BLOCK_WUERDIGUNG + ECKPUNKT_BEFUND eines
  * Komplexes — Idempotenz pro Walk-Knoten.
@@ -472,7 +463,7 @@ export async function runReproductiveBlockForComplex(
 		);
 	}
 	const persistConstructs = options.persistConstructs !== false;
-	const modelOverride = options.modelOverride ?? DEFAULT_REPRODUCTIVE_MODEL;
+	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 
 	const container = await loadGrundlagentheorieParagraphsForComplex(documentId, complex);
 	if (container.paragraphs.length === 0) {
@@ -639,7 +630,7 @@ export async function runReproductiveBlockPass(
 	caseId: string,
 	options: ReproductivePassOptions = {}
 ): Promise<ReproductivePassResult> {
-	const modelOverride = options.modelOverride ?? DEFAULT_REPRODUCTIVE_MODEL;
+	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 
 	const caseRow = await queryOne<{ central_document_id: string | null }>(
 		`SELECT central_document_id FROM cases WHERE id = $1`,

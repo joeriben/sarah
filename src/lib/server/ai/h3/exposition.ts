@@ -34,10 +34,16 @@
 
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
-import { chat, getModel, getProvider } from '../client.js';
+import { chat, getModel, getProvider, type Provider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
+
+type ModelOverride = { provider: Provider; model: string };
+
+export interface ExpositionPassOptions {
+	modelOverride?: ModelOverride;
+}
 
 // ── Komplex-Auflösung ─────────────────────────────────────────────
 
@@ -145,7 +151,8 @@ type RekonstruktionResult = z.infer<typeof RekonstruktionSchema>;
 async function rekonstruiereFragestellung(
 	candidateParagraphs: ExpositionParagraph[],
 	containerLabel: string,
-	documentId: string
+	documentId: string,
+	modelOverride?: ModelOverride
 ): Promise<{ result: RekonstruktionResult; tokens: { input: number; output: number } }> {
 	const system = [
 		'Du bist ein analytisches Werkzeug, das aus dem Einleitungs-Material einer wissenschaftlichen Arbeit die TATSÄCHLICHE FRAGESTELLUNG rekonstruiert.',
@@ -193,6 +200,7 @@ async function rekonstruiereFragestellung(
 		maxTokens: 1200,
 		responseFormat: 'json',
 		documentIds: [documentId],
+		modelOverride,
 	});
 
 	const parsed = extractAndValidateJSON(response.text, RekonstruktionSchema);
@@ -226,7 +234,8 @@ type BeurteilungResult = z.infer<typeof BeurteilungSchema>;
 async function beurteileFragestellung(
 	candidateParagraphs: ExpositionParagraph[],
 	containerLabel: string,
-	documentId: string
+	documentId: string,
+	modelOverride?: ModelOverride
 ): Promise<{ result: BeurteilungResult; tokens: { input: number; output: number } }> {
 	const system = [
 		'Du bekommst die Absätze einer Werk-Einleitung, in denen die Forschungsfragestellung der Arbeit formuliert ist. Beurteile diese Fragestellung in einem einzigen Satz, auf Basis einer selbst-gerankten Auswahl dieser fünf Kriterien:',
@@ -257,6 +266,7 @@ async function beurteileFragestellung(
 		maxTokens: 600,
 		responseFormat: 'json',
 		documentIds: [documentId],
+		modelOverride,
 	});
 
 	const parsed = extractAndValidateJSON(response.text, BeurteilungSchema);
@@ -282,7 +292,8 @@ type MotivationResult = z.infer<typeof MotivationSchema>;
 async function fasseMotivationZusammen(
 	motivationParagraphs: ExpositionParagraph[],
 	containerLabel: string,
-	documentId: string
+	documentId: string,
+	modelOverride?: ModelOverride
 ): Promise<{ result: MotivationResult; tokens: { input: number; output: number } }> {
 	const system = [
 		'Du bist ein analytisches Werkzeug, das aus dem Einleitungs-Material einer wissenschaftlichen Arbeit die MOTIVATION der Untersuchung knapp zusammenfasst.',
@@ -308,6 +319,7 @@ async function fasseMotivationZusammen(
 		maxTokens: 500,
 		responseFormat: 'json',
 		documentIds: [documentId],
+		modelOverride,
 	});
 
 	const parsed = extractAndValidateJSON(response.text, MotivationSchema);
@@ -337,7 +349,8 @@ type FallbackResult = z.infer<typeof FallbackSchema>;
 async function llmFallbackVollerContainer(
 	paragraphs: ExpositionParagraph[],
 	containerLabel: string,
-	documentId: string
+	documentId: string,
+	modelOverride?: ModelOverride
 ): Promise<{ result: FallbackResult; tokens: { input: number; output: number } }> {
 	const system = [
 		'Du bist ein analytisches Werkzeug. Eine deterministische Vorprüfung hat im Einleitungs-Container kein Frage-Marker-Muster gefunden; jetzt sollst du den ganzen Container prüfen.',
@@ -373,6 +386,7 @@ async function llmFallbackVollerContainer(
 		maxTokens: 1500,
 		responseFormat: 'json',
 		documentIds: [documentId],
+		modelOverride,
 	});
 
 	const parsed = extractAndValidateJSON(response.text, FallbackSchema);
@@ -515,7 +529,8 @@ export interface BeurteilungPassResult {
 export async function runBeurteilungForComplex(
 	caseId: string,
 	documentId: string,
-	complex: H3Complex
+	complex: H3Complex,
+	options: ExpositionPassOptions = {}
 ): Promise<BeurteilungPassResult> {
 	if (complex.functionType !== 'EXPOSITION') {
 		throw new Error(
@@ -523,6 +538,7 @@ export async function runBeurteilungForComplex(
 		);
 	}
 
+	const modelOverride = options.modelOverride;
 	const paragraphs = await loadExpositionParagraphsForComplex(documentId, complex);
 	const containerLabel = complex.headingText;
 
@@ -541,7 +557,7 @@ export async function runBeurteilungForComplex(
 	} else {
 		// Fallback: LLM identifiziert die Fragestellungs-¶ über den ganzen Komplex.
 		usedFallback = true;
-		const fb = await llmFallbackVollerContainer(paragraphs, containerLabel, documentId);
+		const fb = await llmFallbackVollerContainer(paragraphs, containerLabel, documentId, modelOverride);
 		llmCalls += 1;
 		totalInput += fb.tokens.input;
 		totalOutput += fb.tokens.output;
@@ -566,15 +582,16 @@ export async function runBeurteilungForComplex(
 			beurteilungAnchorParagraphIds: [],
 			tokens: { input: totalInput, output: totalOutput },
 			llmCalls,
-			model: getModel(),
-			provider: getProvider(),
+			model: modelOverride?.model ?? getModel(),
+			provider: modelOverride?.provider ?? getProvider(),
 		};
 	}
 
 	const beur = await beurteileFragestellung(
 		fragestellungParagraphs,
 		containerLabel,
-		documentId
+		documentId,
+		modelOverride
 	);
 	llmCalls += 1;
 	totalInput += beur.tokens.input;
@@ -599,8 +616,8 @@ export async function runBeurteilungForComplex(
 		beurteilungAnchorParagraphIds: fragestellungParagraphs.map((p) => p.paragraphId),
 		tokens: { input: totalInput, output: totalOutput },
 		llmCalls,
-		model: getModel(),
-		provider: getProvider(),
+		model: modelOverride?.model ?? getModel(),
+		provider: modelOverride?.provider ?? getProvider(),
 	};
 }
 
@@ -636,7 +653,8 @@ export async function runBeurteilungOnly(caseId: string): Promise<BeurteilungPas
 export async function runExpositionForComplex(
 	caseId: string,
 	documentId: string,
-	complex: H3Complex
+	complex: H3Complex,
+	options: ExpositionPassOptions = {}
 ): Promise<ExpositionPassResult> {
 	if (complex.functionType !== 'EXPOSITION') {
 		throw new Error(
@@ -644,6 +662,7 @@ export async function runExpositionForComplex(
 		);
 	}
 
+	const modelOverride = options.modelOverride;
 	const paragraphs = await loadExpositionParagraphsForComplex(documentId, complex);
 	const containerLabel = complex.headingText;
 
@@ -667,7 +686,8 @@ export async function runExpositionForComplex(
 		const recon = await rekonstruiereFragestellung(
 			fragestellungParagraphs,
 			containerLabel,
-			documentId
+			documentId,
+			modelOverride
 		);
 		llmCalls += 1;
 		totalInput += recon.tokens.input;
@@ -680,7 +700,8 @@ export async function runExpositionForComplex(
 				const motiv = await fasseMotivationZusammen(
 					motivationParagraphs,
 					containerLabel,
-					documentId
+					documentId,
+					modelOverride
 				);
 				llmCalls += 1;
 				totalInput += motiv.tokens.input;
@@ -693,7 +714,7 @@ export async function runExpositionForComplex(
 	// Fallback: Parser fand nichts ODER Parser-Treffer wurde vom LLM verworfen.
 	if (!fragestellungText) {
 		usedFallback = true;
-		const fb = await llmFallbackVollerContainer(paragraphs, containerLabel, documentId);
+		const fb = await llmFallbackVollerContainer(paragraphs, containerLabel, documentId, modelOverride);
 		llmCalls += 1;
 		totalInput += fb.tokens.input;
 		totalOutput += fb.tokens.output;
@@ -755,8 +776,8 @@ export async function runExpositionForComplex(
 		motivationAnchorParagraphIds: motivationParagraphs.map((p) => p.paragraphId),
 		tokens: { input: totalInput, output: totalOutput },
 		llmCalls,
-		model: getModel(),
-		provider: getProvider(),
+		model: modelOverride?.model ?? getModel(),
+		provider: modelOverride?.provider ?? getProvider(),
 	};
 }
 

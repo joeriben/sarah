@@ -35,6 +35,7 @@
 import { z } from 'zod';
 import { queryOne } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
+import { resolveTier } from '../model-tiers.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import {
@@ -443,11 +444,6 @@ async function persistForschungsgegenstand(
 
 // ── Public API ────────────────────────────────────────────────────
 
-const DEFAULT_FORSCHUNGSGEGENSTAND_MODEL: { provider: Provider; model: string } = {
-	provider: 'openrouter',
-	model: 'anthropic/claude-sonnet-4.6',
-};
-
 const DEFAULT_MAX_TOKENS = 1500;
 
 export interface ForschungsgegenstandPassOptions {
@@ -486,7 +482,7 @@ export async function runForschungsgegenstandPass(
 ): Promise<ForschungsgegenstandPassResult> {
 	const persistConstructs = options.persistConstructs !== false;
 	const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
-	const modelOverride = options.modelOverride ?? DEFAULT_FORSCHUNGSGEGENSTAND_MODEL;
+	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 
 	const caseRow = await queryOne<{ central_document_id: string | null }>(
 		`SELECT central_document_id FROM cases WHERE id = $1`,

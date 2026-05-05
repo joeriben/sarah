@@ -56,6 +56,7 @@ import {
 	type H3WalkStep,
 } from './h3-walk-driver.js';
 import { PreconditionFailedError } from '../ai/h3/precondition.js';
+import { resolveTier } from '../ai/model-tiers.js';
 
 export type Phase =
 	| 'argumentation_graph'
@@ -530,9 +531,15 @@ async function executeStep(
 	caseId: string,
 	userId: string
 ): Promise<StepResult> {
+	// Tier-Routing pro Phase (siehe `model-tiers.ts`). Jedes Modell, das
+	// hier in der Pipeline läuft, wird über die TIER_REGISTRY aufgelöst —
+	// ohne Override fällt die Phase auf den TIER-Default zurück, mit
+	// ai-settings.json `tiers`-Override fährt sie das User-Modell.
 	switch (phase) {
 		case 'argumentation_graph': {
-			const r = await runArgumentationGraphPass(caseId, atom.id);
+			const r = await runArgumentationGraphPass(caseId, atom.id, {
+				modelOverride: resolveTier('h1.tier1'),
+			});
 			return {
 				skipped: r.skipped,
 				tokens: {
@@ -543,7 +550,9 @@ async function executeStep(
 			};
 		}
 		case 'argument_validity': {
-			const r = await runArgumentValidityPass(caseId, atom.id);
+			const r = await runArgumentValidityPass(caseId, atom.id, {
+				modelOverride: resolveTier('h1.tier1'),
+			});
 			return {
 				skipped: r.skipped,
 				tokens: {
@@ -554,7 +563,9 @@ async function executeStep(
 			};
 		}
 		case 'paragraph_synthetic': {
-			const r = await runParagraphPass(caseId, atom.id, userId);
+			const r = await runParagraphPass(caseId, atom.id, userId, {
+				modelOverride: resolveTier('h2.tier1'),
+			});
 			return {
 				skipped: false,
 				tokens: {
@@ -565,7 +576,9 @@ async function executeStep(
 			};
 		}
 		case 'section_collapse': {
-			const r = await runGraphCollapse(caseId, atom.id, userId);
+			const r = await runGraphCollapse(caseId, atom.id, userId, {
+				modelOverride: resolveTier('h1.tier2'),
+			});
 			return {
 				skipped: r.skipped,
 				tokens: {
@@ -577,7 +590,9 @@ async function executeStep(
 			};
 		}
 		case 'chapter_collapse': {
-			const r = await runChapterCollapse(caseId, atom.id, userId);
+			const r = await runChapterCollapse(caseId, atom.id, userId, {
+				modelOverride: resolveTier('h1.tier2'),
+			});
 			return {
 				skipped: r.skipped,
 				tokens: {
@@ -589,7 +604,9 @@ async function executeStep(
 			};
 		}
 		case 'document_collapse': {
-			const r = await runDocumentCollapse(caseId, userId);
+			const r = await runDocumentCollapse(caseId, userId, {
+				modelOverride: resolveTier('h1.tier2'),
+			});
 			return {
 				skipped: r.skipped,
 				tokens: {
@@ -908,6 +925,16 @@ async function runH3Walk(
 		const stepIndex = i + 1;
 		const total = steps.length;
 
+		// last_step_label/current_index sofort beim step-start in DB schreiben
+		// (mit 0 Token-Delta), damit das UI bei einem Tool-Fehler den TATSÄCHLICH
+		// fehlgeschlagenen Step zeigt — nicht den letzten erfolgreich gelaufenen.
+		// Erfolgsfall überschreibt unten mit den echten Tokens (Label bleibt gleich).
+		await updateProgress(runId, phase, stepIndex, total, atom.label, {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+		});
+
 		safeSend(sendEvent, { type: 'step-start', phase, atom, index: i, total });
 
 		// Done-Check: Walk-Step schon abgeschlossen → skippen (Idempotenz auf
@@ -915,11 +942,8 @@ async function runH3Walk(
 		// (User-Schutz) erfolgt zusätzlich in runH3WalkStep.
 		const isDone = await isH3WalkStepDone(step, caseId, documentId);
 		if (isDone) {
-			await updateProgress(runId, phase, stepIndex, total, atom.label, {
-				input: 0,
-				output: 0,
-				cacheRead: 0,
-			});
+			// Label/Index bereits oben beim step-start gesetzt — hier nur
+			// step-done mit skipped-Flag und aktuellem Cumulative-Token-Stand.
 			const updated = await getRun(runId);
 			safeSend(sendEvent, {
 				type: 'step-done',

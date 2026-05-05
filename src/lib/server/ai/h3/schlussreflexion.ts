@@ -49,6 +49,7 @@
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
+import { resolveTier } from '../model-tiers.js';
 import { extractAndValidateJSON, type ExtractResult } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import { loadEffectiveOutline } from '../../documents/outline.js';
@@ -587,11 +588,6 @@ async function persistSchlussreflexion(
 
 // ── Public API ────────────────────────────────────────────────────
 
-const DEFAULT_SR_MODEL: { provider: Provider; model: string } = {
-	provider: 'openrouter',
-	model: 'anthropic/claude-sonnet-4.6',
-};
-
 const DEFAULT_MAX_TOKENS = 1500;
 
 export interface SchlussreflexionPassOptions {
@@ -640,7 +636,7 @@ export async function runSchlussreflexionPass(
 ): Promise<SchlussreflexionPassResult> {
 	const persistConstructs = options.persistConstructs !== false;
 	const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
-	const modelOverride = options.modelOverride ?? DEFAULT_SR_MODEL;
+	const modelOverride = options.modelOverride ?? resolveTier('h3.tier2');
 	const warnings: string[] = [];
 
 	const caseRow = await queryOne<{ central_document_id: string | null }>(

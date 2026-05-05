@@ -31,25 +31,55 @@ Default-Settings in `ai-settings.json`. Per-Call-Override via `modelOverride` in
 
 ---
 
-## 2. Two-Track-Strategie (Memory `project_two_track_model_strategy`)
+## 2. Tier-basiertes Modell-Routing
 
-**Premium-Route** (Goldstandard) und **Budget-Route** (Cost-Ziel <<$1 / Textseite) **koexistieren**.
+**Eintrittspunkt:** `src/lib/server/ai/model-tiers.ts`. Single source of truth für "welches Modell läuft auf welcher Aufgabe", abrufbar über `resolveTier(tier)`.
 
-| Phase | Premium | Budget (validiert 2026-05-02 für Chapter 4 BA) |
-|-------|---------|----------------|
-| Argumentation Graph (per ¶) | Sonnet | **Mistral** (nativ EU, ~Goldstand-Niveau) |
-| Section / Chapter / Document Collapse | Sonnet / Opus | **Sonnet via Mammouth** (EU-Vermittlung, Klartext akzeptabel weil DSGVO-safe-Channel) |
-| Validity-Check / Grounding | Sonnet | Sonnet |
-| H3 Heuristiken | Sonnet | (noch nicht budget-validiert) |
+Die Pipeline ordnet jede LLM-Aufgabe einem **Tier** zu (`h1.tier1` … `h3.tier3`). Pro Tier wählt `TIER_REGISTRY` ein Default-Modell. Pro Tier kann `ai-settings.json.tiers` einen Override setzen (User wählt Provider+Model frei). Jede Dispatch-Stelle (Orchestrator, H3-Walk-Driver) übergibt explizit `modelOverride: resolveTier(tier)` an `chat()` — damit ist die Routing-Entscheidung audit-bar.
 
-**Validierter Budget-Stack:** Mistral (basal) + Sonnet via Mammouth (collapse) → Goldstand-Niveau bei ~$15/Habil bei vollständigem End-to-End-Lauf. Paragraph-präzise §:A-Anker bleiben erhalten.
+| Tier | Aufgaben | Default (heute) | Status / Lücken |
+|------|----------|----------------|----------------|
+| `h1.tier1` | H1 basal — AG + Validity pro ¶ | `openrouter / xiaomi/mimo-v2.5-pro` | mimo validiert (Memory `project_mimo_evaluation`); Mistral-Large-2512 nativ EU validiert auf BA Ch.4 (`project_mistral_sonnet_stack_validated`); Sonnet = Goldstand. Lücke: H3-Begleitlauf (durchfuehrung Step 2 ruft AG intern) noch nicht gegen Mistral/mimo gemessen. |
+| `h1.tier2` | H1 collapse — section / chapter / document / chapter-flow | `openrouter / xiaomi/mimo-v2.5-pro` | mimo validiert; Sonnet via Mammouth EU-vermittelt validiert; Sonnet direct = Goldstand. |
+| `h2.tier1` | H2 synth-memo (per ¶) | `openrouter / xiaomi/mimo-v2.5-pro` | mimo validiert; Sonnet = Goldstand. Lücke: keine systematische Mistral-vs-mimo-Vergleichsmessung für H2. |
+| `h3.tier1` | H3 extract — EXPOSITION, FORSCHUNGSDESIGN, FORSCHUNGSGEGENSTAND, GRUNDLAGENTHEORIE-Routing/Reproductive/Discursive, DURCHFUEHRUNG-BEFUND | `openrouter / anthropic/claude-sonnet-4.6` | Status-quo. Lücke: H3 noch nicht gegen Mistral/mimo systematisch evaluiert. |
+| `h3.tier2` | H3 synth — SYNTHESE, EXKURS-Kernergebnis, SCHLUSSREFLEXION | `openrouter / anthropic/claude-sonnet-4.6` | Status-quo. Synthese-Stufen plausibel anspruchsvoller als Extrakt-Stufen — Höher-Tier-Wahl (Opus) für Default verteidigbar. |
+| `h3.tier3` | H3 werk-meta — WERK_BESCHREIBUNG, WERK_GUTACHT | `openrouter / anthropic/claude-sonnet-4.6` | Status-quo. Werk-Meta integriert über die gesamte Konstruktbasis — plausibel der anspruchsvollste Schritt; Opus-Default für kritische Reviews verteidigbar. |
+
+**Override-Konfiguration:** in `ai-settings.json` unter `tiers`:
+
+```json
+{
+  "provider": "openrouter",
+  "model": "anthropic/claude-sonnet-4.6",
+  "tiers": {
+    "h1.tier1": { "provider": "mistral", "model": "mistral-large-2512" },
+    "h3.tier2": { "provider": "anthropic", "model": "claude-opus-4-7" }
+  }
+}
+```
+
+`resolveTier(tier)` konsultiert zuerst den Override, fällt zurück auf `TIER_REGISTRY[tier].default`. Provider-Validierung gegen die `PROVIDERS`-Tabelle in client.ts.
+
+**Introspektion:** `describeTiers()` listet pro Tier beschreibung + resolved Modell (default oder override) + evaluation-Status — Basis für Settings-UI und CLI-Diagnose.
+
+**Verlauf:** Vor diesem Refactor (vor 2026-05-05) lag das Routing dreigeteilt vor: H1/H2 nutzten den globalen `ai-settings.json`-Default, H3 hardcodierte `DEFAULT_*_MODEL`-Konstanten in 9 Modulen, validierte Alternativen (Mistral, Sonnet via Mammouth, mimo) waren strukturell unsichtbar. Tier-Refactor 2026-05-05 hat alle Dispatch-Stellen vereinheitlicht und das Wissen über validierte Alternativen aus den Memories in TIER_REGISTRY.evaluation gespiegelt.
+
+### 2a. Two-Track-Strategie (Memory `project_two_track_model_strategy`)
+
+**Premium-Route** (Sonnet/Opus direkt) und **Budget-Route** (Mistral/mimo, ~$15/Habil) **koexistieren** auf Goldstand-Niveau. Beide Stacks werden über die Tier-Override-Knöpfe (oben) konfiguriert — es gibt keinen globalen Premium/Budget-Switch.
+
+**Validierter Budget-Stack** (Memory `project_mistral_sonnet_stack_validated`):
+- H1.tier1 (basal/AG) → Mistral-Large-2512 nativ EU
+- H1.tier2 (collapse) → Sonnet via Mammouth (EU-vermittelt, DSGVO-safe-Channel)
+- H2.tier1 + H3.* → noch nicht systematisch gegen Mistral evaluiert
+
+Paragraph-präzise §:A-Anker bleiben in beiden Stacks erhalten.
 
 **Verboten:**
 - xAI/Grok-Modelle vorschlagen (Memory `feedback_no_xai_models`).
 - Lokale 9B-Klasse für Pipeline (Memory `feedback_local_ollama_unfit_for_pipeline`).
 - DeepSeek-v4-pro für basal+AG (Memory `feedback_deepseek_v4_unfit_for_basal_ag`).
-
-Routing-Architektur ist **frei pro Phase**. Es gibt keine globale Premium/Budget-Switch — die Wahl ist datei-/funktionsweise konfiguriert.
 
 ---
 

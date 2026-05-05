@@ -21,7 +21,7 @@ Diese Doku ist der **single source of truth** für Architektur, Datenmodell und 
 | 00 | [foundations](architecture/00-foundations.md) | Epistemologische Grundlagen, Drei-Schichten, Critical-Friend-Identität | ... eine epistemische Setzung verstehen oder begründen willst |
 | 01 | [data-model](architecture/01-data-model.md) | Tabellen, Migrationen 001–048, Query-Layer, Invarianten, Drift-Spuren | ... Schema änderst, Query schreibst, oder eine alte Spalte siehst |
 | 02 | [documents](architecture/02-documents.md) | Parser (DOCX-academic), Outline-Gate, Embeddings, Anonymisierung Phase A | ... Dokument-Verarbeitung anfasst |
-| 03 | [ai-infrastructure](architecture/03-ai-infrastructure.md) | Provider-Routing, Two-Track-Strategie, Failsafe (PII-Pre-Call), JSON-Repair | ... LLM-Calls hinzufügst oder Modelle wechselst |
+| 03 | [ai-infrastructure](architecture/03-ai-infrastructure.md) | Provider-Routing, Tier-System (h1/h2/h3), Two-Track-Strategie, Failsafe (PII-Pre-Call), JSON-Repair | ... LLM-Calls hinzufügst, Modelle wechselst, oder Tier-Override setzt |
 | 04 | [pipeline-h1-h2](architecture/04-pipeline-h1-h2.md) | Orchestrator, analytische Hauptlinie AG→L3→L1→L0, synthetisches Addendum | ... an der hermeneutischen Pipeline arbeitest |
 | 05 | [pipeline-h3](architecture/05-pipeline-h3.md) | Drei-Heuristiken-Architektur, Funktionstyp-Zuweisung, EXPOSITION/FORSCHUNGSDESIGN/GRUNDLAGENTHEORIE/DURCHFUEHRUNG/EXKURS/SYNTHESE/SCHLUSSREFLEXION-Status | ... H3 anfasst — **Implementations-Stand pro Funktionstyp hier** |
 | 06 | [cases-briefs-falltyp](architecture/06-cases-briefs-falltyp.md) | Case-Triade, system-weite Brief-Library, Falltyp-System (geplant), 4-Stufen-UI-Roadmap | ... mit Cases, Briefs, oder Falltyp-Roadmap arbeitest |
@@ -47,6 +47,7 @@ Diese Doku ist der **single source of truth** für Architektur, Datenmodell und 
 | Ist `design-clusters.md` noch gültig? | [09-legacy-docs-ledger](architecture/09-legacy-docs-ledger.md) (Antwort: nein) |
 | Was darf AUTO-Mode entscheiden? | [08-conventions §AUTO](architecture/08-conventions.md) |
 | Welche Provider darf ich vorschlagen? | [03-ai-infrastructure §Provider](architecture/03-ai-infrastructure.md) |
+| Welches Modell läuft auf welcher Aufgabe? Wie überschreibe ich es? | [03-ai-infrastructure §2 Tier-Routing](architecture/03-ai-infrastructure.md) (TIER_REGISTRY in `src/lib/server/ai/model-tiers.ts`) |
 
 ---
 

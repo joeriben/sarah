@@ -30,6 +30,7 @@
 import { queryOne } from '../db/index.js';
 import type { StepResult } from './orchestrator.js';
 import { loadH3ComplexWalk, type H3Complex } from './h3-complex-walk.js';
+import { resolveTier } from '../ai/model-tiers.js';
 
 import { runExpositionForComplex } from '../ai/h3/exposition.js';
 import {
@@ -523,35 +524,45 @@ export async function runH3WalkStep(
 		case 'complex':
 			return runComplexStep(step.complex, caseId, documentId);
 		case 'werk_fg_aggregation': {
-			const r = await runForschungsgegenstandPass(caseId);
+			const r = await runForschungsgegenstandPass(caseId, {
+				modelOverride: resolveTier('h3.tier1'),
+			});
 			return {
 				skipped: false,
 				tokens: { input: r.tokens.input, output: r.tokens.output, cacheRead: 0 },
 			};
 		}
 		case 'werk_forschungsdesign': {
-			const r = await runForschungsdesignPass(caseId);
+			const r = await runForschungsdesignPass(caseId, {
+				modelOverride: resolveTier('h3.tier1'),
+			});
 			return {
 				skipped: false,
 				tokens: { input: r.tokens.input, output: r.tokens.output, cacheRead: 0 },
 			};
 		}
 		case 'werk_synthese': {
-			const r = await runSynthesePass(caseId);
+			const r = await runSynthesePass(caseId, {
+				modelOverride: resolveTier('h3.tier2'),
+			});
 			return {
 				skipped: false,
 				tokens: { input: r.tokens.input, output: r.tokens.output, cacheRead: 0 },
 			};
 		}
 		case 'werk_schlussreflexion': {
-			const r = await runSchlussreflexionPass(caseId);
+			const r = await runSchlussreflexionPass(caseId, {
+				modelOverride: resolveTier('h3.tier2'),
+			});
 			return {
 				skipped: false,
 				tokens: { input: r.tokens.input, output: r.tokens.output, cacheRead: 0 },
 			};
 		}
 		case 'werk_deskription': {
-			const r = await runWerkDeskriptionPass(caseId);
+			const r = await runWerkDeskriptionPass(caseId, {
+				modelOverride: resolveTier('h3.tier3'),
+			});
 			return {
 				skipped: false,
 				tokens: { input: r.tokens.input, output: r.tokens.output, cacheRead: 0 },
@@ -561,7 +572,9 @@ export async function runH3WalkStep(
 			// User-Setzung 2026-05-04: c-Gating heute deaktiviert für Test
 			// (kein review_draft-Check). content.gatingDisabled markiert das
 			// transparent; volle dialogische Kette d/e/f bleibt deferred.
-			const r = await runWerkGutachtPass(caseId);
+			const r = await runWerkGutachtPass(caseId, {
+				modelOverride: resolveTier('h3.tier3'),
+			});
 			return {
 				skipped: false,
 				tokens: { input: r.tokens.input, output: r.tokens.output, cacheRead: 0 },
@@ -577,7 +590,9 @@ async function runComplexStep(
 ): Promise<StepResult> {
 	switch (complex.functionType) {
 		case 'EXPOSITION': {
-			const r = await runExpositionForComplex(caseId, documentId, complex);
+			const r = await runExpositionForComplex(caseId, documentId, complex, {
+				modelOverride: resolveTier('h3.tier1'),
+			});
 			return {
 				skipped: false,
 				tokens: { input: r.tokens.input, output: r.tokens.output, cacheRead: 0 },
@@ -589,6 +604,11 @@ async function runComplexStep(
 			// FORSCHUNGSGEGENSTAND-Aggregation (alter Step 4) ist als eigener
 			// werk_fg_aggregation-Walk-Step modelliert und läuft unmittelbar
 			// vor FORSCHUNGSDESIGN.
+			//
+			// Tier-Routing (model-tiers.ts): Routing/Reproductive/Discursive
+			// sind extraktive H3-Tools → h3.tier1. FORSCHUNGSGEGENSTAND-
+			// Aggregation läuft als eigener werk_fg_aggregation-Step.
+			const h3t1 = resolveTier('h3.tier1');
 			let totalInput = 0;
 			let totalOutput = 0;
 
@@ -597,15 +617,21 @@ async function runComplexStep(
 			// summieren konservativ als 0.
 			await runGrundlagentheorieStep1ForComplex(caseId, documentId, complex);
 
-			const r2 = await runRoutingForComplex(caseId, documentId, complex);
+			const r2 = await runRoutingForComplex(caseId, documentId, complex, {
+				modelOverride: h3t1,
+			});
 			totalInput += r2.totalTokens.input;
 			totalOutput += r2.totalTokens.output;
 
-			const r3a = await runReproductiveBlockForComplex(caseId, documentId, complex);
+			const r3a = await runReproductiveBlockForComplex(caseId, documentId, complex, {
+				modelOverride: h3t1,
+			});
 			totalInput += r3a.totalTokens.input;
 			totalOutput += r3a.totalTokens.output;
 
-			const r3b = await runDiskursivBezugForComplex(caseId, documentId, complex);
+			const r3b = await runDiskursivBezugForComplex(caseId, documentId, complex, {
+				modelOverride: h3t1,
+			});
 			totalInput += r3b.totalTokens.input;
 			totalOutput += r3b.totalTokens.output;
 
@@ -621,20 +647,28 @@ async function runComplexStep(
 			// der den Prompt-Cache fährt) — wir summieren cacheRead auf,
 			// cacheCreation hat im StepResult keinen Slot. Step 3 ist
 			// deterministisch (Token-Lookup). Step 4 hat tokens: { input, output }.
+			//
+			// Tier-Routing (model-tiers.ts): Step 2 ruft H1-Tools (AG, Validity)
+			// auf → h1.tier1. Step 4 ist H3-extraktive BEFUND-Konsolidierung →
+			// h3.tier1.
 			let totalInput = 0;
 			let totalOutput = 0;
 			let totalCacheRead = 0;
 
 			await runDurchfuehrungStep1ForComplex(caseId, documentId, complex);
 
-			const r2 = await runDurchfuehrungStep2ForComplex(caseId, documentId, complex);
+			const r2 = await runDurchfuehrungStep2ForComplex(caseId, documentId, complex, {
+				modelOverride: resolveTier('h1.tier1'),
+			});
 			totalInput += r2.tokens.input;
 			totalOutput += r2.tokens.output;
 			totalCacheRead += r2.tokens.cacheRead;
 
 			await runDurchfuehrungStep3ForComplex(caseId, documentId, complex);
 
-			const r4 = await runDurchfuehrungStep4ForComplex(caseId, documentId, complex);
+			const r4 = await runDurchfuehrungStep4ForComplex(caseId, documentId, complex, {
+				modelOverride: resolveTier('h3.tier1'),
+			});
 			totalInput += r4.tokens.input;
 			totalOutput += r4.tokens.output;
 
@@ -644,7 +678,9 @@ async function runComplexStep(
 			};
 		}
 		case 'EXKURS': {
-			const r = await runExkursForComplex(caseId, documentId, complex);
+			const r = await runExkursForComplex(caseId, documentId, complex, {
+				modelOverride: resolveTier('h3.tier2'),
+			});
 			return {
 				skipped: false,
 				tokens: { input: r.tokens.input, output: r.tokens.output, cacheRead: 0 },

@@ -47,10 +47,16 @@
 
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
-import { chat, getModel, getProvider } from '../client.js';
+import { chat, getModel, getProvider, type Provider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import { loadH3ComplexWalk } from '../../pipeline/h3-complex-walk.js';
+
+type ModelOverride = { provider: Provider; model: string };
+
+export interface ForschungsdesignPassOptions {
+	modelOverride?: ModelOverride;
+}
 
 // ── Marker-Set für Methoden-Sätze ─────────────────────────────────
 
@@ -546,7 +552,8 @@ const AufbauSkizzeLlmSchema = z.object({
 
 async function findAufbauSkizzeLlm(
 	documentId: string,
-	bezugsrahmen: Bezugsrahmen
+	bezugsrahmen: Bezugsrahmen,
+	modelOverride?: ModelOverride
 ): Promise<{ finding: AufbauSkizzeFinding | null; tokens: { input: number; output: number } }> {
 	const expoParagraphs = await loadExpositionAllParagraphs(documentId);
 	if (expoParagraphs.length === 0) {
@@ -587,6 +594,7 @@ async function findAufbauSkizzeLlm(
 		maxTokens: 1500,
 		responseFormat: 'json',
 		documentIds: [documentId],
+		modelOverride,
 	});
 
 	const parsed = extractAndValidateJSON(response.text, AufbauSkizzeLlmSchema);
@@ -665,7 +673,8 @@ async function methodikExtrahieren(
 	bezugsrahmen: Bezugsrahmen,
 	containerLabel: string | null,
 	strategy: Provenance,
-	documentId: string
+	documentId: string,
+	modelOverride?: ModelOverride
 ): Promise<{ result: MethodikResult; tokens: { input: number; output: number } }> {
 	const fragestellung = bezugsrahmen.fragestellungText;
 	const forschungsgegenstand = bezugsrahmen.forschungsgegenstandText;
@@ -726,6 +735,7 @@ async function methodikExtrahieren(
 		maxTokens: 2000,
 		responseFormat: 'json',
 		documentIds: [documentId],
+		modelOverride,
 	});
 
 	const parsed = extractAndValidateJSON(response.text, MethodikSchema);
@@ -801,8 +811,10 @@ export interface ForschungsdesignPassResult {
 }
 
 export async function runForschungsdesignPass(
-	caseId: string
+	caseId: string,
+	options: ForschungsdesignPassOptions = {}
 ): Promise<ForschungsdesignPassResult> {
+	const { modelOverride } = options;
 	const caseRow = await queryOne<{ central_document_id: string | null }>(
 		`SELECT central_document_id FROM cases WHERE id = $1`,
 		[caseId]
@@ -868,12 +880,12 @@ export async function runForschungsdesignPass(
 				aufbauSkizze: { constructId: id, text: regexFinding.text, source: 'regex' },
 				tokens: { input: 0, output: 0 },
 				llmCalls: 0,
-				model: getModel(),
-				provider: getProvider(),
+				model: modelOverride?.model ?? getModel(),
+				provider: modelOverride?.provider ?? getProvider(),
 			};
 		}
 
-		const llm = await findAufbauSkizzeLlm(documentId, bezugsrahmen);
+		const llm = await findAufbauSkizzeLlm(documentId, bezugsrahmen, modelOverride);
 		if (llm.finding) {
 			const id = await persistAufbauSkizze(caseId, documentId, llm.finding);
 			return {
@@ -889,8 +901,8 @@ export async function runForschungsdesignPass(
 				aufbauSkizze: { constructId: id, text: llm.finding.text, source: 'llm' },
 				tokens: llm.tokens,
 				llmCalls: 1,
-				model: getModel(),
-				provider: getProvider(),
+				model: modelOverride?.model ?? getModel(),
+				provider: modelOverride?.provider ?? getProvider(),
 			};
 		}
 
@@ -916,7 +928,8 @@ export async function runForschungsdesignPass(
 		bezugsrahmen,
 		collected.containerLabel,
 		collected.strategy,
-		documentId
+		documentId,
+		modelOverride
 	);
 
 	const anchorIds = collected.paragraphs.map((p) => p.paragraphId);
@@ -972,7 +985,7 @@ export async function runForschungsdesignPass(
 		aufbauSkizze: null,
 		tokens: extract.tokens,
 		llmCalls: 1,
-		model: getModel(),
-		provider: getProvider(),
+		model: modelOverride?.model ?? getModel(),
+		provider: modelOverride?.provider ?? getProvider(),
 	};
 }

@@ -63,6 +63,7 @@
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
+import { resolveTier } from '../model-tiers.js';
 import { extractAndValidateJSON, type ExtractResult } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import { loadH3ComplexWalk, type H3Complex } from '../../pipeline/h3-complex-walk.js';
@@ -574,11 +575,6 @@ async function applyRespecToForschungsgegenstand(
 
 // ── Public API ────────────────────────────────────────────────────
 
-const DEFAULT_EXKURS_MODEL: { provider: Provider; model: string } = {
-	provider: 'openrouter',
-	model: 'anthropic/claude-sonnet-4.6',
-};
-
 const DEFAULT_MAX_TOKENS = 1500;
 
 export interface ExkursPassOptions {
@@ -717,7 +713,7 @@ export async function runExkursForComplex(
 
 	const persistConstructs = options.persistConstructs !== false;
 	const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
-	const modelOverride = options.modelOverride ?? DEFAULT_EXKURS_MODEL;
+	const modelOverride = options.modelOverride ?? resolveTier('h3.tier2');
 	const warnings: string[] = [];
 
 	const container = await loadExkursParagraphsForComplex(documentId, complex);

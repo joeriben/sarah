@@ -52,6 +52,7 @@
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
+import { resolveTier } from '../model-tiers.js';
 import { extractAndValidateJSON, type ExtractResult } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 
@@ -499,11 +500,6 @@ async function persistGesamtergebnis(
 
 // ── Public API ────────────────────────────────────────────────────
 
-const DEFAULT_SYNTHESE_MODEL: { provider: Provider; model: string } = {
-	provider: 'openrouter',
-	model: 'anthropic/claude-sonnet-4.6',
-};
-
 const DEFAULT_MAX_TOKENS = 2000;
 
 export interface SynthesePassOptions {
@@ -552,7 +548,7 @@ export async function runSynthesePass(
 ): Promise<SynthesePassResult> {
 	const persistConstructs = options.persistConstructs !== false;
 	const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
-	const modelOverride = options.modelOverride ?? DEFAULT_SYNTHESE_MODEL;
+	const modelOverride = options.modelOverride ?? resolveTier('h3.tier2');
 	const warnings: string[] = [];
 
 	const caseRow = await queryOne<{ central_document_id: string | null }>(

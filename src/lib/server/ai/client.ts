@@ -48,6 +48,18 @@ export interface AiSettings {
 	delegationAgent?: DelegationAgent;
 	/** Analysis language — codes, memos, and AI output will use this language */
 	language?: string;
+	/**
+	 * Per-Tier-Overrides (siehe `model-tiers.ts`). Schlüssel sind Tier-IDs
+	 * (`h1.tier1`, `h1.tier2`, `h2.tier1`, `h3.tier1`, `h3.tier2`, `h3.tier3`),
+	 * Werte das gewünschte Provider+Model. Fehlt ein Tier-Override, greift
+	 * der TIER_REGISTRY-Default. `provider` + `model` (ohne tiers) bleiben
+	 * als globaler Fallback für Test-Calls außerhalb der Pipeline (z.B.
+	 * testConnection) bestehen.
+	 *
+	 * Erlaubt das transparente Konfigurieren validierter Modell-Stacks
+	 * (Mistral+Sonnet, mimo-only, Opus für Werk-Meta) ohne Code-Änderung.
+	 */
+	tiers?: Partial<Record<string, { provider: Provider; model: string }>>;
 }
 
 export const SUPPORTED_LANGUAGES: Record<string, string> = {
@@ -87,6 +99,22 @@ export function loadSettings(): AiSettings {
 		// Load language preference
 		if (parsed.language && parsed.language in SUPPORTED_LANGUAGES) {
 			settings.language = parsed.language;
+		}
+		// Load per-tier overrides (model-tiers.ts). Permissive: any provider
+		// in PROVIDERS is accepted, any non-empty model string is accepted —
+		// validation against known tier IDs happens in resolveTier().
+		if (parsed.tiers && typeof parsed.tiers === 'object') {
+			const tiers: Partial<Record<string, { provider: Provider; model: string }>> = {};
+			for (const [tier, override] of Object.entries(parsed.tiers)) {
+				if (!override || typeof override !== 'object') continue;
+				const o = override as { provider?: string; model?: string };
+				if (o.provider && o.provider in PROVIDERS && typeof o.model === 'string' && o.model.length > 0) {
+					tiers[tier] = { provider: o.provider as Provider, model: o.model };
+				}
+			}
+			if (Object.keys(tiers).length > 0) {
+				settings.tiers = tiers;
+			}
 		}
 		return settings;
 	} catch {

@@ -26,6 +26,7 @@
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, getModel, getProvider, type Provider } from '../client.js';
+import { resolveTier } from '../model-tiers.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import {
@@ -371,16 +372,6 @@ export interface RoutingPassResult {
 const DEFAULT_MIN_CLUSTER_LEN = 4;
 const DEFAULT_MIN_CITATION_GAP_LEN = 5;
 
-// Default-Modell für das Routing: Sonnet 4.6 via OpenRouter. Begründung:
-// Block-Klassifikation braucht kein nuanciertes Reasoning; Sonnet ist im
-// Repo etabliert (vgl. compare-models-section-collapse.ts) und deutlich
-// günstiger als der derzeit per ai-settings.json aktive Opus-Default.
-// Tunable via options.modelOverride.
-const DEFAULT_ROUTING_MODEL: { provider: Provider; model: string } = {
-	provider: 'openrouter',
-	model: 'anthropic/claude-sonnet-4.6',
-};
-
 /**
  * Anchor-skopierter DELETE für BLOCK_ROUTING eines Komplexes — Idempotenz
  * pro Walk-Knoten. Reichweite: nur Konstrukte, deren anchor_element_ids ⊆
@@ -436,7 +427,7 @@ export async function runRoutingForComplex(
 	const persistConstructs = options.persistConstructs !== false;
 	const minClusterLen = options.minClusterLen ?? DEFAULT_MIN_CLUSTER_LEN;
 	const minCitationGapLen = options.minCitationGapLen ?? DEFAULT_MIN_CITATION_GAP_LEN;
-	const modelOverride = options.modelOverride ?? DEFAULT_ROUTING_MODEL;
+	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 	const thresholds = { minClusterLen, minCitationGapLen };
 
 	const container = await loadGrundlagentheorieParagraphsForComplex(documentId, complex);
@@ -542,7 +533,7 @@ export async function runRoutingPass(
 ): Promise<RoutingPassResult> {
 	const minClusterLen = options.minClusterLen ?? DEFAULT_MIN_CLUSTER_LEN;
 	const minCitationGapLen = options.minCitationGapLen ?? DEFAULT_MIN_CITATION_GAP_LEN;
-	const modelOverride = options.modelOverride ?? DEFAULT_ROUTING_MODEL;
+	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 	const thresholds = { minClusterLen, minCitationGapLen };
 
 	const caseRow = await queryOne<{ central_document_id: string | null }>(

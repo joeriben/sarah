@@ -38,6 +38,7 @@
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, getModel, getProvider, type Provider } from '../client.js';
+import { resolveTier } from '../model-tiers.js';
 import { extractAndValidateJSON } from '../json-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import {
@@ -455,14 +456,6 @@ export interface DiscursivePassResult {
 const DEFAULT_MIN_STANDARD_STRETCH_LEN = 1;
 const DEFAULT_MAX_TOKENS = 800;
 
-// Default-Modell: Sonnet 4.6 via OpenRouter — analog Routing + Reproductive.
-// DISKURSIV ist 1 Klassifikation + Rationale je Block, im selben
-// Komplexitäts-Bereich. Tunable via options.modelOverride.
-const DEFAULT_DISCURSIVE_MODEL: { provider: Provider; model: string } = {
-	provider: 'openrouter',
-	model: 'anthropic/claude-sonnet-4.6',
-};
-
 /**
  * Anchor-skopierter DELETE für DISKURSIV_BEZUG_BEFUND eines Komplexes —
  * Idempotenz pro Walk-Knoten.
@@ -525,7 +518,7 @@ export async function runDiskursivBezugForComplex(
 	const minStandardStretchLen =
 		options.minStandardStretchLen ?? DEFAULT_MIN_STANDARD_STRETCH_LEN;
 	const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
-	const modelOverride = options.modelOverride ?? DEFAULT_DISCURSIVE_MODEL;
+	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 
 	const container = await loadGrundlagentheorieParagraphsForComplex(documentId, complex);
 	if (container.paragraphs.length === 0) {
@@ -670,7 +663,7 @@ export async function runDiskursivBezugPass(
 	const minStandardStretchLen =
 		options.minStandardStretchLen ?? DEFAULT_MIN_STANDARD_STRETCH_LEN;
 	const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
-	const modelOverride = options.modelOverride ?? DEFAULT_DISCURSIVE_MODEL;
+	const modelOverride = options.modelOverride ?? resolveTier('h3.tier1');
 
 	const caseRow = await queryOne<{ central_document_id: string | null }>(
 		`SELECT central_document_id FROM cases WHERE id = $1`,

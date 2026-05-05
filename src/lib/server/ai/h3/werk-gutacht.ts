@@ -37,6 +37,7 @@
 import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, type Provider } from '../client.js';
+import { resolveTier } from '../model-tiers.js';
 import { extractAndValidateJSON, type ExtractResult } from '../json-extract.js';
 import { loadEffectiveOutline } from '../../documents/outline.js';
 import { PreconditionFailedError } from './precondition.js';
@@ -486,11 +487,6 @@ async function persistWerkGutacht(
 
 // ── Public API ────────────────────────────────────────────────────
 
-const DEFAULT_WERK_GUTACHT_MODEL: { provider: Provider; model: string } = {
-	provider: 'openrouter',
-	model: 'anthropic/claude-sonnet-4.6',
-};
-
 const DEFAULT_MAX_TOKENS_A = 1500;
 const DEFAULT_MAX_TOKENS_B = 2500;
 const DEFAULT_MAX_TOKENS_C = 1500;
@@ -538,7 +534,7 @@ export async function runWerkGutachtPass(
 	const maxTokensA = options.maxTokensA ?? DEFAULT_MAX_TOKENS_A;
 	const maxTokensB = options.maxTokensB ?? DEFAULT_MAX_TOKENS_B;
 	const maxTokensC = options.maxTokensC ?? DEFAULT_MAX_TOKENS_C;
-	const modelOverride = options.modelOverride ?? DEFAULT_WERK_GUTACHT_MODEL;
+	const modelOverride = options.modelOverride ?? resolveTier('h3.tier3');
 	const warnings: string[] = [];
 
 	const caseRow = await queryOne<{ central_document_id: string | null }>(
