@@ -47,6 +47,14 @@ export interface ChapterFlow {
 	content: string;
 }
 
+// H2-Werk-Synthese (synthetisch-hermeneutische Linie, cousin der WorkSynthesis).
+// auffaelligkeiten als optionales Beiwerk aus appearances.properties.
+export interface WorkSynthetic {
+	memoId: string;
+	content: string;
+	auffaelligkeiten: { scope: string; observation: string }[];
+}
+
 export interface OutlineEntry {
 	elementId: string;
 	level: number;
@@ -266,6 +274,9 @@ export const load: PageServerLoad = async ({ params }) => {
 	// Kapitelverlauf (memo_type='kapitelverlauf', scope_level='work'): narrativer
 	// Mittelabsatz des Gutachtens, parallel zum Werk-Verdikt.
 	let chapterFlow: ChapterFlow | null = null;
+	// H2-Werk-Synthese (synthetisch-getaggte Linie). Cousin der workSynthesis,
+	// aber aus document-collapse-synthetic.ts.
+	let workSynthetic: WorkSynthetic | null = null;
 	// Argument-Graph-Daten pro Paragraph für DocumentReader (Dokument-Tab + Modal-Argumente-Mode).
 	// Bei Cases ohne synthetisch-interpretierende Per-¶-Memos (Budget-Route, AG-only)
 	// ist das die einzige Analyse-Ebene, die der Reader anzeigen kann.
@@ -400,6 +411,34 @@ export const load: PageServerLoad = async ({ params }) => {
 		);
 		if (flowRow) {
 			chapterFlow = { memoId: flowRow.id, content: flowRow.content };
+		}
+
+		// H2-Werk-Synthese laden (synthetisch-getaggte Linie, cousin von workSynthesis).
+		// auffaelligkeiten kommen aus appearances.properties (siehe document-collapse-synthetic.ts).
+		const workSyntheticRow = await queryOne<{
+			id: string;
+			content: string;
+			properties: { auffaelligkeiten?: { scope: string; observation: string }[] } | null;
+		}>(
+			`SELECT n.id, mc.content, a.properties
+			 FROM namings n
+			 JOIN appearances a ON a.naming_id = n.id AND a.mode = 'entity'
+			 JOIN memo_content mc ON mc.naming_id = n.id
+			 WHERE n.inscription LIKE '[kontextualisierend/work/synthetic]%'
+			   AND mc.scope_level = 'work'
+			   AND mc.memo_type = 'kontextualisierend'
+			   AND a.properties->>'document_id' = $1
+			   AND n.deleted_at IS NULL
+			 ORDER BY n.created_at DESC
+			 LIMIT 1`,
+			[params.docId]
+		);
+		if (workSyntheticRow) {
+			workSynthetic = {
+				memoId: workSyntheticRow.id,
+				content: workSyntheticRow.content,
+				auffaelligkeiten: workSyntheticRow.properties?.auffaelligkeiten ?? [],
+			};
 		}
 
 		// Aggregations-Entscheidung pro L1-Heading laden. NULL bleibt unsichtbar
@@ -703,6 +742,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		aggregationLevelByL1,
 		workSynthesis,
 		chapterFlow,
+		workSynthetic,
 		analysisByElement,
 		h3ConstructsByElement,
 	};

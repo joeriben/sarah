@@ -761,7 +761,7 @@ export function phasesForRun(options: RunOptions): Phase[] {
 		case 'h3':
 			return ['h3_walk'];
 		case 'h2':
-			return ['paragraph_synthetic'];
+			return [...PHASE_ORDER_SYNTHETIC];
 		case 'h1': {
 			const phases: Phase[] = [...PHASE_ORDER_ANALYTICAL];
 			if (options.include_validity) {

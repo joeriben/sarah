@@ -38,6 +38,9 @@ interface PipelineStatus {
 		work: PassStatus;
 		kapitelverlauf: PassStatus;
 		paragraph_synthetic: PassStatus;
+		subchapter_synthetic: PassStatus;
+		chapter_synthetic: PassStatus;
+		work_synthetic: PassStatus;
 		h3_exposition: PassStatus & { enabled: boolean };
 		h3_grundlagentheorie: PassStatus & { enabled: boolean };
 		h3_forschungsdesign: PassStatus & { enabled: boolean };
@@ -150,6 +153,9 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 				work: empty,
 				kapitelverlauf: empty,
 				paragraph_synthetic: empty,
+				subchapter_synthetic: empty,
+				chapter_synthetic: empty,
+				work_synthetic: empty,
 				h3_exposition: emptyH3(),
 				h3_grundlagentheorie: emptyH3(),
 				h3_forschungsdesign: emptyH3(),
@@ -182,13 +188,22 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	const totalParagraphs = totalsRow?.total_paragraphs ?? 0;
 	const totalL1 = totalsRow?.total_l1 ?? 0;
 
+	// memoStats unterscheidet H1 (Graph-Linie, inscription endet auf /graph])
+	// und H2 (Synthetisch-Linie, /synthetic]) zusätzlich zu (scope_level, memo_type).
+	// 'other' fängt alles ohne Linien-Tag (paragraph-Memos, kapitelverlauf etc.).
 	const memoStats = await query<{
 		scope_level: string;
 		memo_type: string;
+		line_tag: 'graph' | 'synthetic' | 'other';
 		completed: number;
 		last_run: string | null;
 	}>(
 		`SELECT mc.scope_level, mc.memo_type,
+		        CASE
+		          WHEN n.inscription LIKE '[%/graph]%' THEN 'graph'
+		          WHEN n.inscription LIKE '[%/synthetic]%' THEN 'synthetic'
+		          ELSE 'other'
+		        END AS line_tag,
 		        COUNT(*)::int AS completed,
 		        MAX(n.created_at) AS last_run
 		 FROM memo_content mc
@@ -198,12 +213,17 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		    OR (mc.scope_level = 'work' AND mc.naming_id IN (
 		         SELECT naming_id FROM appearances
 		          WHERE properties->>'document_id' = $1::text))
-		 GROUP BY mc.scope_level, mc.memo_type`,
+		 GROUP BY mc.scope_level, mc.memo_type, line_tag`,
 		[docId]
 	);
 
-	const find = (level: string, type: string): PassStatus => {
-		const row = memoStats.rows.find((r) => r.scope_level === level && r.memo_type === type);
+	const find = (level: string, type: string, lineTag?: 'graph' | 'synthetic' | 'other'): PassStatus => {
+		const row = memoStats.rows.find(
+			(r) =>
+				r.scope_level === level &&
+				r.memo_type === type &&
+				(lineTag === undefined || r.line_tag === lineTag)
+		);
 		return {
 			completed: row?.completed ?? 0,
 			total: null,
@@ -214,13 +234,23 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	const synthPass = find('paragraph', 'interpretierend');
 	synthPass.total = totalParagraphs;
 
-	const subchapterPass = find('subchapter', 'kontextualisierend');
+	// H1-Linie: nur graph-getaggte Collapses zählen.
+	const subchapterPass = find('subchapter', 'kontextualisierend', 'graph');
 
-	const chapterPass = find('chapter', 'kontextualisierend');
+	const chapterPass = find('chapter', 'kontextualisierend', 'graph');
 	chapterPass.total = totalL1 || null;
 
-	const workPass = find('work', 'kontextualisierend');
+	const workPass = find('work', 'kontextualisierend', 'graph');
 	workPass.total = 1;
+
+	// H2-Linie: synthetic-getaggte Collapses (cousin der H1-Linie).
+	const subchapterSyntheticPass = find('subchapter', 'kontextualisierend', 'synthetic');
+
+	const chapterSyntheticPass = find('chapter', 'kontextualisierend', 'synthetic');
+	chapterSyntheticPass.total = totalL1 || null;
+
+	const workSyntheticPass = find('work', 'kontextualisierend', 'synthetic');
+	workSyntheticPass.total = 1;
 
 	const kapitelverlaufPass = find('work', 'kapitelverlauf');
 	kapitelverlaufPass.total = 1;
@@ -355,6 +385,9 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			work: workPass,
 			kapitelverlauf: kapitelverlaufPass,
 			paragraph_synthetic: synthPass,
+			subchapter_synthetic: subchapterSyntheticPass,
+			chapter_synthetic: chapterSyntheticPass,
+			work_synthetic: workSyntheticPass,
 			h3_exposition: { ...h3Exposition, enabled: useH3 },
 			h3_grundlagentheorie: { ...h3Grundlagentheorie, enabled: useH3 },
 			h3_forschungsdesign: { ...h3Forschungsdesign, enabled: useH3 },

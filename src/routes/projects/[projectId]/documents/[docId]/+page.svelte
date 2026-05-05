@@ -12,7 +12,7 @@
 	import { browser } from '$app/environment';
 	import { replaceState, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
-	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, WorkSynthesis, ChapterFlow, CaseInfo, OutlineEntry, BriefOption, ParagraphAnalysis, H3ConstructForReader } from './+page.server.js';
+	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, WorkSynthesis, ChapterFlow, WorkSynthetic, CaseInfo, OutlineEntry, BriefOption, ParagraphAnalysis, H3ConstructForReader } from './+page.server.js';
 	import type { DocReaderHeuristic } from './DocumentReader.svelte';
 	import {
 		missingRequiredFunctionTypes,
@@ -89,6 +89,7 @@
 	const aggregationLevelByL1 = $derived(data.aggregationLevelByL1 as Record<string, 1 | 2 | 3>);
 	const workSynthesis = $derived(data.workSynthesis as WorkSynthesis | null);
 	const chapterFlow = $derived(data.chapterFlow as ChapterFlow | null);
+	const workSynthetic = $derived(data.workSynthetic as WorkSynthetic | null);
 	const analysisByElement = $derived(data.analysisByElement as Record<string, ParagraphAnalysis>);
 	// H3-§-Spalte: serverseitig gefiltert auf §-skopierte construct_kinds
 	// (Whitelist FRAGESTELLUNG, MOTIVATION, METHODOLOGIE, METHODEN, BASIS,
@@ -119,10 +120,16 @@
 	let activeHeuristic = $state<DocReaderHeuristic>('h1');
 
 	// Pipeline-Status — aus /api/cases/[caseId]/pipeline-status.
-	// Reihenfolge der ANALYTISCHEN Hauptlinie:
-	//   argumentation_graph → subchapter → chapter → work
-	// Synthetisch-hermeneutischer Per-¶-Pass ist ADDENDUM (separat dargestellt).
+	// Drei Heuristik-Linien (exklusiv pro Run):
+	//   H1 (analytisch):    argumentation_graph → subchapter → chapter → work
+	//   H2 (synthetisch):   paragraph_synthetic → subchapter_synthetic → chapter_synthetic → work_synthetic
+	//   H3 (funktionstyp):  Cross-Typ-Reihenfolge der WERK-aggregierten Heuristiken
 	type AnalyticalPassKey = 'argumentation_graph' | 'argument_validity' | 'subchapter' | 'chapter' | 'work';
+	type SyntheticPassKey =
+		| 'paragraph_synthetic'
+		| 'subchapter_synthetic'
+		| 'chapter_synthetic'
+		| 'work_synthetic';
 	type PassStatus = { completed: number; total: number | null; last_run: string | null; enabled?: boolean };
 	type RunPhase =
 		| 'argumentation_graph'
@@ -131,6 +138,9 @@
 		| 'chapter_collapse'
 		| 'document_collapse'
 		| 'paragraph_synthetic'
+		| 'section_collapse_synthetic'
+		| 'chapter_collapse_synthetic'
+		| 'document_collapse_synthetic'
 		| 'h3_exposition'
 		| 'h3_grundlagentheorie'
 		| 'h3_forschungsdesign'
@@ -174,8 +184,7 @@
 		total_paragraphs: number;
 		passes: Record<AnalyticalPassKey, PassStatus> & {
 			kapitelverlauf: PassStatus;
-			paragraph_synthetic: PassStatus;
-		} & Record<H3PhaseKey, PassStatus>;
+		} & Record<SyntheticPassKey, PassStatus> & Record<H3PhaseKey, PassStatus>;
 		run: RunStatusDto | null;
 	};
 
@@ -186,15 +195,24 @@
 		'chapter',
 		'work',
 	];
-	const PASS_LABEL: Record<AnalyticalPassKey | 'paragraph_synthetic', string> = {
+	const SYNTHETIC_ORDER: SyntheticPassKey[] = [
+		'paragraph_synthetic',
+		'subchapter_synthetic',
+		'chapter_synthetic',
+		'work_synthetic',
+	];
+	const PASS_LABEL: Record<AnalyticalPassKey | SyntheticPassKey, string> = {
 		argumentation_graph: 'Argumentation pro Absatz',
 		argument_validity: 'Argument-Validität (Charity-Pass, opt-in)',
 		subchapter: 'Subkapitel-Synthesen',
 		chapter: 'Hauptkapitel-Synthesen',
 		work: 'Werk-Synthese',
 		paragraph_synthetic: 'Synthetisch-hermeneutische Per-Absatz-Memos',
+		subchapter_synthetic: 'Subkapitel-Synthesen (synthetisch)',
+		chapter_synthetic: 'Hauptkapitel-Synthesen (synthetisch)',
+		work_synthetic: 'Werk-Synthese (synthetisch)',
 	};
-	const PASS_DESC: Record<AnalyticalPassKey | 'paragraph_synthetic', string> = {
+	const PASS_DESC: Record<AnalyticalPassKey | SyntheticPassKey, string> = {
 		argumentation_graph:
 			'Argumente, Edges und Scaffolding pro Absatz — Grundlage der Aggregation.',
 		argument_validity:
@@ -205,7 +223,13 @@
 			'Kontextualisierende Synthese pro Hauptkapitel inkl. gutachten-fertiger Argumentationswiedergabe.',
 		work: 'Werk-Synthese aus den Hauptkapitel-Synthesen.',
 		paragraph_synthetic:
-			'Formulierende und interpretierende Memos pro Absatz, sequentiell unter Bezug auf alle vorhergehenden ¶ desselben Subkapitels. Lese-Hilfe für den Reader; fließt nicht in die Aggregation ein.',
+			'Formulierende und interpretierende Memos pro Absatz, sequentiell unter Bezug auf alle vorhergehenden ¶ desselben Subkapitels. Grundlage für die kumulativ-sequenzielle H2-Aggregation.',
+		subchapter_synthetic:
+			'Kontextualisierende Synthese pro Subkapitel (L2/L3 adaptiv) aus der interpretive chain — Verlaufswiedergabe statt Argumentations-Graph.',
+		chapter_synthetic:
+			'Kontextualisierende Synthese pro Hauptkapitel aus den synthetischen Subkapitel-Memos. Vier Pflichtbestandteile inkl. hermeneutischer Tragfähigkeit.',
+		work_synthetic:
+			'Werk-Synthese aus den synthetischen Hauptkapitel-Memos: Forschungsbeitrag-Diagnose, Werk-Architektur, Niveau-Beurteilung.',
 	};
 
 	// H3-Phase-Labels (kein PassKey-Pendant, weil H3 eigene Konstrukt-
@@ -292,15 +316,18 @@
 		return key ? PASS_LABEL[key] : phase;
 	}
 
-	// Mapping zwischen UI-PassKey (orientiert an memo_content.scope_level) und
-	// Run-Phase-Bezeichner aus dem Orchestrator.
-	const PHASE_TO_PASS: Record<string, AnalyticalPassKey | 'paragraph_synthetic'> = {
+	// Mapping zwischen UI-PassKey (orientiert an memo_content.scope_level + Linien-Tag)
+	// und Run-Phase-Bezeichner aus dem Orchestrator.
+	const PHASE_TO_PASS: Record<string, AnalyticalPassKey | SyntheticPassKey> = {
 		argumentation_graph: 'argumentation_graph',
 		argument_validity: 'argument_validity',
 		section_collapse: 'subchapter',
 		chapter_collapse: 'chapter',
 		document_collapse: 'work',
 		paragraph_synthetic: 'paragraph_synthetic',
+		section_collapse_synthetic: 'subchapter_synthetic',
+		chapter_collapse_synthetic: 'chapter_synthetic',
+		document_collapse_synthetic: 'work_synthetic',
 	};
 
 	let pipelineStatus = $state<PipelineStatus | null>(null);
@@ -764,11 +791,11 @@
 	// auto auf 1-/2-/3-Spalten je nach Anzahl belegter Hx — damit der User
 	// die werk-Verdikte nebeneinander lesen kann.
 	//   H1: Werk-Synthese, Kapitelverlauf, Heading-Synthesen
-	//   H2: heute leer (synthetisch-hermeneutisch ist per-¶, kein Werk-Aggregat)
+	//   H2: Werk-Synthese-synthetic (cousin von H1, ohne argument-extraktive Stützung)
 	//   H3: WERK_DESKRIPTION, WERK_GUTACHT
 	const synthesenAvail = $derived.by(() => {
 		const h1 = workSynthesis !== null || chapterFlow !== null;
-		const h2 = false;
+		const h2 = workSynthetic !== null;
 		const h3 = (werkConstructs ?? []).some(
 			(c) => c.outline_function_type === 'WERK_DESKRIPTION' || c.outline_function_type === 'WERK_GUTACHT'
 		);
@@ -1856,51 +1883,55 @@
 							</div>
 						</section>
 
-						<!-- H2 — Synthetisch-hermeneutische Memos -->
+						<!-- H2 — Synthetisch-hermeneutische Linie -->
 						<section
 							class="passes-section"
 							class:active-path={effectiveHeuristic === 'h2'}
 						>
 							<header class="passes-section-head">
 								<h3>
-									H2 · Synthetisch-hermeneutische Memos
+									H2 · Synthetisch-hermeneutische Linie
 									{#if effectiveHeuristic === 'h2'}
 										<span class="path-tag active">aktiver Pfad</span>
 									{/if}
 								</h3>
 								<p>
-									Erzeugt pro Absatz eine sequenzielle, narrative Lesart unter Bezug
-									auf die vorhergehenden Absätze desselben Subkapitels. Memos
-									erscheinen im Reader-Modal als zusätzliche Lese-Hilfe; sie fließen
-									nicht in die H1-Aggregation auf Subkapitel-/Hauptkapitel-/Werk-Ebene
-									ein.
+									Kumulativ-sequenzielle Synthese in vier Stufen, in der jede Ebene
+									nur synthetisch-getaggte Vorgänger lädt: Per-Absatz-Memos · Subkapitel-
+									Synthesen · Hauptkapitel-Synthesen · Werk-Synthese. Verlaufswiedergabe
+									statt Argumentations-Graph; cousin der H1-Linie, ohne argument-extraktive
+									Stützung.
 								</p>
 							</header>
-							{#if pipelineStatus.passes.paragraph_synthetic}
-								{@const synth = pipelineStatus.passes.paragraph_synthetic}
-								{@const synthState = passState(synth)}
-								<div class="pass-grid">
-									<article class="pass-card pass-{synthState}">
+							<div class="pass-grid">
+								{#each SYNTHETIC_ORDER as key, i (key)}
+									{@const p = pipelineStatus.passes[key]}
+									{@const state = passState(p)}
+									{@const phaseLabel = run?.current_phase && PHASE_TO_PASS[run.current_phase] === key}
+									<article
+										class="pass-card pass-{state}"
+										class:current={runIsLive && phaseLabel}
+									>
 										<header class="pass-head">
-											<span class="pass-num">1</span>
-											<h4>{PASS_LABEL.paragraph_synthetic}</h4>
-											<span class="pass-state-tag tag-{synthState}">
-												{synthState === 'done' ? 'Abgeschlossen' : synthState === 'partial' ? 'Teilweise' : 'Offen'}
+											<span class="pass-num">{i + 1}</span>
+											<h4>{PASS_LABEL[key]}</h4>
+											<span class="pass-state-tag tag-{state}">
+												{state === 'done' ? 'Abgeschlossen' : state === 'partial' ? 'Teilweise' : 'Offen'}
 											</span>
 										</header>
-										<p class="pass-desc">{PASS_DESC.paragraph_synthetic}</p>
+										<p class="pass-desc">{PASS_DESC[key]}</p>
 										<div class="pass-progress">
-											<div class="bar"><div class="bar-fill" style:width="{passPercent(synth)}%"></div></div>
+											<div class="bar"><div class="bar-fill" style:width="{passPercent(p)}%"></div></div>
 											<span class="pass-counts">
-												{synth.completed}{synth.total != null ? ` / ${synth.total}` : ''}
+												{p.completed}{p.total != null ? ` / ${p.total}` : ''}
 											</span>
 										</div>
 										<div class="pass-meta">
-											<span class="last-run">Letzter Lauf: {formatLastRun(synth.last_run)}</span>
+											<span class="last-run">Letzter Lauf: {formatLastRun(p.last_run)}</span>
 										</div>
 									</article>
-								</div>
-							{/if}
+								{/each}
+							</div>
 						</section>
 
 						<!-- H3 — Funktionstyp-orchestrierte Heuristiken -->
@@ -2158,6 +2189,27 @@
 											<div class="work-content">{chapterFlow.content}</div>
 										</article>
 									{/if}
+								</div>
+							{/if}
+							{#if synthesenAvail.h2 && workSynthetic}
+								<div class="synthesen-col">
+									<article class="work-verdict">
+										<header class="work-verdict-head">
+											<span class="work-tag">H2 · Synthetisches Verdikt</span>
+											<h2>Werk-Synthese (synthetisch-hermeneutisch)</h2>
+										</header>
+										<div class="work-content">{workSynthetic.content}</div>
+										{#if workSynthetic.auffaelligkeiten.length > 0}
+											<details class="auff-block">
+												<summary>Werkweite Auffälligkeiten ({workSynthetic.auffaelligkeiten.length})</summary>
+												<ul class="auff-list">
+													{#each workSynthetic.auffaelligkeiten as a, idx (idx)}
+														<li><span class="auff-scope">[{a.scope}]</span> {a.observation}</li>
+													{/each}
+												</ul>
+											</details>
+										{/if}
+									</article>
 								</div>
 							{/if}
 							{#if synthesenAvail.h3}
