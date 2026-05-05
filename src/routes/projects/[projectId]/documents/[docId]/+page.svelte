@@ -383,8 +383,9 @@
 	const preRunValidationBlocks = $derived(missingRequiredTypes.length > 0);
 
 	// error_message ist seit fail-tolerant entweder plain string (catastrophic
-	// Run-Failure, e.g. Stuck-Guard) oder JSON mit { atom_errors:[…] } (einzelne
-	// tolerable Atom-Fehler). Helfer für UI: parsen, oder null.
+	// Run-Failure, z.B. Vorbedingung verletzt oder Pass-Vertrag verletzt) oder
+	// JSON mit { atom_errors:[…] } (einzelne tolerable Atom-Fehler). Helfer für
+	// UI: parsen, oder null.
 	type AtomError = { phase: string; label: string; message: string };
 	function parseAtomErrors(raw: string | null): AtomError[] | null {
 		if (!raw) return null;
@@ -401,11 +402,9 @@
 
 	// Strukturierte Diagnose für Hard-Fail-Anzeige. PreconditionFailedError
 	// (precondition.ts) formatiert als: "H3:${heuristic} — Vorbedingung
-	// verletzt: ${missing}\n  ${diagnostic}". Stuck-Guard formatiert als:
-	// "Stuck on ${phase}/${label}: …".
+	// verletzt: ${missing}\n  ${diagnostic}".
 	type ParsedFailure =
 		| { kind: 'precondition'; heuristic: string; missing: string; diagnostic: string }
-		| { kind: 'stuck'; phase: string; atomLabel: string; diagnostic: string }
 		| { kind: 'generic'; diagnostic: string };
 
 	function parseFailureMessage(raw: string): ParsedFailure {
@@ -419,16 +418,6 @@
 				heuristic: preMatch[1],
 				missing: preMatch[2].trim(),
 				diagnostic: preMatch[3].trim(),
-			};
-		}
-		// Format aus orchestrator.ts Stuck-Guard: "Stuck on PHASE/LABEL: …"
-		const stuckMatch = raw.match(/^Stuck on ([^/]+)\/([^:]+): ([\s\S]+)$/);
-		if (stuckMatch) {
-			return {
-				kind: 'stuck',
-				phase: stuckMatch[1].trim(),
-				atomLabel: stuckMatch[2].trim(),
-				diagnostic: stuckMatch[3].trim(),
 			};
 		}
 		return { kind: 'generic', diagnostic: raw };
@@ -1750,16 +1739,13 @@
 											{#if parsed.kind === 'precondition'}
 												<span class="failure-tag tag-precondition">Vorbedingung verletzt</span>
 												<span class="failure-locus">H3:{parsed.heuristic} · {parsed.missing}</span>
-											{:else if parsed.kind === 'stuck'}
-												<span class="failure-tag tag-stuck">Stuck-Guard</span>
-												<span class="failure-locus">{parsed.phase} · {parsed.atomLabel}</span>
 											{:else}
 												<span class="failure-tag tag-generic">Lauf-Fehler</span>
 											{/if}
 										</header>
 										<p class="failure-diagnostic">{parsed.diagnostic}</p>
 										<nav class="failure-actions">
-											{#if parsed.kind === 'precondition' || parsed.kind === 'stuck'}
+											{#if parsed.kind === 'precondition'}
 												<a class="failure-action" href="/projects/{$page.params.projectId}/documents/{$page.params.docId}/outline">→ Outline öffnen (Funktionstypen prüfen / umtaggen)</a>
 											{/if}
 											{#if parsed.kind === 'generic'}
@@ -3261,11 +3247,6 @@
 		color: #fbbf24;
 		background: rgba(251, 191, 36, 0.12);
 		border: 1px solid rgba(251, 191, 36, 0.35);
-	}
-	.tag-stuck {
-		color: #f87171;
-		background: rgba(248, 113, 113, 0.12);
-		border: 1px solid rgba(248, 113, 113, 0.4);
 	}
 	.tag-generic {
 		color: #c9cdd5;

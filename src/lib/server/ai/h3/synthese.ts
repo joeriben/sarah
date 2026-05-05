@@ -582,8 +582,9 @@ export async function runSynthesePass(
 	// Setzung 2026-05-04: keine SYNTHESE-Container im Werk → STOP, kein
 	// no-op-Return. Spec docs/h3_orchestrator_spec.md #2: harte Vorbedingung
 	// (SYNTHESE-Material) verletzt → Run-State `failed` mit Reviewer-Recovery-
-	// Diagnose. Kein "stiller Skip", weil das beim Orchestrator-Stuck-Guard
-	// landen würde und die echte Diagnose verschluckt wäre.
+	// Diagnose. Kein "stiller Skip", weil der Skip die echte Diagnose
+	// verschlucken würde — Reviewer braucht den Hinweis auf fehlende SYNTHESE-
+	// Container, nicht eine generische Pass-Vertrags-Verletzung.
 	//
 	// Critical-Friend-Hinweis im Diagnose-Text: häufiger Fall in literatur-
 	// basierten BAs ist, dass die Synthese-Funktion in einem Kapitel mitläuft,

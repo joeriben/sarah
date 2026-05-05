@@ -79,7 +79,7 @@ Die `listAtomsForPhase`-Queries filtern bereits-erledigte Atome:
 | `document_collapse` | EXISTS `memo_content` mit Tag `[kontextualisierend/work/graph]` |
 | `paragraph_synthetic` | EXISTS `memo_content` mit memo_type='formulierend' für Paragraph |
 
-Stuck-Guard: kommt dasselbe Atom 3× hintereinander pending zurück → harter Fail (struktureller Loop-Bug).
+Pass-Vertrag: nach `executeStep` muss `listAtomsForPhase` das Atom als done führen. Verletzung = Code-Bug (Inkongruenz zwischen Done-Set und Pass-Skip/Persist-Bedingung) → wird als generic Error geworfen und vom Fail-Tolerant-Pfad als Atom-Fehler verbucht; Loop läuft mit nächstem Atom weiter.
 
 ### 2.3 Fail-Tolerant-Mode
 

@@ -54,6 +54,7 @@ import { runArgumentValidityPass } from '../ai/hermeneutic/argument-validity.js'
 import { runGraphCollapse } from '../ai/hermeneutic/section-collapse-from-graph.js';
 import { runChapterCollapse } from '../ai/hermeneutic/chapter-collapse.js';
 import { runDocumentCollapse } from '../ai/hermeneutic/document-collapse.js';
+import { runSectionCollapseSynthetic } from '../ai/hermeneutic/section-collapse-synthetic.js';
 import {
 	listH3WalkSteps,
 	walkStepId,
@@ -489,17 +490,30 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 			);
 			return { all, pending: done ? [] : all };
 		}
-		// H2-Synthese-Linie: Phase-Types registriert, Atom-/Done-Logik wird
-		// in den Schritten 2-4 der H2-Restitution mit den Modul-Implementationen
-		// gewired. Bis dahin sind die Phasen über phasesForRun() nicht
-		// erreichbar (H2-Run liefert nur paragraph_synthetic). Stub-Throw,
-		// damit ein versehentlicher Aufruf laut scheitert statt stillschweigend
-		// undefined zu liefern.
-		case 'section_collapse_synthetic':
+		case 'section_collapse_synthetic': {
+			const subchapters = await listSubchapterAtoms(documentId);
+			const done = new Set(
+				(await query<{ heading_id: string }>(
+					`SELECT mc.scope_element_id AS heading_id
+					 FROM memo_content mc
+					 JOIN namings n ON n.id = mc.naming_id
+					 WHERE mc.scope_level = 'subchapter'
+					   AND n.inscription LIKE '[kontextualisierend/subchapter/synthetic]%'
+					   AND n.deleted_at IS NULL`,
+					[]
+				)).rows.map((r) => r.heading_id)
+			);
+			return {
+				all: subchapters,
+				pending: subchapters.filter((s) => !done.has(s.id)),
+			};
+		}
+		// H2-Synthese-Linie (chapter/document): Wire-up folgt in Schritten 3-4
+		// der H2-Restitution. Stub-Throw bis dahin.
 		case 'chapter_collapse_synthetic':
 		case 'document_collapse_synthetic':
 			throw new Error(
-				`listAtomsForPhase: Phase ${phase} ist registriert, aber das Modul-Wire-up steht aus (H2-Restitution Schritt 2-4).`
+				`listAtomsForPhase: Phase ${phase} ist registriert, aber das Modul-Wire-up steht aus (H2-Restitution Schritt 3-4).`
 			);
 		// H3-Walk wird NICHT durch die generische Atom-Schleife geführt — er
 		// hat einen eigenen Loop runH3Walk mit walk-step-spezifischer Done-/
@@ -655,14 +669,26 @@ async function executeStep(
 				memoId: r.stored?.memoId ?? r.existingMemoId,
 			};
 		}
-		// H2-Synthese-Linie: Stubs analog zu listAtomsForPhase. Wire-up der
-		// Modul-Aufrufe (mit modelOverride: resolveTier('h2.tier1')) erfolgt
-		// in den Schritten 2-4 der H2-Restitution.
-		case 'section_collapse_synthetic':
+		case 'section_collapse_synthetic': {
+			const r = await runSectionCollapseSynthetic(caseId, atom.id, userId, {
+				modelOverride: resolveTier('h2.tier1'),
+			});
+			return {
+				skipped: r.skipped,
+				tokens: {
+					input: r.tokens?.input ?? 0,
+					output: r.tokens?.output ?? 0,
+					cacheRead: r.tokens?.cacheRead ?? 0,
+				},
+				memoId: r.stored?.memoId ?? r.existingMemoId,
+			};
+		}
+		// H2-Synthese-Linie (chapter/document): Wire-up folgt in Schritten 3-4
+		// der H2-Restitution. Stub-Throw bis dahin.
 		case 'chapter_collapse_synthetic':
 		case 'document_collapse_synthetic':
 			throw new Error(
-				`executeStep: Phase ${phase} ist registriert, aber das Modul-Wire-up steht aus (H2-Restitution Schritt 2-4).`
+				`executeStep: Phase ${phase} ist registriert, aber das Modul-Wire-up steht aus (H2-Restitution Schritt 3-4).`
 			);
 		// H3-Walk hat einen eigenen Loop (runH3Walk) mit walk-step-spezifischer
 		// Dispatch-Logik. Hier ist h3_walk unerreichbar (siehe runPipelineLoop
@@ -708,12 +734,12 @@ export function phasesForRun(options: RunOptions): Phase[] {
  *
  * Zwei Phasen-Modelle:
  *   - Iterations-Phasen (H1/H2): pro Atom (¶ / Subkapitel / Kapitel) ein
- *     Tool-Aufruf. Fail-tolerant pro Atom + Stuck-Guard gegen Endlos-Loops
- *     bei list-done/pass-skip-Inkongruenz. Implementiert in runIterativePhase.
+ *     Tool-Aufruf. Fail-tolerant pro Atom; Pass-Vertrag (Atom muss nach
+ *     executeStep done sein, sonst Code-Bug) statt Endlos-Loop-Pflaster.
+ *     Implementiert in runIterativePhase.
  *   - Werk-Phasen (H3): ein Tool-Aufruf pro Phase auf das ganze Werk. Kein
- *     Atom-Wrapper, kein Stuck-Guard (Tool muss intrinsisch failsafe sein:
- *     Idempotenz, klare Vorbedingungen, klarer Empty-Path). Implementiert in
- *     runWerkPhaseStep.
+ *     Atom-Wrapper (Tool muss intrinsisch failsafe sein: Idempotenz, klare
+ *     Vorbedingungen, klarer Empty-Path). Implementiert in runWerkPhaseStep.
  *
  * Idempotenz auf Pass-Ebene macht Resume trivial: ein erneut aufgerufener
  * Run iteriert dieselben Phasen, der jeweilige Done-Check filtert die schon
@@ -806,11 +832,14 @@ export async function runPipelineLoop(
 }
 
 /**
- * Eine Iterations-Phase: Atom für Atom abarbeiten, fail-tolerant pro Atom,
- * Stuck-Guard gegen Endlos-Loops. Stuck-Guard ist hier sinnvoll, weil
- * listAtomsForPhase dynamisch die pending-Liste neu berechnet — eine
- * Inkongruenz zwischen list-done und Pass-Skip-Bedingung würde sonst zum
- * Token-Verbrennen führen.
+ * Eine Iterations-Phase: Atom für Atom abarbeiten, fail-tolerant pro Atom.
+ *
+ * Pass-Vertrag: nach executeStep muss listAtomsForPhase das Atom als done
+ * führen. Verletzung dieses Vertrags ist ein Code-Bug (Inkongruenz zwischen
+ * Done-Set und Pass-Skip/Persist-Bedingung), kein Wiederversuchsfall — wird
+ * als generic Error geworfen und vom fail-tolerant-Pfad (recordAtomError +
+ * erroredAtomIds) gefangen. Loop läuft mit nächstem Atom weiter; das errored-
+ * Set verhindert, dass dasselbe defekte Atom wieder oben in pending steht.
  *
  * Returnt true bei sauber abgeschlossener Phase, false wenn der Run
  * abgebrochen wurde (markFailed/markPaused bereits aufgerufen, Event
@@ -826,8 +855,6 @@ async function runIterativePhase(
 	erroredAtomIds: Set<string>,
 	recordAtomError: (phase: Phase, atom: AtomRef, message: string) => Promise<void>
 ): Promise<boolean> {
-	let lastProcessedAtomId: string | null = null;
-	let sameAtomRepeatCount = 0;
 	let phaseStartAnnounced = false;
 
 	while (true) {
@@ -863,29 +890,21 @@ async function runIterativePhase(
 		});
 
 		try {
-			// Stuck-Guard: derselbe Atom 3× hintereinander als pending → Loop-
-			// Bug zwischen list-done und Pass-Skip. Phase-lokal, weil
-			// runIterativePhase pro Phase aufgerufen wird.
-			if (atom.id === lastProcessedAtomId) {
-				sameAtomRepeatCount += 1;
-				if (sameAtomRepeatCount >= 3) {
-					const message =
-						`Stuck on ${phase}/${atom.label}: ` +
-						`pass returned successfully 3× but listAtomsForPhase still marks it pending. ` +
-						`Either the pass is skip-on-existing without persisting, or it persists nothing ` +
-						`(e.g. AG-Pass output where all scaffolding anchors are unresolvable). ` +
-						`Run halted to prevent token-burn; inspect this paragraph manually.`;
-					safeSend(sendEvent, { type: 'step-error', phase, atom, message });
-					await markFailed(runId, message);
-					safeSend(sendEvent, { type: 'failed', message });
-					return false;
-				}
-			} else {
-				lastProcessedAtomId = atom.id;
-				sameAtomRepeatCount = 1;
+			const stepResult = await executeStep(phase, atom, caseId, userId);
+
+			// Pass-Vertrag prüfen: das gerade verarbeitete Atom darf nach dem
+			// Pass nicht mehr in pending stehen. Verletzung = Inkongruenz
+			// zwischen listAtomsForPhase-Done-Set und Pass-Skip/Persist —
+			// Code-Bug, nicht retryable. catch-Block unten merkt das Atom als
+			// errored und der Loop macht mit dem nächsten Atom weiter.
+			const post = await listAtomsForPhase(phase, documentId);
+			if (post.pending.some((p) => p.id === atom.id)) {
+				throw new Error(
+					`Pass for ${phase}/${atom.label} returned but atom remains pending — ` +
+						`done-check and pass-persist are out of sync (code bug, not retryable)`
+				);
 			}
 
-			const stepResult = await executeStep(phase, atom, caseId, userId);
 			await updateProgress(
 				runId,
 				phase,
@@ -919,8 +938,6 @@ async function runIterativePhase(
 			}
 			// Fail-tolerant: Atom merken, weiter mit nächstem.
 			await recordAtomError(phase, atom, message);
-			lastProcessedAtomId = null;
-			sameAtomRepeatCount = 0;
 		}
 	}
 }
