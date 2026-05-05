@@ -60,6 +60,29 @@ import {
 	formatPersonaBlock,
 	type H3BriefContext,
 } from './werk-shared.js';
+import {
+	loadFragestellungBeurteilung,
+	loadMotivation,
+	loadForschungsdesignTriple,
+	loadVerweisProfilAggregate,
+	loadGthReflexionAggregate,
+	loadFgRespecHistory,
+	loadAuditOnlyHotspots,
+	loadArgumentSubstrateCounts,
+	formatTheoriebasisBlock,
+	formatMethodischesSetupBlock,
+	formatAuditOnlyAndArgumentBlock,
+	formatFragestellungBeurteilungBlock,
+	formatMotivationBlock,
+	type FragestellungBeurteilungSnippet,
+	type MotivationSnippet,
+	type ForschungsdesignSnippet,
+	type VerweisProfilAggregate,
+	type GthReflexionAggregate,
+	type ReSpecHistoryEntry,
+	type AuditOnlyHotspot,
+	type ArgumentSubstrateCounts,
+} from './werk-substrate.js';
 
 // ── Container-Loading ─────────────────────────────────────────────
 
@@ -354,32 +377,8 @@ async function loadGesamtergebnisWithDiagnostics(
 	};
 }
 
-interface MethodenBasisSnippet {
-	methodenText: string | null;
-	basisText: string | null;
-}
-
-async function loadMethodenAndBasis(
-	caseId: string,
-	documentId: string
-): Promise<MethodenBasisSnippet> {
-	const rows = (await query<{ construct_kind: string; content: { text?: string } }>(
-		`SELECT construct_kind, content FROM function_constructs
-		 WHERE case_id = $1 AND document_id = $2
-		   AND outline_function_type = 'FORSCHUNGSDESIGN'
-		   AND construct_kind IN ('METHODEN', 'BASIS')
-		 ORDER BY created_at DESC`,
-		[caseId, documentId]
-	)).rows;
-	let methodenText: string | null = null;
-	let basisText: string | null = null;
-	for (const r of rows) {
-		const text = r.content?.text ?? null;
-		if (r.construct_kind === 'METHODEN' && methodenText === null) methodenText = text;
-		if (r.construct_kind === 'BASIS' && basisText === null) basisText = text;
-	}
-	return { methodenText, basisText };
-}
+// METHODOLOGIE/METHODEN/BASIS und alle weiteren Cross-Typ-Reads kommen
+// aus werk-substrate.ts — gemeinsam mit SYNTHESE genutzt.
 
 // ── LLM-Call ──────────────────────────────────────────────────────
 
@@ -393,10 +392,16 @@ type SchlussreflexionLLMResult = z.infer<typeof SchlussreflexionLLMSchema>;
 
 interface ExtractSchlussreflexionInput {
 	fragestellung: string;
+	fragestellungBeurteilung: FragestellungBeurteilungSnippet | null;
+	motivation: MotivationSnippet | null;
 	forschungsgegenstand: ForschungsgegenstandSnippet;
 	gesamtergebnis: GesamtergebnisSnippet;
-	methodenText: string | null;
-	basisText: string | null;
+	forschungsdesign: ForschungsdesignSnippet;
+	verweisProfil: VerweisProfilAggregate | null;
+	gthReflexion: GthReflexionAggregate | null;
+	respecHistory: ReSpecHistoryEntry[];
+	auditOnlyHotspots: AuditOnlyHotspot[];
+	argSubstrate: ArgumentSubstrateCounts | null;
 	srContainers: SchlussreflexionContainer[];
 	brief: H3BriefContext;
 	documentId: string;
@@ -422,42 +427,46 @@ async function extractSchlussreflexion(
 		formatWerktypLine(input.brief),
 		...(kriterien ? ['', kriterien] : []),
 		'',
-		'Begriffe (für das Verständnis der Aufgabe):',
+		'ROLLE / EPISTEMIK:',
+		'  Critical Friend zum eigenen Urteil des/der Forschenden — du beschreibst, was die SCHLUSSREFLEXION leistet, und welche Lese-Hinweise das gesamte H3-Substrat (FRAGESTELLUNG-Beurteilung, MOTIVATION, methodisches Setup, Theoriebasis-Profil, BEFUND-/AUDIT-only-Lage, Argument-Substrat, EXKURS-Re-Spezifikationen, GESAMTERGEBNIS) zur Reichweite und zu den Grenzen der Arbeit nahelegen. Du beurteilst die Arbeit NICHT (kein "stark", "lückenhaft", "dünn", keine Skala). Auffälligkeiten (z.B. Theoriebasis-Konzentration, dünnes empirisches Material, nicht-integrierte BEFUNDE im GESAMTERGEBNIS) sind Lese-Hinweise, nie ein Urteil.',
 		'',
+		'BEGRIFFE:',
 		'  GELTUNGSANSPRUCH: die (oft implizite) Aussage der Arbeit über ihre eigene Reichweite und Legitimität. Beispiele: "Forschungslücke teilweise gefüllt", "Bestand der Lücke nachgewiesen", "Anschlussforschung begründet", "Praxis-Empfehlungen abgeleitet". Was beansprucht die Arbeit, geleistet zu haben?',
-		'',
-		'  GRENZEN: die selbstreflektierten Reichweite-Limitierungen — methodische Grenzen (Sample-Größe, Sample-Auswahl, Methodenwahl), Geltungsbereich (Generalisierbarkeit, Übertragbarkeit), thematische Grenzen (was wurde nicht adressiert), zeitliche/kontextuelle Grenzen. NICHT: externe Kritik, sondern was die Arbeit selbst als Reichweite-Begrenzung benennt oder erkennen lässt.',
-		'',
+		'  GRENZEN: die selbstreflektierten Reichweite-Limitierungen — methodische Grenzen (Sample-Größe/Auswahl, Methodenwahl, Methodologie-Selbstverständnis), Theoriebasis-Grenzen (Konzentration auf wenige Autor:innen, bezugslose Theoriestrecken), Geltungsbereich (Generalisierbarkeit, Übertragbarkeit), empirische Grenzen (BEFUNDE-Dichte, Audit-only-Hotspots, Argument-Substrat-Größe), thematische Grenzen (was wurde nicht adressiert). NICHT: externe Kritik, sondern was die Arbeit selbst benennt oder erkennen lässt — und was das H3-Substrat als Lese-Hinweis nahelegt.',
 		'  ANSCHLUSSFORSCHUNG: explizit oder implizit benannte offene Fragen, vorgeschlagene weitere Untersuchungen, Praxis-Implementierungen, die als Anschluss formuliert werden.',
+		'  FRAGESTELLUNG-BEURTEILUNG: separate Critical-Friend-Notiz aus dem EXPOSITION-Pass zur Gestalt der Fragestellung — relevant für GELTUNGSANSPRUCH (was die Frage selbst tragen kann).',
+		'  MOTIVATION: in der Einleitung benannter Antrieb der Untersuchung — relevant für ANSCHLUSSFORSCHUNG-Framing.',
+		'  THEORIEBASIS-PROFIL: deskriptives Aggregat der Verweis-Struktur (HHI, Top-Autoren, Konzentrations-Hinweise) plus Reflexionsbefunde aus der GRUNDLAGENTHEORIE.',
+		'  AUDIT-ONLY-Hotspots: DURCHFÜHRUNGS-¶ mit Hotspot-Marker, an denen kein extrahierbarer BEFUND formuliert wurde — empirisches Material ohne tragende Aussage.',
+		'  Argument-Substrat: Anzahl der argument_nodes (rohe AG-Strukturen) im Werk und in der DURCHFÜHRUNG — quantitatives Größen-Signal des analytischen Materials.',
+		'  EXKURS-Re-Spezifikationen: spätere Theorie-Importe, die den Forschungsgegenstand nachträglich modifiziert haben.',
 		'',
-		'Vorgelegte Inputs:',
-		'  - FRAGESTELLUNG (EXPOSITION) — der Bezugsrahmen',
-		'  - FORSCHUNGSGEGENSTAND (GRUNDLAGENTHEORIE) — die theoretische Verortung der Frage',
-		'  - GESAMTERGEBNIS + FRAGESTELLUNGS-ANTWORT (SYNTHESE) — das Ergebnis, dessen Geltung jetzt reflektiert wird',
-		'  - METHODEN + BASIS (FORSCHUNGSDESIGN) — das methodische Setup, gegen das GRENZEN gedeutet werden können',
-		'  - SCHLUSSREFLEXION-Container — der Reflexionstext der Arbeit',
+		'AUFGABE in drei Teilen:',
 		'',
-		'Aufgabe in drei Teilen:',
+		'  TEIL A — geltungsanspruchText (3–6 Sätze deskriptiv):',
+		'    Welchen Geltungsanspruch artikuliert die Arbeit? Beziehe dich konkret auf GESAMTERGEBNIS, FRAGESTELLUNGS-ANTWORT und FRAGESTELLUNG. Beziehe ein, ob die FRAGESTELLUNG-BEURTEILUNG einen Gestalt-Hinweis enthält (z.B. unscharfe Perspektive), der die Reichweite des Anspruchs erklärt. Wenn der Geltungsanspruch im Werk implizit bleibt, rekonstruiere ihn knapp und benenne explizit, dass er implizit ist.',
 		'',
-		'  TEIL A — geltungsanspruchText (1–4 Sätze deskriptiv):',
-		'    Welchen Geltungsanspruch artikuliert die Arbeit? Beziehe dich, wenn möglich, konkret auf das GESAMTERGEBNIS und die FRAGESTELLUNG. Wenn der Geltungsanspruch im Werk implizit bleibt, rekonstruiere ihn knapp und benenne explizit, dass er implizit ist.',
+		'  TEIL B — grenzenText (3–6 Sätze deskriptiv):',
+		'    Welche Reichweite-Grenzen reflektiert die Arbeit selbst? Beziehe ein:',
+		'      • methodische Grenzen aus METHODOLOGIE/METHODEN/BASIS;',
+		'      • Theoriebasis-Grenzen aus dem THEORIEBASIS-PROFIL (z.B. starke Konzentration auf einzelne Autor:innen, bezugslose Theoriestrecken);',
+		'      • empirische Grenzen aus AUDIT-ONLY-Hotspots und der Größe des Argument-Substrats — speziell: AUDIT-ONLY-Hotspots sind Material, das keine Aussage trägt; Argument-Substrat-Zahlen geben einen Anhaltspunkt zur empirischen Tiefe;',
+		'      • Geltungsbereich-/thematische Grenzen aus FRAGESTELLUNG ↔ GESAMTERGEBNIS ↔ EXKURS-Re-Spezifikationen.',
+		'    Wenn das Werk diese Grenzen nicht explizit benennt, das deskriptiv sagen ("Das Werk reflektiert keine Theoriebasis-Konzentration explizit, obwohl das Profil HHI=0,65 zeigt") — ohne Skalen-Wertung.',
 		'',
-		'  TEIL B — grenzenText (1–4 Sätze deskriptiv):',
-		'    Welche Reichweite-Grenzen reflektiert die Arbeit selbst? Beziehe methodische Grenzen (METHODEN/BASIS), Geltungsbereich-Grenzen, thematische Grenzen ein. Wenn das Werk keine expliziten Grenzen benennt, sage das deskriptiv ("Das Werk benennt keine methodischen Grenzen explizit; aus dem Sample-Umfang ergäbe sich…").',
+		'  TEIL C — anschlussforschungText (2–5 Sätze deskriptiv):',
+		'    Welche Anschlussforschungen, offenen Fragen, Praxis-Empfehlungen formuliert die Arbeit? Beziehe ggf. die MOTIVATION ein (treibt sie auch die Anschluss-Setzungen?). Wenn keine vorhanden, das deskriptiv benennen.',
 		'',
-		'  TEIL C — anschlussforschungText (1–4 Sätze deskriptiv):',
-		'    Welche Anschlussforschungen, offenen Fragen, Praxis-Empfehlungen formuliert die Arbeit? Wenn keine vorhanden, das deskriptiv benennen.',
-		'',
-		'Stil: DESKRIPTIV. Du beschreibst, was die SCHLUSSREFLEXION leistet. Du beurteilst NICHT (kein "stark", "lückenhaft", "dünn"). Critical-Friend-hinweise sind erlaubt als deskriptive Beobachtung ("Das Werk reflektiert keine Sample-Grenzen explizit"), nicht als Wertung.',
+		'STIL: DESKRIPTIV. Lese-Hinweise aus Theoriebasis-Profil, methodischem Setup, AUDIT-ONLY-Hotspots, Argument-Substrat und EXKURS-Re-Spezifikationen integrierst du in die GRENZEN- und GELTUNGSANSPRUCH-Beschreibung, NICHT als getrennten Wertungsabschnitt. Verwende keine Adjektive wie "stark", "schwach", "lückenhaft", "dünn", "tragfähig"; bleib bei deskriptiven Verben.',
 		'',
 		'Selbst-Bewertung needsMoreContext:',
 		'  Setze `needsMoreContext: true` NUR, wenn das vorgelegte SR-Material so eng ist, dass eine substantielle Lesart von GELTUNGSANSPRUCH/GRENZEN/ANSCHLUSSFORSCHUNG nicht möglich ist und MEHR Kontext (z.B. das ganze Schluss-Kapitel statt nur dessen letztes Drittel) plausibel zu einem präziseren Befund führen würde. Setze `false`, wenn das Material entweder ausreicht ODER das Werk strukturell keine SR-Diskussion enthält — der Defizit-Befund ("Werk reflektiert keine Grenzen explizit") ist ein valides Resultat, KEIN Grund für mehr Kontext. Im Zweifel `false`.',
 		'',
 		'Antworte ausschließlich als JSON nach diesem Schema:',
 		'{',
-		'  "geltungsanspruchText": "<1–4 Sätze deskriptiv>",',
-		'  "grenzenText": "<1–4 Sätze deskriptiv>",',
-		'  "anschlussforschungText": "<1–4 Sätze deskriptiv>",',
+		'  "geltungsanspruchText": "<3–6 Sätze deskriptiv>",',
+		'  "grenzenText": "<3–6 Sätze deskriptiv>",',
+		'  "anschlussforschungText": "<2–5 Sätze deskriptiv>",',
 		'  "needsMoreContext": false',
 		'}',
 	].join('\n');
@@ -472,36 +481,68 @@ async function extractSchlussreflexion(
 	}
 	const srText = srBlocks.join('\n\n');
 
-	const methodenBlock = input.methodenText
-		? input.methodenText
-		: '(METHODEN-Konstrukt nicht vorhanden — FORSCHUNGSDESIGN-Pass nicht gelaufen oder ohne Methoden-Befund)';
-	const basisBlock = input.basisText
-		? input.basisText
-		: '(BASIS-Konstrukt nicht vorhanden)';
+	// Optional-Blöcke
+	const fragBeurteilungBlock = formatFragestellungBeurteilungBlock(
+		input.fragestellungBeurteilung
+	);
+	const motivationBlock = formatMotivationBlock(input.motivation);
+	const theoriebasisBlock = formatTheoriebasisBlock({
+		verweisProfil: input.verweisProfil,
+		gthReflexion: input.gthReflexion,
+		respecHistory: input.respecHistory,
+	});
+	const empirieBlock = formatAuditOnlyAndArgumentBlock({
+		befundCount: 0, // SR sieht den BEFUNDE-Korpus nicht direkt — nur GESAMTERGEBNIS aggregiert.
+		auditOnlyHotspots: input.auditOnlyHotspots,
+		argSubstrate: input.argSubstrate,
+	});
+	const methodikBlock = formatMethodischesSetupBlock(input.forschungsdesign);
 
-	const userMessage = [
-		`FRAGESTELLUNG der Arbeit:`,
-		input.fragestellung,
-		'',
-		`FORSCHUNGSGEGENSTAND (GRUNDLAGENTHEORIE):`,
-		input.forschungsgegenstand.text,
-		'',
-		`GESAMTERGEBNIS (SYNTHESE):`,
-		input.gesamtergebnis.text,
-		'',
-		`FRAGESTELLUNGS-ANTWORT (SYNTHESE):`,
-		input.gesamtergebnis.fragestellungsAntwortText || '(nicht vorhanden)',
-		'',
-		`METHODEN (FORSCHUNGSDESIGN):`,
-		methodenBlock,
-		'',
-		`BASIS (FORSCHUNGSDESIGN):`,
-		basisBlock,
-		'',
-		`SCHLUSSREFLEXION-Container (${input.srContainers.length}, gesamt ${input.srContainers.reduce((s, c) => s + c.paragraphs.length, 0)} ¶):`,
-		'',
-		srText,
-	].join('\n');
+	const sections: string[] = [];
+
+	sections.push('=== KONTEXT ===');
+	sections.push(`FRAGESTELLUNG der Arbeit:\n${input.fragestellung}`);
+	if (fragBeurteilungBlock) sections.push(fragBeurteilungBlock);
+	if (motivationBlock) sections.push(motivationBlock);
+	sections.push(
+		`FORSCHUNGSGEGENSTAND (GRUNDLAGENTHEORIE, ggf. nach EXKURS-Re-Spezifikationen):\n${input.forschungsgegenstand.text}`
+	);
+
+	sections.push('=== METHODISCHES SETUP ===');
+	sections.push(methodikBlock);
+
+	if (theoriebasisBlock) {
+		sections.push('=== THEORIEBASIS-PROFIL ===');
+		sections.push(theoriebasisBlock);
+	} else {
+		sections.push('=== THEORIEBASIS-PROFIL ===');
+		sections.push(
+			'(kein Theoriebasis-Profil verfügbar — VERWEIS_PROFIL/BLOCK_WUERDIGUNG/ECKPUNKT_BEFUND/DISKURSIV_BEZUG_BEFUND-Konstrukte fehlen.)'
+		);
+	}
+
+	if (empirieBlock) {
+		sections.push('=== EMPIRIE-SUBSTRAT ===');
+		sections.push(empirieBlock);
+	}
+
+	sections.push('=== GESAMTERGEBNIS (SYNTHESE) ===');
+	sections.push(input.gesamtergebnis.text);
+	sections.push(
+		`FRAGESTELLUNGS-ANTWORT (aus SYNTHESE):\n${input.gesamtergebnis.fragestellungsAntwortText || '(nicht vorhanden)'}`
+	);
+	if (input.gesamtergebnis.coverageRatio !== null) {
+		sections.push(
+			`Erkenntnis-Integration in der SYNTHESE: coverageRatio=${(input.gesamtergebnis.coverageRatio * 100).toFixed(0)}% (Anteil der DURCHFÜHRUNGS-BEFUNDE, die im Gesamtergebnis adressiert werden)`
+		);
+	}
+
+	sections.push(
+		`=== SCHLUSSREFLEXION-MATERIAL (${input.srContainers.length} Container, gesamt ${input.srContainers.reduce((s, c) => s + c.paragraphs.length, 0)} ¶) ===`
+	);
+	sections.push(srText);
+
+	const userMessage = sections.join('\n\n');
 
 	const t0 = Date.now();
 	const response = await chat({
@@ -540,6 +581,27 @@ async function extractSchlussreflexion(
 
 type RecoveryStage = 'none' | 'last-third' | 'last-subchapter' | 'last-chapter';
 
+interface CrossTypeReadsSnapshot {
+	hasFragestellungBeurteilung: boolean;
+	hasMotivation: boolean;
+	forschungsdesign: {
+		hasMethodologie: boolean;
+		hasMethoden: boolean;
+		hasBasis: boolean;
+	};
+	verweisProfil: { containerCount: number; totalCitations: number } | null;
+	gthReflexion: {
+		containerCount: number;
+		wuerdigungBlockCount: number;
+		eckpunktBlockCount: number;
+		diskursivBlockCount: number;
+		bezugslosBlockCount: number;
+	} | null;
+	respecHistoryCount: number;
+	auditOnlyHotspotCount: number;
+	argumentNodeCount: number;
+}
+
 interface SchlussreflexionContent {
 	geltungsanspruchText: string;
 	grenzenText: string;
@@ -547,6 +609,7 @@ interface SchlussreflexionContent {
 	containerOverview: Array<{ headingText: string; paragraphCount: number }>;
 	hadMethoden: boolean;
 	hadBasis: boolean;
+	crossTypeReads: CrossTypeReadsSnapshot;
 	llmModel: string;
 	llmTimingMs: number;
 	recoveryStage: RecoveryStage;
@@ -602,7 +665,12 @@ async function persistSchlussreflexion(
 
 // ── Public API ────────────────────────────────────────────────────
 
-const DEFAULT_MAX_TOKENS = 1500;
+// Token-Budget 2026-05-05 erhöht: SR bekommt jetzt das volle H3-Substrat
+// (Theoriebasis-Profil, methodisches Setup inkl. METHODOLOGIE, FRAGESTELLUNG-
+// Beurteilung, MOTIVATION, EXKURS-Re-Spec-Geschichte, Audit-only-Hotspots,
+// Argument-Substrat) als Kontext. Output erweitert (3 Texte je 3–6 Sätze
+// statt 1–4). 1500 reichten dafür nicht.
+const DEFAULT_MAX_TOKENS = 5000;
 
 export interface SchlussreflexionPassOptions {
 	persistConstructs?: boolean;
@@ -640,6 +708,7 @@ export interface SchlussreflexionPassResult {
 		fragestellungCount: number;
 		forschungsgegenstandCount: number;
 		gesamtergebnisCount: number;
+		crossTypeReads: CrossTypeReadsSnapshot;
 		warnings: string[];
 	};
 }
@@ -729,14 +798,87 @@ export async function runSchlussreflexionPass(
 		});
 	}
 
-	const methodenBasis = await loadMethodenAndBasis(caseId, documentId);
+	// Cross-Typ-Reads — alle defensiv (null/empty wenn Vorgänger-Pässe fehlen).
+	const [
+		fragestellungBeurteilung,
+		motivation,
+		forschungsdesign,
+		verweisProfil,
+		gthReflexion,
+		respecHistory,
+		auditOnlyHotspots,
+		argSubstrate,
+	] = await Promise.all([
+		loadFragestellungBeurteilung(caseId, documentId),
+		loadMotivation(caseId, documentId),
+		loadForschungsdesignTriple(caseId, documentId),
+		loadVerweisProfilAggregate(caseId, documentId),
+		loadGthReflexionAggregate(caseId, documentId),
+		loadFgRespecHistory(caseId, documentId),
+		loadAuditOnlyHotspots(caseId, documentId),
+		loadArgumentSubstrateCounts(documentId),
+	]);
+
+	const crossTypeReads: CrossTypeReadsSnapshot = {
+		hasFragestellungBeurteilung: fragestellungBeurteilung !== null,
+		hasMotivation: motivation !== null,
+		forschungsdesign: {
+			hasMethodologie: forschungsdesign.methodologieText !== null,
+			hasMethoden: forschungsdesign.methodenText !== null,
+			hasBasis: forschungsdesign.basisText !== null,
+		},
+		verweisProfil: verweisProfil
+			? {
+				containerCount: verweisProfil.containerCount,
+				totalCitations: verweisProfil.totalCitations,
+			}
+			: null,
+		gthReflexion: gthReflexion
+			? {
+				containerCount: gthReflexion.containerCount,
+				wuerdigungBlockCount: gthReflexion.wuerdigungBlockCount,
+				eckpunktBlockCount: gthReflexion.eckpunktBlockCount,
+				diskursivBlockCount: gthReflexion.diskursivBlockCount,
+				bezugslosBlockCount: gthReflexion.diskursivBezug.bezugslosBlocks.length,
+			}
+			: null,
+		respecHistoryCount: respecHistory.length,
+		auditOnlyHotspotCount: auditOnlyHotspots.length,
+		argumentNodeCount: argSubstrate.argumentNodeCount,
+	};
+
+	if (!verweisProfil) {
+		warnings.push(
+			'Theoriebasis-Profil leer — VERWEIS_PROFIL-Konstrukte fehlen. SR läuft ohne Verweis-Aggregat-Hinweise.'
+		);
+	}
+	if (!gthReflexion) {
+		warnings.push(
+			'Theorie-Reflexion leer — BLOCK_WUERDIGUNG/ECKPUNKT_BEFUND/DISKURSIV_BEZUG_BEFUND fehlen. SR läuft ohne Eckpunkt- und Bezugs-Hinweise.'
+		);
+	}
+	if (
+		!forschungsdesign.methodologieText &&
+		!forschungsdesign.methodenText &&
+		!forschungsdesign.basisText
+	) {
+		warnings.push(
+			'Methodisches Setup leer — METHODOLOGIE/METHODEN/BASIS fehlen. SR läuft ohne Methodik-Bezug.'
+		);
+	}
 
 	let llmRes = await extractSchlussreflexion({
 		fragestellung: fsRes.text,
+		fragestellungBeurteilung,
+		motivation,
 		forschungsgegenstand: fgRes.fg,
 		gesamtergebnis: geRes.ge,
-		methodenText: methodenBasis.methodenText,
-		basisText: methodenBasis.basisText,
+		forschungsdesign,
+		verweisProfil,
+		gthReflexion,
+		respecHistory,
+		auditOnlyHotspots,
+		argSubstrate,
 		srContainers: usedContainers,
 		brief,
 		documentId,
@@ -771,10 +913,16 @@ export async function runSchlussreflexionPass(
 
 		llmRes = await extractSchlussreflexion({
 			fragestellung: fsRes.text,
+			fragestellungBeurteilung,
+			motivation,
 			forschungsgegenstand: fgRes.fg,
 			gesamtergebnis: geRes.ge,
-			methodenText: methodenBasis.methodenText,
-			basisText: methodenBasis.basisText,
+			forschungsdesign,
+			verweisProfil,
+			gthReflexion,
+			respecHistory,
+			auditOnlyHotspots,
+			argSubstrate,
 			srContainers: usedContainers,
 			brief,
 			documentId,
@@ -802,8 +950,9 @@ export async function runSchlussreflexionPass(
 			headingText: c.headingText,
 			paragraphCount: c.paragraphs.length,
 		})),
-		hadMethoden: methodenBasis.methodenText !== null,
-		hadBasis: methodenBasis.basisText !== null,
+		hadMethoden: forschungsdesign.methodenText !== null,
+		hadBasis: forschungsdesign.basisText !== null,
+		crossTypeReads,
 		llmModel: llmRes.model,
 		llmTimingMs: llmRes.timingMs,
 		recoveryStage,
@@ -832,8 +981,8 @@ export async function runSchlussreflexionPass(
 		fragestellungSnippet: fsRes.text.slice(0, 200),
 		forschungsgegenstandSnippet: fgRes.fg.text.slice(0, 200),
 		gesamtergebnisSnippet: geRes.ge.text.slice(0, 200),
-		hadMethoden: methodenBasis.methodenText !== null,
-		hadBasis: methodenBasis.basisText !== null,
+		hadMethoden: forschungsdesign.methodenText !== null,
+		hadBasis: forschungsdesign.basisText !== null,
 		geltungsanspruchText: content.geltungsanspruchText,
 		grenzenText: content.grenzenText,
 		anschlussforschungText: content.anschlussforschungText,
@@ -849,6 +998,7 @@ export async function runSchlussreflexionPass(
 			fragestellungCount: fsRes.diag.count,
 			forschungsgegenstandCount: fgRes.diag.count,
 			gesamtergebnisCount: geRes.diag.count,
+			crossTypeReads,
 			warnings,
 		},
 	};
