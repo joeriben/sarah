@@ -2002,6 +2002,13 @@
 						</p>
 					</div>
 				{:else}
+					<div class="export-bar" title="Werk-Reflexion (Werk-Synthese, Kapitelverlauf, Werk-Beschreibung, Werk-Gutachten, Heading-Synthesen) als Datei herunterladen — DOCX/PDF nutzen native Heading-Styles als Navigations-Anker.">
+						<span class="export-bar-label">Werk-Reflexion exportieren:</span>
+						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=docx`} download>↓ DOCX</a>
+						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=pdf`} download>↓ PDF</a>
+						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=md`} download>↓ MD</a>
+						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=json`} download>↓ JSON</a>
+					</div>
 					{#if workSynthesis}
 						<article class="work-verdict">
 							<header class="work-verdict-head">
@@ -2513,6 +2520,37 @@
 	.outline-intro {
 		font-size: 0.82rem; color: #8b8fa3;
 		margin: 0 0 1rem; max-width: 70ch; line-height: 1.5;
+	}
+	.export-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		padding: 0.55rem 0.8rem;
+		margin: 0 0 1.2rem;
+		background: rgba(165, 180, 252, 0.04);
+		border: 1px solid #2a2d3a;
+		border-radius: 5px;
+		font-size: 0.78rem;
+		color: #8b8fa3;
+	}
+	.export-bar-label {
+		color: #6b7280;
+		letter-spacing: 0.02em;
+	}
+	.export-link {
+		color: #c7d2fe;
+		text-decoration: none;
+		padding: 0.18rem 0.55rem;
+		border: 1px solid rgba(165, 180, 252, 0.3);
+		border-radius: 3px;
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 0.74rem;
+		transition: background 0.12s, border-color 0.12s, color 0.12s;
+	}
+	.export-link:hover {
+		background: rgba(165, 180, 252, 0.12);
+		border-color: rgba(165, 180, 252, 0.5);
+		color: #e0e7ff;
 	}
 	.dokument-intro {
 		display: flex; align-items: baseline; gap: 1rem;

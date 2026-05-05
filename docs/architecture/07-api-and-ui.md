@@ -45,6 +45,7 @@ SvelteKit. Routes unter `src/routes/`, API unter `src/routes/api/`.
 | `…/outline/confirm` | POST | `outline_status='confirmed'`, setzt `outline_confirmed_at/by` |
 | `…/outline/reopen` | POST | zurück auf `pending` |
 | `…/outline/suggest-function-types` | POST | H3-Pre-Heuristik (Funktionstyp-Vorschläge) |
+| `…/outline/export?format=md\|json\|docx\|pdf` | GET | Werk-Reflexion-Export (Werk-Synthese, Kapitelverlauf, Werk-Beschreibung, Werk-Gutachten, Heading-Synthesen). DOCX nutzt native `Heading1-6`-Styles, PDF native Bookmark-Tree — Word-Navigationsbereich bzw. PDF-Reader-Sidebar greifen. Trigger: Export-Bar im Outline-Tab der Document-View |
 
 ### 1.5 Anonymization (`/api/projects/[projectId]/documents/[docId]/anonymize`)
 
