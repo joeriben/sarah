@@ -2,7 +2,7 @@
 
 Eigenständige Status-Doku der SYNTHESE-Heuristik (parallel zu `h3_grundlagentheorie_status.md`, `h3_exkurs_status.md`, `h3_implementation_status.md`).
 
-Letztes Update: 2026-05-04 (Erstimplementation, gegen BA H3 dev funktional verifiziert; persistierter Lauf liefert substantiellen Critical-Friend-Befund).
+Letztes Update: 2026-05-05 (Cross-Typ-Substrat-Erweiterung: VERWEIS_PROFIL/ECKPUNKT/DISKURSIV/EXKURS-Stack/AUDIT-Hotspots flowen mit; gemeinsames `werk-substrate.ts` mit SR; Token-Budget 2000→6000; gegen BA H3 dev verifiziert — Synthese benennt Top-Autor-Konzentration und Theorie-Profil-Lücken konkret).
 
 ---
 
@@ -25,29 +25,52 @@ Konkretisierung 2026-05-04:
 
 4. **Idempotenz**: `delete-before-insert` auf (case_id, document_id, outline_function_type='SYNTHESE', construct_kind='GESAMTERGEBNIS'). SYNTHESE wird nicht von späteren Heuristiken re-spezifiziert — kein version_stack jenseits des origin-Eintrags.
 
-5. **Cross-Typ-Reads (Pflicht)**:
-   - FRAGESTELLUNG (EXPOSITION)
-   - FORSCHUNGSGEGENSTAND (GRUNDLAGENTHEORIE) — automatisch EXKURS-modifiziert via SELECT, kein Aggregator-Read nötig
-   - alle BEFUND-Konstrukte (DURCHFÜHRUNG) mit text!=null (text=null sind Audit-Trail-Einträge ohne Befund)
+5. **Cross-Typ-Reads (Erweiterung 2026-05-05)** — gemeinsam mit SR über `src/lib/server/ai/h3/werk-substrate.ts`:
+   - **EXPOSITION**: FRAGESTELLUNG (Pflicht) + optional FRAGESTELLUNG-Beurteilung (sobald Qualifizierung gemerged) + optional MOTIVATION (negative-Signal-fähig)
+   - **FORSCHUNGSDESIGN**: METHODOLOGIE + METHODEN + BASIS (Triple, automatisch geladen — vorher nur via SR optional)
+   - **GRUNDLAGENTHEORIE**:
+     - FORSCHUNGSGEGENSTAND (automatisch EXKURS-modifiziert via SELECT — kein Aggregator-Read nötig, der current state ist nach allen `re_spec`-Anwendungen)
+     - VERWEIS_PROFIL aggregiert auf Werk-Ebene: Top-Autoren-Liste, HHI (Konzentrations-Hinweis), Top-1-Share, Anzahl konsekutiver Cluster — als deskriptive Signale, nicht als Wertung
+     - GTH-Reflexionsschicht (defensive — funktioniert auch wenn Konstrukte fehlen): BLOCK_WUERDIGUNG-Snippets, ECKPUNKT_BEFUND-Signal-Verteilung (kernbegriff/kontamination/provenienz × green/yellow/red), DISKURSIV_BEZUG_BEFUND-Verteilung (explizit/implizit/bezugslos)
+   - **DURCHFÜHRUNG**:
+     - alle BEFUND-Konstrukte mit text!=null (Pflicht)
+     - **Audit-only-Hotspots** (text=null) als negative Signale — der LLM erkennt: Hotspot wurde geprüft, ohne dass ein Befund extrahierbar war
+     - argument_substrate-counts (Werk-Total + DURCHFÜHRUNG-Subset) als quantitatives Größen-Signal
+   - **EXKURS**: re_spec-history pro EXKURS aus dem `version_stack` des FORSCHUNGSGEGENSTAND — `imported_concepts`, `affected_concepts`, `re_spec_text` chronologisch (Werk-Wendungen werden nachvollziehbar)
 
-6. **Critical-Friend-Identität**: GESAMTERGEBNIS-Text und FRAGESTELLUNGS-ANTWORT-Text sind deskriptiv. Bei nicht-integrierten BEFUNDEN ist der hinweis als Lese-Hinweis erlaubt ("Befund X bleibt unerwähnt"), nicht als Wertung der SYNTHESE selbst.
+6. **Critical-Friend-Identität**: GESAMTERGEBNIS-Text und FRAGESTELLUNGS-ANTWORT-Text sind deskriptiv. Bei nicht-integrierten BEFUNDEN ist der hinweis als Lese-Hinweis erlaubt ("Befund X bleibt unerwähnt"), nicht als Wertung der SYNTHESE selbst. Stil-Klausel im Prompt verbietet Skalen-Adjektive ("stark", "schwach", "lückenhaft", "kohärent", "tragfähig") — nur deskriptive Verben. HHI ≥ 0.5 ist im Helper als "stark konzentriert"-Hinweis vorbereitet, der LLM sieht den deskriptiven Befund, nicht die Zahl.
 
 ---
 
 ## Pipeline (eine Stufe pro Werk)
 
 ```
-1 LLM-Call mit Input:
-  - FRAGESTELLUNG (aus EXPOSITION)
-  - FORSCHUNGSGEGENSTAND + subjectKeywords (aus GRUNDLAGENTHEORIE,
-                                            ggf. EXKURS-modifiziert)
-  - alle BEFUND-Konstrukte (1-indexiert) mit content.text
+Cross-Typ-Substrat-Loading via werk-substrate.ts (Promise.all, parallel):
+  - FRAGESTELLUNG + FRAGESTELLUNG-Beurteilung (optional) + MOTIVATION (optional)
+  - FORSCHUNGSDESIGN-Triple: METHODOLOGIE + METHODEN + BASIS
+  - FORSCHUNGSGEGENSTAND (post-EXKURS) + subjectKeywords
+  - VERWEIS_PROFIL Werk-Aggregat: Top-Autoren, HHI, Top-1-Share, consecutive cluster count
+  - GTH-Reflexion: BLOCK_WUERDIGUNG-Snippets + ECKPUNKT-Verteilung + DISKURSIV-Verteilung
+  - alle BEFUND-Konstrukte mit text!=null (1-indexiert)
+  - Audit-only-Hotspots: BEFUNDE mit text=null (negatives Signal)
+  - argument_substrate-counts: Werk-Total + DURCHFÜHRUNG-Subset
+  - re_spec-history aus FG.version_stack (EXKURS-Wendungen chronologisch)
   - alle SYNTHESE-Container (¶ mit globalem 1-basiertem indexInWerk)
+
+1 LLM-Call mit Input (sectioned prompt):
+  === KONTEXT === FRAGESTELLUNG + Beurteilung + MOTIVATION
+  === METHODISCHES SETUP === METHODOLOGIE/METHODEN/BASIS
+  === THEORIEBASIS-PROFIL === VERWEIS_PROFIL + GTH-Reflexion + EXKURS-Re-Spec
+  === EMPIRIE-SUBSTRAT === BEFUNDE + Audit-Hotspots + argument-counts
+  === BEFUNDE-LISTE === text!=null BEFUNDE 1..N
+  === SYNTHESE-MATERIAL === alle ¶ aller SYNTHESE-Container
+
 → JSON-Output:
-  - gesamtergebnisText: 3–5 Sätze deskriptiv
-  - fragestellungsAntwortText: 1–3 Sätze deskriptiv
+  - gesamtergebnisText: 5–8 Sätze deskriptiv (TEIL A)
+  - fragestellungsAntwortText: 2–4 Sätze deskriptiv (TEIL B)
   - erkenntnisIntegration[]: pro BEFUND {befundIndex, integriert,
                               synthesisAnchorParagraphIndex|null, hinweis|null}
+
 Persistenz:
   - delete prior GESAMTERGEBNIS für (case_id, document_id)
   - INSERT new GESAMTERGEBNIS-Konstrukt mit:
@@ -56,12 +79,13 @@ Persistenz:
     * anchor_element_ids = alle ¶ aller SYNTHESE-Container
     * content = {gesamtergebnisText, fragestellungsAntwortText,
                  erkenntnisIntegration[], coverageRatio, containerOverview,
-                 befundCount, llmModel, llmTimingMs}
+                 befundCount, crossTypeReads (snapshot der geladenen
+                 Substrate-Diagnostik), llmModel, llmTimingMs}
     * version_stack = [{kind:'origin', at, by_user_id:null,
                         source_run_id:null, content_snapshot}]
 ```
 
-Default-Modell: `openrouter/anthropic/claude-sonnet-4.6`. Max-Tokens 2000. Konfigurierbar via `modelOverride`.
+Default-Modell: `openrouter/anthropic/claude-sonnet-4.6`. Max-Tokens 6000 (vorher 2000 — Reasoning + längerer Output durch Cross-Typ-Erweiterung). Konfigurierbar via `modelOverride`.
 
 ---
 
@@ -69,7 +93,8 @@ Default-Modell: `openrouter/anthropic/claude-sonnet-4.6`. Max-Tokens 2000. Konfi
 
 | Datei | Inhalt |
 |---|---|
-| `src/lib/server/ai/h3/synthese.ts` | `loadSyntheseContainers` (mit globalem `indexInWerk`), `loadFragestellungWithDiagnostics`, `loadForschungsgegenstandWithDiagnostics`, `loadBefundsWithText`, `extractGesamtergebnis` (LLM mit drei-teiliger Aufgabe), `clearExistingGesamtergebnis`, `persistGesamtergebnis`, `runSynthesePass` |
+| `src/lib/server/ai/h3/werk-substrate.ts` | **Gemeinsame Cross-Typ-Loaders SYNTHESE+SR** (2026-05-05): `loadFragestellungBeurteilung`, `loadMotivation`, `loadForschungsdesignTriple` (METHODOLOGIE/METHODEN/BASIS), `loadVerweisProfilAggregate` (Werk-aggregierte Top-Autoren/HHI/cluster-counts), `loadGthReflexionAggregate` (BLOCK_WUERDIGUNG/ECKPUNKT/DISKURSIV-Verteilung), `loadAuditOnlyHotspots`, `loadArgumentSubstrateCounts`, `loadFgRespecHistory`. Jeder Loader defensiv (gibt null/empty zurück, wenn Konstrukte fehlen). Plus `format*`-Helpers (`formatTheoriebasisBlock`, `formatMethodischesSetupBlock`, `formatAuditOnlyAndArgumentBlock`, `formatFragestellungBeurteilungBlock`, `formatMotivationBlock`) für deskriptive Prompt-Strings (HHI → "stark konzentriert"-Hinweis, Cluster-Verteilung → Liste). |
+| `src/lib/server/ai/h3/synthese.ts` | `loadSyntheseContainers` (mit globalem `indexInWerk`), `loadFragestellungWithDiagnostics`, `loadForschungsgegenstandWithDiagnostics`, `loadBefundsWithText`, `extractGesamtergebnis` (LLM mit drei-teiliger Aufgabe, sectioned prompt), `clearExistingGesamtergebnis`, `persistGesamtergebnis`, `runSynthesePass` (Promise.all-Parallelladung der 8 cross-typ-Substrate vor LLM-Call) |
 | `scripts/test-h3-synthese.ts` | CLI-Test mit `--persist`, `--provider=…/--model=…`. Kein temp-marking nötig — SYNTHESE-Container sind im Bestand. |
 
 ### Index-Mapping
@@ -117,6 +142,32 @@ Cost-Hochrechnung Habil-SYNTHESE: ~46k Tokens / 1 Call / ~45 ct OpenRouter — b
 ### Open: Test gegen Werk mit großer DURCHFÜHRUNG-BEFUND-Menge
 
 Coverage-Map zeigt sich erst aussagekräftig bei 5–20 BEFUNDEN. Habil hat noch keine BEFUNDE; BA TM hat keine FRAGESTELLUNG. Validierung gegen umfangreiche BEFUND-Mengen steht aus, sobald DURCHFÜHRUNG-Pässe weiter gelaufen sind.
+
+---
+
+## Verifikation 2026-05-05 (Cross-Typ-Substrat-Erweiterung)
+
+### Diagnose
+
+H3-SYNTHESE sah vorher nur einen Bruchteil des verfügbaren H3-Substrats: FRAGESTELLUNG, FORSCHUNGSGEGENSTAND, BEFUNDE — **nicht aber** das VERWEIS_PROFIL-Aggregat (Top-Autoren/HHI), die GTH-Reflexionsschicht (BLOCK_WUERDIGUNG/ECKPUNKT/DISKURSIV), die EXKURS-Re-Spec-Geschichte oder den AUDIT-Hotspot-Audit-Trail. Output war oberflächlich-affirmativ ("integrative Linie zwischen Klafki und GCED…"), ohne die im VERWEIS_PROFIL bereits sichtbaren Konzentrationen aufzugreifen.
+
+### Output-Vergleich BA H3 dev (Case `c42e2d8f-…`)
+
+**SYNTHESE alt (2026-05-04, max 2000 tokens, 4 cross-typ-reads)**:
+> "integrative Linie zwischen Klafki und GCED, gemeinsames Bildungsverständnis (Mündigkeit, Solidarität, kritische Urteilsfähigkeit), explizite Schlüsselprobleme-Übernahme, Klafkis kritisch-konstruktive Didaktik als didaktisches Gerüst."
+
+**SYNTHESE neu (2026-05-05, max 6000 tokens, 8 cross-typ-reads, sectioned prompt)**: 6 Sätze, benennt jetzt explizit
+> "stark konzentrierten Rückgriff auf Wolfgang Klafki; Chu und Hermes aus dem Theoriebasis-Profil werden in der Synthese nicht erwähnt"
+
+— die Top-1-Share/HHI-Konzentration (Klafki dominiert das VERWEIS_PROFIL) und die im Theoriebasis-Profil gelisteten Sekundär-Autoren tragen jetzt am Material durch. Der LLM benennt dies deskriptiv ("stark konzentrierten Rückgriff", "werden nicht erwähnt"), nicht skalen-wertend — die Stil-Klausel im Prompt verbietet "stark/schwach/lückenhaft" als Wertung; "stark konzentriert" beschreibt den Rückgriff, nicht den Wert.
+
+### Cost-Beobachtung
+
+BA H3 dev (1 BEFUND, 9 SYNTHESE-¶, 1 GTH-Container): ~7.8k input / ~1.1k output Tokens, 22s mit Sonnet 4.6. Token-Aufschlag durch Cross-Typ-Substrat ~+60% gegenüber alter Variante; Output-Substanz Faktor ~2 reicher.
+
+### Defensive Erweiterung
+
+Substrate-Loaders haben hard verifications für Werke, in denen GTH-Reflexion fehlt (BA H3 dev hat noch keinen vollständigen GTH-Reflexions-Pass). Loader gibt dann null/empty zurück, Prompt fällt auf reduzierten Kontext zurück, kein Fail. Memory `feedback_missing_is_finding_not_block` — fehlendes Substrat ist Befund, nicht Blocker.
 
 ---
 

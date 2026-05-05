@@ -2,7 +2,7 @@
 
 Eigenständige Status-Doku (parallel zu `h3_grundlagentheorie_status.md`, `h3_exkurs_status.md`, `h3_synthese_status.md`).
 
-Letztes Update: 2026-05-04 (Erstimplementation gegen BA H3 dev verifiziert; **Recovery-Pfad nachgezogen** — letztes Drittel des letzten Kapitels statt Hard-Fail bei fehlendem SR-Container).
+Letztes Update: 2026-05-05 (Cross-Typ-Substrat-Erweiterung: gemeinsam mit SYNTHESE über `werk-substrate.ts`; rohe argument_nodes-Counts + AUDIT-only-Hotspots + EXKURS-Re-Spec-History + GTH-Reflexion fließen ein; Token-Budget 1500→5000; gegen BA H3 dev verifiziert — Grenzen-Befund nennt jetzt explizit "extreme Konzentration auf Wolfgang Klafki" + "DURCHFÜHRUNG sechs Argumentknoten" + "ohne methodologische Selbstreflexion").
 
 ---
 
@@ -16,11 +16,19 @@ Konkretisierung 2026-05-04 (analog SYNTHESE):
 
 2. **Werk-Aggregat**: anchor = alle ¶ aller SCHLUSSREFLEXION-Container.
 
-3. **Cross-Typ-Reads über Mother-Minimum hinaus erweitert** (Mother-Lücke geschlossen):
-   - FRAGESTELLUNG (EXPOSITION) — Pflicht
-   - FORSCHUNGSGEGENSTAND (GRUNDLAGENTHEORIE, ggf. EXKURS-modifiziert) — Pflicht
-   - GESAMTERGEBNIS + FRAGESTELLUNGS-ANTWORT (SYNTHESE) — Pflicht
-   - METHODEN + BASIS (FORSCHUNGSDESIGN) — optional, für Methoden-/Sample-Grenzen-Reflektion
+3. **Cross-Typ-Reads (Erweiterung 2026-05-05)** — gemeinsam mit SYNTHESE über `src/lib/server/ai/h3/werk-substrate.ts`:
+   - **EXPOSITION**: FRAGESTELLUNG (Pflicht), FRAGESTELLUNG-Beurteilung (optional, sobald Qualifizierung gemerged), MOTIVATION (optional, negative-Signal-fähig)
+   - **FORSCHUNGSDESIGN**: METHODOLOGIE + METHODEN + BASIS (Triple, automatisch geladen — METHODOLOGIE neu, vorher nur METHODEN/BASIS via separatem Loader)
+   - **GRUNDLAGENTHEORIE**:
+     - FORSCHUNGSGEGENSTAND (post-EXKURS via SELECT) + subjectKeywords
+     - VERWEIS_PROFIL Werk-Aggregat: Top-Autoren, HHI (Konzentrations-Hinweis), Top-1-Share, consecutive-cluster-count
+     - GTH-Reflexion (defensive): BLOCK_WUERDIGUNG-Snippets, ECKPUNKT_BEFUND-Verteilung, DISKURSIV_BEZUG_BEFUND-Verteilung
+   - **SYNTHESE**: GESAMTERGEBNIS + FRAGESTELLUNGS-ANTWORT + ERKENNTNIS-INTEGRATION (Pflicht)
+   - **DURCHFÜHRUNG**:
+     - alle BEFUND-Konstrukte mit text!=null (Pflicht)
+     - Audit-only-Hotspots (text=null) als negatives Signal
+     - **rohe argument_nodes-Counts** (Werk-Total + DURCHFÜHRUNG-Subset) — Mother-Setzung 2026-05-05: SR braucht Substanz-Größenordnung des Werk-Inhalts, nicht nur die kondensierten BEFUNDE
+   - **EXKURS**: re_spec-history aus `version_stack` des FORSCHUNGSGEGENSTAND (chronologisch)
 
 4. **Idempotenz**: `delete-before-insert` auf (case_id, document_id, outline_function_type='SCHLUSSREFLEXION', construct_kind='GELTUNGSANSPRUCH'). SR ist die letzte Werk-Heuristik vor WERK_*; kein version_stack-Wachstum jenseits origin.
 
@@ -50,16 +58,35 @@ Prompt-Anweisung im LLM: `needsMoreContext=true` NUR, wenn das vorgelegte Materi
 ## Pipeline (eine Stufe pro Werk)
 
 ```
-1 LLM-Call mit Input:
-  - FRAGESTELLUNG (EXPOSITION)
-  - FORSCHUNGSGEGENSTAND (GTH, ggf. EXKURS-modifiziert)
+Cross-Typ-Substrat-Loading via werk-substrate.ts (Promise.all, parallel,
+ gemeinsam mit SYNTHESE — defensive Loaders, fehlende Konstrukte → null/empty):
+  - FRAGESTELLUNG + Beurteilung (optional) + MOTIVATION (optional)
+  - FORSCHUNGSDESIGN-Triple: METHODOLOGIE + METHODEN + BASIS
+  - FORSCHUNGSGEGENSTAND (post-EXKURS) + subjectKeywords
+  - VERWEIS_PROFIL Werk-Aggregat: Top-Autoren + HHI + Top-1-Share + cluster-count
+  - GTH-Reflexion: BLOCK_WUERDIGUNG-Snippets + ECKPUNKT/DISKURSIV-Verteilung
   - GESAMTERGEBNIS + FRAGESTELLUNGS-ANTWORT (SYNTHESE)
-  - METHODEN + BASIS (FORSCHUNGSDESIGN, optional)
+  - alle BEFUND-Konstrukte mit text!=null
+  - Audit-only-Hotspots (text=null)
+  - argument_substrate-counts: Werk-Total + DURCHFÜHRUNG-Subset
+  - re_spec-history aus FG.version_stack
   - alle SCHLUSSREFLEXION-Container ¶ (global indexiert)
+
+1 LLM-Call mit Input (sectioned prompt):
+  === KONTEXT === FRAGESTELLUNG + Beurteilung + MOTIVATION
+  === METHODISCHES SETUP === METHODOLOGIE/METHODEN/BASIS
+  === THEORIEBASIS-PROFIL === VERWEIS_PROFIL + GTH-Reflexion + EXKURS-Re-Spec
+  === EMPIRIE-SUBSTRAT === BEFUNDE + Audit-Hotspots + argument-counts
+  === GESAMTERGEBNIS === SYNTHESE-Output (GESAMTERGEBNIS + FRAGE-ANTWORT)
+  === SCHLUSSREFLEXION-MATERIAL === alle ¶ aller SR-Container
+
 → JSON-Output:
-  - geltungsanspruchText (1–4 Sätze deskriptiv)
-  - grenzenText (1–4 Sätze deskriptiv)
-  - anschlussforschungText (1–4 Sätze deskriptiv)
+  - geltungsanspruchText (3–6 Sätze deskriptiv, TEIL A)
+  - grenzenText (3–6 Sätze, 4 Bullets: methodisch / Theoriebasis / empirisch /
+                 Geltungsbereich, TEIL B)
+  - anschlussforschungText (2–5 Sätze, TEIL C)
+  - needsMoreContext: bool (für Recovery-Pfad-Eskalation)
+
 Persistenz:
   - delete prior GELTUNGSANSPRUCH für (case_id, document_id)
   - INSERT new GELTUNGSANSPRUCH-Konstrukt mit:
@@ -67,11 +94,12 @@ Persistenz:
     * construct_kind='GELTUNGSANSPRUCH'
     * anchor_element_ids = alle ¶ aller SR-Container
     * content = {geltungsanspruchText, grenzenText, anschlussforschungText,
-                 containerOverview, hadMethoden, hadBasis, llmModel, llmTimingMs}
+                 containerOverview, recoveryStage, crossTypeReads (Snapshot),
+                 llmModel, llmTimingMs}
     * version_stack = [{kind:'origin', ...}]
 ```
 
-Default-Modell: `openrouter/anthropic/claude-sonnet-4.6`. Max-Tokens 1500.
+Default-Modell: `openrouter/anthropic/claude-sonnet-4.6`. Max-Tokens 5000 (vorher 1500 — Cross-Typ-Substrat reichlich + 4-Bullet-GRENZEN-Struktur + Recovery-Eskalations-Spielraum).
 
 ---
 
@@ -79,7 +107,8 @@ Default-Modell: `openrouter/anthropic/claude-sonnet-4.6`. Max-Tokens 1500.
 
 | Datei | Inhalt |
 |---|---|
-| `src/lib/server/ai/h3/schlussreflexion.ts` | `loadSchlussreflexionContainers`, Cross-Typ-Loaders mit Diagnostics, `loadMethodenAndBasis`, `extractSchlussreflexion` (LLM mit drei-teiliger Aufgabe), `clearExistingSchlussreflexion`, `persistSchlussreflexion`, `runSchlussreflexionPass` |
+| `src/lib/server/ai/h3/werk-substrate.ts` | **Gemeinsame Cross-Typ-Loaders SYNTHESE+SR** (2026-05-05): siehe `h3_synthese_status.md`. Loader-Set wird in beiden Pässen gleich aufgerufen (Promise.all), Format-Helpers liefern deskriptive Prompt-Strings. `loadForschungsdesignTriple` ersetzt das alte SR-lokale `loadMethodenAndBasis` (METHODOLOGIE neu hinzugekommen). |
+| `src/lib/server/ai/h3/schlussreflexion.ts` | `loadSchlussreflexionContainers`, Cross-Typ-Loaders mit Diagnostics (jetzt aus werk-substrate), `extractSchlussreflexion` (LLM mit drei-teiliger Aufgabe + sectioned prompt + Recovery-Eskalations-Schema), `clearExistingSchlussreflexion`, `persistSchlussreflexion`, `runSchlussreflexionPass` (Promise.all-Parallelladung der cross-typ-Substrate vor LLM-Call) |
 | `scripts/test-h3-schlussreflexion.ts` | CLI-Test mit `--persist`, `--provider=…/--model=…` |
 
 ---
@@ -112,6 +141,38 @@ Habil-Case `2635e73c-…`, 1 SR-Container "Fazit" (2 ¶), alle Cross-Typ-Reads v
    *"Die Schlussreflexion benennt keine methodischen oder sampling-bezogenen Grenzen explizit; … Aus dem Forschungsdesign ergibt sich eine thematisch relevante Grenze, die laut Forschungsdesign-Beschreibung im Werk selbst reflektiert wird: Das Sample umfasst vorwiegend Studierende ohne stark kulturell diversifizierte Lebenswelt, was die Tragfähigkeit der empirischen Basis für die Gesamtfragestellung einer Lehrkräftebildung unter Bedingungen globaler Komplexität einschränkt. Diese Grenze wird in der eigentlichen Schlussreflexion jedoch nicht mehr aufgegriffen."*
    Genau das ist der Wert der Mother-Lücken-Schließung (METHODEN/BASIS als optional Cross-Typ-Read): der LLM erkennt die im FORSCHUNGSDESIGN reflektierte Sample-Grenze und macht transparent, dass die SCHLUSSREFLEXION sie nicht aufgreift.
 - ANSCHLUSSFORSCHUNG: *"keine expliziten Anschlussforschungsfragen", "implizites Desiderat für praktische Implementierungen und deren Evaluation"*
+
+---
+
+## Verifikation 2026-05-05 (Cross-Typ-Substrat-Erweiterung)
+
+### Diagnose
+
+H3-SR sah vorher nur FRAGESTELLUNG / FORSCHUNGSGEGENSTAND / GESAMTERGEBNIS / FRAGESTELLUNGS-ANTWORT (Pflicht) + METHODEN/BASIS (optional). **Nicht** sichtbar: VERWEIS_PROFIL-Aggregat, GTH-Reflexionsschicht, METHODOLOGIE, EXKURS-Re-Spec-History, AUDIT-only-Hotspots, **rohe argument_nodes-Counts** (Werk-Substanz-Größenordnung). Output war oberflächlich-kompetent ("Werk benennt keine methodischen Grenzen explizit"), aber ohne Bezug zu den im VERWEIS_PROFIL bereits sichtbaren Konzentrationen oder zur tatsächlichen Argumentationssubstanz.
+
+### Output-Vergleich BA H3 dev (Case `c42e2d8f-…`)
+
+**SR alt (2026-05-04, max 1500 tokens, ~5 cross-typ-reads)**:
+> "Das Werk benennt keine methodischen oder korpusbezogenen Grenzen … explizit; Fragen nach der Auswahl der herangezogenen UNESCO-Dokumente und Klafki-Schriften sowie nach der Intersubjektivität des Vergleichsverfahrens bleiben unreflektiert."
+
+**SR neu (2026-05-05, max 5000 tokens, ~13 cross-typ-reads, sectioned prompt)**: GRENZEN-Befund mit 4-Bullet-Struktur, benennt jetzt
+> "extreme Konzentration auf Wolfgang Klafki" (VERWEIS_PROFIL Top-1-Share) +
+> "DURCHFÜHRUNG sechs Argumentknoten" (rohes argument-substrate-count, ein Werk-Substanz-Signal) +
+> "ohne methodologische Selbstreflexion" (METHODOLOGIE-Bezug — METHODOLOGIE existiert im FORSCHUNGSDESIGN-Pass, SR sieht nun diesen Stand)
+
+— alle drei Befunde sind deskriptiv-präzise und stützen sich auf neu zugänglich gemachtes Substrat. Stil-Klausel im Prompt verbietet Skalen-Wertung; "extreme Konzentration" beschreibt den Rückgriff, nicht den Wert.
+
+### Cost-Beobachtung
+
+BA H3 dev (1 SR-Container, 2 ¶, alle Cross-Typ-Reads vorhanden + 6 argument_nodes): ~7.2k input / ~1.5k output Tokens, 28s mit Sonnet 4.6. Token-Aufschlag durch Cross-Typ-Substrat ~+80% gegenüber alter Variante; Output-Substanz Faktor ~2.5 reicher und konkret-an-Material-rückführbar.
+
+### Defensive Verhalten bei fehlendem Substrat
+
+`loadGthReflexionAggregate` gibt empty zurück, wenn BLOCK_WUERDIGUNG/ECKPUNKT/DISKURSIV noch fehlen (BA H3 dev hat partielle GTH-Reflexion). `loadFragestellungBeurteilung` gibt null zurück bevor Qualifizierung gemerged ist. `loadAuditOnlyHotspots` gibt empty zurück bei Werken ohne DURCHFÜHRUNG-Pass. In allen Fällen läuft der Pass durch — das fehlende Substrat erscheint im Prompt schlicht nicht. Memory `feedback_missing_is_finding_not_block`.
+
+### Bug-Fix Argument-Substrate-Query (2026-05-05)
+
+`loadArgumentSubstrateCounts` initial fehlerhaft: SQL referenzierte `argument_nodes.document_id`, das Schema hat aber `paragraph_element_id` referencing `document_elements.id`. Korrigiert via `JOIN document_elements p ON p.id = an.paragraph_element_id` mit Filter auf `p.document_id`. Beide Queries (Werk-Total + DURCHFÜHRUNG-Subset) angepasst.
 
 ---
 

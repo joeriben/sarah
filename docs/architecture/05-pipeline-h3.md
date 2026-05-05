@@ -220,33 +220,45 @@ Validierung 2026-05-04 gegen BA H3 dev mit temp-Markierung "Theoretischer Rahmen
 
 **V.3.0-Roadmap**: intelligenterer Stack mit LLM-detektabler transformatorischer Emergenz (Stack-Diff als Fortschritt/Regression-Indikator). Dafür müsste der LLM die Stack-Sequenz lesen und Bewegungen klassifizieren. Heute deferred — der Stack ist materialisiert, aber nicht instrumentiert.
 
-### 4.6 SYNTHESE (`ai/h3/synthese.ts`) — **implementiert, validiert (BA H3 dev)**
+### 4.6 SYNTHESE (`ai/h3/synthese.ts`) — **implementiert, Cross-Typ-Substrat-Erweiterung 2026-05-05 verifiziert**
 
-Architektur (User-Setzung 2026-05-04): ein Konstrukt `construct_kind='GESAMTERGEBNIS'` mit reichem content (`gesamtergebnisText`, `fragestellungsAntwortText`, `erkenntnisIntegration[]`, `coverageRatio`). Werk-Aggregat: anchor = alle ¶ aller SYNTHESE-Container des Werks.
+Architektur (User-Setzung 2026-05-04): ein Konstrukt `construct_kind='GESAMTERGEBNIS'` mit reichem content (`gesamtergebnisText`, `fragestellungsAntwortText`, `erkenntnisIntegration[]`, `coverageRatio`, `crossTypeReads`). Werk-Aggregat: anchor = alle ¶ aller SYNTHESE-Container des Werks.
 
-Pipeline (1 LLM-Call pro Werk, default Sonnet 4.6, max 2000 Tokens):
-- Cross-Typ-Reads: FRAGESTELLUNG (EXPOSITION), FORSCHUNGSGEGENSTAND (GTH, ggf. EXKURS-modifiziert), alle BEFUND-Konstrukte mit text!=null (DURCHFÜHRUNG)
-- LLM-Aufgabe in drei Teilen: (A) deskriptiver GESAMTERGEBNIS-Text, (B) FRAGESTELLUNGS-ANTWORT, (C) Integration-Map pro BEFUND mit binärem `integriert` + optional anchor-¶ + Critical-Friend-Hinweis bei Nicht-Integration
+**Cross-Typ-Substrat-Erweiterung 2026-05-05** (User-Setzung "ok, mach das so!"): SYNTHESE und SR teilen sich jetzt einen gemeinsamen Substrate-Loader-Layer in `src/lib/server/ai/h3/werk-substrate.ts`. Was vorher Bruchteil des verfügbaren H3-Substrats war, fließt jetzt vollständig ein:
+- **EXPOSITION**: FRAGESTELLUNG + Beurteilung (optional, sobald Qualifizierung gemerged) + MOTIVATION (optional)
+- **FORSCHUNGSDESIGN**: METHODOLOGIE + METHODEN + BASIS (Triple)
+- **GRUNDLAGENTHEORIE**: FORSCHUNGSGEGENSTAND (post-EXKURS via SELECT) + VERWEIS_PROFIL Werk-Aggregat (Top-Autoren/HHI/Top-1-Share/cluster-count) + GTH-Reflexion (BLOCK_WUERDIGUNG/ECKPUNKT/DISKURSIV-Verteilungen, defensive)
+- **DURCHFÜHRUNG**: alle BEFUNDE mit text!=null + Audit-only-Hotspots (text=null, negatives Signal) + argument_substrate-counts
+- **EXKURS**: re_spec-history aus FG.version_stack (chronologisch)
+
+Pipeline (1 LLM-Call pro Werk, default Sonnet 4.6, **max 6000 Tokens** — vorher 2000):
+- Sectioned prompt: KONTEXT / METHODISCHES SETUP / THEORIEBASIS-PROFIL / EMPIRIE-SUBSTRAT / BEFUNDE-LISTE / SYNTHESE-MATERIAL
+- LLM-Aufgabe in drei Teilen: (A) GESAMTERGEBNIS 5–8 Sätze (vorher 3–5), (B) FRAGESTELLUNGS-ANTWORT 2–4 Sätze (vorher 1–3), (C) Integration-Map pro BEFUND
+- Stil-Klausel im Prompt verbietet Skalen-Adjektive ("stark/schwach/lückenhaft/tragfähig") — nur deskriptive Verben (Memory `project_critical_friend_identity`)
 - Server-seitig: LLM-Indices auf UUIDs gemappt, `coverageRatio = integratedCount / befundCount`
 
-Idempotent (delete-before-insert pro Werk). Kein version_stack-Wachstum jenseits origin (SYNTHESE wird von keiner späteren Heuristik re-spezifiziert; SCHLUSSREFLEXION setzt sich daneben).
+Idempotent (delete-before-insert pro Werk). Kein version_stack-Wachstum jenseits origin.
 
-Validierung 2026-05-04 gegen BA H3 dev (2 SYNTHESE-Container, 9 ¶, 1 BEFUND): GESAMTERGEBNIS und FRAGESTELLUNGS-ANTWORT deskriptiv-präzise, FRAGESTELLUNGS-ANTWORT mit Critical-Friend-Diagnose ("affirmativ-harmonisierend statt kritisch-differenzierend"); ERKENNTNIS-INTEGRATION mit coverage=0% und konkretem Hinweis, welcher BEFUND nicht adressiert ist. 4.8k in / 843 out Tokens, 18s. Idempotenz verifiziert (zweiter Lauf ersetzt prior).
+Validierung 2026-05-05 gegen BA H3 dev: GESAMTERGEBNIS benennt jetzt explizit "stark konzentrierten Rückgriff auf Wolfgang Klafki; Chu und Hermes aus dem Theoriebasis-Profil werden in der Synthese nicht erwähnt" — VERWEIS_PROFIL-HHI/Top-1-Share trägt am Material durch. Output-Substanz Faktor ~2 reicher als 2026-05-04, Token-Aufschlag ~+60%. Defensive Loaders verifiziert: fehlende GTH-Reflexion (BA H3 dev partial) → reduzierter Kontext, kein Fail. Detail in `docs/h3_synthese_status.md` §"Verifikation 2026-05-05".
 
-### 4.7 SCHLUSSREFLEXION (`ai/h3/schlussreflexion.ts`) — **implementiert, validiert (BA H3 dev)**
+### 4.7 SCHLUSSREFLEXION (`ai/h3/schlussreflexion.ts`) — **implementiert, Cross-Typ-Substrat-Erweiterung 2026-05-05 verifiziert**
 
-Architektur (User-Setzung 2026-05-04, analog SYNTHESE): ein Konstrukt `construct_kind='GELTUNGSANSPRUCH'` mit reichem content (`geltungsanspruchText`, `grenzenText`, `anschlussforschungText`). Werk-Aggregat (anchor = alle ¶ aller SR-Container).
+Architektur (User-Setzung 2026-05-04, analog SYNTHESE): ein Konstrukt `construct_kind='GELTUNGSANSPRUCH'` mit reichem content (`geltungsanspruchText`, `grenzenText`, `anschlussforschungText`, `crossTypeReads`). Werk-Aggregat (anchor = alle ¶ aller SR-Container).
 
-Pipeline (1 LLM-Call pro Werk, Sonnet 4.6, max 1500 Tokens):
-- Cross-Typ-Reads (Pflicht): FRAGESTELLUNG, FORSCHUNGSGEGENSTAND, GESAMTERGEBNIS + FRAGESTELLUNGS-ANTWORT
-- Optional: METHODEN + BASIS (FORSCHUNGSDESIGN) für Methoden-/Sample-Grenzen-Reflektion (Mother-Lücke geschlossen — Mother nannte nur GESAMTERGEBNIS+FRAGESTELLUNG)
-- LLM-Aufgabe in drei Teilen: deskriptive Texte für Geltungsanspruch, Grenzen, Anschlussforschung. Bei impliziten/fehlenden Komponenten: deskriptiv benennen ("Werk reflektiert keine Methoden-Grenzen explizit"), nicht weglassen.
+**Cross-Typ-Substrat-Erweiterung 2026-05-05**: SR und SYNTHESE teilen sich `werk-substrate.ts`. Über das SYNTHESE-Set hinaus liest SR zusätzlich (a) das **GESAMTERGEBNIS + FRAGESTELLUNGS-ANTWORT** als bereits konsolidierten Werk-Befund (SYNTHESE läuft vor SR) und (b) **rohe argument_nodes-Counts** (Werk-Total + DURCHFÜHRUNG-Subset) als Werk-Substanz-Größenordnung (Mother-Setzung: SR braucht nicht nur die kondensierten BEFUNDE, sondern auch das Volumen der dahinterliegenden Argumentation). `loadForschungsdesignTriple` ersetzt das alte SR-lokale `loadMethodenAndBasis` — METHODOLOGIE neu hinzugekommen (das alte `loadMethodenAndBasis` war Loader-Lokal in schlussreflexion.ts und las nur METHODEN/BASIS).
 
-Idempotent (delete-before-insert pro Werk). Kein version_stack-Wachstum (SR ist letzter werk-strukturierter Pass vor WERK_*).
+Pipeline (1 LLM-Call pro Werk, Sonnet 4.6, **max 5000 Tokens** — vorher 1500):
+- Sectioned prompt: KONTEXT / METHODISCHES SETUP / THEORIEBASIS-PROFIL / EMPIRIE-SUBSTRAT / GESAMTERGEBNIS / SCHLUSSREFLEXION-MATERIAL
+- LLM-Aufgabe in drei Teilen mit erweiterter Sätze-Anzahl: (A) GELTUNGSANSPRUCH 3–6 Sätze (vorher 1–4), (B) GRENZEN 3–6 Sätze in 4 Bullets (methodisch / Theoriebasis / empirisch / Geltungsbereich) (vorher 1–4 frei), (C) ANSCHLUSSFORSCHUNG 2–5 Sätze (vorher 1–4)
+- Bei impliziten/fehlenden Komponenten: deskriptiv benennen ("Werk reflektiert keine Methoden-Grenzen explizit"), nicht weglassen.
 
-Schlüsselwort-Vorauswahl (Mother-Idee) heute nicht als Pre-Filter implementiert — Vollkontext-Pass läuft pragmatisch auf BA H3 dev ohne Probleme. Pre-Filter als Optimierung deferred.
+Idempotent (delete-before-insert pro Werk). Kein version_stack-Wachstum.
 
-Validierung 2026-05-04 gegen BA H3 dev (1 SR-Container "Kritische Reflexion", 2 ¶, alle Cross-Typ-Reads vorhanden inkl. METHODEN/BASIS): GELTUNGSANSPRUCH benennt explizit den deklarierten Anspruch und seine Reichweiten-Limits, GRENZEN diagnostiziert präzise *"Das Werk benennt keine methodischen oder korpusbezogenen Grenzen explizit"* und identifiziert den deklarierten-aber-nicht-ausgearbeiteten Vergleich als methodische Schwäche, ANSCHLUSSFORSCHUNG extrahiert implizite Anschlussrichtungen. 4.1k in / 688 out Tokens, 16.7s. Idempotenz verifiziert.
+**Recovery-Pfad** (User-Setzung 2026-05-04, unverändert): bei fehlendem SR-Container statt Hard-Fail das letzte Drittel des letzten Top-Level-Kapitels durchsuchen, Stage-2-Eskalation bei `needsMoreContext=true`. Persistierter `recoveryStage`-Marker. Detail in `docs/h3_schlussreflexion_status.md`.
+
+Schlüsselwort-Vorauswahl (Mother-Idee) heute nicht als Pre-Filter implementiert — Vollkontext-Pass läuft pragmatisch.
+
+Validierung 2026-05-05 gegen BA H3 dev: GRENZEN-Befund mit 4-Bullet-Struktur, benennt jetzt "extreme Konzentration auf Wolfgang Klafki" (VERWEIS_PROFIL Top-1-Share) + "DURCHFÜHRUNG sechs Argumentknoten" (rohes argument-substrate-count, Werk-Substanz-Signal) + "ohne methodologische Selbstreflexion" (METHODOLOGIE-Bezug — neu im Cross-Typ-Set). Output-Substanz Faktor ~2.5 reicher als 2026-05-04, Token-Aufschlag ~+80%. Defensive Loaders verifiziert (fehlende GTH-Reflexion / fehlende FRAGESTELLUNG-Beurteilung → reduzierter Kontext, kein Fail). Bug-Fix in `loadArgumentSubstrateCounts`: `argument_nodes` hat `paragraph_element_id`, kein `document_id` direkt — JOIN auf `document_elements` korrigiert. Detail in `docs/h3_schlussreflexion_status.md` §"Verifikation 2026-05-05".
 
 ### 4.8 WERK_STRUKTUR — **nicht implementiert.**
 
