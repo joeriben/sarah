@@ -103,7 +103,7 @@
 	const VIEW_LABEL: Record<View, string> = {
 		pipeline: 'Pipeline',
 		dokument: 'Dokument',
-		outline: 'Outline',
+		outline: 'Synthesen',
 		companions: 'Begleitdocs',
 	};
 
@@ -769,6 +769,25 @@
 
 	// Effective outline (mit Level/Numbering aus loadEffectiveOutline) + Heading-Element-Lookup.
 	const visibleOutline = $derived(outlineEntries.filter((e) => !e.excluded));
+
+	// Synthesen-Tab Hx-Verfügbarkeit (Drei-Heuristiken-Architektur):
+	// werk-/heading-Ebene pro Heuristik. Layout im Synthesen-Tab schaltet
+	// auto auf 1-/2-/3-Spalten je nach Anzahl belegter Hx — damit der User
+	// die werk-Verdikte nebeneinander lesen kann.
+	//   H1: Werk-Synthese, Kapitelverlauf, Heading-Synthesen
+	//   H2: heute leer (synthetisch-hermeneutisch ist per-¶, kein Werk-Aggregat)
+	//   H3: WERK_DESKRIPTION, WERK_GUTACHT
+	const synthesenAvail = $derived.by(() => {
+		const h1 = workSynthesis !== null || chapterFlow !== null;
+		const h2 = false;
+		const h3 = (werkConstructs ?? []).some(
+			(c) => c.outline_function_type === 'WERK_DESKRIPTION' || c.outline_function_type === 'WERK_GUTACHT'
+		);
+		return { h1, h2, h3 };
+	});
+	const synthesenColCount = $derived(
+		(synthesenAvail.h1 ? 1 : 0) + (synthesenAvail.h2 ? 1 : 0) + (synthesenAvail.h3 ? 1 : 0)
+	);
 
 	// Sanity-Heuristik: Heading-Texte > 200 Zeichen sind quasi immer parser-
 	// fehlklassifizierte Sätze (Autor:in hat einen Absatz mit Heading-Style versehen).
@@ -1577,15 +1596,7 @@
 					{@const canResume = run && run.status === 'paused'}
 
 					<div class="pipeline-head">
-						<div>
-							<h2>Analyselauf</h2>
-							<p class="pipeline-sub">
-								Die argumentanalytische Pipeline läuft sequenziell über das zentrale Dokument.
-								Du startest den Lauf einmal — die Pässe werden in der korrekten Reihenfolge
-								automatisch durchgezogen. Du kannst jederzeit pausieren und später
-								fortsetzen, ohne Zwischenstand zu verlieren.
-							</p>
-						</div>
+						<h2>Analyselauf</h2>
 						<button
 							class="refresh-btn"
 							onclick={loadPipelineStatus}
@@ -1603,7 +1614,7 @@
 						{#if !agEnabled}
 							<div class="brief-warn">
 								Im aktuell gewählten Brief ist <code>argumentation_graph</code> auf <code>false</code> gesetzt.
-								Die analytische Hauptlinie produziert keine Argumente. Wechsle den Brief am
+								H1 produziert keine Argumente. Wechsle den Brief am
 								Doc-Header, um die Pipeline zu aktivieren.
 							</div>
 						{/if}
@@ -1784,14 +1795,14 @@
 							{/if}
 						</div>
 
-						<!-- H1 — Analytische Hauptlinie -->
+						<!-- H1 — Argumentanalyse -->
 						<section
 							class="passes-section"
 							class:active-path={effectiveHeuristic === 'h1'}
 						>
 							<header class="passes-section-head">
 								<h3>
-									H1 · Analytische Hauptlinie
+									H1 · Argumentanalyse
 									{#if effectiveHeuristic === 'h1'}
 										<span class="path-tag active">aktiver Pfad</span>
 									{/if}
@@ -1857,6 +1868,53 @@
 									</article>
 								{/each}
 							</div>
+						</section>
+
+						<!-- H2 — Synthetisch-hermeneutische Memos -->
+						<section
+							class="passes-section"
+							class:active-path={effectiveHeuristic === 'h2'}
+						>
+							<header class="passes-section-head">
+								<h3>
+									H2 · Synthetisch-hermeneutische Memos
+									{#if effectiveHeuristic === 'h2'}
+										<span class="path-tag active">aktiver Pfad</span>
+									{/if}
+								</h3>
+								<p>
+									Erzeugt pro Absatz eine sequenzielle, narrative Lesart unter Bezug
+									auf die vorhergehenden Absätze desselben Subkapitels. Memos
+									erscheinen im Reader-Modal als zusätzliche Lese-Hilfe; sie fließen
+									nicht in die H1-Aggregation auf Subkapitel-/Hauptkapitel-/Werk-Ebene
+									ein.
+								</p>
+							</header>
+							{#if pipelineStatus.passes.paragraph_synthetic}
+								{@const synth = pipelineStatus.passes.paragraph_synthetic}
+								{@const synthState = passState(synth)}
+								<div class="pass-grid">
+									<article class="pass-card pass-{synthState}">
+										<header class="pass-head">
+											<span class="pass-num">1</span>
+											<h4>{PASS_LABEL.paragraph_synthetic}</h4>
+											<span class="pass-state-tag tag-{synthState}">
+												{synthState === 'done' ? 'Abgeschlossen' : synthState === 'partial' ? 'Teilweise' : 'Offen'}
+											</span>
+										</header>
+										<p class="pass-desc">{PASS_DESC.paragraph_synthetic}</p>
+										<div class="pass-progress">
+											<div class="bar"><div class="bar-fill" style:width="{passPercent(synth)}%"></div></div>
+											<span class="pass-counts">
+												{synth.completed}{synth.total != null ? ` / ${synth.total}` : ''}
+											</span>
+										</div>
+										<div class="pass-meta">
+											<span class="last-run">Letzter Lauf: {formatLastRun(synth.last_run)}</span>
+										</div>
+									</article>
+								</div>
+							{/if}
 						</section>
 
 						<!-- H3 — Funktionstyp-orchestrierte Heuristiken -->
@@ -1945,8 +2003,8 @@
 									<span class="addendum-tag">einzelner Klick · Opus</span>
 								</h3>
 								<p>
-									Zusätzliche Bausteine, die nach der analytischen Hauptlinie auf Klick
-									erzeugt werden — kein Pflichtbestandteil der Pipeline.
+									Zusätzliche Bausteine, die auf Klick erzeugt werden — kein
+									Pflichtbestandteil der Pipeline.
 								</p>
 							</header>
 							<article class="pass-card pass-{flowDone ? 'done' : 'pending'} pass-on-demand">
@@ -1994,48 +2052,6 @@
 							</article>
 						</section>
 
-						<!-- Addendum -->
-						<section class="passes-section addendum">
-							<header class="passes-section-head">
-								<h3>
-									Addendum
-									<span class="addendum-tag">optional · zusätzliche Kosten</span>
-								</h3>
-								<p>
-									Der synthetisch-hermeneutische Per-Absatz-Memo ist <strong>nicht
-									Teil der analytischen Aggregation</strong>. Er erzeugt pro Absatz eine
-									sequenzielle, narrative Lesart unter Bezug auf die vorhergehenden Absätze
-									desselben Subkapitels. Diese Memos erscheinen im Reader-Modal als
-									zusätzliche Lese-Hilfe; in die Subkapitel-/Hauptkapitel-/Werk-Synthese
-									fließen sie nicht ein. Aktiviere die Checkbox oben, wenn der Addendum-Pass
-									im Lauf mitlaufen soll — er verdoppelt grob die Zahl der LLM-Calls auf
-									Absatz-Ebene.
-								</p>
-							</header>
-							{#if pipelineStatus.passes.paragraph_synthetic}
-								{@const synth = pipelineStatus.passes.paragraph_synthetic}
-								{@const synthState = passState(synth)}
-								<article class="pass-card pass-{synthState} pass-addendum">
-									<header class="pass-head">
-										<span class="pass-num add">+</span>
-										<h4>{PASS_LABEL.paragraph_synthetic}</h4>
-										<span class="pass-state-tag tag-{synthState}">
-											{synthState === 'done' ? 'Abgeschlossen' : synthState === 'partial' ? 'Teilweise' : 'Offen'}
-										</span>
-									</header>
-									<p class="pass-desc">{PASS_DESC.paragraph_synthetic}</p>
-									<div class="pass-progress">
-										<div class="bar"><div class="bar-fill" style:width="{passPercent(synth)}%"></div></div>
-										<span class="pass-counts">
-											{synth.completed}{synth.total != null ? ` / ${synth.total}` : ''}
-										</span>
-									</div>
-									<div class="pass-meta">
-										<span class="last-run">Letzter Lauf: {formatLastRun(synth.last_run)}</span>
-									</div>
-								</article>
-							{/if}
-						</section>
 					{:else if !pipelineLoading}
 						<p class="empty">Noch keine Statusdaten geladen.</p>
 					{/if}
@@ -2121,7 +2137,7 @@
 			<section class="tab-content outline-tab">
 				{#if visibleOutline.length === 0}
 					<div class="placeholder">
-						<h2>Outline</h2>
+						<h2>Synthesen</h2>
 						<p>
 							Keine Hauptkapitel-Headings im Dokument erkannt. Prüfe das
 							Inhaltsverzeichnis über den Link oben.
@@ -2129,76 +2145,87 @@
 					</div>
 				{:else}
 					<div class="export-bar" title="Werk-Reflexion (Werk-Synthese, Kapitelverlauf, Werk-Beschreibung, Werk-Gutachten, Heading-Synthesen) als Datei herunterladen — DOCX/PDF nutzen native Heading-Styles als Navigations-Anker.">
-						<span class="export-bar-label">Werk-Reflexion exportieren:</span>
 						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=docx`} download>↓ DOCX</a>
 						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=pdf`} download>↓ PDF</a>
 						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=md`} download>↓ MD</a>
 						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=json`} download>↓ JSON</a>
 					</div>
-					{#if workSynthesis}
-						<article class="work-verdict">
-							<header class="work-verdict-head">
-								<span class="work-tag">H1 · Gesamtverdikt</span>
-								<h2>Werk-Synthese</h2>
-							</header>
-							<div class="work-content">{workSynthesis.content}</div>
-						</article>
-					{/if}
-					{#if chapterFlow}
-						<article class="work-verdict chapter-flow">
-							<header class="work-verdict-head">
-								<span class="work-tag flow-tag">H1 · Kapitelverlauf</span>
-								<h2>Argumentations­bewegung über die Kapitelfolge</h2>
-							</header>
-							<div class="work-content">{chapterFlow.content}</div>
-						</article>
-					{/if}
-					{#each (werkConstructs ?? []).filter((c) => c.outline_function_type === 'WERK_DESKRIPTION') as c (c.id)}
-						{@const text = pickText(c, 'werkBeschreibungText', 'text')}
-						{#if text}
-							<article class="work-verdict">
-								<header class="work-verdict-head">
-									<span class="work-tag">H3 · Beschreibung</span>
-									<h2>Werk-Beschreibung</h2>
-								</header>
-								<div class="work-content">{text}</div>
-							</article>
-						{/if}
-					{/each}
-					{#each (werkConstructs ?? []).filter((c) => c.outline_function_type === 'WERK_GUTACHT') as c (c.id)}
-						{@const aText = pickText(c, 'aText')}
-						{@const bText = pickText(c, 'bText')}
-						{@const cText = pickText(c, 'cText')}
-						{@const gatingDisabled = (c.content as { gatingDisabled?: boolean }).gatingDisabled === true}
-						{#if aText || bText || cText}
-							<article class="work-verdict">
-								<header class="work-verdict-head">
-									<span class="work-tag">H3 · Würdigung (Critical Friend)</span>
-									<h2>Werk-Gutachten</h2>
-								</header>
-								<div class="work-content">
-									{#if aText}
-										<div class="werk-subblock">
-											<h5>a · Werk im Lichte der Fragestellung</h5>
-											<p class="werk-paragraph">{aText}</p>
-										</div>
+					{#if synthesenColCount > 0}
+						<div class="synthesen-grid" data-cols={synthesenColCount}>
+							{#if synthesenAvail.h1}
+								<div class="synthesen-col">
+									{#if workSynthesis}
+										<article class="work-verdict">
+											<header class="work-verdict-head">
+												<span class="work-tag">H1 · Gesamtverdikt</span>
+												<h2>Werk-Synthese</h2>
+											</header>
+											<div class="work-content">{workSynthesis.content}</div>
+										</article>
 									{/if}
-									{#if bText}
-										<div class="werk-subblock">
-											<h5>b · Hotspot-Würdigung</h5>
-											<p class="werk-paragraph">{bText}</p>
-										</div>
-									{/if}
-									{#if cText}
-										<div class="werk-subblock">
-											<h5>c · Fazit{gatingDisabled ? ' (Gating zur Test-Phase deaktiviert — eigentlich gegated durch eigenen Review-Draft)' : ''}</h5>
-											<p class="werk-paragraph">{cText}</p>
-										</div>
+									{#if chapterFlow}
+										<article class="work-verdict chapter-flow">
+											<header class="work-verdict-head">
+												<span class="work-tag flow-tag">H1 · Kapitelverlauf</span>
+												<h2>Argumentations­bewegung über die Kapitelfolge</h2>
+											</header>
+											<div class="work-content">{chapterFlow.content}</div>
+										</article>
 									{/if}
 								</div>
-							</article>
-						{/if}
-					{/each}
+							{/if}
+							{#if synthesenAvail.h3}
+								<div class="synthesen-col">
+									{#each (werkConstructs ?? []).filter((c) => c.outline_function_type === 'WERK_DESKRIPTION') as c (c.id)}
+										{@const text = pickText(c, 'werkBeschreibungText', 'text')}
+										{#if text}
+											<article class="work-verdict">
+												<header class="work-verdict-head">
+													<span class="work-tag">H3 · Beschreibung</span>
+													<h2>Werk-Beschreibung</h2>
+												</header>
+												<div class="work-content">{text}</div>
+											</article>
+										{/if}
+									{/each}
+									{#each (werkConstructs ?? []).filter((c) => c.outline_function_type === 'WERK_GUTACHT') as c (c.id)}
+										{@const aText = pickText(c, 'aText')}
+										{@const bText = pickText(c, 'bText')}
+										{@const cText = pickText(c, 'cText')}
+										{@const gatingDisabled = (c.content as { gatingDisabled?: boolean }).gatingDisabled === true}
+										{#if aText || bText || cText}
+											<article class="work-verdict">
+												<header class="work-verdict-head">
+													<span class="work-tag">H3 · Würdigung (Critical Friend)</span>
+													<h2>Werk-Gutachten</h2>
+												</header>
+												<div class="work-content">
+													{#if aText}
+														<div class="werk-subblock">
+															<h5>a · Werk im Lichte der Fragestellung</h5>
+															<p class="werk-paragraph">{aText}</p>
+														</div>
+													{/if}
+													{#if bText}
+														<div class="werk-subblock">
+															<h5>b · Hotspot-Würdigung</h5>
+															<p class="werk-paragraph">{bText}</p>
+														</div>
+													{/if}
+													{#if cText}
+														<div class="werk-subblock">
+															<h5>c · Fazit{gatingDisabled ? ' (Gating zur Test-Phase deaktiviert — eigentlich gegated durch eigenen Review-Draft)' : ''}</h5>
+															<p class="werk-paragraph">{cText}</p>
+														</div>
+													{/if}
+												</div>
+											</article>
+										{/if}
+									{/each}
+								</div>
+							{/if}
+						</div>
+					{/if}
 					<p class="outline-intro">
 						Hierarchische Synthesen-Navigation. Klick auf §X:AY-Anker in
 						einer Synthese öffnet den Reader-Modal an der entsprechenden
@@ -2659,10 +2686,6 @@
 		font-size: 0.78rem;
 		color: #8b8fa3;
 	}
-	.export-bar-label {
-		color: #6b7280;
-		letter-spacing: 0.02em;
-	}
 	.export-link {
 		color: #c7d2fe;
 		text-decoration: none;
@@ -2747,6 +2770,22 @@
 		border-radius: 8px;
 		margin: 0 0 1.6rem;
 	}
+	.synthesen-grid {
+		display: grid;
+		gap: 1rem;
+		margin-bottom: 1.5rem;
+		align-items: start;
+	}
+	.synthesen-grid[data-cols="1"] { grid-template-columns: 1fr; }
+	.synthesen-grid[data-cols="2"] { grid-template-columns: 1fr 1fr; }
+	.synthesen-grid[data-cols="3"] { grid-template-columns: 1fr 1fr 1fr; }
+	.synthesen-col {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		min-width: 0;
+	}
+	.synthesen-col > .work-verdict { margin-bottom: 0; }
 	.work-verdict-head {
 		display: flex; align-items: baseline; gap: 0.7rem;
 		margin-bottom: 0.7rem;
