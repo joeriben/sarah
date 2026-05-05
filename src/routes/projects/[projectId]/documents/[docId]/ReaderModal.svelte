@@ -101,13 +101,16 @@
 					</div>
 				{/if}
 			{:else}
-				<!-- mode === 'arguments' -->
+				<!-- mode === 'arguments' = H1 (Argumentations-Graph). H2/H3 sind nicht
+					 Bestandteil des §X:AY-Peek-Modals; Hermeneutik/Funktionstypen werden
+					 im Doc-Tab über die XOR-Pillen umgeschaltet. -->
 				<DocumentReader
 					{elements}
 					{memosByElement}
 					{codesByElement}
 					{synthesesByHeading}
 					{analysisByElement}
+					activeHeuristic="h1"
 					scrollTarget={open ? scrollTarget : null}
 				/>
 			{/if}

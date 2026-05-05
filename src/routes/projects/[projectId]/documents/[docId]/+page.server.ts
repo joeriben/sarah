@@ -118,6 +118,19 @@ export interface ParagraphAnalysis {
 	scaffolding: ParagraphScaffolding[];
 }
 
+// H3 §-Spalte (Drei-Heuristiken-Architektur): pro Absatz die §-skopierten
+// function_constructs. Whitelist (FRAGESTELLUNG, MOTIVATION, METHODOLOGIE,
+// METHODEN, BASIS, AUFBAU_SKIZZE, BEFUND, HOTSPOT, EXKURS_ANKER, RE_SPEC_AKT)
+// wird serverseitig angewendet; werk-/container-aggregierte Konstrukte
+// (FORSCHUNGSGEGENSTAND, GESAMTERGEBNIS, GELTUNGSANSPRUCH, …) gehören in den
+// Results-Tab und werden hier nicht ausgeliefert.
+export interface H3ConstructForReader {
+	id: string;
+	outline_function_type: string;
+	construct_kind: string;
+	content: Record<string, unknown>;
+}
+
 
 export interface CaseInfo {
 	id: string;
@@ -257,6 +270,11 @@ export const load: PageServerLoad = async ({ params }) => {
 	// Bei Cases ohne synthetisch-interpretierende Per-¶-Memos (Budget-Route, AG-only)
 	// ist das die einzige Analyse-Ebene, die der Reader anzeigen kann.
 	let analysisByElement: Record<string, ParagraphAnalysis> = {};
+	// H3-§-Spalte: Map paragraph_id → §-skopierte function_constructs (siehe
+	// Whitelist H3_PARAGRAPH_KINDS). Werk-aggregierte Konstrukte sind hier
+	// bewusst ausgeschlossen — Trennung Doc-Tab (§-Niveau) vs. Results-Tab
+	// (Werk-Niveau) gemäß Drei-Heuristiken-Architektur.
+	let h3ConstructsByElement: Record<string, H3ConstructForReader[]> = {};
 
 	if (caseInfo) {
 		const memoRows = (
@@ -594,6 +612,53 @@ export const load: PageServerLoad = async ({ params }) => {
 				});
 			}
 		}
+
+		// H3-§-Spalte: function_constructs mit §-skopierten kinds laden, anker-
+		// gefiltert auf Paragraphen dieses Dokuments. anchor_element_ids ist
+		// jsonb[] auf paragraph_id (siehe feedback_h3_constructs_anchor_at_paragraphs).
+		// Werk-aggregierte kinds (FORSCHUNGSGEGENSTAND, GESAMTERGEBNIS,
+		// GELTUNGSANSPRUCH, VERWEIS_PROFIL, BLOCK_ROUTING, DISKURSIV_BEZUG_BEFUND,
+		// WERK_BESCHREIBUNG, WERK_GUTACHT) sind bewusst nicht in der Whitelist —
+		// sie gehören in den Results-Tab.
+		const H3_PARAGRAPH_KINDS = [
+			'FRAGESTELLUNG',
+			'MOTIVATION',
+			'METHODOLOGIE',
+			'METHODEN',
+			'BASIS',
+			'AUFBAU_SKIZZE',
+			'BEFUND',
+			'HOTSPOT',
+			'EXKURS_ANKER',
+			'RE_SPEC_AKT',
+		];
+		const h3Rows = (await query<{
+			id: string;
+			outline_function_type: string;
+			construct_kind: string;
+			content: unknown;
+			anchor_element_ids: string[];
+		}>(
+			`SELECT id, outline_function_type, construct_kind, content, anchor_element_ids
+			 FROM function_constructs
+			 WHERE case_id = $1
+			   AND document_id = $2
+			   AND construct_kind = ANY($3)
+			 ORDER BY created_at`,
+			[caseInfo.id, params.docId, H3_PARAGRAPH_KINDS]
+		)).rows;
+		for (const c of h3Rows) {
+			const construct: H3ConstructForReader = {
+				id: c.id,
+				outline_function_type: c.outline_function_type,
+				construct_kind: c.construct_kind,
+				content: (c.content as Record<string, unknown>) ?? {},
+			};
+			for (const pid of c.anchor_element_ids ?? []) {
+				if (!h3ConstructsByElement[pid]) h3ConstructsByElement[pid] = [];
+				h3ConstructsByElement[pid].push(construct);
+			}
+		}
 	}
 
 	const effectiveOutline = await loadEffectiveOutline(params.docId);
@@ -639,5 +704,6 @@ export const load: PageServerLoad = async ({ params }) => {
 		workSynthesis,
 		chapterFlow,
 		analysisByElement,
+		h3ConstructsByElement,
 	};
 };

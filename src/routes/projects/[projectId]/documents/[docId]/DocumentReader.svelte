@@ -23,12 +23,32 @@
 		ParagraphEdge,
 	} from './+page.server.js';
 
+	// Drei-Heuristiken-Architektur (Memory project_three_heuristics_architecture):
+	// pro Run-Trigger genau eine Heuristik. Doc-Tab zeigt pro § nur den
+	// §-skopierten Anteil der aktiven Heuristik — Heading-Synthesen,
+	// Aggregat-Memos und werk-aggregierte Konstrukte gehören in den
+	// Results-Tab (=heutiger Outline-Tab, Folge-Umbenennung).
+	export type DocReaderHeuristic = 'h1' | 'h2' | 'h3';
+
+	// H3-Konstrukt für die §-Spalte. Parent filtert vor: nur §-skopierte
+	// construct_kinds (FRAGESTELLUNG, MOTIVATION, METHODOLOGIE, METHODEN,
+	// BASIS, AUFBAU_SKIZZE, BEFUND, HOTSPOT, EXKURS_ANKER, RE_SPEC_AKT) —
+	// werk-/container-aggregierte Konstrukte landen im Results-Tab.
+	export type H3ConstructForReader = {
+		id: string;
+		outline_function_type: string;
+		construct_kind: string;
+		content: Record<string, unknown>;
+	};
+
 	interface Props {
 		elements: DocumentElement[];
 		memosByElement: Record<string, ParagraphMemo[]>;
 		codesByElement: Record<string, CodeAnchor[]>;
 		synthesesByHeading: Record<string, HeadingSynthesis>;
 		analysisByElement: Record<string, ParagraphAnalysis>;
+		h3ConstructsByElement?: Record<string, H3ConstructForReader[]>;
+		activeHeuristic: DocReaderHeuristic;
 		scrollTarget?: { elementId: string; argumentId?: string } | null;
 	}
 
@@ -38,8 +58,43 @@
 		codesByElement,
 		synthesesByHeading,
 		analysisByElement,
+		h3ConstructsByElement = {},
+		activeHeuristic,
 		scrollTarget = null,
 	}: Props = $props();
+
+	const H3_CONSTRUCT_LABEL: Record<string, string> = {
+		FRAGESTELLUNG: 'Fragestellung',
+		MOTIVATION: 'Motivation',
+		METHODOLOGIE: 'Methodologie',
+		METHODEN: 'Methoden',
+		BASIS: 'Basis (Korpus / Sample)',
+		AUFBAU_SKIZZE: 'Aufbau-Skizze',
+		BEFUND: 'Befund',
+		HOTSPOT: 'Hotspot',
+		EXKURS_ANKER: 'Exkurs-Anker',
+		RE_SPEC_AKT: 'Re-Spec-Akt',
+	};
+
+	function h3ConstructLabel(k: string): string {
+		return H3_CONSTRUCT_LABEL[k] ?? k;
+	}
+
+	function h3ConstructText(c: H3ConstructForReader): string {
+		const candidates = ['text', 'summary', 'description', 'befund', 'finding'];
+		for (const k of candidates) {
+			const v = (c.content as Record<string, unknown>)[k];
+			if (typeof v === 'string' && v.trim().length > 0) return v;
+		}
+		for (const v of Object.values(c.content ?? {})) {
+			if (typeof v === 'string' && v.trim().length > 0) return v;
+		}
+		return '';
+	}
+
+	function h3ListFor(id: string): H3ConstructForReader[] {
+		return h3ConstructsByElement[id] ?? [];
+	}
 
 	function premiseLabel(p: { type: 'stated' | 'carried' | 'background'; from_paragraph?: number }): string {
 		if (p.type === 'stated') return 'im Absatz';
@@ -351,8 +406,12 @@
 			{@const formul = memosFor(el.id).find((m) => m.memo_type === 'formulierend')}
 			{@const codes = codesFor(el.id)}
 			{@const analysis = analysisFor(el.id)}
+			{@const h3List = h3ListFor(el.id)}
 			{@const showAnalysis = hasAnyAnalysis(analysis)}
-			{@const hasRightPane = !!interpr || !!formul || codes.length > 0 || showAnalysis}
+			{@const hasH1 = activeHeuristic === 'h1' && showAnalysis}
+			{@const hasH2 = activeHeuristic === 'h2' && (!!interpr || !!formul || codes.length > 0)}
+			{@const hasH3 = activeHeuristic === 'h3' && h3List.length > 0}
+			{@const hasRightPane = hasH1 || hasH2 || hasH3}
 			{@const pos = positionInDocument.get(el.id)}
 			<article class="doc-paragraph" class:no-memo={!hasRightPane} id="para-{el.id}">
 				<div class="para-text">
@@ -363,26 +422,27 @@
 				</div>
 				{#if hasRightPane}
 					<aside class="memo-pane">
-						{#if formul}
-							<div class="memo memo-formulierend">
-								<div class="memo-label">formulierend</div>
-								<div class="memo-content">{formul.content}</div>
-							</div>
-						{/if}
-						{#if interpr}
-							<div class="memo memo-interpretierend">
-								<div class="memo-label">interpretierend</div>
-								<div class="memo-content">{interpr.content}</div>
-							</div>
-						{/if}
-						{#if codes.length > 0}
-							<div class="codes">
-								{#each codes as c}
-									<span class="code-chip" title={`${c.char_start}–${c.char_end}`}>{c.phrase}</span>
-								{/each}
-							</div>
-						{/if}
-						{#if showAnalysis && analysis}
+						{#if activeHeuristic === 'h2'}
+							{#if formul}
+								<div class="memo memo-formulierend">
+									<div class="memo-label">formulierend</div>
+									<div class="memo-content">{formul.content}</div>
+								</div>
+							{/if}
+							{#if interpr}
+								<div class="memo memo-interpretierend">
+									<div class="memo-label">interpretierend</div>
+									<div class="memo-content">{interpr.content}</div>
+								</div>
+							{/if}
+							{#if codes.length > 0}
+								<div class="codes">
+									{#each codes as c}
+										<span class="code-chip" title={`${c.char_start}–${c.char_end}`}>{c.phrase}</span>
+									{/each}
+								</div>
+							{/if}
+						{:else if activeHeuristic === 'h1' && analysis}
 							{#if analysis.args.length > 0}
 								<div class="analysis-block">
 									<div class="memo-label analysis-label">Argumente ({analysis.args.length})</div>
@@ -490,6 +550,19 @@
 									{/each}
 								</div>
 							{/if}
+						{:else if activeHeuristic === 'h3' && h3List.length > 0}
+							<div class="h3-block">
+								<div class="memo-label h3-label">H3-Konstrukte ({h3List.length})</div>
+								{#each h3List as c (c.id)}
+									<div class="h3-construct">
+										<div class="h3-head">
+											<span class="h3-kind">{h3ConstructLabel(c.construct_kind)}</span>
+											<span class="h3-fn">{c.outline_function_type}</span>
+										</div>
+										<div class="h3-text">{h3ConstructText(c)}</div>
+									</div>
+								{/each}
+							</div>
 						{/if}
 					</aside>
 				{/if}
@@ -583,6 +656,43 @@
 		border-radius: 0 4px 4px 0;
 	}
 	.analysis-label { color: #a5b4fc !important; }
+
+	/* H3-Spalte: §-skopierte function_constructs (FRAGESTELLUNG, MOTIVATION,
+	   METHODOLOGIE, METHODEN, BASIS, AUFBAU_SKIZZE, BEFUND, HOTSPOT,
+	   EXKURS_ANKER, RE_SPEC_AKT). Werk-aggregierte Konstrukte
+	   (FORSCHUNGSGEGENSTAND, GESAMTERGEBNIS, GELTUNGSANSPRUCH, …) gehören
+	   in den Results-Tab, nicht hierher. */
+	.h3-block {
+		display: flex; flex-direction: column;
+		gap: 0.4rem;
+		padding: 0.5rem 0.7rem;
+		border-left: 2px solid rgba(103, 232, 249, 0.4);
+		background: rgba(103, 232, 249, 0.03);
+		border-radius: 0 4px 4px 0;
+	}
+	.h3-label { color: #67e8f9 !important; }
+	.h3-construct {
+		padding: 0.4rem 0.55rem;
+		border-radius: 4px;
+		background: rgba(255,255,255,0.025);
+		display: flex; flex-direction: column; gap: 0.3rem;
+	}
+	.h3-head { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: baseline; }
+	.h3-kind {
+		font-family: 'JetBrains Mono', monospace; font-weight: 600;
+		color: #a5f3fc; font-size: 0.78rem;
+	}
+	.h3-fn {
+		font-size: 0.66rem;
+		text-transform: lowercase;
+		letter-spacing: 0.02em;
+		padding: 1px 6px;
+		border-radius: 3px;
+		font-weight: 500;
+		background: rgba(255, 255, 255, 0.04);
+		color: #8b8fa3;
+	}
+	.h3-text { color: #c9cdd5; font-size: 0.82rem; line-height: 1.45; }
 
 	.arg-block {
 		padding: 0.5rem 0.6rem;

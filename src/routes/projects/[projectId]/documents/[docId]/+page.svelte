@@ -12,7 +12,8 @@
 	import { browser } from '$app/environment';
 	import { replaceState, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
-	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, WorkSynthesis, ChapterFlow, CaseInfo, OutlineEntry, BriefOption, ParagraphAnalysis } from './+page.server.js';
+	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, WorkSynthesis, ChapterFlow, CaseInfo, OutlineEntry, BriefOption, ParagraphAnalysis, H3ConstructForReader } from './+page.server.js';
+	import type { DocReaderHeuristic } from './DocumentReader.svelte';
 	import {
 		missingRequiredFunctionTypes,
 		OUTLINE_FUNCTION_TYPE_LABELS,
@@ -89,6 +90,13 @@
 	const workSynthesis = $derived(data.workSynthesis as WorkSynthesis | null);
 	const chapterFlow = $derived(data.chapterFlow as ChapterFlow | null);
 	const analysisByElement = $derived(data.analysisByElement as Record<string, ParagraphAnalysis>);
+	// H3-§-Spalte: serverseitig gefiltert auf §-skopierte construct_kinds
+	// (Whitelist FRAGESTELLUNG, MOTIVATION, METHODOLOGIE, METHODEN, BASIS,
+	// AUFBAU_SKIZZE, BEFUND, HOTSPOT, EXKURS_ANKER, RE_SPEC_AKT). Werk-/
+	// container-aggregierte Konstrukte gehören in den Results-Tab.
+	const h3ConstructsByElement = $derived(
+		data.h3ConstructsByElement as Record<string, H3ConstructForReader[]>
+	);
 
 	type View = 'pipeline' | 'dokument' | 'outline' | 'companions';
 	const VIEWS: View[] = ['pipeline', 'dokument', 'outline', 'companions'];
@@ -102,6 +110,13 @@
 	let view = $state<View>('pipeline');
 	let readerOpen = $state(false);
 	let readerScrollTarget = $state<{ elementId: string; argumentId?: string } | null>(null);
+
+	// XOR-Heuristik-Wahl im Doc-Tab (Drei-Heuristiken-Architektur):
+	// genau eine Spalte sichtbar (H1 Argumentanalyse / H2 synthetisch-hermeneutisch /
+	// H3 funktionstyp-orchestriert). Persistiert in localStorage; Default beim
+	// ersten Laden = erste verfügbare Heuristik in H1→H2→H3-Reihenfolge.
+	const HEURISTIC_LS_KEY = 'sarah:docTab:heuristic';
+	let activeHeuristic = $state<DocReaderHeuristic>('h1');
 
 	// Pipeline-Status — aus /api/cases/[caseId]/pipeline-status.
 	// Reihenfolge der ANALYTISCHEN Hauptlinie:
@@ -633,6 +648,12 @@
 		const params = new URLSearchParams(window.location.search);
 		const v = params.get('view') as View | null;
 		if (v && VIEWS.includes(v)) view = v;
+		try {
+			const saved = window.localStorage.getItem(HEURISTIC_LS_KEY);
+			if (saved === 'h1' || saved === 'h2' || saved === 'h3') {
+				activeHeuristic = saved;
+			}
+		} catch (_) { /* ignore */ }
 		loadPipelineStatus();
 		loadWerkConstructs();
 	});
@@ -1125,6 +1146,77 @@
 			if (paragraphHasAg[e.id]) withMemo += 1;
 		}
 		return { withMemo, total };
+	});
+
+	// Verfügbarkeit der drei Heuristiken im Doc-Tab. Eine Heuristik ist
+	// "verfügbar", sobald für irgendeinen Absatz Daten dieser Heuristik
+	// existieren — sonst wird die zugehörige Pille deaktiviert.
+	const heuristicAvail = $derived.by(() => {
+		const h1 = totalProcessed.withMemo > 0;
+		let h2 = false;
+		for (const memos of Object.values(memosByElement)) {
+			if (memos && memos.length > 0) { h2 = true; break; }
+		}
+		if (!h2) {
+			for (const codes of Object.values(codesByElement)) {
+				if (codes && codes.length > 0) { h2 = true; break; }
+			}
+		}
+		let h3 = false;
+		for (const arr of Object.values(h3ConstructsByElement)) {
+			if (arr && arr.length > 0) { h3 = true; break; }
+		}
+		return { h1, h2, h3 };
+	});
+
+	// Wenn die aktuell aktive Heuristik auf diesem Dokument keine Daten hat,
+	// auf die erste verfügbare in H1→H2→H3-Reihenfolge fallen — auch wenn
+	// der User in localStorage eine andere Wahl gespeichert hat. Die User-
+	// Wahl ist eine Präferenz pro Doc, nicht ein Hard-Pin: wer auf einem
+	// Doc ohne H3 landet, soll keinen leeren Reader sehen.
+	$effect(() => {
+		const a = heuristicAvail;
+		if (!a[activeHeuristic]) {
+			if (a.h1) activeHeuristic = 'h1';
+			else if (a.h2) activeHeuristic = 'h2';
+			else if (a.h3) activeHeuristic = 'h3';
+		}
+	});
+
+	function selectHeuristic(h: DocReaderHeuristic) {
+		activeHeuristic = h;
+		if (browser) {
+			try { window.localStorage.setItem(HEURISTIC_LS_KEY, h); } catch (_) { /* ignore quota */ }
+		}
+	}
+
+	const HEURISTIC_LABEL: Record<DocReaderHeuristic, string> = {
+		h1: 'H1 Argumentanalyse',
+		h2: 'H2 Hermeneutische Memos',
+		h3: 'H3 Funktionstypen',
+	};
+	const HEURISTIC_HINT: Record<DocReaderHeuristic, string> = {
+		h1: 'Argumente, Beziehungen, Stützstrukturen pro Absatz (Argumentations-Graph).',
+		h2: 'Formulierende & interpretierende Memos und Codes pro Absatz.',
+		h3: '§-skopierte Funktionstyp-Konstrukte pro Absatz (Werk-Konstrukte siehe Outline).',
+	};
+
+	const coverageLabel = $derived.by(() => {
+		if (activeHeuristic === 'h1') {
+			return `${totalProcessed.withMemo}/${totalProcessed.total} ¶ analytisch erfasst`;
+		}
+		if (activeHeuristic === 'h2') {
+			let n = 0;
+			for (const e of paragraphs) {
+				if ((memosByElement[e.id]?.length ?? 0) > 0 || (codesByElement[e.id]?.length ?? 0) > 0) n += 1;
+			}
+			return `${n}/${paragraphs.length} ¶ mit Memo/Code`;
+		}
+		let n = 0;
+		for (const e of paragraphs) {
+			if ((h3ConstructsByElement[e.id]?.length ?? 0) > 0) n += 1;
+		}
+		return `${n}/${paragraphs.length} ¶ mit H3-Konstrukt`;
 	});
 
 	// TOC-Sidebar: nur in Dokument- und Outline-Tabs sichtbar (in den anderen
@@ -1960,27 +2052,59 @@
 							ausgeführter Argumentations-Graph-Pipeline.
 						</p>
 					</div>
-				{:else if totalProcessed.withMemo === 0}
+				{:else if !heuristicAvail.h1 && !heuristicAvail.h2 && !heuristicAvail.h3}
 					<div class="placeholder">
-						<h2>Noch keine Argumente extrahiert</h2>
+						<h2>Noch keine Analyse-Daten</h2>
 						<p>
-							Die dokumentenzentrierte Ansicht zeigt Argumente am Volltext,
-							sobald die analytische Pipeline (Argumentations-Graph) gelaufen
-							ist. Wechsle zum <button class="link-btn" onclick={() => selectView('pipeline')}>Pipeline-Tab</button>,
-							um den Run zu starten.
+							Die Dokument-Ansicht zeigt eine Heuristik (H1 Argumentanalyse,
+							H2 hermeneutische Memos oder H3 Funktionstypen) pro Absatz an,
+							sobald die jeweilige Pipeline gelaufen ist. Wechsle zum
+							<button class="link-btn" onclick={() => selectView('pipeline')}>Pipeline-Tab</button>,
+							um einen Run zu starten.
 						</p>
 					</div>
 				{:else}
+					<!-- XOR-Heuristik-Header: pro Run-Trigger genau eine Heuristik
+						 (Drei-Heuristiken-Architektur). Sticky, damit beim Scrollen
+						 durch das Dokument die Wahl sichtbar bleibt. Verfügbarkeit
+						 dynamisch — Pillen ohne Daten sind grau und nicht klickbar. -->
+					<div class="heuristic-header">
+						<div class="heuristic-pills" role="tablist" aria-label="Heuristik wählen">
+							<button
+								type="button"
+								class="heuristic-pill"
+								class:active={activeHeuristic === 'h1'}
+								disabled={!heuristicAvail.h1}
+								role="tab"
+								aria-selected={activeHeuristic === 'h1'}
+								title={HEURISTIC_HINT.h1}
+								onclick={() => selectHeuristic('h1')}
+							>{HEURISTIC_LABEL.h1}</button>
+							<button
+								type="button"
+								class="heuristic-pill"
+								class:active={activeHeuristic === 'h2'}
+								disabled={!heuristicAvail.h2}
+								role="tab"
+								aria-selected={activeHeuristic === 'h2'}
+								title={HEURISTIC_HINT.h2}
+								onclick={() => selectHeuristic('h2')}
+							>{HEURISTIC_LABEL.h2}</button>
+							<button
+								type="button"
+								class="heuristic-pill"
+								class:active={activeHeuristic === 'h3'}
+								disabled={!heuristicAvail.h3}
+								role="tab"
+								aria-selected={activeHeuristic === 'h3'}
+								title={HEURISTIC_HINT.h3}
+								onclick={() => selectHeuristic('h3')}
+							>{HEURISTIC_LABEL.h3}</button>
+						</div>
+						<span class="coverage-tag heuristic-coverage">{coverageLabel}</span>
+					</div>
 					<div class="dokument-intro">
-						<p>
-							Volltext mit Argumenten (und ggf. Codes/Beziehungen/Stützstrukturen)
-							am jeweiligen Absatz. Umkehrung der Outline-Sicht: Statt von der
-							Synthese zu den Argumenten geht der Blick hier vom Dokument
-							ausgehend.
-						</p>
-						<span class="coverage-tag" class:done={totalProcessed.withMemo === totalProcessed.total}>
-							{totalProcessed.withMemo}/{totalProcessed.total} ¶ analytisch erfasst
-						</span>
+						<p>{HEURISTIC_HINT[activeHeuristic]}</p>
 					</div>
 					<DocumentReader
 						{elements}
@@ -1988,6 +2112,8 @@
 						{codesByElement}
 						{synthesesByHeading}
 						{analysisByElement}
+						{h3ConstructsByElement}
+						{activeHeuristic}
 					/>
 				{/if}
 			</section>
@@ -2552,6 +2678,52 @@
 		border-color: rgba(165, 180, 252, 0.5);
 		color: #e0e7ff;
 	}
+	/* Doc-Tab XOR-Heuristik-Header. Sticky, damit beim Volltext-Scroll die
+	   aktive Heuristik-Wahl sichtbar bleibt. Pillen H1/H2/H3 — exakt eine
+	   ist aktiv, andere graulich; deaktiviert wenn keine Daten vorliegen. */
+	.heuristic-header {
+		position: sticky;
+		top: 0;
+		z-index: 5;
+		display: flex; align-items: center; gap: 1rem;
+		flex-wrap: wrap;
+		padding: 0.7rem 0.2rem 0.7rem;
+		margin: 0 0 0.8rem;
+		background: linear-gradient(to bottom, rgba(13,17,23,0.96), rgba(13,17,23,0.84));
+		backdrop-filter: blur(4px);
+		border-bottom: 1px solid #2a2d3a;
+	}
+	.heuristic-pills {
+		display: flex; gap: 0.4rem; flex-wrap: wrap;
+	}
+	.heuristic-pill {
+		font-family: inherit;
+		font-size: 0.78rem;
+		padding: 0.32rem 0.78rem;
+		border-radius: 999px;
+		border: 1px solid #2a2d3a;
+		background: rgba(255,255,255,0.02);
+		color: #8b8fa3;
+		cursor: pointer;
+		transition: background 0.15s, color 0.15s, border-color 0.15s;
+	}
+	.heuristic-pill:hover:not(:disabled) {
+		background: rgba(255,255,255,0.05);
+		color: #c9cdd5;
+	}
+	.heuristic-pill.active {
+		background: rgba(103, 232, 249, 0.10);
+		border-color: rgba(103, 232, 249, 0.45);
+		color: #a5f3fc;
+		font-weight: 600;
+	}
+	.heuristic-pill:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+		color: #4b5563;
+	}
+	.heuristic-coverage { margin-left: auto; }
+
 	.dokument-intro {
 		display: flex; align-items: baseline; gap: 1rem;
 		flex-wrap: wrap;
