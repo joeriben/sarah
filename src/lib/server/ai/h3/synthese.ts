@@ -61,6 +61,29 @@ import {
 	formatKriterienBlock,
 	type H3BriefContext,
 } from './werk-shared.js';
+import {
+	loadFragestellungBeurteilung,
+	loadMotivation,
+	loadForschungsdesignTriple,
+	loadVerweisProfilAggregate,
+	loadGthReflexionAggregate,
+	loadFgRespecHistory,
+	loadAuditOnlyHotspots,
+	loadArgumentSubstrateCounts,
+	formatTheoriebasisBlock,
+	formatMethodischesSetupBlock,
+	formatAuditOnlyAndArgumentBlock,
+	formatFragestellungBeurteilungBlock,
+	formatMotivationBlock,
+	type FragestellungBeurteilungSnippet,
+	type MotivationSnippet,
+	type ForschungsdesignSnippet,
+	type VerweisProfilAggregate,
+	type GthReflexionAggregate,
+	type ReSpecHistoryEntry,
+	type AuditOnlyHotspot,
+	type ArgumentSubstrateCounts,
+} from './werk-substrate.js';
 
 // ── Container-Loading ─────────────────────────────────────────────
 
@@ -298,7 +321,15 @@ type GesamtergebnisLLMResult = z.infer<typeof GesamtergebnisLLMSchema>;
 
 interface ExtractGesamtergebnisInput {
 	fragestellung: string;
+	fragestellungBeurteilung: FragestellungBeurteilungSnippet | null;
+	motivation: MotivationSnippet | null;
 	forschungsgegenstand: ForschungsgegenstandSnippet;
+	forschungsdesign: ForschungsdesignSnippet;
+	verweisProfil: VerweisProfilAggregate | null;
+	gthReflexion: GthReflexionAggregate | null;
+	respecHistory: ReSpecHistoryEntry[];
+	auditOnlyHotspots: AuditOnlyHotspot[];
+	argSubstrate: ArgumentSubstrateCounts | null;
 	syntheseContainers: SyntheseContainer[];
 	befunds: BefundFromDb[];
 	brief: H3BriefContext;
@@ -321,27 +352,40 @@ async function extractGesamtergebnis(input: ExtractGesamtergebnisInput): Promise
 		formatWerktypLine(input.brief),
 		...(kriterien ? ['', kriterien] : []),
 		'',
-		'Begriffe (für das Verständnis der Aufgabe):',
+		'ROLLE / EPISTEMIK:',
+		'  Critical Friend zum eigenen Urteil des/der Forschenden — du beschreibst, was die SYNTHESE als Gesamtergebnis leistet, und welche Lese-Hinweise das gesamte H3-Substrat (FRAGESTELLUNG-Beurteilung, MOTIVATION, methodisches Setup, Theoriebasis-Profil, BEFUND-Lage, Audit-only-Hotspots, EXKURS-Re-Spezifikationen) zu diesem Gesamtergebnis nahelegt. Du beurteilst die SYNTHESE NICHT (kein "stark", "schwach", "lückenhaft", keine Skala). Auffälligkeiten (z.B. dominante Autor:innen, bezugslose Theoriestrecken, nicht-integrierte BEFUNDE) sind Lese-Hinweise an den/die Forschende — nie ein Urteil der Arbeit.',
 		'',
-		'  FRAGESTELLUNG: die in der Einleitung formulierte Forschungsfrage.',
-		'',
-		'  FORSCHUNGSGEGENSTAND: die durch die Theoriearbeit erfolgte begriffliche Spezifizierung der FRAGESTELLUNG (ggf. nach EXKURS-Re-Spezifikationen).',
-		'',
-		'  BEFUNDE (DURCHFÜHRUNG): die im Analyse-Teil der Arbeit identifizierten empirischen oder theoretischen Ergebnisse — jeweils ein 1–3-Satz-Extrakt aus einem Hotspot-Absatz.',
-		'',
-		'  SYNTHESE: das/die Kapitel, in dem/denen die Arbeit ihre BEFUNDE positioniert und systematisiert, im Hinblick auf die FRAGESTELLUNG.',
-		'',
-		'  GESAMTERGEBNIS: die deskriptive Zusammenfassung dessen, was die SYNTHESE als Gesamtergebnis der Arbeit leistet — kein Urteil über die Qualität, sondern die Rekonstruktion des integrierten Befunds.',
-		'',
+		'BEGRIFFE:',
+		'  FRAGESTELLUNG: in der Einleitung formulierte Forschungsfrage.',
+		'  FRAGESTELLUNG-BEURTEILUNG: separate Critical-Friend-Notiz aus dem EXPOSITION-Pass zur Gestalt der Fragestellung (Problemfeld + Perspektive).',
+		'  MOTIVATION: in der Einleitung benannter Antrieb der Untersuchung.',
+		'  FORSCHUNGSGEGENSTAND: durch Theoriearbeit erfolgte begriffliche Spezifizierung der Fragestellung (ggf. nach EXKURS-Re-Spezifikationen).',
+		'  EXKURS-Re-Spezifikationen: spätere Theorie-Importe, die den Forschungsgegenstand nachträglich ändern oder erweitern.',
+		'  METHODOLOGIE/METHODEN/BASIS: das methodische Selbstverständnis, die eingesetzten Verfahren, das Sample/Material.',
+		'  THEORIEBASIS-PROFIL: deskriptives Aggregat der Verweis-Struktur (HHI, Top-Autoren, Konzentrations-Hinweise) plus Reflexionsbefunde aus der GRUNDLAGENTHEORIE (Eckpunkt-Signale, diskursiver Bezug, Wiedergabe-Würdigungen).',
+		'  BEFUNDE (DURCHFÜHRUNG): empirische/theoretische Ergebnisse aus dem Analyse-Teil — 1–3-Satz-Extrakte aus Hotspot-¶.',
+		'  AUDIT-ONLY-Hotspots: DURCHFÜHRUNGS-¶, an denen das BEFUND-Tool zwar einen Hotspot-Marker fand, aber keinen extrahierbaren BEFUND formulieren konnte. Empirisches Material, das keine tragende Aussage trägt.',
+		'  SYNTHESE: Kapitel, in dem die Arbeit ihre BEFUNDE positioniert und systematisiert, im Hinblick auf die FRAGESTELLUNG.',
+		'  GESAMTERGEBNIS: deskriptive Rekonstruktion dessen, was die SYNTHESE als Gesamtergebnis der Arbeit leistet — kein Qualitätsurteil.',
 		'  FRAGESTELLUNGS_ANTWORT: die Antwort, die die Arbeit auf die FRAGESTELLUNG gibt — wie sie aus der SYNTHESE hervorgeht.',
 		'',
-		'Aufgabe in drei Teilen:',
+		'AUFGABE in drei Teilen:',
 		'',
-		'  TEIL A — gesamtergebnisText:',
-		'    3–5 Sätze deskriptiv. Beschreibe, was die SYNTHESE als Gesamtergebnis der Arbeit leistet — welche zentrale Linie über die BEFUNDE gezogen wird, wie die theoretische Einordnung erfolgt. Eigene Worte, kein Zitat.',
+		'  TEIL A — gesamtergebnisText (5–8 Sätze deskriptiv):',
+		'    Beschreibe, was die SYNTHESE als Gesamtergebnis der Arbeit leistet. Beziehe dabei das volle H3-Substrat ein:',
+		'      • welche zentrale Linie über die BEFUNDE gezogen wird;',
+		'      • wie die theoretische Einordnung erfolgt — und wie sie sich zum Theoriebasis-Profil verhält (z.B. werden dominante Autor:innen tragend, oder verschwinden bezugslose Theoriestrecken in der Synthese?);',
+		'      • welche Bezüge zum FORSCHUNGSGEGENSTAND geleistet werden, ggf. zu EXKURS-Re-Spezifikationen;',
+		'      • wie sich das methodische Setup (METHODOLOGIE/METHODEN/BASIS) im Gesamtergebnis niederschlägt — falls überhaupt;',
+		'      • welche AUDIT-ONLY-Hotspots empirisches Material lassen, das keine tragende Aussage trägt (deskriptiv erwähnen, falls Container-Lage nahelegt, dass es das Gesamtergebnis berührt).',
+		'    Eigene Worte, kein Zitat. Wenn das H3-Substrat keine Auffälligkeiten zeigt, beschreibst du nur, was die SYNTHESE textlich tut.',
 		'',
-		'  TEIL B — fragestellungsAntwortText:',
-		'    1–3 Sätze deskriptiv. Wie beantwortet die Arbeit die FRAGESTELLUNG? Wenn die SYNTHESE die Antwort nur teilweise oder implizit gibt, das so beschreiben (z.B. "Die Frage wird teilweise beantwortet — der Aspekt X bleibt offen"). Wenn die SYNTHESE eine klare Antwort gibt, diese knapp wiedergeben.',
+		'  TEIL B — fragestellungsAntwortText (2–4 Sätze deskriptiv):',
+		'    Wie beantwortet die Arbeit die FRAGESTELLUNG?',
+		'      • Wenn die SYNTHESE die Antwort nur teilweise oder implizit gibt: das so beschreiben.',
+		'      • Wenn der FORSCHUNGSGEGENSTAND durch EXKURSE re-spezifiziert wurde: ist die Antwort am re-spezifizierten oder am ursprünglichen Gegenstand orientiert?',
+		'      • Wenn AUDIT-ONLY-Hotspots vorliegen, deren Themen die FRAGESTELLUNG berühren: deskriptiv vermerken, dass dieses empirische Material keine tragende Aussage trägt.',
+		'      • Wenn die FRAGESTELLUNG-BEURTEILUNG einen Beurteilungs-Hinweis enthält (z.B. unscharfe Perspektive), der die Antwort-Lage erklärt: deskriptiv darauf Bezug nehmen.',
 		'',
 		'  TEIL C — erkenntnisIntegration:',
 		'    Pro vorgelegtem BEFUND (1-basierter Index): prüfe, ob er in der SYNTHESE adressiert wird — d.h. ob die SYNTHESE auf diesen Befund Bezug nimmt, ihn integriert oder weiterführt. Output pro Befund:',
@@ -350,12 +394,12 @@ async function extractGesamtergebnis(input: ExtractGesamtergebnisInput): Promise
 		'      - synthesisAnchorParagraphIndex: wenn integriert=true, der 1-basierte Index des SYNTHESE-¶, der diesen Befund am deutlichsten aufgreift. Sonst null.',
 		'      - hinweis: bei integriert=false, eine kurze Critical-Friend-Bemerkung (1 Satz) zum nicht-integrierten Befund (z.B. "Befund X zur Wirkung von Y bleibt unerwähnt"). Bei integriert=true: null oder ein knapper Bezugs-Hinweis.',
 		'',
-		'Stil: DESKRIPTIV. Du beschreibst, was die SYNTHESE leistet und welche BEFUNDE sie integriert. Du beurteilst die SYNTHESE NICHT (kein "stark", "schwach", "lückenhaft"). Critical-Friend-hinweise zu nicht-integrierten BEFUNDEN sind erlaubt — als Lese-Hinweis, nicht als Urteil.',
+		'STIL: DESKRIPTIV. Lese-Hinweise aus Theoriebasis-Profil, methodischem Setup, AUDIT-ONLY-Hotspots und EXKURS-Re-Spezifikationen integrierst du in die Beschreibung des Gesamtergebnisses, NICHT als getrennten Wertungsabschnitt. Critical-Friend-Bemerkungen zu nicht-integrierten BEFUNDEN sind erlaubt — als Lese-Hinweis, nicht als Urteil über die Arbeit. Verwende keine Adjektive wie "stark", "schwach", "lückenhaft", "kohärent", "tragfähig"; bleib bei deskriptiven Verben.',
 		'',
 		'Antworte ausschließlich als JSON nach diesem Schema:',
 		'{',
-		'  "gesamtergebnisText": "<3–5 Sätze deskriptiv>",',
-		'  "fragestellungsAntwortText": "<1–3 Sätze deskriptiv>",',
+		'  "gesamtergebnisText": "<5–8 Sätze deskriptiv>",',
+		'  "fragestellungsAntwortText": "<2–4 Sätze deskriptiv>",',
 		'  "erkenntnisIntegration": [',
 		'    {"befundIndex": 1, "integriert": true|false, "synthesisAnchorParagraphIndex": <int>|null, "hinweis": "<text>"|null},',
 		'    ...',
@@ -374,12 +418,10 @@ async function extractGesamtergebnis(input: ExtractGesamtergebnisInput): Promise
 	}
 	const syntheseText = syntheseBlocks.join('\n\n');
 
-	// BEFUNDE-Liste mit Index
+	// BEFUNDE-Liste mit Index (Quelle für TEIL C)
 	const befundBlocks =
 		input.befunds.length > 0
-			? input.befunds
-					.map((b, i) => `[Befund ${i + 1}] ${b.text}`)
-					.join('\n\n')
+			? input.befunds.map((b, i) => `[Befund ${i + 1}] ${b.text}`).join('\n\n')
 			: '(keine BEFUND-Konstrukte aus DURCHFÜHRUNG mit text!=null vorhanden)';
 
 	const subjectKeywordsBlock =
@@ -387,24 +429,63 @@ async function extractGesamtergebnis(input: ExtractGesamtergebnisInput): Promise
 			? input.forschungsgegenstand.subjectKeywords.map((k) => `- ${k}`).join('\n')
 			: '(keine subjectKeywords erfasst)';
 
-	const userMessage = [
-		`FRAGESTELLUNG der Arbeit:`,
-		input.fragestellung,
-		'',
-		`FORSCHUNGSGEGENSTAND (aus GRUNDLAGENTHEORIE, ggf. nach EXKURS-Re-Spezifikationen):`,
-		input.forschungsgegenstand.text,
-		'',
-		`Kernbegriffe (subjectKeywords):`,
-		subjectKeywordsBlock,
-		'',
-		`BEFUNDE aus DURCHFÜHRUNG (insgesamt ${input.befunds.length}):`,
-		'',
-		befundBlocks,
-		'',
-		`SYNTHESE-Container (${input.syntheseContainers.length}, gesamt ${input.syntheseContainers.reduce((s, c) => s + c.paragraphs.length, 0)} ¶):`,
-		'',
-		syntheseText,
-	].join('\n');
+	// Optional-Blöcke (null wenn nicht vorhanden)
+	const fragBeurteilungBlock = formatFragestellungBeurteilungBlock(
+		input.fragestellungBeurteilung
+	);
+	const motivationBlock = formatMotivationBlock(input.motivation);
+	const theoriebasisBlock = formatTheoriebasisBlock({
+		verweisProfil: input.verweisProfil,
+		gthReflexion: input.gthReflexion,
+		respecHistory: input.respecHistory,
+	});
+	const empirieBlock = formatAuditOnlyAndArgumentBlock({
+		befundCount: input.befunds.length,
+		auditOnlyHotspots: input.auditOnlyHotspots,
+		argSubstrate: input.argSubstrate,
+	});
+	const methodikBlock = formatMethodischesSetupBlock(input.forschungsdesign);
+
+	const sections: string[] = [];
+
+	sections.push('=== KONTEXT ===');
+	sections.push(`FRAGESTELLUNG der Arbeit:\n${input.fragestellung}`);
+	if (fragBeurteilungBlock) sections.push(fragBeurteilungBlock);
+	if (motivationBlock) sections.push(motivationBlock);
+	sections.push(
+		`FORSCHUNGSGEGENSTAND (aus GRUNDLAGENTHEORIE, ggf. nach EXKURS-Re-Spezifikationen):\n${input.forschungsgegenstand.text}`
+	);
+	sections.push(`Kernbegriffe (subjectKeywords):\n${subjectKeywordsBlock}`);
+
+	sections.push('=== METHODISCHES SETUP ===');
+	sections.push(methodikBlock);
+
+	if (theoriebasisBlock) {
+		sections.push('=== THEORIEBASIS-PROFIL ===');
+		sections.push(theoriebasisBlock);
+	} else {
+		sections.push('=== THEORIEBASIS-PROFIL ===');
+		sections.push(
+			'(kein Theoriebasis-Profil verfügbar — VERWEIS_PROFIL/BLOCK_WUERDIGUNG/ECKPUNKT_BEFUND/DISKURSIV_BEZUG_BEFUND-Konstrukte fehlen; H3:GRUNDLAGENTHEORIE-Pass wurde ggf. nicht oder nur teilweise ausgeführt.)'
+		);
+	}
+
+	if (empirieBlock) {
+		sections.push('=== EMPIRIE-SUBSTRAT ===');
+		sections.push(empirieBlock);
+	}
+
+	sections.push(
+		`=== BEFUNDE-LISTE (Quelle für TEIL C; insgesamt ${input.befunds.length}) ===`
+	);
+	sections.push(befundBlocks);
+
+	sections.push(
+		`=== SYNTHESE-MATERIAL (${input.syntheseContainers.length} Container, gesamt ${input.syntheseContainers.reduce((s, c) => s + c.paragraphs.length, 0)} ¶) ===`
+	);
+	sections.push(syntheseText);
+
+	const userMessage = sections.join('\n\n');
 
 	const t0 = Date.now();
 	const response = await chat({
@@ -449,6 +530,27 @@ interface ErkenntnisIntegrationEntry {
 	hinweis: string | null;
 }
 
+interface CrossTypeReadsSnapshot {
+	hasFragestellungBeurteilung: boolean;
+	hasMotivation: boolean;
+	forschungsdesign: {
+		hasMethodologie: boolean;
+		hasMethoden: boolean;
+		hasBasis: boolean;
+	};
+	verweisProfil: { containerCount: number; totalCitations: number } | null;
+	gthReflexion: {
+		containerCount: number;
+		wuerdigungBlockCount: number;
+		eckpunktBlockCount: number;
+		diskursivBlockCount: number;
+		bezugslosBlockCount: number;
+	} | null;
+	respecHistoryCount: number;
+	auditOnlyHotspotCount: number;
+	argumentNodeCount: number;
+}
+
 interface GesamtergebnisContent {
 	gesamtergebnisText: string;
 	fragestellungsAntwortText: string;
@@ -456,6 +558,7 @@ interface GesamtergebnisContent {
 	coverageRatio: number | null;
 	containerOverview: Array<{ headingText: string; paragraphCount: number }>;
 	befundCount: number;
+	crossTypeReads: CrossTypeReadsSnapshot;
 	llmModel: string;
 	llmTimingMs: number;
 }
@@ -511,7 +614,12 @@ async function persistGesamtergebnis(
 
 // ── Public API ────────────────────────────────────────────────────
 
-const DEFAULT_MAX_TOKENS = 2000;
+// Token-Budget 2026-05-05 erhöht: SYNTHESE bekommt jetzt das volle H3-Substrat
+// (Theoriebasis-Profil, methodisches Setup, FRAGESTELLUNG-Beurteilung, MOTIVATION,
+// EXKURS-Re-Spec-Geschichte, Audit-only-Hotspots) als Kontext. Output erweitert
+// (gesamtergebnisText 5–8 Sätze, fragestellungsAntwortText 2–4 Sätze + voller
+// erkenntnisIntegration-Array). 2000 reichten dafür nicht.
+const DEFAULT_MAX_TOKENS = 6000;
 
 export interface SynthesePassOptions {
 	persistConstructs?: boolean;
@@ -549,6 +657,7 @@ export interface SynthesePassResult {
 	diagnostics: {
 		fragestellungCount: number;
 		forschungsgegenstandCount: number;
+		crossTypeReads: CrossTypeReadsSnapshot;
 		warnings: string[];
 	};
 }
@@ -624,9 +733,89 @@ export async function runSynthesePass(
 
 	const befunds = await loadBefundsWithText(caseId, documentId);
 
+	// Cross-Typ-Reads — alle defensiv (null/empty wenn Vorgänger-Pässe fehlen).
+	// Parallel laden, damit kein DB-Roundtrip-Stau entsteht.
+	const [
+		fragestellungBeurteilung,
+		motivation,
+		forschungsdesign,
+		verweisProfil,
+		gthReflexion,
+		respecHistory,
+		auditOnlyHotspots,
+		argSubstrate,
+	] = await Promise.all([
+		loadFragestellungBeurteilung(caseId, documentId),
+		loadMotivation(caseId, documentId),
+		loadForschungsdesignTriple(caseId, documentId),
+		loadVerweisProfilAggregate(caseId, documentId),
+		loadGthReflexionAggregate(caseId, documentId),
+		loadFgRespecHistory(caseId, documentId),
+		loadAuditOnlyHotspots(caseId, documentId),
+		loadArgumentSubstrateCounts(documentId),
+	]);
+
+	const crossTypeReads: CrossTypeReadsSnapshot = {
+		hasFragestellungBeurteilung: fragestellungBeurteilung !== null,
+		hasMotivation: motivation !== null,
+		forschungsdesign: {
+			hasMethodologie: forschungsdesign.methodologieText !== null,
+			hasMethoden: forschungsdesign.methodenText !== null,
+			hasBasis: forschungsdesign.basisText !== null,
+		},
+		verweisProfil: verweisProfil
+			? {
+				containerCount: verweisProfil.containerCount,
+				totalCitations: verweisProfil.totalCitations,
+			}
+			: null,
+		gthReflexion: gthReflexion
+			? {
+				containerCount: gthReflexion.containerCount,
+				wuerdigungBlockCount: gthReflexion.wuerdigungBlockCount,
+				eckpunktBlockCount: gthReflexion.eckpunktBlockCount,
+				diskursivBlockCount: gthReflexion.diskursivBlockCount,
+				bezugslosBlockCount: gthReflexion.diskursivBezug.bezugslosBlocks.length,
+			}
+			: null,
+		respecHistoryCount: respecHistory.length,
+		auditOnlyHotspotCount: auditOnlyHotspots.length,
+		argumentNodeCount: argSubstrate.argumentNodeCount,
+	};
+
+	// Critical-Friend-Warnungen, wenn Substrat dünn ist (kein Blocker — fehlendes
+	// ist Befund, nicht Stop, siehe feedback_missing_is_finding_not_block.md):
+	if (!verweisProfil) {
+		warnings.push(
+			'Theoriebasis-Profil leer — VERWEIS_PROFIL-Konstrukte fehlen. SYNTHESE läuft ohne Verweis-Aggregat-Hinweise.'
+		);
+	}
+	if (!gthReflexion) {
+		warnings.push(
+			'Theorie-Reflexion leer — BLOCK_WUERDIGUNG/ECKPUNKT_BEFUND/DISKURSIV_BEZUG_BEFUND fehlen. SYNTHESE läuft ohne Eckpunkt- und Bezugs-Hinweise.'
+		);
+	}
+	if (
+		!forschungsdesign.methodologieText &&
+		!forschungsdesign.methodenText &&
+		!forschungsdesign.basisText
+	) {
+		warnings.push(
+			'Methodisches Setup leer — METHODOLOGIE/METHODEN/BASIS fehlen. SYNTHESE läuft ohne Methodik-Bezug.'
+		);
+	}
+
 	const llmRes = await extractGesamtergebnis({
 		fragestellung: fsRes.text,
+		fragestellungBeurteilung,
+		motivation,
 		forschungsgegenstand: fgRes.fg,
+		forschungsdesign,
+		verweisProfil,
+		gthReflexion,
+		respecHistory,
+		auditOnlyHotspots,
+		argSubstrate,
 		syntheseContainers: containers,
 		befunds,
 		brief,
@@ -682,6 +871,7 @@ export async function runSynthesePass(
 			paragraphCount: c.paragraphs.length,
 		})),
 		befundCount: befunds.length,
+		crossTypeReads,
 		llmModel: llmRes.model,
 		llmTimingMs: llmRes.timingMs,
 	};
@@ -726,6 +916,7 @@ export async function runSynthesePass(
 		diagnostics: {
 			fragestellungCount: fsRes.diag.count,
 			forschungsgegenstandCount: fgRes.diag.count,
+			crossTypeReads,
 			warnings,
 		},
 	};
