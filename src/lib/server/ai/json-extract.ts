@@ -56,19 +56,28 @@ export function extractAndValidateJSON<T>(
 	const stages: string[] = [];
 
 	// Stage 1: brace-trim
+	// Mindest-Anforderung: ein öffnendes `{` muss existieren. Ein fehlendes
+	// schließendes `}` ist KEIN Bailout-Grund — das ist der Standardfall bei
+	// maxTokens-Truncation (Antwort mid-string abgeschnitten), und jsonrepair
+	// (Stage 4) ist genau dafür gebaut: es schließt offene Strings und
+	// dangling Objekte. Wenn wir hier hart abbrechen, hebeln wir die
+	// Repair-Pipeline für den häufigsten Fehlermodus aus.
 	const start = rawText.indexOf('{');
-	const end = rawText.lastIndexOf('}');
-	if (start === -1 || end === -1 || end < start) {
+	if (start === -1) {
 		return {
 			ok: false,
 			stage: 'brace-trim',
-			error: 'No JSON object found in response (no { } pair)',
+			error: 'No JSON object start found in response (no `{`)',
 			rawText,
 			candidateJson: null,
 			stagesUsed: stages,
 		};
 	}
-	let candidate = rawText.slice(start, end + 1);
+	const end = rawText.lastIndexOf('}');
+	let candidate =
+		end === -1 || end < start
+			? rawText.slice(start)              // truncated — jsonrepair schließt den Rest
+			: rawText.slice(start, end + 1);
 	stages.push('brace-trim');
 
 	// Stage 2: typographic-quote repair (cheap, targeted; preserves content)

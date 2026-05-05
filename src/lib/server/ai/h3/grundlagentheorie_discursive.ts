@@ -415,10 +415,10 @@ export interface DiscursivePassOptions {
 	minStandardStretchLen?: number;
 	modelOverride?: { provider: Provider; model: string };
 	/**
-	 * maxTokens für den DISKURSIV_BEZUG_PRÜFEN-Call. Default 800 — eine
-	 * Klassifikation + 1–2-Satz-Rationale + optionale ¶-Anker bleiben
-	 * darunter. Setq: nicht empirisch validiert; falls Antworten regelmäßig
-	 * abgeschnitten werden, hochziehen. User-Konsens steht aus.
+	 * maxTokens für den DISKURSIV_BEZUG_PRÜFEN-Call. Default 2000 — eine
+	 * Klassifikation + 1–2-Satz-Rationale + optionale ¶-Anker passen mit
+	 * Reserve hinein. Empirie: 800 reichten nicht (Mistral schreibt
+	 * 2–3-Satz-Rationales und truncierte mid-string).
 	 */
 	maxTokens?: number;
 }
@@ -462,7 +462,7 @@ export interface DiscursivePassResult {
 
 // Setq-Defaults — siehe DiscursivePassOptions JSDoc oben.
 const DEFAULT_MIN_STANDARD_STRETCH_LEN = 1;
-const DEFAULT_MAX_TOKENS = 800;
+const DEFAULT_MAX_TOKENS = 2000;
 
 /**
  * Anchor-skopierter DELETE für DISKURSIV_BEZUG_BEFUND eines Komplexes —

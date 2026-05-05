@@ -120,10 +120,10 @@ LLMs liefern Strukturen selten spec-rein. SARAH unterstützt zwei Output-Formate
 
 Für Outputs mit eindeutig **strukturiertem Charakter** (Argument-Graphen, Validity-Checks, H3-Konstrukt-Listen). Drei-Tier-Repair:
 
-1. **Brace-Trim** — finde `{...}`-Bounds.
+1. **Brace-Trim** — finde Anfang ab `{`. Nur das öffnende `{` ist Pflicht; fehlt das schließende `}` (typischer maxTokens-Truncation-Fall: Antwort mid-string abgeschnitten), wird ab `{` bis Stringende übergeben — `jsonrepair` (Stage 4) schließt offene Strings und dangling Objekte. Hartes Bailout nur, wenn gar kein `{` vorkommt.
 2. **Typographic-Quote-Repair** — `„..."` → `"..."` (deutsche Anführungszeichen, JSON-valid).
 3. **Direct parse** + Zod-Schema-Validierung.
-4. **Fallback: `jsonrepair`** (npm) — control chars, single quotes, trailing commas, unquoted keys, partial truncation.
+4. **Fallback: `jsonrepair`** (npm) — control chars, single quotes, trailing commas, unquoted keys, partial truncation, fehlende Closer.
 5. **Final parse + validate**.
 
 API: `extractAndValidateJSON<T>({raw, schema})` → `ExtractSuccess<T> | ExtractFailure` mit Staged-Breadcrumb-Trail.
