@@ -72,26 +72,31 @@ export function isGranularityLevel(v: unknown): v is GranularityLevel {
 // keine Pflicht-Funktionstypen.
 //
 // H3: funktionstyp-orchestriert. Pflicht sind die Funktionstypen, deren
-// Konstrukt direkt von späteren H3-Phasen als Cross-Read verlangt wird:
-//   - EXPOSITION → liefert FRAGESTELLUNG (Cross-Read überall)
-//   - GRUNDLAGENTHEORIE → liefert FORSCHUNGSGEGENSTAND (Cross-Read von
-//     FORSCHUNGSDESIGN/DURCHFUEHRUNG/SCHLUSSREFLEXION)
+// Konstrukt direkt von späteren H3-Phasen als Cross-Read verlangt wird
+// und für die es KEINE Recovery-Heuristik gibt:
+//   - EXPOSITION → liefert FRAGESTELLUNG (Cross-Read überall) und ist
+//     zugleich Recovery-Quelle für FG, wenn GRUNDLAGENTHEORIE fehlt
 //   - DURCHFUEHRUNG → liefert BEFUNDE (Cross-Read von SYNTHESE)
 //   - SYNTHESE → liefert GESAMTERGEBNIS (Cross-Read von SCHLUSSREFLEXION/
 //     WERK_GUTACHT)
 //
-// Optional (mit Recovery-Heuristik): FORSCHUNGSDESIGN (AUFBAU_SKIZZE-
-// Pyramide), SCHLUSSREFLEXION (letztes-Drittel-Recovery). EXKURS und
-// WERK_STRUKTUR sind ohnehin optional.
+// Optional (mit Recovery-Heuristik):
+//   - GRUNDLAGENTHEORIE: liefert FORSCHUNGSGEGENSTAND. Bei fehlendem
+//     GTH-Container rekonstruiert runForschungsgegenstandPass den FG
+//     direkt aus EXPOSITION-Absätzen + FRAGESTELLUNG (typisch für
+//     Peer-Review-Artikel und kompakte Werke ohne eigenes Theoriekapitel).
+//   - FORSCHUNGSDESIGN: AUFBAU_SKIZZE-Pyramide.
+//   - SCHLUSSREFLEXION: letztes-Drittel-Recovery.
+//   - EXKURS, WERK_STRUKTUR: ohnehin optional.
 
 export const H3_REQUIRED_FUNCTION_TYPES: readonly OutlineFunctionType[] = [
 	'EXPOSITION',
-	'GRUNDLAGENTHEORIE',
 	'DURCHFUEHRUNG',
 	'SYNTHESE',
 ] as const;
 
 export const H3_OPTIONAL_FUNCTION_TYPES: readonly OutlineFunctionType[] = [
+	'GRUNDLAGENTHEORIE',
 	'FORSCHUNGSDESIGN',
 	'SCHLUSSREFLEXION',
 	'EXKURS',
