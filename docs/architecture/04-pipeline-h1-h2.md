@@ -237,9 +237,9 @@ Die H2-Linie ist Cousin der H1-Linie, baut aber auf der **interpretive chain** (
 
 ---
 
-## 7. Meta-Synthese (geplant — beschlossen 2026-05-05)
+## 7. Meta-Synthese (implementiert 2026-05-05 — Schritt 1)
 
-**Status:** konzeptuell, nicht implementiert.
+**Status:** Schritt 1 implementiert (Backend + Frontend). Schritte 2/3 (iterative Verfeinerung, agentische Volltext-Anfrage) sind weiterhin nicht Teil der Implementation — siehe §7.6.
 
 Synthese-Schicht oberhalb von H1+H2: konsumiert beide Werk-Outputs desselben Werks und produziert eine reviewfähige Meta-Synthese plus Anker für späteren Fact-Check (Volltext-Tool-Use, Folgestufe — siehe §7.6). Die Meta-Synthese ist **keine vierte Heuristik** (Drei-Heuristiken-Architektur H1/H2/H3 bleibt erhalten), sondern eine Synthese-über-Heuristik-Outputs.
 
@@ -278,7 +278,7 @@ Statistik allein identifiziert „wo wird zitiert, was ist zentral", nicht „we
 
 ### 7.5 UI-Lage
 
-Neuer Reiter **Meta-Synthese** im Document-View, rechts neben Synthesen und Research. Lesbar dort, getriggert über Run-Setup-Option 3 (siehe §7.1). UI-Routes-Eintrag in `07-api-and-ui.md` folgt mit der Implementation.
+Reiter **Meta-Synthese** im Document-View zwischen *Synthesen* und *Begleitdocs*. Tab rendert die vier-schritt-Prosa als sequentielle Lavender-akzentuierte Blöcke (positive Werkhypothese · geteilte Defizithypothese · H1↔H2-Differenz · Synthesehypothese) plus die drei Literaturbezugs-Anker als nummerierte Liste mit klickbaren §-Refs (öffnen Reader an der entsprechenden Stelle). Trigger via Radio-Button **Meta · Review-Synthese (H1 + H2 + Literaturbezugs-Anker)** zwischen H2 und H3 im Run-Setup-Auswahlmenü.
 
 ### 7.6 Folgestufe (Schritt 2/3 — separat)
 
@@ -287,8 +287,8 @@ Neuer Reiter **Meta-Synthese** im Document-View, rechts neben Synthesen und Rese
 
 Beide Folgestufen sind nicht Teil der ersten Implementation.
 
-### 7.7 Offene Implementations-Punkte
+### 7.7 Implementations-Entscheidungen (2026-05-05)
 
-- **Persistenz**: passt das `memo_content`-Pattern (z.B. `memo_type='kontextualisierend'`, `scope_level='work'`, neuer Tag-Suffix `/meta`)? Teil B als JSONB in `appearances.properties`? Oder eigene Tabelle?
-- **Run-Modell**: ein Run mit erweiterter `phasesForRun`-Folge (H1-Phasen + H2-Phasen + `meta_synthesis`), oder drei Sub-Runs orchestriert vom Master?
-- **Exakte Position der neuen Run-Setup-Option 3**: am Run-Setup-Code verifizieren, bisherige Option 3 sauber auf 4 umlabeln.
+- **Persistenz**: bestehendes `memo_content`-Pattern (`memo_type='kontextualisierend'`, `scope_level='work'`, Tag-Suffix `/meta` → Naming-Inscription `[kontextualisierend/work/meta]…`); Teil A als markdown-assemblierter prose-Content, Teil-B-Anker und die vier Sektions-Strings als JSONB in `appearances.properties` (`fact_check_anchors`, `synthese_parts`).
+- **Run-Modell**: ein Run mit erweitertem `RunOptions.heuristic = 'meta'` (Composite) — `phasesForRun` kettet `PHASE_ORDER_ANALYTICAL` (± `argument_validity`) → `PHASE_ORDER_SYNTHETIC` → `meta_synthesis` als terminales Glied. Tier-Routing: Meta nutzt `h1.tier2`.
+- **Run-Setup-UI**: Radio "Meta · Review-Synthese" steht zwischen H2 und H3 im exklusiven Heuristik-Selector; nicht als zusätzliche numerische Option, sondern als regulärer vierter Eintrag im selben Radiogruppen-Set.

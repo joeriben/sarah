@@ -55,6 +55,31 @@ export interface WorkSynthetic {
 	auffaelligkeiten: { scope: string; observation: string }[];
 }
 
+// Meta-Synthese (Composite-Heuristik, terminales Glied im H1+H2+Meta-Run).
+// content trägt die assemblierte Vier-Schritte-Prosa; syntheseParts hält die
+// Teil-A-Sektionen einzeln für Tab-Rendering; factCheckAnchors sind die drei
+// Literaturbezugs-Anker (Teil B), angereichert mit Argument-Claim und ¶-
+// Position für den Reader.
+export interface WorkMetaAnchor {
+	argumentNodeId: string;
+	paragraphId: string;
+	paragraphIndex: number;
+	argumentClaim: string;
+	rationale: string;
+}
+
+export interface WorkMeta {
+	memoId: string;
+	content: string;
+	syntheseParts: {
+		positive_werkhypothese: string;
+		defizit_hypothese: string;
+		h1_h2_differenz: string;
+		synthese_hypothese: string;
+	};
+	factCheckAnchors: WorkMetaAnchor[];
+}
+
 export interface OutlineEntry {
 	elementId: string;
 	level: number;
@@ -277,6 +302,9 @@ export const load: PageServerLoad = async ({ params }) => {
 	// H2-Werk-Synthese (synthetisch-getaggte Linie). Cousin der workSynthesis,
 	// aber aus document-collapse-synthetic.ts.
 	let workSynthetic: WorkSynthetic | null = null;
+	// Meta-Synthese (Composite-Heuristik H1+H2+Meta, terminales Glied). Wird
+	// nur befüllt, wenn ein meta-Run für dieses Dokument durchgelaufen ist.
+	let workMeta: WorkMeta | null = null;
 	// Argument-Graph-Daten pro Paragraph für DocumentReader (Dokument-Tab + Modal-Argumente-Mode).
 	// Bei Cases ohne synthetisch-interpretierende Per-¶-Memos (Budget-Route, AG-only)
 	// ist das die einzige Analyse-Ebene, die der Reader anzeigen kann.
@@ -438,6 +466,99 @@ export const load: PageServerLoad = async ({ params }) => {
 				memoId: workSyntheticRow.id,
 				content: workSyntheticRow.content,
 				auffaelligkeiten: workSyntheticRow.properties?.auffaelligkeiten ?? [],
+			};
+		}
+
+		// Meta-Synthese laden (Composite-Heuristik H1+H2+Meta, terminales Glied
+		// — siehe meta-synthesis.ts). Anchors werden mit argument_claim und
+		// ¶-Position für den Reader-Tab angereichert (JOIN über argument_nodes
+		// und document_elements + ROW_NUMBER für die ¶-Numerierung).
+		const workMetaRow = await queryOne<{
+			id: string;
+			content: string;
+			properties: {
+				synthese_parts?: {
+					positive_werkhypothese?: string;
+					defizit_hypothese?: string;
+					h1_h2_differenz?: string;
+					synthese_hypothese?: string;
+				};
+				fact_check_anchors?: {
+					argument_node_id: string;
+					paragraph_id: string;
+					rationale: string;
+				}[];
+			} | null;
+		}>(
+			`SELECT n.id, mc.content, a.properties
+			 FROM namings n
+			 JOIN appearances a ON a.naming_id = n.id AND a.mode = 'entity'
+			 JOIN memo_content mc ON mc.naming_id = n.id
+			 WHERE n.inscription LIKE '[kontextualisierend/work/meta]%'
+			   AND mc.scope_level = 'work'
+			   AND mc.memo_type = 'kontextualisierend'
+			   AND a.properties->>'document_id' = $1
+			   AND n.deleted_at IS NULL
+			 ORDER BY n.created_at DESC
+			 LIMIT 1`,
+			[params.docId]
+		);
+		if (workMetaRow) {
+			const rawAnchors = workMetaRow.properties?.fact_check_anchors ?? [];
+			let factCheckAnchors: WorkMetaAnchor[] = [];
+			if (rawAnchors.length > 0) {
+				const argIds = rawAnchors.map((a) => a.argument_node_id);
+				const enrichRows = (
+					await query<{
+						argument_node_id: string;
+						claim: string;
+						paragraph_id: string;
+						paragraph_index: number;
+					}>(
+						`WITH paragraph_index AS (
+						   SELECT id,
+						          ROW_NUMBER() OVER (ORDER BY char_start)::int AS pidx
+						   FROM document_elements
+						   WHERE document_id = $1
+						     AND element_type = 'paragraph'
+						     AND section_kind = 'main'
+						 )
+						 SELECT an.id AS argument_node_id,
+						        an.claim,
+						        p.id AS paragraph_id,
+						        p.pidx AS paragraph_index
+						 FROM argument_nodes an
+						 JOIN paragraph_index p ON p.id = an.paragraph_element_id
+						 WHERE an.id = ANY($2::uuid[])`,
+						[params.docId, argIds]
+					)
+				).rows;
+				const enrichByNode = new Map(enrichRows.map((r) => [r.argument_node_id, r]));
+				factCheckAnchors = rawAnchors
+					.map((a) => {
+						const e = enrichByNode.get(a.argument_node_id);
+						if (!e) return null;
+						return {
+							argumentNodeId: a.argument_node_id,
+							paragraphId: a.paragraph_id,
+							paragraphIndex: e.paragraph_index,
+							argumentClaim: e.claim,
+							rationale: a.rationale,
+						};
+					})
+					.filter((x): x is WorkMetaAnchor => x !== null);
+			}
+			const parts = workMetaRow.properties?.synthese_parts ?? {};
+			workMeta = {
+				memoId: workMetaRow.id,
+				content: workMetaRow.content,
+				syntheseParts: {
+					positive_werkhypothese: parts.positive_werkhypothese ?? '',
+					defizit_hypothese: parts.defizit_hypothese ?? '',
+					h1_h2_differenz: parts.h1_h2_differenz ?? '',
+					synthese_hypothese: parts.synthese_hypothese ?? '',
+				},
+				factCheckAnchors,
 			};
 		}
 
@@ -743,6 +864,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		workSynthesis,
 		chapterFlow,
 		workSynthetic,
+		workMeta,
 		analysisByElement,
 		h3ConstructsByElement,
 	};

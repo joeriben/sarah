@@ -12,7 +12,7 @@
 	import { browser } from '$app/environment';
 	import { replaceState, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
-	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, WorkSynthesis, ChapterFlow, WorkSynthetic, CaseInfo, OutlineEntry, BriefOption, ParagraphAnalysis, H3ConstructForReader } from './+page.server.js';
+	import type { DocumentElement, ParagraphMemo, CodeAnchor, HeadingSynthesis, WorkSynthesis, ChapterFlow, WorkSynthetic, WorkMeta, CaseInfo, OutlineEntry, BriefOption, ParagraphAnalysis, H3ConstructForReader } from './+page.server.js';
 	import type { DocReaderHeuristic } from './DocumentReader.svelte';
 	import {
 		missingRequiredFunctionTypes,
@@ -90,6 +90,7 @@
 	const workSynthesis = $derived(data.workSynthesis as WorkSynthesis | null);
 	const chapterFlow = $derived(data.chapterFlow as ChapterFlow | null);
 	const workSynthetic = $derived(data.workSynthetic as WorkSynthetic | null);
+	const workMeta = $derived(data.workMeta as WorkMeta | null);
 	const analysisByElement = $derived(data.analysisByElement as Record<string, ParagraphAnalysis>);
 	// H3-§-Spalte: serverseitig gefiltert auf §-skopierte construct_kinds
 	// (Whitelist FRAGESTELLUNG, MOTIVATION, METHODOLOGIE, METHODEN, BASIS,
@@ -99,12 +100,13 @@
 		data.h3ConstructsByElement as Record<string, H3ConstructForReader[]>
 	);
 
-	type View = 'pipeline' | 'dokument' | 'outline' | 'companions';
-	const VIEWS: View[] = ['pipeline', 'dokument', 'outline', 'companions'];
+	type View = 'pipeline' | 'dokument' | 'outline' | 'meta' | 'companions';
+	const VIEWS: View[] = ['pipeline', 'dokument', 'outline', 'meta', 'companions'];
 	const VIEW_LABEL: Record<View, string> = {
 		pipeline: 'Pipeline',
 		dokument: 'Dokument',
 		outline: 'Synthesen',
+		meta: 'Meta-Synthese',
 		companions: 'Begleitdocs',
 	};
 
@@ -157,7 +159,7 @@
 		current_index: number;
 		total_in_phase: number | null;
 		last_step_label: string | null;
-		options: { heuristic?: 'h1' | 'h2' | 'h3'; include_validity?: boolean; cost_cap_usd?: number | null };
+		options: { heuristic?: 'h1' | 'h2' | 'h3' | 'meta'; include_validity?: boolean; cost_cap_usd?: number | null };
 		cancel_requested: boolean;
 		error_message: string | null;
 		accumulated_input_tokens: number;
@@ -1716,6 +1718,16 @@
 												<input
 													type="radio"
 													name="heuristic"
+													value="meta"
+													bind:group={runOptions.heuristic}
+													disabled={!agEnabled}
+												/>
+												<span>Meta · Review-Synthese (H1 + H2 + Literaturbezugs-Anker)</span>
+											</label>
+											<label>
+												<input
+													type="radio"
+													name="heuristic"
 													value="h3"
 													bind:group={runOptions.heuristic}
 													disabled={!agEnabled}
@@ -2352,6 +2364,94 @@
 					</div>
 				{/if}
 			</section>
+		{:else if view === 'meta'}
+			<section class="tab-content meta-tab">
+				{#if !workMeta}
+					<div class="placeholder">
+						<h2>Meta-Synthese</h2>
+						<p>
+							Noch keine Meta-Synthese vorhanden. Sie entsteht im Composite-Run
+							<strong>Meta · Review-Synthese (H1 + H2 + Literaturbezugs-Anker)</strong>
+							als terminales Glied nach H1 und H2 — wählbar im Pipeline-Tab.
+						</p>
+						<p class="meta-intro">
+							Die Meta-Synthese spannt eine vier-schritt-Prosa über die beiden
+							Hauptlinien (positive Werkhypothese · geteilte Defizithypothese ·
+							H1↔H2-Differenz · Synthesehypothese) und benennt drei
+							Argumente, deren Literaturbezug für ein finales Gutachten
+							verifiziert werden sollte.
+						</p>
+					</div>
+				{:else}
+					<div class="meta-export-bar" title="Meta-Synthese (Vier-Schritte-Prosa) als Datei herunterladen.">
+						<span class="export-bar-label">Meta ↓</span>
+						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=docx&heuristic=meta`} download>DOCX</a>
+						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=md&heuristic=meta`} download>MD</a>
+						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=json&heuristic=meta`} download>JSON</a>
+					</div>
+					<p class="meta-intro">
+						Review-Synthese aus H1 (analytisch) und H2 (synthetisch-hermeneutisch).
+						Critical-Friend-Lesart — Diskussionsgrundlage, kein Verdikt.
+					</p>
+					<article class="meta-block">
+						<header class="meta-block-head">
+							<span class="meta-tag">1 · Positive Werkhypothese</span>
+						</header>
+						<div class="meta-content">{workMeta.syntheseParts.positive_werkhypothese}</div>
+					</article>
+					<article class="meta-block">
+						<header class="meta-block-head">
+							<span class="meta-tag">2 · Geteilte Defizithypothese</span>
+						</header>
+						<div class="meta-content">{workMeta.syntheseParts.defizit_hypothese}</div>
+					</article>
+					<article class="meta-block">
+						<header class="meta-block-head">
+							<span class="meta-tag">3 · H1 ↔ H2 — Differenz</span>
+						</header>
+						<div class="meta-content">{workMeta.syntheseParts.h1_h2_differenz}</div>
+					</article>
+					<article class="meta-block">
+						<header class="meta-block-head">
+							<span class="meta-tag">4 · Synthesehypothese</span>
+						</header>
+						<div class="meta-content">{workMeta.syntheseParts.synthese_hypothese}</div>
+					</article>
+					{#if workMeta.factCheckAnchors.length > 0}
+						<section class="fact-check-block">
+							<header class="fact-check-head">
+								<h3>Literaturbezugs-Anker</h3>
+								<p class="fact-check-intro">
+									Drei Argumente, deren Literaturbezug vor einem finalen
+									Gutachten verifiziert werden sollte. Klick auf §-Referenz
+									öffnet den Reader an der entsprechenden Stelle.
+								</p>
+							</header>
+							<ol class="fact-check-list">
+								{#each workMeta.factCheckAnchors as anchor (anchor.argumentNodeId)}
+									{@const paraAnalysis = analysisByElement[anchor.paragraphId]}
+									{@const arg = paraAnalysis?.args.find((a) => a.id === anchor.argumentNodeId)}
+									{@const argLocalId = arg?.argLocalId}
+									<li class="fact-check-item">
+										<div class="fact-check-claim">
+											<button
+												type="button"
+												class="anchor-link"
+												title={argLocalId
+													? `Reader öffnen an §${anchor.paragraphIndex}:${argLocalId}`
+													: `Reader öffnen an §${anchor.paragraphIndex}`}
+												onclick={() => openReader({ elementId: anchor.paragraphId, argumentId: argLocalId })}
+											>§{anchor.paragraphIndex}{argLocalId ? `:${argLocalId}` : ''}</button>
+											<span class="fact-check-claim-text">{anchor.argumentClaim}</span>
+										</div>
+										<div class="fact-check-rationale">{anchor.rationale}</div>
+									</li>
+								{/each}
+							</ol>
+						</section>
+					{/if}
+				{/if}
+			</section>
 		{:else}
 			<section class="tab-content companions-tab">
 				<div class="placeholder">
@@ -2867,6 +2967,86 @@
 	.work-content {
 		font-size: 0.92rem; line-height: 1.55; color: #d6dae8;
 		white-space: pre-wrap;
+	}
+	/* Meta-Synthese-Tab: Review-Synthese H1+H2+Literaturbezugs-Anker.
+	   Eigene Lavender-Akzentfarbe — distinkt von H1 (grün), H2 (grün, gleicher
+	   Verdikt-Look wie H1) und H3 (grün), markiert die Meta-Ebene als terminales
+	   Glied über den beiden Hauptlinien. */
+	.meta-tab .meta-intro {
+		font-size: 0.82rem; color: #8b8fa3;
+		margin: 0 0 1rem; max-width: 72ch; line-height: 1.55;
+	}
+	.meta-export-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		padding: 0.55rem 0.8rem;
+		margin: 0 0 1rem;
+		background: rgba(196, 181, 253, 0.05);
+		border: 1px solid rgba(196, 181, 253, 0.3);
+		border-radius: 5px;
+		font-size: 0.78rem;
+		color: #8b8fa3;
+	}
+	.meta-block {
+		padding: 1rem 1.25rem 1.1rem;
+		background: rgba(196, 181, 253, 0.05);
+		border: 1px solid rgba(196, 181, 253, 0.32);
+		border-radius: 8px;
+		margin: 0 0 0.9rem;
+	}
+	.meta-block-head {
+		display: flex; align-items: baseline; gap: 0.7rem;
+		margin-bottom: 0.55rem;
+	}
+	.meta-tag {
+		font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase;
+		padding: 2px 8px; border-radius: 4px;
+		background: rgba(196, 181, 253, 0.18); color: #ddd6fe;
+		font-weight: 600;
+	}
+	.meta-content {
+		font-size: 0.92rem; line-height: 1.6; color: #d6dae8;
+		white-space: pre-wrap;
+	}
+	.fact-check-block {
+		margin: 1.6rem 0 0;
+		padding: 1.1rem 1.25rem 1.2rem;
+		border: 1px dashed rgba(196, 181, 253, 0.35);
+		border-radius: 8px;
+		background: rgba(196, 181, 253, 0.025);
+	}
+	.fact-check-head { margin-bottom: 0.8rem; }
+	.fact-check-head h3 {
+		font-size: 0.95rem; margin: 0 0 0.4rem; color: #ddd6fe;
+		letter-spacing: 0.02em;
+	}
+	.fact-check-intro {
+		font-size: 0.78rem; color: #8b8fa3;
+		margin: 0; max-width: 72ch; line-height: 1.5;
+	}
+	.fact-check-list {
+		list-style: decimal inside;
+		padding: 0; margin: 0;
+		display: flex; flex-direction: column; gap: 0.85rem;
+	}
+	.fact-check-item {
+		padding: 0.7rem 0.9rem;
+		background: rgba(255,255,255,0.02);
+		border: 1px solid #2a2d3a;
+		border-radius: 5px;
+	}
+	.fact-check-claim {
+		display: flex; align-items: baseline; gap: 0.55rem;
+		margin-bottom: 0.4rem;
+		flex-wrap: wrap;
+	}
+	.fact-check-claim-text {
+		font-size: 0.88rem; line-height: 1.5; color: #e7eaf6;
+	}
+	.fact-check-rationale {
+		font-size: 0.82rem; line-height: 1.55; color: #a8acbf;
+		padding-left: 0.2rem;
 	}
 	.outline-list { display: flex; flex-direction: column; gap: 0.7rem; }
 	.outline-node {

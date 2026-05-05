@@ -103,7 +103,10 @@ export const H3_OPTIONAL_FUNCTION_TYPES: readonly OutlineFunctionType[] = [
 	'WERK_STRUKTUR',
 ] as const;
 
-export type HeuristicPath = 'h1' | 'h2' | 'h3';
+// 'meta' ist eine Composite-Heuristik: H1+H2 sequenziell, dann Meta-
+// Synthese als terminales Glied (siehe docs/architecture/04-pipeline-h1-h2.md
+// §7). Sie bleibt strukturblind wie H1/H2 — keine Pflicht-Funktionstypen.
+export type HeuristicPath = 'h1' | 'h2' | 'h3' | 'meta';
 
 /**
  * Berechnet die fehlenden Pflicht-Funktionstypen für eine Heuristik gegen
@@ -111,7 +114,7 @@ export type HeuristicPath = 'h1' | 'h2' | 'h3';
  * Anzahl Headings im Werk. Werte >= 1 zählen als "vergeben".
  *
  * Returns die Liste der fehlenden Pflicht-Typen — leer = alles OK.
- * Für H1/H2 immer leer (strukturblind).
+ * Für H1/H2/Meta immer leer (strukturblind).
  */
 export function missingRequiredFunctionTypes(
 	heuristic: HeuristicPath,
