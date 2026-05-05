@@ -69,6 +69,7 @@ import { runDocumentCollapse } from '../ai/hermeneutic/document-collapse.js';
 import { runSectionCollapseSynthetic } from '../ai/hermeneutic/section-collapse-synthetic.js';
 import { runChapterCollapseSynthetic } from '../ai/hermeneutic/chapter-collapse-synthetic.js';
 import { runDocumentCollapseSynthetic } from '../ai/hermeneutic/document-collapse-synthetic.js';
+import { runMetaSynthesis } from '../ai/hermeneutic/meta-synthesis.js';
 import {
 	listH3WalkSteps,
 	walkStepId,
@@ -96,7 +97,13 @@ export type Phase =
 	// H3 — linearer Walk über Absatz-Komplexe + Werk-Aggregationen
 	// (User-Setzung 2026-05-04: kein Phase-Layer, ein Walk pro H3-Run).
 	// Atom-Liste pro Walk siehe h3-walk-driver.ts:listH3WalkSteps.
-	| 'h3_walk';
+	| 'h3_walk'
+	// Meta-Synthese (heuristic='meta'): terminales Glied im Composite-Run
+	// H1 → H2 → meta_synthesis. Konsumiert die Werk-Synthesen beider
+	// Linien und produziert Review-Synthese (Teil A) plus drei Literatur-
+	// bezugs-Anker (Teil B). Idempotenz-Tag [kontextualisierend/work/meta].
+	// Siehe docs/architecture/04-pipeline-h1-h2.md §7.
+	| 'meta_synthesis';
 
 // Hauptlinie ohne argument_validity — diese Phase ist opt-in und wird per
 // phasesForRun() bei aktivem RunOptions.include_validity zwischen
@@ -129,6 +136,7 @@ export const PHASE_LABEL: Record<Phase, string> = {
 	chapter_collapse_synthetic: 'Hauptkapitel-Synthesen (synthetisch)',
 	document_collapse_synthetic: 'Werk-Synthese (synthetisch)',
 	h3_walk: 'H3 · Walk (Absatz-Komplexe + Werk-Aggregationen)',
+	meta_synthesis: 'Meta-Synthese (Review-Synthese H1+H2 + Literaturbezugs-Anker)',
 };
 
 export interface RunOptions {
@@ -137,9 +145,17 @@ export interface RunOptions {
 	// Default `'h1'`, wenn nicht gesetzt. Wer mehrere Pfade auf demselben
 	// Werk anwenden will, triggert sequenziell mehrere Runs — automatische
 	// Verkettung gibt es nicht.
-	heuristic?: 'h1' | 'h2' | 'h3';
+	//
+	// `'meta'` ist eine Composite-Heuristik (User-Setzung 2026-05-05): in
+	// einem Run laufen H1-linear und H2-hierarchisch nacheinander, gefolgt
+	// vom terminalen meta_synthesis-Glied. H1/H2/H3 bleiben als eigen-
+	// ständige Heuristiken gleichrangig — `'meta'` ist eine Synthese
+	// *über* H1+H2, keine vierte Heuristik. Siehe
+	// docs/architecture/04-pipeline-h1-h2.md §7.
+	heuristic?: 'h1' | 'h2' | 'h3' | 'meta';
 
-	// H1-spezifischer Modifikator. Wird ignoriert, wenn heuristic !== 'h1'.
+	// H1-spezifischer Modifikator. Wird auch im 'meta'-Composite-Run für
+	// die H1-Teilstrecke berücksichtigt; ignoriert bei heuristic ∈ {h2, h3}.
 	include_validity?: boolean;
 
 	cost_cap_usd?: number | null;
@@ -553,6 +569,25 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 			);
 			return { all, pending: done ? [] : all };
 		}
+		case 'meta_synthesis': {
+			// Ein Atom auf Werk-Ebene: meta-synthesis.ts liest beide Werk-
+			// Synthesen (H1+H2) und produziert ein Werk-Memo plus
+			// fact_check_anchors (siehe docs/architecture/04-pipeline-h1-h2.md §7).
+			const all: AtomRef[] = [{ id: documentId, label: 'Meta-Synthese (Review)' }];
+			const done = await queryOne<{ id: string }>(
+				`SELECT n.id
+				 FROM namings n
+				 JOIN appearances a ON a.naming_id = n.id AND a.mode = 'entity'
+				 JOIN memo_content mc ON mc.naming_id = n.id
+				 WHERE n.inscription LIKE '[kontextualisierend/work/meta]%'
+				   AND mc.scope_level = 'work'
+				   AND a.properties->>'document_id' = $1
+				   AND n.deleted_at IS NULL
+				 LIMIT 1`,
+				[documentId]
+			);
+			return { all, pending: done ? [] : all };
+		}
 		// H3-Walk wird NICHT durch die generische Atom-Schleife geführt — er
 		// hat einen eigenen Loop runH3Walk mit walk-step-spezifischer Done-/
 		// Validation-Prüfung und fail-fast-Semantik. Wenn diese Funktion mit
@@ -749,6 +784,20 @@ async function executeStep(
 				memoId: r.stored?.memoId ?? r.existingMemoId,
 			};
 		}
+		case 'meta_synthesis': {
+			const r = await runMetaSynthesis(caseId, userId, {
+				modelOverride: resolveTier('h1.tier2'),
+			});
+			return {
+				skipped: r.skipped,
+				tokens: {
+					input: r.tokens?.input ?? 0,
+					output: r.tokens?.output ?? 0,
+					cacheRead: r.tokens?.cacheRead ?? 0,
+				},
+				memoId: r.stored?.memoId ?? r.existingMemoId,
+			};
+		}
 		// H3-Walk hat einen eigenen Loop (runH3Walk) mit walk-step-spezifischer
 		// Dispatch-Logik. Hier ist h3_walk unerreichbar (siehe runPipelineLoop
 		// Branch).
@@ -783,6 +832,23 @@ export function phasesForRun(options: RunOptions): Phase[] {
 				const agIdx = phases.indexOf('argumentation_graph');
 				phases.splice(agIdx + 1, 0, 'argument_validity');
 			}
+			return phases;
+		}
+		case 'meta': {
+			// Composite-Heuristik (User-Setzung 2026-05-05): H1-Phasen linear,
+			// dann H2-Phasen hierarchisch, dann meta_synthesis terminal. Die
+			// hier zurückgegebene Liste ist die semantische Sequenz für UI/
+			// Telemetrie/Preflight-Counts; die tatsächliche Ausführung
+			// dispatched runPipelineLoop in drei Sub-Strecken (H1 via
+			// runIterativePhase, H2 via runH2Hierarchical, meta_synthesis via
+			// runIterativePhase).
+			const phases: Phase[] = [...PHASE_ORDER_ANALYTICAL];
+			if (options.include_validity) {
+				const agIdx = phases.indexOf('argumentation_graph');
+				phases.splice(agIdx + 1, 0, 'argument_validity');
+			}
+			phases.push(...PHASE_ORDER_SYNTHETIC);
+			phases.push('meta_synthesis');
 			return phases;
 		}
 	}
@@ -848,20 +914,27 @@ export async function runPipelineLoop(
 
 	const heuristic = options.heuristic ?? 'h1';
 
-	if (heuristic === 'h2') {
-		// H2 fährt einen Forward-interleaved-Walk (siehe runH2Hierarchical).
-		// Cancel-Checks erfolgen pro Atom innerhalb von runH2Hierarchical;
-		// hier nur ein zusätzlicher Pre-Check vor dem Plan-Aufbau.
+	// Pre-Check (Cancel + Run-vorhanden). Returnt true wenn der Loop weiter
+	// laufen darf, false wenn schon paused/failed gemeldet wurde.
+	const preCheck = async (): Promise<boolean> => {
 		const run = await getRun(runId);
 		if (!run) {
 			safeSend(sendEvent, { type: 'failed', message: 'run vanished from DB' });
-			return;
+			return false;
 		}
 		if (run.cancel_requested) {
 			await markPaused(runId);
 			safeSend(sendEvent, { type: 'paused' });
-			return;
+			return false;
 		}
+		return true;
+	};
+
+	if (heuristic === 'h2') {
+		// H2 fährt einen Forward-interleaved-Walk (siehe runH2Hierarchical).
+		// Cancel-Checks erfolgen pro Atom innerhalb von runH2Hierarchical;
+		// hier nur ein zusätzlicher Pre-Check vor dem Plan-Aufbau.
+		if (!(await preCheck())) return;
 		const ok = await runH2Hierarchical(
 			runId,
 			caseId,
@@ -872,21 +945,65 @@ export async function runPipelineLoop(
 			recordAtomError
 		);
 		if (!ok) return;
+	} else if (heuristic === 'meta') {
+		// Composite-Run (User-Setzung 2026-05-05): H1-Phasen linear, dann
+		// H2-Walk hierarchisch, dann meta_synthesis terminal. Idempotenz:
+		// schon durchgelaufene Sub-Strecken werden via Done-Filter in
+		// runIterativePhase / runH2Hierarchical übersprungen.
+
+		// 1. H1-Strecke (linear, ± validity).
+		const h1Phases: Phase[] = [...PHASE_ORDER_ANALYTICAL];
+		if (options.include_validity) {
+			const agIdx = h1Phases.indexOf('argumentation_graph');
+			h1Phases.splice(agIdx + 1, 0, 'argument_validity');
+		}
+		for (const phase of h1Phases) {
+			if (!(await preCheck())) return;
+			const ok = await runIterativePhase(
+				runId,
+				phase,
+				caseId,
+				documentId,
+				userId,
+				sendEvent,
+				erroredAtomIds,
+				recordAtomError
+			);
+			if (!ok) return;
+		}
+
+		// 2. H2-Strecke (forward-interleaved Walk).
+		if (!(await preCheck())) return;
+		const h2Ok = await runH2Hierarchical(
+			runId,
+			caseId,
+			documentId,
+			userId,
+			sendEvent,
+			erroredAtomIds,
+			recordAtomError
+		);
+		if (!h2Ok) return;
+
+		// 3. meta_synthesis (terminal, ein Atom auf Werk-Ebene).
+		if (!(await preCheck())) return;
+		const metaOk = await runIterativePhase(
+			runId,
+			'meta_synthesis',
+			caseId,
+			documentId,
+			userId,
+			sendEvent,
+			erroredAtomIds,
+			recordAtomError
+		);
+		if (!metaOk) return;
 	} else {
 		// h1 (PHASE_ORDER_ANALYTICAL ± validity) und h3 (h3_walk).
 		for (const phase of phases) {
 			// Cancel-Check vor jeder Phase. Innerhalb der Phase wird er von
 			// runIterativePhase / runH3Walk selbst nochmal geprüft.
-			const run = await getRun(runId);
-			if (!run) {
-				safeSend(sendEvent, { type: 'failed', message: 'run vanished from DB' });
-				return;
-			}
-			if (run.cancel_requested) {
-				await markPaused(runId);
-				safeSend(sendEvent, { type: 'paused' });
-				return;
-			}
+			if (!(await preCheck())) return;
 
 			const ok =
 				phase === 'h3_walk'
