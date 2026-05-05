@@ -358,6 +358,33 @@
 		<span class="ft-counts" title="Wieviele Outline-Knoten haben einen Funktionstyp gesetzt (User oder Heuristik)">
 			Funktionstyp: {functionTypedCount} / {visibleNonExcludedTotal}
 		</span>
+		<span class="export-group" title="Aktuellen Outline-Stand herunterladen. DOCX trägt native Heading-Styles (Word-Navigationsbereich), PDF native Outline-Bookmarks (PDF-Reader-Sidebar).">
+			Export:
+			<a
+				class="export-link"
+				href={`/api/projects/${projectId}/documents/${docId}/outline/export?format=docx`}
+				download
+				title="Word-Dokument mit nativen Heading-Styles 1–6"
+			>↓ DOCX</a>
+			<a
+				class="export-link"
+				href={`/api/projects/${projectId}/documents/${docId}/outline/export?format=pdf`}
+				download
+				title="PDF mit nativen Outline-Bookmarks"
+			>↓ PDF</a>
+			<a
+				class="export-link"
+				href={`/api/projects/${projectId}/documents/${docId}/outline/export?format=md`}
+				download
+				title="Markdown-Liste"
+			>↓ MD</a>
+			<a
+				class="export-link"
+				href={`/api/projects/${projectId}/documents/${docId}/outline/export?format=json`}
+				download
+				title="EffectiveOutline als JSON"
+			>↓ JSON</a>
+		</span>
 		{#if errorMessage}
 			<p class="error">{errorMessage}</p>
 		{/if}
@@ -580,6 +607,28 @@
 		color: #8b9199;
 		margin-left: 0.4rem;
 		font-family: 'JetBrains Mono', ui-monospace, monospace;
+	}
+	.export-group {
+		display: inline-flex;
+		gap: 0.45rem;
+		align-items: center;
+		font-size: 0.78rem;
+		color: #8b9199;
+		margin-left: 0.2rem;
+	}
+	.export-link {
+		color: #c7d2fe;
+		text-decoration: none;
+		padding: 0.18rem 0.5rem;
+		border: 1px solid rgba(165, 180, 252, 0.3);
+		border-radius: 3px;
+		background: rgba(165, 180, 252, 0.06);
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 0.74rem;
+	}
+	.export-link:hover {
+		background: rgba(165, 180, 252, 0.16);
+		border-color: rgba(165, 180, 252, 0.55);
 	}
 	.reopen-btn {
 		border-color: rgba(251, 191, 36, 0.4);
