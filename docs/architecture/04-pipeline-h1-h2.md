@@ -226,3 +226,61 @@ Die H2-Linie ist Cousin der H1-Linie, baut aber auf der **interpretive chain** (
 - **Resume nach DB-Restart**: aktive Runs landen in `paused`-Status (kein laufender Worker). Manuelles `startOrResumeRun` nötig.
 - **Zwei parallele Resume-Versuche**: partial UNIQUE-Index verhindert mehr als 1 running/paused pro Case. Zweiter Versuch → 23505.
 - **Cost-Cap**: `options.cost_cap_usd` blockt nur, wenn `accumulated_cost_usd` aktiv aktualisiert wird (passiert in `updateProgress`). Erweiterungspunkt für Hard-Stops.
+
+---
+
+## 7. Meta-Synthese (geplant — beschlossen 2026-05-05)
+
+**Status:** konzeptuell, nicht implementiert.
+
+Synthese-Schicht oberhalb von H1+H2: konsumiert beide Werk-Outputs desselben Werks und produziert eine reviewfähige Meta-Synthese plus Anker für späteren Fact-Check (Volltext-Tool-Use, Folgestufe — siehe §7.6). Die Meta-Synthese ist **keine vierte Heuristik** (Drei-Heuristiken-Architektur H1/H2/H3 bleibt erhalten), sondern eine Synthese-über-Heuristik-Outputs.
+
+### 7.1 Trigger
+
+Neue dritte Option im Run-Setup-Auswahlmenü (bisherige Option 3 rutscht auf 4): sequenzieller Master-Run **H1 → H2 → Meta-Synthese**. Erweitert die Single-Heuristic-Annahme von §1 (`options.heuristic ∈ {h1,h2,h3}` exklusiv pro Sub-Lauf): der Master-Run kettet die H1-Phasen-Folge und die H2-Phasen-Folge und schließt mit dem terminalen `meta_synthesis`-Glied.
+
+### 7.2 Output (zwei Teile in einem Lauf)
+
+**Teil A — Synthese-Prose** in vier Schritten, strikt nur aus H1- und H2-Werk-Synthesen inferierbar (kein Volltext-Zugriff in dieser Stufe):
+
+1. Positive Werkhypothese, die beide Analysen dem Werk zuschreiben.
+2. Defizithypothese, die beide Analysen teilen.
+3. Differenz zwischen H1 und H2 — was sieht H1 schärfer, was sieht H2 genauer.
+4. Belastbare Synthesehypothese, **ausdrücklich als Hypothese markiert**, weil das Werk selbst nicht erneut gelesen wurde.
+
+Disziplin: keine neuen inhaltlichen Befunde erfinden, keine fallbezogenen Aussagen außerhalb der H1+H2-Outputs, strikte Trennung „aus den Analysen inferierbar" vs. „nur am Werk prüfbar".
+
+**Teil B — drei Literaturbezugs-Anker** für späteren Fact-Check, jeweils mit Begründung, warum dieser Bezug die Interpretation entscheidet.
+
+### 7.3 Inputs
+
+- H1-Werk-Synthese (`memo_content` mit Tag `[kontextualisierend/work/graph]`).
+- H2-Werk-Synthese (`memo_content` mit Tag `[kontextualisierend/work/synthetic]`).
+- Für Teil-B-Anker zusätzlich: `argument_nodes` (claim, premises, anchor_phrase, referential_grounding) und `argument_edges` des Werks.
+
+### 7.4 Pre-Filter Teil B (hybrid)
+
+Statistischer Pre-Filter liefert Kandidaten-Pool, agentische Wahl der drei Anker mit Begründung. Pre-Filter-Quellen:
+
+- `argument_nodes.referential_grounding ≠ 'abstract'` (= Bezug auf Literatur, nicht reine Paraphrase) — span-blind, aber pro-Argument klassifiziert (siehe §4 + Memory `project_pipeline_grounding_is_span_blind`).
+- Zitations-Marker in `paragraphs.raw_text` (regex über `(Autor Jahr)`, Fußnoten-Marker) — direkt zählbar pro Absatz.
+- Zentralität im argument_graph (eingehende + ausgehende edges) — direkt aus den H1-Daten.
+
+Statistik allein identifiziert „wo wird zitiert, was ist zentral", nicht „welche Literaturlesart entscheidet die Interpretation" — Letzteres bleibt agentisch.
+
+### 7.5 UI-Lage
+
+Neuer Reiter **Meta-Synthese** im Document-View, rechts neben Synthesen und Research. Lesbar dort, getriggert über Run-Setup-Option 3 (siehe §7.1). UI-Routes-Eintrag in `07-api-and-ui.md` folgt mit der Implementation.
+
+### 7.6 Folgestufe (Schritt 2/3 — separat)
+
+- **Schritt 2 — iterative Verfeinerung** der Synthese: noch nicht ausdesigned (dialogische Spannungs-Pässe vs. Self-Critique-Pässe offen).
+- **Schritt 3 — agentische Volltext-Anfrage** von bis zu drei `paragraphs.raw_text`-Stellen plus user-bereitgestellter Quellen-Literatur für Fact-Check der Teil-B-Anker. Bricht die „nur aus Analysen inferierbar"-Disziplin von Teil A bewusst auf, klar als zweite Stufe markiert.
+
+Beide Folgestufen sind nicht Teil der ersten Implementation.
+
+### 7.7 Offene Implementations-Punkte
+
+- **Persistenz**: passt das `memo_content`-Pattern (z.B. `memo_type='kontextualisierend'`, `scope_level='work'`, neuer Tag-Suffix `/meta`)? Teil B als JSONB in `appearances.properties`? Oder eigene Tabelle?
+- **Run-Modell**: ein Run mit erweiterter `phasesForRun`-Folge (H1-Phasen + H2-Phasen + `meta_synthesis`), oder drei Sub-Runs orchestriert vom Master?
+- **Exakte Position der neuen Run-Setup-Option 3**: am Run-Setup-Code verifizieren, bisherige Option 3 sauber auf 4 umlabeln.

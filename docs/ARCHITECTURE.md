@@ -37,6 +37,7 @@ Diese Doku ist der **single source of truth** für Architektur, Datenmodell und 
 |-------|---------|
 | Welche Tabelle hat Spalte X? | [01-data-model](architecture/01-data-model.md) |
 | Welche Phase läuft im Pipeline-Run wann? | [04-pipeline-h1-h2 §1](architecture/04-pipeline-h1-h2.md) |
+| Was ist die Meta-Synthese (Run-Setup-Option 3, H1→H2→Meta)? | [04-pipeline-h1-h2 §7](architecture/04-pipeline-h1-h2.md) |
 | Was ist der aktuelle Stand von H3:GRUNDLAGENTHEORIE? | [05-pipeline-h3 §4.3](architecture/05-pipeline-h3.md) |
 | Wie funktioniert H3:DURCHFUEHRUNG (Hotspots → H1 → Grounding → BEFUND)? | [05-pipeline-h3 §4.4](architecture/05-pipeline-h3.md) |
 | Wie modifiziert H3:EXKURS den FORSCHUNGSGEGENSTAND? | [05-pipeline-h3 §4.5](architecture/05-pipeline-h3.md) bzw. [h3_exkurs_status.md](h3_exkurs_status.md) |
