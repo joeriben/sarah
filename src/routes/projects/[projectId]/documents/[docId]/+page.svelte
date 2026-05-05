@@ -2161,16 +2161,17 @@
 						</p>
 					</div>
 				{:else}
-					<div class="export-bar" title="Werk-Reflexion (Werk-Synthese, Kapitelverlauf, Werk-Beschreibung, Werk-Gutachten, Heading-Synthesen) als Datei herunterladen — DOCX/PDF nutzen native Heading-Styles als Navigations-Anker.">
-						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=docx`} download>↓ DOCX</a>
-						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=pdf`} download>↓ PDF</a>
-						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=md`} download>↓ MD</a>
-						<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=json`} download>↓ JSON</a>
-					</div>
 					{#if synthesenColCount > 0}
 						<div class="synthesen-grid" data-cols={synthesenColCount}>
 							{#if synthesenAvail.h1}
 								<div class="synthesen-col">
+									<div class="export-bar export-bar-col" title="H1-Synthese (Werk-Synthese + Kapitelverlauf) als Datei herunterladen.">
+										<span class="export-bar-label">H1 ↓</span>
+										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=docx&heuristic=h1`} download>DOCX</a>
+										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=pdf&heuristic=h1`} download>PDF</a>
+										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=md&heuristic=h1`} download>MD</a>
+										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=json&heuristic=h1`} download>JSON</a>
+									</div>
 									{#if workSynthesis}
 										<article class="work-verdict">
 											<header class="work-verdict-head">
@@ -2193,6 +2194,13 @@
 							{/if}
 							{#if synthesenAvail.h2 && workSynthetic}
 								<div class="synthesen-col">
+									<div class="export-bar export-bar-col" title="H2-Synthese (synthetisch-hermeneutisches Verdikt) als Datei herunterladen.">
+										<span class="export-bar-label">H2 ↓</span>
+										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=docx&heuristic=h2`} download>DOCX</a>
+										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=pdf&heuristic=h2`} download>PDF</a>
+										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=md&heuristic=h2`} download>MD</a>
+										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=json&heuristic=h2`} download>JSON</a>
+									</div>
 									<article class="work-verdict">
 										<header class="work-verdict-head">
 											<span class="work-tag">H2 · Synthetisches Verdikt</span>
@@ -2214,6 +2222,13 @@
 							{/if}
 							{#if synthesenAvail.h3}
 								<div class="synthesen-col">
+									<div class="export-bar export-bar-col" title="H3-Synthese (Werk-Beschreibung + Werk-Gutachten) als Datei herunterladen.">
+										<span class="export-bar-label">H3 ↓</span>
+										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=docx&heuristic=h3`} download>DOCX</a>
+										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=pdf&heuristic=h3`} download>PDF</a>
+										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=md&heuristic=h3`} download>MD</a>
+										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=json&heuristic=h3`} download>JSON</a>
+									</div>
 									{#each (werkConstructs ?? []).filter((c) => c.outline_function_type === 'WERK_DESKRIPTION') as c (c.id)}
 										{@const text = pickText(c, 'werkBeschreibungText', 'text')}
 										{#if text}
@@ -2723,6 +2738,18 @@
 		border-radius: 5px;
 		font-size: 0.78rem;
 		color: #8b8fa3;
+	}
+	.export-bar-col {
+		gap: 0.35rem;
+		padding: 0.4rem 0.55rem;
+		margin: 0 0 0.7rem;
+		flex-wrap: wrap;
+	}
+	.export-bar-label {
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 0.72rem;
+		color: #8b8fa3;
+		margin-right: 0.15rem;
 	}
 	.export-link {
 		color: #c7d2fe;
