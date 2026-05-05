@@ -49,6 +49,7 @@ import { z } from 'zod';
 import { query, queryOne } from '../../db/index.js';
 import { chat, getModel, getProvider, type Provider } from '../client.js';
 import { extractAndValidateJSON } from '../json-extract.js';
+import { runProseCallWithRepair, describeProseFormat, type SectionSpec } from '../prose-extract.js';
 import { PreconditionFailedError } from './precondition.js';
 import { loadH3ComplexWalk } from '../../pipeline/h3-complex-walk.js';
 import {
@@ -668,13 +669,30 @@ async function persistAufbauSkizze(
 }
 
 // ── METHODIK_EXTRAHIEREN: LLM-Pass ────────────────────────────────
+//
+// Output-Format: section-headered prose statt JSON. Hintergrund: die drei
+// Felder sind alles freie Prose (2-4 Sätze), ohne strukturelle Logik. JSON
+// hat hier nur als Drei-Felder-Trenner gedient — und Output-Truncation
+// (Provider stoppt früher als maxTokens vorgibt) macht JSON komplett
+// unparsbar, obwohl der erste Block (METHODOLOGIE) typisch schon zu 90%
+// fertig wäre. Mit Section-Headern ist auch ein abgebrochener Output noch
+// parsbar bis zum letzten vollständigen Block.
 
 const MethodikSchema = z.object({
-	methodologie: z.string().nullable(),
-	methoden: z.string().nullable(),
-	basis: z.string().nullable(),
+	methodologie: z.string(),
+	methoden: z.string(),
+	basis: z.string(),
 });
 type MethodikResult = z.infer<typeof MethodikSchema>;
+
+const METHODIK_SPEC: SectionSpec = {
+	singletons: {
+		METHODOLOGIE: 'multiline',
+		METHODEN: 'multiline',
+		BASIS: 'multiline',
+	},
+	lists: {},
+};
 
 async function methodikExtrahieren(
 	paragraphs: CollectedParagraph[],
@@ -682,6 +700,7 @@ async function methodikExtrahieren(
 	containerLabel: string | null,
 	strategy: Provenance,
 	documentId: string,
+	caseId: string,
 	brief: H3BriefContext,
 	modelOverride?: ModelOverride
 ): Promise<{ result: MethodikResult; tokens: { input: number; output: number } }> {
@@ -719,19 +738,14 @@ async function methodikExtrahieren(
 		'',
 		`FORSCHUNGSGEGENSTAND (Spezifizierung aus der Theoriearbeit): ${forschungsgegenstand}`,
 		'',
-		'Aufgabe: aus den vorgegebenen Absätzen die drei Konstrukte rekonstruieren — jedes in einem kompakten Beschreibungstext (typisch 2–4 Sätze pro Feld). Methodologie und Methoden auseinanderhalten (Methodologie = Forschungslogik, Methoden = Verfahren). Wenn ein Feld in den Absätzen substanziell nicht behandelt wird, antworte mit null für dieses Feld — keine Spekulation, keine Lücken füllen, keine Auflistung dessen, was fehlt.',
+		'Aufgabe: aus den vorgegebenen Absätzen die drei Konstrukte rekonstruieren — jedes in einem kompakten Beschreibungstext (typisch 2–4 Sätze pro Feld). Methodologie und Methoden auseinanderhalten (Methodologie = Forschungslogik, Methoden = Verfahren). Wenn ein Feld in den Absätzen substanziell nicht behandelt wird, lasse die entsprechende ##-Sektion komplett weg — keine Spekulation, keine Lücken füllen, keine Auflistung dessen, was fehlt, kein Platzhalter wie "nicht behandelt".',
 		'',
 		'Reproduziere KEINE rein selbstdeklarativen Methodik-Etiketten ("hermeneutisch" als bloßes Label) ohne erkennbares korrespondierendes Vorgehen. Wenn nur ein Etikett genannt wird ohne korrespondierendes Vorgehen → diese Aussage in das passende Feld aufnehmen, aber als das markieren, was sie ist (z.B. "die Arbeit deklariert ein hermeneutisches Vorgehen, ohne dieses verfahrensseitig zu konkretisieren").',
 		'',
 		'Quellenkontext:',
 		sourceHint,
 		'',
-		'Antworte ausschließlich als JSON nach diesem Schema:',
-		'{',
-		'  "methodologie": "<2–4 Sätze>" | null,',
-		'  "methoden":     "<2–4 Sätze>" | null,',
-		'  "basis":        "<2–4 Sätze>" | null',
-		'}',
+		describeProseFormat(METHODIK_SPEC),
 	].join('\n');
 
 	const userMessage = [
@@ -740,25 +754,21 @@ async function methodikExtrahieren(
 		...paragraphs.map((p, i) => `[${i}] ${p.text}`),
 	].join('\n\n');
 
-	const response = await chat({
+	const repair = await runProseCallWithRepair({
 		system,
-		messages: [{ role: 'user', content: userMessage }],
+		user: userMessage,
+		spec: METHODIK_SPEC,
+		schema: MethodikSchema,
+		label: 'h3-forschungsdesign-methodik',
 		maxTokens: 2000,
-		responseFormat: 'json',
-		documentIds: [documentId],
 		modelOverride,
+		documentIds: [documentId],
+		caseId,
 	});
 
-	const parsed = extractAndValidateJSON(response.text, MethodikSchema);
-	if (!parsed.ok) {
-		throw new Error(
-			`METHODIK_EXTRAHIEREN: Antwort nicht parsbar (stage=${parsed.stage}): ${parsed.error}\n` +
-			`Raw: ${response.text.slice(0, 500)}`
-		);
-	}
 	return {
-		result: parsed.value,
-		tokens: { input: response.inputTokens, output: response.outputTokens },
+		result: repair.value,
+		tokens: { input: repair.tokens.input, output: repair.tokens.output },
 	};
 }
 
@@ -932,6 +942,7 @@ export async function runForschungsdesignPass(
 		collected.containerLabel,
 		collected.strategy,
 		documentId,
+		caseId,
 		brief,
 		modelOverride
 	);
