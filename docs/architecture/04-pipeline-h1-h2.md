@@ -35,6 +35,8 @@ Cousin der H1-Linie, kumulativ-sequenziell statt argument-extraktiv. **Vokabular
 | 3 | `chapter_collapse_synthetic` | Kapitel-Synthese (synthese + verlaufswiedergabe + auffaelligkeiten) | `memo_content` (scope_level='chapter', Tag `[…/synthetic]`) |
 | 4 | `document_collapse_synthetic` | Werk-Synthese (synthese + auffaelligkeiten, *ohne* werk-wiedergabe) | `memo_content` (scope_level='work', Tag `[…/synthetic]`) |
 
+**Forward-interleaved Walk** (statt strikt phasenweiser Ausführung): pro Hauptkapitel werden die Absätze eines Subkapitels synthetisiert, dann das Subkapitel kollabiert, dann das nächste Subkapitel begonnen. Erst wenn alle Subkapitel eines Hauptkapitels collapsed sind, läuft chapter_collapse_synthetic; document_collapse_synthetic zum Schluss. Nur so ist die in `per-paragraph.ts:loadParagraphContext` geladene Schicht „abgeschlossene Subkapitel davor" tatsächlich populated — bei strikt linearer Phasenordnung wäre sie dormant. Implementiert in `runH2Hierarchical`/`buildH2HierarchicalPlan`. Per-Phasen-Atom-Counts bleiben unverändert (Preflight unverändert).
+
 **Linien-rein:** jeder H2-Collapse lädt ausschließlich synthetic-getaggte Vorgänger (Tag-Filter im Loader). H1-Daten desselben Werks bleiben unsichtbar — und vice versa.
 
 **`include_validity`** ist H1-only (validity setzt argument_nodes voraus). Codes (In-Vivo-Codes) wurden aus `paragraph_synthetic` entfernt (Commit `fb523c9`, failsafe-Risiko bei nicht-DSGVO Providern).
@@ -48,31 +50,37 @@ startOrResumeRun(caseId, options, userId)
   ↓ (DB: pipeline_runs INSERT oder existing paused row reaktivieren)
 runPipelineLoop(runId)
   ↓
-  phases = phasesForRun(options)                    ← H1 / H2 / H3 exklusiv
-  for phase in phases:
-     atoms = listAtomsForPhase(runId, phase)        ← idempotenz: filtert "done"
-     for atom in atoms:
-        if cancel_requested:
-            mark paused; exit
-        try executeStep(phase, atom)
-            ↓
-            executeStep dispatcht:
-              # H1-Linie
-              argumentation_graph         → runArgumentationGraphPass()
-              argument_validity           → runArgumentValidityPass()
-              section_collapse            → runGraphCollapse()       (subchapter)
-              chapter_collapse            → runChapterCollapse()
-              document_collapse           → runDocumentCollapse()
-              # H2-Linie
+  if heuristic == 'h2':
+     plan = buildH2HierarchicalPlan(documentId)     ← {phase, atom}-Sequenz
+     for step in plan:                              ← interleaved ¶/section/…
+        if cancel_requested: mark paused; exit
+        if listAtomsForPhase(step.phase) sagt done: skip+emit step-done(skipped)
+        try executeStep(step.phase, step.atom)
+            executeStep dispatcht (H2-Branch):
               paragraph_synthetic         → runParagraphPass()
               section_collapse_synthetic  → runSectionCollapseSynthetic()
               chapter_collapse_synthetic  → runChapterCollapseSynthetic()
               document_collapse_synthetic → runDocumentCollapseSynthetic()
-              # H3 (linearer Walk, siehe 05-pipeline-h3.md)
-              h3_walk                     → runH3Walk()
-        catch error:
-            atom_errors.push({...}); continue        ← fail-tolerant
-        updateProgress(tokens, current_phase/index)
+        catch error: atom_errors.push({...}); continue   ← fail-tolerant
+        Pass-Vertrag-Check; updateProgress(tokens)
+  else:                                              ← H1 / H3
+     phases = phasesForRun(options)
+     for phase in phases:
+        atoms = listAtomsForPhase(runId, phase)     ← idempotenz: filtert "done"
+        for atom in atoms:
+           if cancel_requested: mark paused; exit
+           try executeStep(phase, atom)
+               executeStep dispatcht:
+                 # H1-Linie
+                 argumentation_graph         → runArgumentationGraphPass()
+                 argument_validity           → runArgumentValidityPass()
+                 section_collapse            → runGraphCollapse()       (subchapter)
+                 chapter_collapse            → runChapterCollapse()
+                 document_collapse           → runDocumentCollapse()
+                 # H3 (linearer Walk, siehe 05-pipeline-h3.md)
+                 h3_walk                     → runH3Walk()
+           catch error: atom_errors.push({...}); continue  ← fail-tolerant
+           updateProgress(tokens, current_phase/index)
   ↓
 markCompleted(runId)  oder markFailed(...)
 ```

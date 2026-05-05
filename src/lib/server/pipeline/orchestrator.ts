@@ -20,15 +20,27 @@
 //   4. document_collapse    — Werk-Memo (L0)
 //
 // H2 — synthetisch-hermeneutisch (kumulativ-sequenziell statt graph-extraktiv):
-//   1. paragraph_synthetic            — formulierend + interpretierend pro Absatz,
-//      mit voll geladenem Vorlauf-Kontext (Outline + abgeschlossene Subkapitel-
-//      Synthesen + interpretive chain im aktuellen Subkapitel — siehe
-//      per-paragraph.ts:14-17 zum architektonischen Sinn der chain).
-//   2. section_collapse_synthetic     — Subkapitel-Synthese aus interpretive chain
-//   3. chapter_collapse_synthetic     — Hauptkapitel-Synthese aus Subkap-Memos
-//   4. document_collapse_synthetic    — Werk-Synthese aus Kapitel-Memos
+//   Forward-interleaved Walk pro Hauptkapitel: alle Absätze EINES Subkapitels
+//   werden synthetisiert, dann das Subkapitel kollabiert, BEVOR die Absätze
+//   des nächsten Subkapitels laufen. Erst nach allen Subkapiteln eines
+//   Hauptkapitels läuft chapter_collapse_synthetic; document_collapse zum
+//   Schluss. Nur dadurch ist die in per-paragraph.ts:loadParagraphContext
+//   geladene Schicht "abgeschlossene Subkapitel davor" tatsächlich populated
+//   — bei strikt linearer Phasenordnung wäre sie dormant, weil alle
+//   paragraph_synthetic abgeschlossen wären, bevor irgendein
+//   section_collapse_synthetic läuft.
+//
+//   Phasen (für Idempotenz-Tags + Preflight-Counts unverändert):
+//     1. paragraph_synthetic            — formulierend + interpretierend pro Absatz,
+//        mit voll geladenem Vorlauf-Kontext (Outline + abgeschlossene Subkapitel-
+//        Synthesen + interpretive chain im aktuellen Subkapitel — siehe
+//        per-paragraph.ts:14-17 zum architektonischen Sinn der chain).
+//     2. section_collapse_synthetic     — Subkapitel-Synthese aus interpretive chain
+//     3. chapter_collapse_synthetic     — Hauptkapitel-Synthese aus Subkap-Memos
+//     4. document_collapse_synthetic    — Werk-Synthese aus Kapitel-Memos
 //   Idempotenz-Tags: [kontextualisierend/{subchapter|chapter|work}/synthetic]
 //   (kollisionsfrei zu H1's [.../graph]-Tags).
+//   Implementierung: runH2Hierarchical (statt runIterativePhase pro Phase).
 //
 // H3 — kontextadaptiv (funktionstyp-orchestriert):
 //   1. h3_walk              — linearer direktionaler Walk über Absatz-
@@ -834,9 +846,12 @@ export async function runPipelineLoop(
 	}
 	const documentId = initialRun.document_id;
 
-	for (const phase of phases) {
-		// Cancel-Check vor jeder Phase. Innerhalb der Phase wird er von
-		// runIterativePhase / runWerkPhaseStep selbst nochmal geprüft.
+	const heuristic = options.heuristic ?? 'h1';
+
+	if (heuristic === 'h2') {
+		// H2 fährt einen Forward-interleaved-Walk (siehe runH2Hierarchical).
+		// Cancel-Checks erfolgen pro Atom innerhalb von runH2Hierarchical;
+		// hier nur ein zusätzlicher Pre-Check vor dem Plan-Aufbau.
 		const run = await getRun(runId);
 		if (!run) {
 			safeSend(sendEvent, { type: 'failed', message: 'run vanished from DB' });
@@ -847,21 +862,47 @@ export async function runPipelineLoop(
 			safeSend(sendEvent, { type: 'paused' });
 			return;
 		}
+		const ok = await runH2Hierarchical(
+			runId,
+			caseId,
+			documentId,
+			userId,
+			sendEvent,
+			erroredAtomIds,
+			recordAtomError
+		);
+		if (!ok) return;
+	} else {
+		// h1 (PHASE_ORDER_ANALYTICAL ± validity) und h3 (h3_walk).
+		for (const phase of phases) {
+			// Cancel-Check vor jeder Phase. Innerhalb der Phase wird er von
+			// runIterativePhase / runH3Walk selbst nochmal geprüft.
+			const run = await getRun(runId);
+			if (!run) {
+				safeSend(sendEvent, { type: 'failed', message: 'run vanished from DB' });
+				return;
+			}
+			if (run.cancel_requested) {
+				await markPaused(runId);
+				safeSend(sendEvent, { type: 'paused' });
+				return;
+			}
 
-		const ok =
-			phase === 'h3_walk'
-				? await runH3Walk(runId, caseId, documentId, sendEvent)
-				: await runIterativePhase(
-						runId,
-						phase,
-						caseId,
-						documentId,
-						userId,
-						sendEvent,
-						erroredAtomIds,
-						recordAtomError
-					);
-		if (!ok) return; // markFailed/markPaused wurde drinnen schon gesendet
+			const ok =
+				phase === 'h3_walk'
+					? await runH3Walk(runId, caseId, documentId, sendEvent)
+					: await runIterativePhase(
+							runId,
+							phase,
+							caseId,
+							documentId,
+							userId,
+							sendEvent,
+							erroredAtomIds,
+							recordAtomError
+						);
+			if (!ok) return; // markFailed/markPaused wurde drinnen schon gesendet
+		}
 	}
 
 	// Letzte Statusnotiz: completed mit ggf. errored-Count.
@@ -987,6 +1028,297 @@ async function runIterativePhase(
 			await recordAtomError(phase, atom, message);
 		}
 	}
+}
+
+/**
+ * Baut den H2-Walk-Plan für ein Werk: eine in Ausführungsreihenfolge sortierte
+ * Liste {phase, atom}, die den Forward-interleaved-Walk vom Hauptkapitel-Header
+ * über die Subkapitel ihrer Absätze bis zur Werk-Synthese kodiert.
+ *
+ * Walk-Choreographie pro Hauptkapitel:
+ *   - aggregation_subchapter_level==1 (flaches Kapitel): alle Absätze des
+ *     Hauptkapitels → chapter_collapse_synthetic (kein section_collapse).
+ *   - level==2 oder 3: pro Subkapitel auf der gewählten Ebene seine Absätze
+ *     → section_collapse_synthetic; nach allen Subkapiteln des Hauptkapitels
+ *     → chapter_collapse_synthetic.
+ * Absätze, die im Hauptkapitel vor dem ersten Subkapitel-Heading liegen
+ * (selten, z.B. Vorlauf zwischen L1- und erstem L2-Heading), werden als
+ * Pre-Section-Absätze emittiert; sie haben keinen Subkap-Collapse, der sie
+ * abdeckt — Verhalten ist identisch zur linearen Phasenausführung.
+ *
+ * Pre-Chapter-Absätze (vor dem ersten L1, z.B. Einleitung-ohne-Hauptkapitel)
+ * werden ganz am Anfang als paragraph_synthetic-Atome emittiert.
+ *
+ * Am Ende: ein document_collapse_synthetic-Atom.
+ *
+ * Per-Phase-Atom-Counts entsprechen exakt denen von listAtomsForPhase, nur
+ * die Reihenfolge ist hierarchisch statt phasenweise — Preflight bleibt
+ * also unverändert korrekt.
+ */
+async function buildH2HierarchicalPlan(
+	documentId: string
+): Promise<Array<{ phase: Phase; atom: AtomRef }>> {
+	const plan: Array<{ phase: Phase; atom: AtomRef }> = [];
+	const chapters = await loadChapterUnits(documentId);
+
+	const allParagraphRows = (
+		await query<{ id: string; charStart: number }>(
+			`SELECT id, char_start AS "charStart" FROM document_elements
+			 WHERE document_id = $1 AND element_type = 'paragraph' AND section_kind = 'main'
+			 ORDER BY char_start`,
+			[documentId]
+		)
+	).rows;
+	const paragraphCharStart = new Map(allParagraphRows.map((p) => [p.id, p.charStart]));
+	const paragraphIndexById = new Map<string, number>();
+	allParagraphRows.forEach((p, i) => paragraphIndexById.set(p.id, i + 1));
+
+	const labelForParagraph = (pid: string): string =>
+		`Absatz ${paragraphIndexById.get(pid) ?? '?'}`;
+
+	// Pre-chapter paragraphs (vor erstem L1): nur paragraph_synthetic, keine
+	// section/chapter-collapse decken sie ab.
+	const firstChapterStart = chapters.length > 0 ? chapters[0].l1.charStart : Infinity;
+	const orphanIds = allParagraphRows
+		.filter((p) => p.charStart < firstChapterStart)
+		.map((p) => p.id);
+	for (const pid of orphanIds) {
+		plan.push({
+			phase: 'paragraph_synthetic',
+			atom: { id: pid, label: labelForParagraph(pid) },
+		});
+	}
+
+	for (const chapter of chapters) {
+		let level = await getPersistedSubchapterLevel(chapter.l1.headingId);
+		if (level === null) {
+			level = chooseSubchapterLevel(chapter, allParagraphRows);
+			await persistSubchapterLevel(chapter.l1.headingId, documentId, level as 1 | 2 | 3);
+		}
+
+		const chapterAtom: AtomRef = {
+			id: chapter.l1.headingId,
+			label: `${chapter.l1.numbering ?? ''} ${chapter.l1.text}`.trim().slice(0, 80),
+			headingId: chapter.l1.headingId,
+		};
+
+		const sections =
+			level === 1 ? [] : chapter.innerHeadings.filter((h) => h.level === level);
+
+		// Defensiv: chooseSubchapterLevel darf level=2/3 nur wählen, wenn auch
+		// Headings auf der Ebene existieren — falls dennoch leer (Inkonsistenz),
+		// behandeln wie level=1.
+		const effectiveLevel: 1 | 2 | 3 =
+			level === 1 || sections.length === 0 ? 1 : (level as 2 | 3);
+
+		if (effectiveLevel === 1) {
+			for (const pid of chapter.paragraphIds) {
+				plan.push({
+					phase: 'paragraph_synthetic',
+					atom: { id: pid, label: labelForParagraph(pid) },
+				});
+			}
+			plan.push({ phase: 'chapter_collapse_synthetic', atom: chapterAtom });
+			continue;
+		}
+
+		// Pre-section orphan ¶s im Hauptkapitel (zwischen L1-Heading und erstem
+		// Subkap-Heading): paragraph_synthetic, kein section_collapse.
+		const preSectionPids = chapter.paragraphIds.filter((pid) => {
+			const cs = paragraphCharStart.get(pid)!;
+			return cs < sections[0].charStart;
+		});
+		for (const pid of preSectionPids) {
+			plan.push({
+				phase: 'paragraph_synthetic',
+				atom: { id: pid, label: labelForParagraph(pid) },
+			});
+		}
+
+		for (let i = 0; i < sections.length; i++) {
+			const section = sections[i];
+			const sectionEnd =
+				i + 1 < sections.length ? sections[i + 1].charStart : chapter.endChar;
+			const sectionPids = chapter.paragraphIds.filter((pid) => {
+				const cs = paragraphCharStart.get(pid)!;
+				return cs >= section.charStart && cs < sectionEnd;
+			});
+			for (const pid of sectionPids) {
+				plan.push({
+					phase: 'paragraph_synthetic',
+					atom: { id: pid, label: labelForParagraph(pid) },
+				});
+			}
+			plan.push({
+				phase: 'section_collapse_synthetic',
+				atom: {
+					id: section.headingId,
+					label: `${section.numbering ?? ''} ${section.text}`.trim().slice(0, 80),
+					headingId: section.headingId,
+				},
+			});
+		}
+
+		plan.push({ phase: 'chapter_collapse_synthetic', atom: chapterAtom });
+	}
+
+	plan.push({
+		phase: 'document_collapse_synthetic',
+		atom: { id: documentId, label: 'Werk-Synthese (synthetisch)' },
+	});
+
+	return plan;
+}
+
+/**
+ * H2-Forward-interleaved-Loop: arbeitet einen vorab gebauten Plan ab, der
+ * paragraph_synthetic / section_collapse_synthetic / chapter_collapse_synthetic
+ * / document_collapse_synthetic in hierarchischer Reihenfolge interleavt
+ * (siehe buildH2HierarchicalPlan-Doc).
+ *
+ * Pro Atom: Cancel-Check, Done-Check via listAtomsForPhase (Idempotenz für
+ * Resume + Skip-Anzeige), Step-Execution, Pass-Vertrag-Check, fail-tolerant
+ * Catch (PreconditionFailedError fail-fast wie in runIterativePhase).
+ *
+ * Phase-Start wird einmal pro Phase emittiert, beim ersten Auftreten im Plan;
+ * Phase-Total = Anzahl Atome dieser Phase im Plan (== listAtomsForPhase-
+ * Total). Step-Index läuft pro Phase mit, sodass die UI ihre vier
+ * Phasen-Progress-Balken korrekt animiert, auch wenn die Phasen interleaved
+ * laufen.
+ *
+ * Returnt true bei sauber abgeschlossenem Walk, false wenn der Run
+ * abgebrochen wurde (markFailed/markPaused bereits aufgerufen, Event
+ * versendet).
+ */
+async function runH2Hierarchical(
+	runId: string,
+	caseId: string,
+	documentId: string,
+	userId: string,
+	sendEvent: (e: PipelineEvent) => void,
+	erroredAtomIds: Set<string>,
+	recordAtomError: (phase: Phase, atom: AtomRef, message: string) => Promise<void>
+): Promise<boolean> {
+	const plan = await buildH2HierarchicalPlan(documentId);
+
+	const phaseTotals = new Map<Phase, number>();
+	for (const step of plan) {
+		phaseTotals.set(step.phase, (phaseTotals.get(step.phase) ?? 0) + 1);
+	}
+	const phaseIndex = new Map<Phase, number>();
+	const phaseAnnounced = new Set<Phase>();
+
+	for (const step of plan) {
+		const run = await getRun(runId);
+		if (!run) {
+			safeSend(sendEvent, { type: 'failed', message: 'run vanished from DB' });
+			return false;
+		}
+		if (run.cancel_requested) {
+			await markPaused(runId);
+			safeSend(sendEvent, { type: 'paused' });
+			return false;
+		}
+
+		const phase = step.phase;
+		const atom = step.atom;
+		const totalInPhase = phaseTotals.get(phase)!;
+		const indexInPhase = phaseIndex.get(phase) ?? 0;
+
+		if (!phaseAnnounced.has(phase)) {
+			safeSend(sendEvent, { type: 'phase-start', phase, total: totalInPhase });
+			phaseAnnounced.add(phase);
+		}
+
+		if (erroredAtomIds.has(atom.id)) {
+			// Schon gescheitert in diesem Run-Lauf — überspringen, Index trotzdem
+			// hochzählen, damit Folge-Atom-Indizes konsistent bleiben.
+			phaseIndex.set(phase, indexInPhase + 1);
+			continue;
+		}
+
+		safeSend(sendEvent, {
+			type: 'step-start',
+			phase,
+			atom,
+			index: indexInPhase,
+			total: totalInPhase,
+		});
+
+		const list = await listAtomsForPhase(phase, documentId);
+		const isDone = !list.pending.some((p) => p.id === atom.id);
+
+		if (isDone) {
+			const updated = await getRun(runId);
+			safeSend(sendEvent, {
+				type: 'step-done',
+				phase,
+				atom,
+				index: indexInPhase + 1,
+				total: totalInPhase,
+				skipped: true,
+				tokens: { input: 0, output: 0, cacheRead: 0 },
+				cumulative: {
+					input: updated?.accumulated_input_tokens ?? 0,
+					output: updated?.accumulated_output_tokens ?? 0,
+					cacheRead: updated?.accumulated_cache_read_tokens ?? 0,
+				},
+			});
+			phaseIndex.set(phase, indexInPhase + 1);
+			continue;
+		}
+
+		try {
+			const stepResult = await executeStep(phase, atom, caseId, userId);
+
+			// Pass-Vertrag (analog runIterativePhase): das gerade verarbeitete
+			// Atom darf nach dem Pass nicht mehr in pending stehen.
+			const post = await listAtomsForPhase(phase, documentId);
+			if (post.pending.some((p) => p.id === atom.id)) {
+				throw new Error(
+					`Pass for ${phase}/${atom.label} returned but atom remains pending — ` +
+						`done-check and pass-persist are out of sync (code bug, not retryable)`
+				);
+			}
+
+			await updateProgress(
+				runId,
+				phase,
+				indexInPhase + 1,
+				totalInPhase,
+				atom.label,
+				stepResult.tokens
+			);
+			const updated = await getRun(runId);
+			safeSend(sendEvent, {
+				type: 'step-done',
+				phase,
+				atom,
+				index: indexInPhase + 1,
+				total: totalInPhase,
+				skipped: stepResult.skipped,
+				tokens: stepResult.tokens,
+				cumulative: {
+					input: updated?.accumulated_input_tokens ?? 0,
+					output: updated?.accumulated_output_tokens ?? 0,
+					cacheRead: updated?.accumulated_cache_read_tokens ?? 0,
+				},
+			});
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			safeSend(sendEvent, { type: 'step-error', phase, atom, message });
+			if (err instanceof PreconditionFailedError) {
+				await markFailed(runId, message);
+				safeSend(sendEvent, { type: 'failed', message });
+				return false;
+			}
+			await recordAtomError(phase, atom, message);
+		}
+
+		phaseIndex.set(phase, indexInPhase + 1);
+	}
+
+	return true;
 }
 
 /**
