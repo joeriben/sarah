@@ -195,7 +195,14 @@ Beurteile JEDES Argument nach dem Charity-Prinzip. Eine VALIDITY-Sektion pro Arg
 
 // ── Parser ────────────────────────────────────────────────────────
 
-const VALIDITY_HEADER = /^\s*(?:#{1,3}\s+)?VALIDITY\s+(A\d+)\s*$/i;
+// Header line. Tolerates:
+//   VALIDITY A1
+//   ## VALIDITY A1                    (markdown heading)
+//   **VALIDITY A1**                   (markdown bold — Mistral-style emphasis)
+//   ### **VALIDITY A1**               (mixed)
+// Asymmetric emphasis (e.g. `**X*`) is also accepted; we optimise for
+// robustness, not strict markdown.
+const VALIDITY_HEADER = /^\s*(?:#{1,3}\s+)?(?:\*{1,3}|_{1,3})?\s*VALIDITY\s+(A\d+)\s*(?:\*{1,3}|_{1,3})?\s*$/i;
 const VALID_FORM = new Set(['deductive', 'inductive', 'abductive']);
 const VALID_FALLACY = new Set<string>(FALLACY_WHITELIST as readonly string[]);
 
