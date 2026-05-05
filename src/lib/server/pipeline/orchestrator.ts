@@ -19,9 +19,16 @@
 //   3. chapter_collapse     — Hauptkapitel-Memo (L1)
 //   4. document_collapse    — Werk-Memo (L0)
 //
-// H2 — synthetisch-hermeneutisch:
-//   1. paragraph_synthetic  — formulierend + interpretierend pro Absatz
-//      Konsumiert nichts vom Graph; pures Lese-Addendum für den Reader.
+// H2 — synthetisch-hermeneutisch (kumulativ-sequenziell statt graph-extraktiv):
+//   1. paragraph_synthetic            — formulierend + interpretierend pro Absatz,
+//      mit voll geladenem Vorlauf-Kontext (Outline + abgeschlossene Subkapitel-
+//      Synthesen + interpretive chain im aktuellen Subkapitel — siehe
+//      per-paragraph.ts:14-17 zum architektonischen Sinn der chain).
+//   2. section_collapse_synthetic     — Subkapitel-Synthese aus interpretive chain
+//   3. chapter_collapse_synthetic     — Hauptkapitel-Synthese aus Subkap-Memos
+//   4. document_collapse_synthetic    — Werk-Synthese aus Kapitel-Memos
+//   Idempotenz-Tags: [kontextualisierend/{subchapter|chapter|work}/synthetic]
+//   (kollisionsfrei zu H1's [.../graph]-Tags).
 //
 // H3 — kontextadaptiv (funktionstyp-orchestriert):
 //   1. h3_walk              — linearer direktionaler Walk über Absatz-
@@ -65,6 +72,12 @@ export type Phase =
 	| 'chapter_collapse'
 	| 'document_collapse'
 	| 'paragraph_synthetic'
+	// H2-Aggregations-Linie (synthetisch). Idempotenz-Tags
+	// [kontextualisierend/{subchapter|chapter|work}/synthetic] —
+	// kollisionsfrei zu H1's /graph-Tags.
+	| 'section_collapse_synthetic'
+	| 'chapter_collapse_synthetic'
+	| 'document_collapse_synthetic'
 	// H3 — linearer Walk über Absatz-Komplexe + Werk-Aggregationen
 	// (User-Setzung 2026-05-04: kein Phase-Layer, ein Walk pro H3-Run).
 	// Atom-Liste pro Walk siehe h3-walk-driver.ts:listH3WalkSteps.
@@ -80,6 +93,16 @@ export const PHASE_ORDER_ANALYTICAL: Phase[] = [
 	'document_collapse',
 ];
 
+// H2-Synthese-Linie (kumulativ-sequenziell). paragraph_synthetic produziert
+// die interpretive chain pro Absatz; die drei collapse-synthetic-Phasen
+// aggregieren bewegungs-orientiert von Subkapitel → Kapitel → Werk.
+export const PHASE_ORDER_SYNTHETIC: Phase[] = [
+	'paragraph_synthetic',
+	'section_collapse_synthetic',
+	'chapter_collapse_synthetic',
+	'document_collapse_synthetic',
+];
+
 export const PHASE_LABEL: Record<Phase, string> = {
 	argumentation_graph: 'Argumentation pro Absatz',
 	argument_validity: 'Argument-Validität (Charity-Pass)',
@@ -87,6 +110,9 @@ export const PHASE_LABEL: Record<Phase, string> = {
 	chapter_collapse: 'Hauptkapitel-Synthesen',
 	document_collapse: 'Werk-Synthese',
 	paragraph_synthetic: 'Per-Absatz-Hermeneutik (synthetisch)',
+	section_collapse_synthetic: 'Subkapitel-Synthesen (synthetisch)',
+	chapter_collapse_synthetic: 'Hauptkapitel-Synthesen (synthetisch)',
+	document_collapse_synthetic: 'Werk-Synthese (synthetisch)',
 	h3_walk: 'H3 · Walk (Absatz-Komplexe + Werk-Aggregationen)',
 };
 
@@ -463,6 +489,18 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 			);
 			return { all, pending: done ? [] : all };
 		}
+		// H2-Synthese-Linie: Phase-Types registriert, Atom-/Done-Logik wird
+		// in den Schritten 2-4 der H2-Restitution mit den Modul-Implementationen
+		// gewired. Bis dahin sind die Phasen über phasesForRun() nicht
+		// erreichbar (H2-Run liefert nur paragraph_synthetic). Stub-Throw,
+		// damit ein versehentlicher Aufruf laut scheitert statt stillschweigend
+		// undefined zu liefern.
+		case 'section_collapse_synthetic':
+		case 'chapter_collapse_synthetic':
+		case 'document_collapse_synthetic':
+			throw new Error(
+				`listAtomsForPhase: Phase ${phase} ist registriert, aber das Modul-Wire-up steht aus (H2-Restitution Schritt 2-4).`
+			);
 		// H3-Walk wird NICHT durch die generische Atom-Schleife geführt — er
 		// hat einen eigenen Loop runH3Walk mit walk-step-spezifischer Done-/
 		// Validation-Prüfung und fail-fast-Semantik. Wenn diese Funktion mit
@@ -617,6 +655,15 @@ async function executeStep(
 				memoId: r.stored?.memoId ?? r.existingMemoId,
 			};
 		}
+		// H2-Synthese-Linie: Stubs analog zu listAtomsForPhase. Wire-up der
+		// Modul-Aufrufe (mit modelOverride: resolveTier('h2.tier1')) erfolgt
+		// in den Schritten 2-4 der H2-Restitution.
+		case 'section_collapse_synthetic':
+		case 'chapter_collapse_synthetic':
+		case 'document_collapse_synthetic':
+			throw new Error(
+				`executeStep: Phase ${phase} ist registriert, aber das Modul-Wire-up steht aus (H2-Restitution Schritt 2-4).`
+			);
 		// H3-Walk hat einen eigenen Loop (runH3Walk) mit walk-step-spezifischer
 		// Dispatch-Logik. Hier ist h3_walk unerreichbar (siehe runPipelineLoop
 		// Branch).
