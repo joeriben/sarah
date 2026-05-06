@@ -67,6 +67,10 @@ export type ParseProseResult = ParseProseSuccess | ParseProseFailure;
 // underscore digits) + optional space + optional N digit. Supports `## NAME`
 // (singleton) and `## NAME 3` (list-element).
 const HEADER_RE = /^\s*(?:#{1,3})\s+([A-Z][A-Z0-9_]*?)(?:\s+(\d+))?\s*$/;
+// Any Markdown heading is a hard section boundary. Unknown headings are not
+// consumed as sections, but they also must not be glued into a preceding
+// singleton's multiline body.
+const SECTION_BOUNDARY_RE = /^\s*#{1,6}\s+\S/;
 // Inline field: `key: value` (oneline). value may be empty.
 const FIELD_RE = /^\s*([a-z][a-z0-9_]*)\s*:\s*(.*)$/;
 // Multiline-field-start: `key:` with nothing after the colon.
@@ -84,13 +88,16 @@ export function parseStructuredProse(rawText: string, spec: SectionSpec): ParseP
 
 	// Stage 1: scan for headers, partition lines into sections
 	const headers: HeaderToken[] = [];
+	const sectionBoundaries: number[] = [];
 	for (let i = 0; i < lines.length; i++) {
+		if (SECTION_BOUNDARY_RE.test(lines[i])) sectionBoundaries.push(i);
 		const m = lines[i].match(HEADER_RE);
 		if (!m) continue;
 		const name = m[1];
 		const idx = m[2] ? parseInt(m[2], 10) : null;
-		// Reject unknown headers softly: skip them (the LLM may emit ## bullets
-		// or other markers; we only consume known headers).
+		// Reject unknown headers softly: skip them as data sections, while the
+		// broader section-boundary scan above still prevents their body from
+		// being glued into the previous known section.
 		if (idx === null && !(name in spec.singletons)) continue;
 		if (idx !== null && !(name in spec.lists)) continue;
 		headers.push({ name, index: idx, lineNumber: i });
@@ -116,7 +123,8 @@ export function parseStructuredProse(rawText: string, spec: SectionSpec): ParseP
 	for (let h = 0; h < headers.length; h++) {
 		const header = headers[h];
 		const startLine = header.lineNumber + 1;
-		const endLine = h + 1 < headers.length ? headers[h + 1].lineNumber : lines.length;
+		const nextBoundary = sectionBoundaries.find(lineNumber => lineNumber > header.lineNumber);
+		const endLine = nextBoundary ?? lines.length;
 		const body = lines.slice(startLine, endLine);
 
 		if (header.index === null) {

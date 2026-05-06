@@ -128,8 +128,36 @@ console.log(v5.data.auffaelligkeit[0].observation);
 console.log('---');
 console.log('PASS');
 
-// ── Test 6: describeProseFormat output is non-empty + well-formed ──
-console.log('\n--- Test 6: describeProseFormat ---');
+// ── Test 6: unknown Markdown headers are section boundaries ────────
+const sample6 = `## SYNTHESE
+Knappe Synthese.
+
+## OUTLINE & POSITION
+Outline aus dem Input, darf nicht in SYNTHESE landen.
+
+## AUFFAELLIGKEIT 1
+scope: §1
+observation: Bekannte Listensektion nach unbekanntem Header bleibt parsebar.
+`;
+const r6 = parseStructuredProse(sample6, collapseSpec);
+console.log('\n--- Test 6: unknown markdown boundary ---');
+if (!r6.ok) { console.error('FAIL:', r6.stage); process.exit(1); }
+const v6 = collapseSchema.safeParse(r6.value);
+if (!v6.success) { console.error('zod FAIL:', v6.error.message); process.exit(1); }
+if (v6.data.synthese.includes('OUTLINE') || v6.data.synthese.includes('Input')) {
+	console.error('unknown header body leaked into singleton:', v6.data.synthese);
+	process.exit(1);
+}
+if (v6.data.auffaelligkeit.length !== 1) {
+	console.error('expected known list section after unknown header');
+	process.exit(1);
+}
+console.log('synthese:', v6.data.synthese);
+console.log('auffaelligkeit count:', v6.data.auffaelligkeit.length);
+console.log('PASS');
+
+// ── Test 7: describeProseFormat output is non-empty + well-formed ──
+console.log('\n--- Test 7: describeProseFormat ---');
 const desc = describeProseFormat(collapseSpec);
 if (desc.length < 50) { console.error('describe too short'); process.exit(1); }
 if (!desc.includes('## SYNTHESE')) { console.error('missing SYNTHESE'); process.exit(1); }

@@ -67,7 +67,7 @@ for (let i = 0; i < PARAGRAPH_IDS.length; i++) {
 	const paraCtx = await loadParagraphContext(caseCtx, pid);
 	const jsonSystem = buildSystemPrompt(caseCtx, paraCtx);
 	const proseSystem = makeProseSystemPrompt(jsonSystem);
-	const user = buildUserMessage(paraCtx);
+	const user = buildUserMessage(paraCtx, caseCtx);
 
 	process.stdout.write(`§${i + 1} prose ... `);
 	const t0 = Date.now();
