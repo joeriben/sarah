@@ -239,6 +239,12 @@ export function buildOutlineSummary(
 const SKIP_KINDS = new Set<string>([
 	'VERWEIS_PROFIL', // verbose Citation-Statistik, deskriptiv schon in BLOCK_WUERDIGUNG/FORSCHUNGSGEGENSTAND
 	'BLOCK_ROUTING', // Routing-Klassifikation, nicht-deskriptive Telemetrie
+	// Werk-Aggregate werden NICHT über die formatContent-key=value-Soup gerendert,
+	// sondern explizit über formatWerkAggregateBlock() (siehe unten). Hier ausschließen,
+	// damit sie nicht doppelt erscheinen. Setzung 2026-05-06,
+	// docs/h3_werk_aggregate_substrate_pfad.md.
+	'GESAMTERGEBNIS',
+	'GELTUNGSANSPRUCH',
 ]);
 
 const ORDERED_TYPES = [
@@ -294,4 +300,237 @@ export function buildMemosBlock(memos: AggregateMemo[]): string | null {
 	return memos
 		.map((m) => `### ${m.scopeLevel}: ${m.headingText}\n${m.textContent}`)
 		.join('\n\n');
+}
+
+// ── Werk-Aggregat-Substrat ────────────────────────────────────────
+//
+// Dedizierter Substrat-Pfad für die Werk-Stages (WERK_DESKRIPTION + WERK_GUTACHT
+// a/b/c). Lädt SYNTHESE/GESAMTERGEBNIS und SCHLUSSREFLEXION/GELTUNGSANSPRUCH
+// typisiert (statt sie über loadAllConstructs + formatContent als
+// `key=value`-Soup zu verflachen) und rendert sie als sektionierten
+// Prompt-Block mit klarer Hierarchie:
+//
+//   - WERK-ANTWORT AUF DIE FRAGESTELLUNG (fragestellungsAntwortText)
+//   - WERK-GESAMTERGEBNIS (gesamtergebnisText)
+//   - BEFUND-INTEGRATION (Coverage aus erkenntnisIntegration[])
+//   - GELTUNGSANSPRUCH (geltungsanspruchText)
+//   - GRENZEN (grenzenText)
+//   - ANSCHLUSSFORSCHUNG (anschlussforschungText)
+//
+// Konsumenten: WERK_DESKRIPTION (extractWerkBeschreibung) + WERK_GUTACHT
+// Stage A/B/C. Setzung 2026-05-06, docs/h3_werk_aggregate_substrate_pfad.md.
+//
+// Read-side weniger strict als die Pipeline-Schemas in synthese.ts /
+// schlussreflexion.ts: Legacy-Konstrukte ohne erkenntnisIntegration[] oder
+// mit fehlenden Sub-Feldern werden defensiv geleert, nicht abgelehnt — der
+// Loader signalisiert "Aggregat fehlt" über `null`-Felder, statt zu werfen.
+
+export interface ErkenntnisIntegrationReadItem {
+	befundId: string | null;
+	befundSnippet: string;
+	integriert: boolean;
+	synthesisAnchorParagraphId: string | null;
+	hinweis: string | null;
+}
+
+export interface WerkAggregateSubstrate {
+	hasGesamtergebnis: boolean;
+	hasGeltungsanspruch: boolean;
+	gesamtergebnisText: string | null;
+	fragestellungsAntwortText: string | null;
+	erkenntnisIntegration: ErkenntnisIntegrationReadItem[];
+	coverageRatio: number | null;
+	befundCount: number | null;
+	geltungsanspruchText: string | null;
+	grenzenText: string | null;
+	anschlussforschungText: string | null;
+}
+
+function readString(value: unknown): string | null {
+	if (typeof value !== 'string') return null;
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : null;
+}
+
+function readNumber(value: unknown): number | null {
+	return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function readBoolean(value: unknown): boolean {
+	return value === true;
+}
+
+function readErkenntnisIntegration(value: unknown): ErkenntnisIntegrationReadItem[] {
+	if (!Array.isArray(value)) return [];
+	const items: ErkenntnisIntegrationReadItem[] = [];
+	for (const raw of value) {
+		if (!raw || typeof raw !== 'object') continue;
+		const obj = raw as Record<string, unknown>;
+		const snippet = readString(obj.befundSnippet);
+		if (!snippet) continue; // ohne Snippet kein renderbarer Eintrag
+		items.push({
+			befundId: readString(obj.befundId),
+			befundSnippet: snippet,
+			integriert: readBoolean(obj.integriert),
+			synthesisAnchorParagraphId: readString(obj.synthesisAnchorParagraphId),
+			hinweis: readString(obj.hinweis),
+		});
+	}
+	return items;
+}
+
+/**
+ * Lädt Werk-Aggregate (SYNTHESE/GESAMTERGEBNIS + SCHLUSSREFLEXION/GELTUNGSANSPRUCH)
+ * typisiert. `null`-Felder im Ergebnis = Aggregat existiert nicht oder enthält
+ * das Sub-Feld nicht; Caller entscheidet, ob das ein Fehler ist.
+ */
+export async function loadWerkAggregateSubstrate(
+	caseId: string,
+	documentId: string
+): Promise<WerkAggregateSubstrate> {
+	const rows = (
+		await query<{
+			construct_kind: string;
+			content: Record<string, unknown> | null;
+		}>(
+			`SELECT construct_kind, content
+			 FROM function_constructs
+			 WHERE case_id = $1
+			   AND document_id = $2
+			   AND ((outline_function_type = 'SYNTHESE' AND construct_kind = 'GESAMTERGEBNIS')
+			     OR (outline_function_type = 'SCHLUSSREFLEXION' AND construct_kind = 'GELTUNGSANSPRUCH'))
+			 ORDER BY created_at DESC`,
+			[caseId, documentId]
+		)
+	).rows;
+
+	const out: WerkAggregateSubstrate = {
+		hasGesamtergebnis: false,
+		hasGeltungsanspruch: false,
+		gesamtergebnisText: null,
+		fragestellungsAntwortText: null,
+		erkenntnisIntegration: [],
+		coverageRatio: null,
+		befundCount: null,
+		geltungsanspruchText: null,
+		grenzenText: null,
+		anschlussforschungText: null,
+	};
+
+	// Falls aus Versehen mehrere existieren (sollte clear-before-insert
+	// verhindern), nimm den jeweils ersten — ORDER BY created_at DESC oben.
+	let gesSeen = false;
+	let gelSeen = false;
+	for (const r of rows) {
+		const c = r.content ?? {};
+		if (r.construct_kind === 'GESAMTERGEBNIS' && !gesSeen) {
+			gesSeen = true;
+			out.hasGesamtergebnis = true;
+			out.gesamtergebnisText = readString(c.gesamtergebnisText);
+			out.fragestellungsAntwortText = readString(c.fragestellungsAntwortText);
+			out.erkenntnisIntegration = readErkenntnisIntegration(c.erkenntnisIntegration);
+			out.coverageRatio = readNumber(c.coverageRatio);
+			out.befundCount = readNumber(c.befundCount);
+		} else if (r.construct_kind === 'GELTUNGSANSPRUCH' && !gelSeen) {
+			gelSeen = true;
+			out.hasGeltungsanspruch = true;
+			out.geltungsanspruchText = readString(c.geltungsanspruchText);
+			out.grenzenText = readString(c.grenzenText);
+			out.anschlussforschungText = readString(c.anschlussforschungText);
+		}
+	}
+	return out;
+}
+
+/**
+ * Rendert das Werk-Aggregat-Substrat als sektionierter Prompt-Block. Liefert
+ * `null`, wenn weder GESAMTERGEBNIS noch GELTUNGSANSPRUCH existieren — Caller
+ * entscheidet, ob das einen Fail bedeutet (für WERK_GUTACHT-c kritisch) oder
+ * ob der Block einfach entfällt (für frühe Werk-Stages tolerierbar).
+ *
+ * Sektionen werden nur emittiert, wenn das jeweilige Feld existiert. Fehlt
+ * z.B. erkenntnisIntegration[] (Legacy-GESAMTERGEBNIS vor 2026-05-04), bleibt
+ * die BEFUND-INTEGRATION-Sektion weg, statt mit "(keine Daten)" zu rauschen.
+ */
+export function formatWerkAggregateBlock(
+	substrate: WerkAggregateSubstrate
+): string | null {
+	if (!substrate.hasGesamtergebnis && !substrate.hasGeltungsanspruch) {
+		return null;
+	}
+
+	const lines: string[] = [];
+	lines.push('[WERK-AGGREGATE]');
+	lines.push(
+		'Verdichtungen aus dem SYNTHESE- und SCHLUSSREFLEXION-Pass. Diese Texte sind die direkten Werk-Antworten und Selbst-Verortungen, auf die sich die Werk-Würdigung beziehen muss.'
+	);
+	lines.push('');
+
+	if (substrate.fragestellungsAntwortText) {
+		lines.push('## WERK-ANTWORT AUF DIE FRAGESTELLUNG');
+		lines.push(substrate.fragestellungsAntwortText);
+		lines.push('');
+	}
+
+	if (substrate.gesamtergebnisText) {
+		lines.push('## WERK-GESAMTERGEBNIS');
+		lines.push(substrate.gesamtergebnisText);
+		lines.push('');
+	}
+
+	if (substrate.erkenntnisIntegration.length > 0) {
+		lines.push('## BEFUND-INTEGRATION');
+		const total = substrate.erkenntnisIntegration.length;
+		const integrated = substrate.erkenntnisIntegration.filter((e) => e.integriert)
+			.length;
+		const ratio =
+			substrate.coverageRatio !== null
+				? substrate.coverageRatio
+				: total > 0
+					? integrated / total
+					: null;
+		const ratioPct = ratio !== null ? ` (${Math.round(ratio * 100)}%)` : '';
+		lines.push(
+			`Coverage-Audit: ${integrated} von ${total} BEFUNDEN in die Synthese integriert${ratioPct}.`
+		);
+		const integratedItems = substrate.erkenntnisIntegration.filter((e) => e.integriert);
+		const missingItems = substrate.erkenntnisIntegration.filter((e) => !e.integriert);
+		if (integratedItems.length > 0) {
+			lines.push('');
+			lines.push('Integriert:');
+			for (const e of integratedItems) {
+				const hint = e.hinweis ? ` — ${e.hinweis}` : '';
+				lines.push(`  - ${e.befundSnippet}${hint}`);
+			}
+		}
+		if (missingItems.length > 0) {
+			lines.push('');
+			lines.push('Nicht integriert (bleibt in der Synthese unverbunden):');
+			for (const e of missingItems) {
+				const hint = e.hinweis ? ` — ${e.hinweis}` : '';
+				lines.push(`  - ${e.befundSnippet}${hint}`);
+			}
+		}
+		lines.push('');
+	}
+
+	if (substrate.geltungsanspruchText) {
+		lines.push('## GELTUNGSANSPRUCH');
+		lines.push(substrate.geltungsanspruchText);
+		lines.push('');
+	}
+
+	if (substrate.grenzenText) {
+		lines.push('## GRENZEN');
+		lines.push(substrate.grenzenText);
+		lines.push('');
+	}
+
+	if (substrate.anschlussforschungText) {
+		lines.push('## ANSCHLUSSFORSCHUNG');
+		lines.push(substrate.anschlussforschungText);
+		lines.push('');
+	}
+
+	return lines.join('\n').trimEnd();
 }

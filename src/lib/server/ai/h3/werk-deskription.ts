@@ -36,9 +36,11 @@ import { PreconditionFailedError } from './precondition.js';
 import {
 	loadAllConstructs,
 	loadCollapseMemos,
+	loadWerkAggregateSubstrate,
 	buildOutlineSummary,
 	buildConstructsBlock,
 	buildMemosBlock,
+	formatWerkAggregateBlock,
 	loadH3CaseContext,
 	formatWerktypLine,
 	formatKriterienBlock,
@@ -54,6 +56,7 @@ type WerkBeschreibungLLMResult = z.infer<typeof WerkBeschreibungLLMSchema>;
 
 interface ExtractWerkBeschreibungInput {
 	outlineSummary: string;
+	werkAggregateBlock: string | null;
 	constructsBlock: string;
 	memosBlock: string | null;
 	headingCount: number;
@@ -72,13 +75,13 @@ async function extractWerkBeschreibung(input: ExtractWerkBeschreibungInput): Pro
 }> {
 	const kriterien = formatKriterienBlock(input.brief);
 	const system = [
-		'Du bist ein analytisches Werkzeug, das aus den persistierten Funktionstyp-Konstrukten eines Werks (FRAGESTELLUNG, FORSCHUNGSGEGENSTAND, METHODEN, BEFUNDEN, GESAMTERGEBNIS, GELTUNGSANSPRUCH usw.) eine zusammenhängende Werk-Beschreibung erzeugst — gemeinsam mit der Outline-Struktur und ggf. hermeneutischen Memo-Synthesen aus einem H1-/H2-Vorlauf.',
+		'Du bist ein analytisches Werkzeug, das aus den persistierten Funktionstyp-Konstrukten eines Werks (FRAGESTELLUNG, FORSCHUNGSGEGENSTAND, METHODEN, BEFUNDEN usw.) eine zusammenhängende Werk-Beschreibung erzeugst — gemeinsam mit der Outline-Struktur, den Werk-Aggregaten (Antwort auf die Fragestellung, Gesamtergebnis, Geltungsanspruch, Grenzen, Anschlussforschung, Befund-Integration) und ggf. hermeneutischen Memo-Synthesen aus einem H1-/H2-Vorlauf.',
 		'',
 		formatWerktypLine(input.brief),
 		...(kriterien ? ['', kriterien] : []),
 		'',
 		'Aufgabe:',
-		'  Eine kohärente, deskriptive Inhaltszusammenfassung des Werks. 8–18 Sätze. Folge dem strukturellen Aufbau (was der erste Teil leistet, was der zweite leistet, …), benenne den Forschungsgegenstand, die Methodik, die zentralen Befunde, das Gesamtergebnis und die Reflexion. Keine Wertung.',
+		'  Eine kohärente, deskriptive Inhaltszusammenfassung des Werks. 8–18 Sätze. Folge dem strukturellen Aufbau (was der erste Teil leistet, was der zweite leistet, …), benenne den Forschungsgegenstand, die Methodik, die zentralen Befunde, das Gesamtergebnis und die Reflexion. Die Werk-Aggregate sind die direkten Werk-Antworten der Synthese und Schlussreflexion — du beziehst dich auf sie als gegebene Werk-Texte, nicht als zu erschließende Information. Keine Wertung.',
 		'',
 		'Stilregeln (PFLICHT):',
 		'  - DESKRIPTIV: "die Arbeit untersucht …", "das Kapitel rekonstruiert …", "der Befund lautet …".',
@@ -95,10 +98,16 @@ async function extractWerkBeschreibung(input: ExtractWerkBeschreibungInput): Pro
 	const userBlocks: string[] = [
 		`Outline-Struktur (${input.headingCount} Überschriften, mit Funktionstyp-Markern wenn vergeben):`,
 		input.outlineSummary,
-		'',
-		`Persistierte Funktionstyp-Konstrukte:`,
-		input.constructsBlock || '(keine Konstrukte vorhanden)',
 	];
+
+	if (input.werkAggregateBlock) {
+		userBlocks.push('');
+		userBlocks.push(input.werkAggregateBlock);
+	}
+
+	userBlocks.push('');
+	userBlocks.push(`Persistierte Funktionstyp-Konstrukte:`);
+	userBlocks.push(input.constructsBlock || '(keine Konstrukte vorhanden)');
 
 	if (input.memosBlock) {
 		userBlocks.push('');
@@ -271,6 +280,19 @@ export async function runWerkDeskriptionPass(
 	}
 	const { text: constructsBlock, countsByType } = buildConstructsBlock(constructs);
 
+	const werkAggregateSubstrate = await loadWerkAggregateSubstrate(caseId, documentId);
+	const werkAggregateBlock = formatWerkAggregateBlock(werkAggregateSubstrate);
+	if (!werkAggregateSubstrate.hasGesamtergebnis) {
+		warnings.push(
+			'Kein SYNTHESE/GESAMTERGEBNIS gefunden — Werk-Beschreibung läuft ohne explizite Werk-Antwort auf die Fragestellung.'
+		);
+	}
+	if (!werkAggregateSubstrate.hasGeltungsanspruch) {
+		warnings.push(
+			'Kein SCHLUSSREFLEXION/GELTUNGSANSPRUCH gefunden — Werk-Beschreibung läuft ohne explizite Geltungsbeurteilung.'
+		);
+	}
+
 	const memos = await loadCollapseMemos(documentId);
 	const hadMemos = memos.length > 0;
 	const memosBlock = buildMemosBlock(memos);
@@ -282,6 +304,7 @@ export async function runWerkDeskriptionPass(
 
 	const llmRes = await extractWerkBeschreibung({
 		outlineSummary,
+		werkAggregateBlock,
 		constructsBlock,
 		memosBlock,
 		headingCount,

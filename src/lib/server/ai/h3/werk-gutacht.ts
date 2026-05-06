@@ -44,9 +44,11 @@ import { PreconditionFailedError } from './precondition.js';
 import {
 	loadAllConstructs,
 	loadCollapseMemos,
+	loadWerkAggregateSubstrate,
 	buildOutlineSummary,
 	buildConstructsBlock,
 	buildMemosBlock,
+	formatWerkAggregateBlock,
 	loadH3CaseContext,
 	formatWerktypLine,
 	formatKriterienBlock,
@@ -116,6 +118,7 @@ type StageAResult = z.infer<typeof StageALLMSchema>;
 interface ExtractStageAInput {
 	werkBeschreibungText: string;
 	fragestellungText: string;
+	werkAggregateBlock: string | null;
 	constructsBlock: string;
 	outlineSummary: string;
 	brief: H3BriefContext;
@@ -135,13 +138,15 @@ async function extractStageA(input: ExtractStageAInput): Promise<{
 	const kriterienA = formatKriterienBlock(input.brief);
 	const system = [
 		...(personaA ? [personaA, ''] : []),
-		'Du bist ein analytisches Werkzeug, das ein wissenschaftliches Werk im Lichte seiner FRAGESTELLUNG analysiert. Du arbeitest auf der Werk-Beschreibung (deskriptive Aggregation aller Funktionstyp-Konstrukte), der Outline und der ursprünglichen FRAGESTELLUNG. Output ist eine Critical-Friend-Analyse, KEIN Urteil.',
+		'Du bist ein analytisches Werkzeug, das ein wissenschaftliches Werk im Lichte seiner FRAGESTELLUNG analysiert. Du arbeitest auf der ursprünglichen FRAGESTELLUNG, den Werk-Aggregaten (Werk-Antwort auf die Fragestellung, Gesamtergebnis, Geltungsanspruch, Grenzen, Befund-Integration), der Werk-Beschreibung und der Outline. Output ist eine Critical-Friend-Analyse, KEIN Urteil.',
+		'',
+		'Die Werk-Antwort auf die Fragestellung (siehe WERK-AGGREGATE) ist der direkte Werk-Text der Synthese; sie ist NICHT zu rekonstruieren, sondern als gegebener Bezugspunkt zu verwenden — du analysierst die Passung dieser Antwort zur ursprünglichen FRAGESTELLUNG.',
 		'',
 		formatWerktypLine(input.brief),
 		...(kriterienA ? ['', kriterienA] : []),
 		'',
 		'Aufgabe (Stage a — Werk-im-Lichte-der-Fragestellung):',
-		'  Ein längerer Absatz (6–12 Sätze), der das Werk in Bezug auf die FRAGESTELLUNG analysiert: greift die Arbeit auf, was die Fragestellung verlangt? Wo fokussiert sie, wo verschiebt sich der Fokus, wo bleibt die Antwort implizit? Indikatoren-Hinweise (gelb=Ambivalenz, rot=Problem) sind ERLAUBT als deskriptive Beobachtung — nicht als kategorisches Urteil.',
+		'  Ein längerer Absatz (6–12 Sätze), der das Werk in Bezug auf die FRAGESTELLUNG analysiert: greift die Arbeit auf, was die Fragestellung verlangt? Antwortet die Werk-Antwort tatsächlich auf die Fragestellung — auf welcher Reichweite, mit welcher Präzision, an welchen Stellen verschiebt sich der Fokus? Wo bleibt die Antwort implizit? Indikatoren-Hinweise (gelb=Ambivalenz, rot=Problem) sind ERLAUBT als deskriptive Beobachtung — nicht als kategorisches Urteil.',
 		'',
 		'Stilregeln (PFLICHT):',
 		'  - Sprache: "die Arbeit fokussiert …", "der Bezug zur Fragestellung verschiebt sich …", "implizit bleibt …".',
@@ -155,19 +160,24 @@ async function extractStageA(input: ExtractStageAInput): Promise<{
 		'}',
 	].join('\n');
 
-	const userMessage = [
+	const userBlocks: string[] = [
 		'FRAGESTELLUNG der Arbeit:',
 		input.fragestellungText,
-		'',
-		'WERK_BESCHREIBUNG (deskriptiv):',
-		input.werkBeschreibungText,
-		'',
-		'Outline-Struktur:',
-		input.outlineSummary,
-		'',
-		'Persistierte Funktionstyp-Konstrukte:',
-		input.constructsBlock || '(keine)',
-	].join('\n');
+	];
+	if (input.werkAggregateBlock) {
+		userBlocks.push('');
+		userBlocks.push(input.werkAggregateBlock);
+	}
+	userBlocks.push('');
+	userBlocks.push('WERK_BESCHREIBUNG (deskriptiv):');
+	userBlocks.push(input.werkBeschreibungText);
+	userBlocks.push('');
+	userBlocks.push('Outline-Struktur:');
+	userBlocks.push(input.outlineSummary);
+	userBlocks.push('');
+	userBlocks.push('Persistierte Funktionstyp-Konstrukte:');
+	userBlocks.push(input.constructsBlock || '(keine)');
+	const userMessage = userBlocks.join('\n');
 
 	const t0 = Date.now();
 	const response = await chat({
@@ -218,6 +228,7 @@ type StageBResult = z.infer<typeof StageBLLMSchema>;
 interface ExtractStageBInput {
 	werkBeschreibungText: string;
 	fragestellungText: string;
+	werkAggregateBlock: string | null;
 	constructsBlock: string;
 	constructCountsByType: Record<string, number>;
 	brief: H3BriefContext;
@@ -238,6 +249,8 @@ async function extractStageB(input: ExtractStageBInput): Promise<{
 	const system = [
 		...(personaB ? [personaB, ''] : []),
 		'Du bist ein analytisches Werkzeug, das ein wissenschaftliches Werk auf sechs funktionstyp-gebundene Achsen prüft. Pro Achse vergibst du einen Indikator (gelb=Ambivalenz/Hotspot, rot=Problem) ODER `null` wenn die Achse strukturell unauffällig ist oder das Werk den Funktionstyp nicht enthält. Strukturierend, NICHT erschöpfend — nicht jede Achse braucht einen Indikator. Grün gibt es nicht (das wäre ein Pauschal-Bestätigung, die der Critical-Friend-Identität widerspricht).',
+		'',
+		'Die Werk-Aggregate (siehe WERK-AGGREGATE) liefern den Werk-eigenen Selbstbezug: die Werk-Antwort auf die Fragestellung (Hotspot-Quelle für SYNTHESE-Systematisierungsleistung), Geltungsanspruch + Grenzen (Hotspot-Quelle für SCHLUSSREFLEXION-Legitimiertheit), Befund-Integration (Hotspot-Quelle für Kohärenz zwischen DURCHFÜHRUNG und SYNTHESE: nicht-integrierte BEFUNDE sind Indikator-Material).',
 		'',
 		formatWerktypLine(input.brief),
 		...(kriterienB ? ['', kriterienB] : []),
@@ -275,18 +288,25 @@ async function extractStageB(input: ExtractStageBInput): Promise<{
 		.map(([k, v]) => `${k}=${v}`)
 		.join(', ');
 
-	const userMessage = [
+	const userBlocks: string[] = [
 		'FRAGESTELLUNG der Arbeit:',
 		input.fragestellungText,
-		'',
-		'WERK_BESCHREIBUNG (deskriptiv):',
-		input.werkBeschreibungText,
-		'',
-		`Konstrukt-Counts pro Funktionstyp (zur Orientierung über strukturelle Vollständigkeit): ${countsLine}`,
-		'',
-		'Persistierte Funktionstyp-Konstrukte:',
-		input.constructsBlock || '(keine)',
-	].join('\n');
+	];
+	if (input.werkAggregateBlock) {
+		userBlocks.push('');
+		userBlocks.push(input.werkAggregateBlock);
+	}
+	userBlocks.push('');
+	userBlocks.push('WERK_BESCHREIBUNG (deskriptiv):');
+	userBlocks.push(input.werkBeschreibungText);
+	userBlocks.push('');
+	userBlocks.push(
+		`Konstrukt-Counts pro Funktionstyp (zur Orientierung über strukturelle Vollständigkeit): ${countsLine}`
+	);
+	userBlocks.push('');
+	userBlocks.push('Persistierte Funktionstyp-Konstrukte:');
+	userBlocks.push(input.constructsBlock || '(keine)');
+	const userMessage = userBlocks.join('\n');
 
 	const t0 = Date.now();
 	const response = await chat({
@@ -349,6 +369,7 @@ interface ExtractStageCInput {
 	aText: string;
 	bAxes: StageBAxis[];
 	werkBeschreibungText: string;
+	werkAggregateBlock: string | null;
 	fragestellungText: string;
 	gatingDisabled: boolean;
 	brief: H3BriefContext;
@@ -375,11 +396,13 @@ async function extractStageC(input: ExtractStageCInput): Promise<{
 		'Du bist ein analytisches Werkzeug, das aus Stage a (Werk-im-Lichte-der-Fragestellung) und Stage b (Hotspot-Würdigung pro funktionstyp-gebundener Achse) ein zusammenhängendes Gesamtbild des Werks aggregiert.' +
 			gatingNote,
 		'',
+		'Die Werk-Aggregate (siehe WERK-AGGREGATE) liegen dir direkt vor — die Werk-Antwort auf die Fragestellung, das Gesamtergebnis, der Geltungsanspruch, die Grenzen, die Befund-Integration. Du beziehst dich auf sie als gegebene Werk-Texte und verbindest sie mit den Hotspot-Befunden aus a und b. Du analysierst NICHT durch die WERK_BESCHREIBUNG hindurch — die Aggregate sind die direkte Basis.',
+		'',
 		formatWerktypLine(input.brief),
 		...(kriterienC ? ['', kriterienC] : []),
 		'',
 		'Aufgabe (Stage c — aggregiertes Gesamtbild):',
-		'  Ein Absatz (5–10 Sätze), der die Befunde von a und b zu einem deskriptiv-aggregierenden Gesamtbild zusammenführt. Keine neuen Urteile, kein Verdikt — du verbindest a und b. Wo Hotspot-Indikatoren (gelb/rot) aus b auftauchen, hebe sie als zentrale Beobachtungen hervor; wo Achsen unauffällig sind, das deskriptiv benennen.',
+		'  Ein Absatz (5–10 Sätze), der die Befunde von a und b zu einem deskriptiv-aggregierenden Gesamtbild zusammenführt. Keine neuen Urteile, kein Verdikt — du verbindest a und b unter Berücksichtigung des Werk-eigenen Selbstbezugs (WERK-AGGREGATE). Wo Hotspot-Indikatoren (gelb/rot) aus b auftauchen, hebe sie als zentrale Beobachtungen hervor; wo Achsen unauffällig sind, das deskriptiv benennen. Wenn die Werk-Antwort auf die Fragestellung Befunde unverbunden lässt (siehe BEFUND-INTEGRATION), ist das eine zentrale Beobachtung; ebenso, wenn der Geltungsanspruch über das Material hinausgreift oder im Gegenteil Reichweite zurücknimmt.',
 		'',
 		'Stilregeln (PFLICHT):',
 		'  - Sprache: "im Zusammenhang …", "die Befunde aus a und b lassen erkennen …", "zentrale Beobachtungen sind …".',
@@ -400,19 +423,24 @@ async function extractStageC(input: ExtractStageCInput): Promise<{
 		)
 		.join('\n');
 
-	const userMessage = [
+	const userBlocks: string[] = [
 		'FRAGESTELLUNG der Arbeit:',
 		input.fragestellungText,
-		'',
-		'WERK_BESCHREIBUNG (deskriptiv):',
-		input.werkBeschreibungText,
-		'',
-		'Stage a — Werk-im-Lichte-der-Fragestellung:',
-		input.aText,
-		'',
-		'Stage b — Hotspot-Würdigung pro Achse:',
-		axesBlock,
-	].join('\n');
+	];
+	if (input.werkAggregateBlock) {
+		userBlocks.push('');
+		userBlocks.push(input.werkAggregateBlock);
+	}
+	userBlocks.push('');
+	userBlocks.push('WERK_BESCHREIBUNG (deskriptiv):');
+	userBlocks.push(input.werkBeschreibungText);
+	userBlocks.push('');
+	userBlocks.push('Stage a — Werk-im-Lichte-der-Fragestellung:');
+	userBlocks.push(input.aText);
+	userBlocks.push('');
+	userBlocks.push('Stage b — Hotspot-Würdigung pro Achse:');
+	userBlocks.push(axesBlock);
+	const userMessage = userBlocks.join('\n');
 
 	const t0 = Date.now();
 	const response = await chat({
@@ -608,6 +636,23 @@ export async function runWerkGutachtPass(
 	const constructs = await loadAllConstructs(caseId, documentId);
 	const { text: constructsBlock, countsByType } = buildConstructsBlock(constructs);
 
+	// Werk-Aggregate als typisiertes Substrat — Setzung 2026-05-06,
+	// docs/h3_werk_aggregate_substrate_pfad.md. Stage A/B/C bekommen den
+	// Block direkt; das ersetzt den vorigen doppelt-verdünnten Pfad
+	// (formatContent-Soup → werkBeschreibungText → Stage C).
+	const werkAggregateSubstrate = await loadWerkAggregateSubstrate(caseId, documentId);
+	const werkAggregateBlock = formatWerkAggregateBlock(werkAggregateSubstrate);
+	if (!werkAggregateSubstrate.hasGesamtergebnis) {
+		warnings.push(
+			'Kein SYNTHESE/GESAMTERGEBNIS gefunden — WERK_GUTACHT läuft ohne explizite Werk-Antwort + Befund-Integration. Reviewer-Aktion: SYNTHESE-Pass laufen lassen, dann WERK_GUTACHT erneut triggern.'
+		);
+	}
+	if (!werkAggregateSubstrate.hasGeltungsanspruch) {
+		warnings.push(
+			'Kein SCHLUSSREFLEXION/GELTUNGSANSPRUCH gefunden — WERK_GUTACHT läuft ohne explizite Geltungsbeurteilung + Grenzen. Reviewer-Aktion: SCHLUSSREFLEXION-Pass laufen lassen, dann WERK_GUTACHT erneut triggern.'
+		);
+	}
+
 	const memos = await loadCollapseMemos(documentId);
 	const hadMemos = memos.length > 0;
 	if (hadMemos) {
@@ -620,6 +665,7 @@ export async function runWerkGutachtPass(
 	const aRes = await extractStageA({
 		werkBeschreibungText,
 		fragestellungText,
+		werkAggregateBlock,
 		constructsBlock,
 		outlineSummary,
 		brief,
@@ -632,6 +678,7 @@ export async function runWerkGutachtPass(
 	const bRes = await extractStageB({
 		werkBeschreibungText,
 		fragestellungText,
+		werkAggregateBlock,
 		constructsBlock,
 		constructCountsByType: countsByType,
 		brief,
@@ -649,6 +696,7 @@ export async function runWerkGutachtPass(
 		aText: aRes.result.aText,
 		bAxes: bRes.result.axes,
 		werkBeschreibungText,
+		werkAggregateBlock,
 		fragestellungText,
 		gatingDisabled,
 		brief,
