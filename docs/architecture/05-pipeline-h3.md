@@ -260,13 +260,24 @@ Schlüsselwort-Vorauswahl (Mother-Idee) heute nicht als Pre-Filter implementiert
 
 Validierung 2026-05-05 gegen BA H3 dev: GRENZEN-Befund mit 4-Bullet-Struktur, benennt jetzt "extreme Konzentration auf Wolfgang Klafki" (VERWEIS_PROFIL Top-1-Share) + "DURCHFÜHRUNG sechs Argumentknoten" (rohes argument-substrate-count, Werk-Substanz-Signal) + "ohne methodologische Selbstreflexion" (METHODOLOGIE-Bezug — neu im Cross-Typ-Set). Output-Substanz Faktor ~2.5 reicher als 2026-05-04, Token-Aufschlag ~+80%. Defensive Loaders verifiziert (fehlende GTH-Reflexion / fehlende FRAGESTELLUNG-Beurteilung → reduzierter Kontext, kein Fail). Bug-Fix in `loadArgumentSubstrateCounts`: `argument_nodes` hat `paragraph_element_id`, kein `document_id` direkt — JOIN auf `document_elements` korrigiert. Detail in `docs/h3_schlussreflexion_status.md` §"Verifikation 2026-05-05".
 
-### 4.8 WERK_STRUKTUR — **nicht implementiert.**
+### 4.8 WERK_DESKRIPTION (`ai/h3/werk-deskription.ts`) — **implementiert, Substrat-Pfad-Korrektur 2026-05-06**
+
+Deskriptive Meta-Beschreibung des Werks (Reflexion über die anderen Konstrukte, Memory `feedback_werk_desk_gut_are_meta_analyses`). Liest die Werk-Outline + alle Funktionstyp-Konstrukte + die in §4.9 beschriebenen Werk-Aggregate. Anchor in DB ist Persist-Artefakt; UI-Ort: Outline-Tab oben analog `workSynthesis`.
+
+### 4.9 WERK_GUTACHT (`ai/h3/werk-gutacht.ts`, Stages A/B/C) — **implementiert (Test-Mode `gatingDisabled=true`), Substrat-Pfad-Korrektur 2026-05-06**
+
+Drei-Stage-Pipeline:
+- **Stage A** — Werk im Lichte der Fragestellung
+- **Stage B** — Hotspot-Würdigung
+- **Stage C** — aggregiertes Gesamtbild aus a + b (Schluss-Verdikt)
+
+Spec: Stage C ist gegated durch ein eigenes User-`review_draft` (`case_review_drafts.owner_kind='SELF'`); Critical-Friend-Identity (Memory `project_critical_friend_identity`). Aktuell läuft Stage C im Test-Mode mit `gatingDisabled=true` — das Gating ist eine separate Setzung (siehe `h3_werk_status.md`).
+
+**Substrat-Pfad-Setzung 2026-05-06**: Werk-Aggregate (SYNTHESE/GESAMTERGEBNIS — `gesamtergebnisText`, `fragestellungsAntwortText`, `erkenntnisIntegration[]`; SCHLUSSREFLEXION/GELTUNGSANSPRUCH — `geltungsanspruchText`, `grenzenText`, `anschlussforschungText`) erreichen WERK_DESKRIPTION + WERK_GUTACHT (alle drei Stages) als **explizit typisiertes Substrat** über `loadWerkAggregateSubstrate` + `formatWerkAggregateBlock` (in `werk-shared.ts`), nicht mehr nur als `formatContent`-`key=value`-Soup. Vorher war die Schluss-Stage gegenüber `fragestellungsAntwortText` und `erkenntnisIntegration[]` doppelt verdünnt — das Szenario "Super Arbeit — hat Frage nicht beantwortet" war strukturell möglich. Detail-Befund + Implementations-Plan: `docs/h3_werk_aggregate_substrate_pfad.md`.
+
+### 4.10 WERK_STRUKTUR — **nicht implementiert.**
 
 Spec-Backlog. Werk-Ebene-Konstrukt (kein Heading-Container).
-
-### 4.9 WERK_GUTACHT (a/b/c+d/e/f gated) — **nicht implementiert.**
-
-Spec: `WERK_GUTACHT-c` (Synthese-Komponente) ist gegated durch ein eigenes User-`review_draft` (`case_review_drafts.owner_kind='SELF'`). Critical-Friend-Identity (Memory `project_critical_friend_identity`).
 
 ---
 

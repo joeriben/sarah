@@ -1,0 +1,89 @@
+# H3 — Werk-Aggregat-Substrat-Pfad zum Schluss-Verdikt
+
+Eigenständige Status-Doku (parallel zu `h3_synthese_status.md`, `h3_schlussreflexion_status.md`, `h3_werk_status.md`).
+
+Stand: 2026-05-06 — Architektur-Setzung, Implementation in Arbeit.
+
+---
+
+## Architektur-Befund (User-Setzung 2026-05-06)
+
+Das Schluss-Verdikt im H3-Stack (WERK_GUTACHT, insbesondere Stage c) muss **alle Werk-Aggregat-Substrate** sehen — einschließlich der Information, **inwieweit die Fragestellung beantwortet wurde**. Heute (Stand 2026-05-05) erreicht dieser Pivot die Schluss-Stage nur doppelt verdünnt.
+
+### Drei konkrete Lücken im aktuellen Substrat-Pfad
+
+**Lücke 1 — `formatContent()` in `werk-shared.ts:282` filtert Arrays raus.**
+Die Funktion serialisiert jedes Konstrukt-`content`-Objekt als `key=value | key=value`-Soup, nimmt aber nur String-Felder. Damit gehen verloren:
+- `erkenntnisIntegration[]` aus `SYNTHESE/GESAMTERGEBNIS` — das Coverage-Audit über nicht in die Synthese integrierte BEFUNDE. Die Information *"Befund X bleibt unverbunden"* erreicht weder WERK_DESKRIPTION noch WERK_GUTACHT.
+- Generell: alle strukturierten Felder, sobald sie kein flacher String sind.
+
+**Lücke 2 — `key=value`-Soup verwischt die Akzentuierung.**
+Selbst die String-Felder (`gesamtergebnisText`, `fragestellungsAntwortText`, `geltungsanspruchText`, `grenzenText`, `anschlussforschungText`) werden als gleichberechtigte Schnipsel neben Telemetrie-Feldern (`crossTypeReads`, `recoveryStage`, `containerOverview`) gerendert. Der LLM sieht keine Hierarchie zwischen *"das ist die Antwort auf die Fragestellung"* und *"das ist eine Cross-Read-Liste".*
+
+**Lücke 3 — `WERK_GUTACHT.extractStageC` bekommt keinen `constructsBlock`.**
+Stage C — das aggregierende Gesamtbild aus a + b, das im Vollausbau das gegate Fazit ist — bekommt nur `aText`, `bAxes`, `werkBeschreibungText`, `fragestellungText`. Die Werk-Aggregate (`fragestellungsAntwortText`, `geltungsanspruchText`, `grenzenText`, `anschlussforschungText`, `erkenntnisIntegration`) erreichen Stage C **ausschließlich über die werkBeschreibungText-Brücke** — und der WERK_DESKRIPTION-Pass selbst hat sie nur als `formatContent`-Soup gesehen. Doppelte Verdünnung.
+
+### Konsequenz
+
+Strukturell ist das Szenario *"Super Arbeit — hat die Frage nicht beantwortet"* möglich: Stage C kann das Werk gegen die Fragestellung würdigen, ohne die direkte Antwort der Synthese auf die Fragestellung jemals akzentuiert gesehen zu haben. Die SYNTHESE-eigene Werk-Antwort und die SCHLUSSREFLEXION-eigene Geltungsbeurteilung werden im Schluss-Verdikt-Pfad wie generische Konstrukt-Schnipsel behandelt — obwohl sie die *Verdichtungen sind, auf die die Würdigung sich beziehen müsste*.
+
+---
+
+## Setzung (User 2026-05-06)
+
+Werk-Aggregate (SYNTHESE/GESAMTERGEBNIS + SCHLUSSREFLEXION/GELTUNGSANSPRUCH) werden den nachgelagerten Werk-Stages **explizit als typisiertes, akzentuiertes Substrat** übergeben — nicht als `key=value`-Soup über `loadAllConstructs` + `formatContent`.
+
+Konkret:
+
+1. **Neuer Loader** `loadWerkAggregateSubstrate(caseId, documentId)` in `werk-shared.ts` — liest die persistierten SYNTHESE- und SCHLUSSREFLEXION-Konstrukte typisiert aus.
+2. **Neuer Formatter** `formatWerkAggregateBlock(substrate)` — produziert einen strukturierten Prompt-Block mit klaren Sektionen:
+   - WERK-ANTWORT AUF DIE FRAGESTELLUNG (`fragestellungsAntwortText`)
+   - WERK-GESAMTERGEBNIS (`gesamtergebnisText`)
+   - BEFUND-INTEGRATION (Coverage aus `erkenntnisIntegration[]`: integriert/nicht-integriert mit Hinweisen)
+   - GELTUNGSANSPRUCH (`geltungsanspruchText`)
+   - GRENZEN (`grenzenText`)
+   - ANSCHLUSSFORSCHUNG (`anschlussforschungText`)
+3. **Konsumenten** bekommen den Block zusätzlich zur (bestehenden) `constructsBlock`-Soup:
+   - `WERK_DESKRIPTION` — sieht die Werk-Aggregate akzentuiert, statt sie aus der Soup zu rekonstruieren
+   - `WERK_GUTACHT` Stage A (Werk-im-Lichte-der-Fragestellung) — sieht die Antwort der Synthese auf die Fragestellung direkt
+   - `WERK_GUTACHT` Stage B (Hotspot-Würdigung) — sieht Geltungsanspruch + Grenzen + Befund-Integration als Hotspot-Quelle
+   - `WERK_GUTACHT` Stage C (aggregiertes Gesamtbild) — bekommt den Block direkt (nicht mehr nur via `werkBeschreibungText`-Verdünnung)
+
+### Was *nicht* geändert wird
+
+- Die Erzeugung von SYNTHESE/GESAMTERGEBNIS und SCHLUSSREFLEXION/GELTUNGSANSPRUCH selbst bleibt unverändert. `synthese.ts` und `schlussreflexion.ts` produzieren weiterhin die gleichen Felder im gleichen Schema (Setzung 2026-05-05 unverändert).
+- `loadAllConstructs` + `buildConstructsBlock` bleiben — sie liefern die Base-Konstrukte (EXPOSITION, GRUNDLAGENTHEORIE, FORSCHUNGSDESIGN, DURCHFUEHRUNG, EXKURS), für die die Soup-Form ausreicht. Werk-Aggregate werden im constructsBlock ausgeklammert (Skip-Liste erweitern), damit sie nicht doppelt erscheinen.
+- Stage C bleibt im Test-Modus mit `gatingDisabled=true`. Das Gating durch `review_draft` ist eine andere Setzung (siehe `h3_werk_status.md`).
+
+---
+
+## Implementations-Plan
+
+| Datei | Änderung |
+|---|---|
+| `src/lib/server/ai/h3/werk-shared.ts` | Neue Typen `WerkAggregateSubstrate` + `ErkenntnisIntegrationItem` (read-side, weniger strict als Pipeline-Schemas, akzeptiert Legacy-Daten); Loader `loadWerkAggregateSubstrate`; Formatter `formatWerkAggregateBlock`; SKIP-Liste in `buildConstructsBlock` um `GESAMTERGEBNIS` + `GELTUNGSANSPRUCH` erweitern (Werk-Aggregate werden nur via `formatWerkAggregateBlock` gerendert). |
+| `src/lib/server/ai/h3/werk-deskription.ts` | `extractWerkBeschreibung` bekommt `werkAggregateBlock: string \| null`; im Prompt zwischen `outlineSummary` und `constructsBlock` als eigene Sektion ("Werk-Aggregate:"). |
+| `src/lib/server/ai/h3/werk-gutacht.ts` | Stage A/B/C-Inputs bekommen `werkAggregateBlock: string \| null`. Stage C lädt zusätzlich via Pipeline (statt ausschließlich `aText` + `bAxes`). System-Prompt-Hinweis in Stage C: *"Die Werk-Aggregate (Antwort, Geltungsanspruch, Grenzen, Befund-Integration) liegen direkt vor — du beziehst dich auf sie, statt durch werkBeschreibungText hindurch."* |
+| `docs/architecture/05-pipeline-h3.md` §4.8/§4.9 | Hinweis auf Substrat-Pfad-Setzung mit Verweis auf dieses Memo. |
+
+Persistenz und Schemas: keine DB-Änderungen, keine Migration. Reine Substrat-Pfad-Korrektur.
+
+---
+
+## Re-Run-Konsequenz
+
+Bestehende WERK_DESKRIPTION + WERK_GUTACHT-Konstrukte sind nach diesem Fix *konzeptionell veraltet*, weil sie unter dem alten dünnen Substrat erzeugt wurden. Pro Case mit existierendem H3-Werk-Run:
+
+1. WERK_DESKRIPTION + WERK_GUTACHT neu laufen lassen (Idempotenz: clear-vor-insert greift).
+2. SYNTHESE + SCHLUSSREFLEXION müssen *nicht* neu laufen — ihre Outputs sind durch diesen Fix unbeeinflusst.
+
+Im UI: nach dem Re-Run werden die WERK_BESCHREIBUNG- und WERK_GUTACHT-Karten konsistent zur SYNTHESE/SR-Antwort sein (Slot A des Outline-Tab-Konzepts).
+
+---
+
+## Pflicht-Lektüre
+
+- `h3_synthese_status.md` — wer produziert `gesamtergebnisText`, `fragestellungsAntwortText`, `erkenntnisIntegration[]`
+- `h3_schlussreflexion_status.md` — wer produziert `geltungsanspruchText`, `grenzenText`, `anschlussforschungText`
+- `h3_werk_status.md` — Mother-Setzung für WERK_DESKRIPTION + WERK_GUTACHT, Stage-Aufschlüsselung
+- `project_critical_friend_identity.md` — Kontext: warum Konsistenz zwischen Antwort und Würdigung architektonisch wichtig ist (kein "Super Arbeit — hat Frage nicht beantwortet")
