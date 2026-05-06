@@ -415,7 +415,7 @@ Aufgabe in zwei Teilen:
 
 2. **Geteilte Defizithypothese** — wo identifizieren *beide* Analysen Schwächen, Brüche, Lücken? Wo deckt sich die kritische Lesart? (Nicht: "Schwächen, die nur H1 sieht" — das gehört in Schritt 3.)
 
-3. **H1↔H2-Differenz** — wo widersprechen sich die beiden Analysen, oder wo sieht eine Linie etwas, das die andere übersieht oder anders gewichtet? Was sieht **H1 schärfer** (analytisch-präzisere Diagnose), was sieht **H2 genauer** (hermeneutisch-bewegungsorientierte Diagnose)? Beide Analyse-Diktionen haben blinde Stellen — diese Schritt-Sektion macht sie sichtbar.
+3. **H1↔H2-Differenz** — wo widersprechen sich die beiden Analysen, oder wo sieht eine Linie etwas, das die andere übersieht oder anders gewichtet? Was sieht **H1 schärfer** (analytisch-präzisere Diagnose), was sieht **H2 genauer** (hermeneutisch-bewegungsorientierte Diagnose)? Beide Analyse-Diktionen haben blinde Stellen — mache sie hier sichtbar.
 
 4. **Synthesehypothese** — eine belastbare zusammenfassende Hypothese über das Werk, die Schritte 1–3 integriert. **Markiere diese ausdrücklich als Hypothese**, weil das Werk selbst nicht erneut gelesen wurde — der Status ist "auf Basis der Analysen plausibel", nicht "am Werk geprüft".
 
@@ -437,13 +437,13 @@ Werktyp: ${ctx.brief.work_type}
 [OUTPUT-FORMAT]
 ${describeProseFormat(META_SYNTHESIS_SPEC)}
 
-Inhalt der vier Teil-A-Sektionen (POSITIVE_WERKHYPOTHESE, DEFIZIT_HYPOTHESE, H1_H2_DIFFERENZ, SYNTHESE_HYPOTHESE): jeweils 4–8 Sätze, evaluativ-gutachterliche Diktion, Synthesehypothese-Sektion ausdrücklich als Hypothese markiert.
+POSITIVE_WERKHYPOTHESE, DEFIZIT_HYPOTHESE, H1_H2_DIFFERENZ, SYNTHESE_HYPOTHESE — jeweils 4–8 Sätze, evaluativ-gutachterliche Diktion, Synthesehypothese-Sektion ausdrücklich als Hypothese markiert.
 
-Inhalt jeder FACT_CHECK_ANKER-N-Sektion:
+FACT_CHECK_ANKER (pro Eintrag):
 - kandidat_nr: Nummer aus der Kandidatenliste (z.B. "7")
 - rationale: Begründung, warum dieser Literaturbezug die Interpretation entscheidet (auf welchen der vier Teil-A-Schritte er einzahlt)
 
-Genau drei FACT_CHECK_ANKER-Sektionen.`;
+Genau drei FACT_CHECK_ANKER-Einträge.`;
 }
 
 function buildUserMessage(ctx: MetaSynthesisContext): string {

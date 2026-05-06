@@ -274,13 +274,13 @@ ${ctx.retrogradeChapterMemo.synthese}${retroChapterVerlauf}${retroChapterAuff}
 [OUTPUT-FORMAT]
 ${describeProseFormat(SUBCHAPTER_RETROGRADE_SPEC)}
 
-Inhalt der SYNTHESE-Sektion: 6–10 Sätze, retrograd-revidierend, vier Pflichtbestandteile.
+SYNTHESE — 6–10 Sätze, retrograd-revidierend, vier Pflichtbestandteile.
 
-Inhalt jeder AUFFAELLIGKEITEN-N-Sektion:
+AUFFAELLIGKEITEN (pro Eintrag):
 - scope: §<Position> oder §<Position>→§<Position> oder freitextliche subkapitelweite Bemerkung
 - observation: Eine Beobachtung, die ERST im Hauptkapitel-/Werk-Licht sichtbar wird.
 
-Wenn nichts hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Sektionen weg.`;
+Wenn nichts hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Einträge weg.`;
 }
 
 function buildUserMessage(ctx: RetrogradeContext): string {

@@ -345,13 +345,25 @@ function buildOutputFormatSection(caseCtx: CaseContext): string {
 	const spec = buildSectionSpec(caseCtx);
 	const formatDesc = describeProseFormat(spec);
 
+	// `includeFormulierend = true` ist faktisch nicht in der Pipeline gefahren:
+	// FORMULIEREND ist eine Reviewer-Reading-Aid (Audit-Trail-Spalte „was wird
+	// gesagt"), kein Pipeline-Pfad — Default `false` ist der Standard. Die
+	// aktuelle Implementation ist ausserdem defekt: FORMULIEREND und
+	// REFLEKTIEREND laufen in EINEM Call mit zwei Sektionen, müssten aber zwei
+	// unabhängige Calls sein, weil sich die Aufgaben sonst kontaminieren (die
+	// Reflexions-Aufgabe färbt schon die formulierende Verdichtung und
+	// umgekehrt). Eine Reaktivierung erfordert deshalb einen Refactor: zwei
+	// getrennte LLM-Calls in Folge, FORMULIEREND zuerst, REFLEKTIEREND auf
+	// dessen Ergebnis aufsetzend. Bis dahin bleibt der `true`-Branch
+	// unangetastet (Karteileiche), und der `false`-Branch trägt die einzige
+	// produktive Hint-Formulierung.
 	const formulierendHint = caseCtx.brief.includeFormulierend
-		? `Inhalt der FORMULIEREND-Sektion: inhaltliche Verdichtung des aktuellen Absatzes — was wird gesagt, in 1–3 Sätzen, in Deinen Worten. Textnah, ohne Wertung oder Argumentations-Reflexion.\n\n`
+		? `FORMULIEREND — inhaltliche Verdichtung des aktuellen Absatzes: was wird gesagt, in 1–3 Sätzen, in Deinen Worten. Textnah, ohne Wertung oder Argumentations-Reflexion.\n\n`
 		: '';
 
 	const reflektierendHint = caseCtx.brief.includeFormulierend
-		? `Inhalt der REFLEKTIEREND-Sektion: argumentative/funktionale Reflexion: was tut dieser Absatz im aktuellen Verlauf des Unterkapitels (vor dem Hintergrund der bisherigen reflektierenden Kette)? Welche Bewegung vollzieht er, welcher Stelle im Argumentations-Aufbau dient er? 1–3 Sätze.`
-		: `Inhalt der REFLEKTIEREND-Sektion: 2–4 Sätze. Die ersten 1–2 Sätze: was wird zum Thema gemacht, welche Position bezogen — knapp, als Inhaltsanker. Die folgenden 1–2 Sätze: welche argumentative Bewegung / Funktion vollzieht der Absatz vor dem Hintergrund der bisherigen reflektierenden Kette des Subkapitels?`;
+		? `REFLEKTIEREND — argumentative/funktionale Reflexion: was tut dieser Absatz im aktuellen Verlauf des Unterkapitels (vor dem Hintergrund der bisherigen reflektierenden Kette)? Welche Bewegung vollzieht er, welcher Stelle im Argumentations-Aufbau dient er? 1–3 Sätze.`
+		: `REFLEKTIEREND — 2–4 Sätze. Die ersten 1–2 Sätze: Inhaltsanker — was wird zum Thema gemacht, welche Position bezogen, in Deinen Worten, knapp und textnah. Die folgenden 1–2 Sätze in hermeneutisch-bewegungsorientierter Diktion: welche Bewegung vollzieht der Absatz im Verlauf des Unterkapitels — eine Begriffs-Klärung, eine Position-Setzung, eine Forschungsstand-Aufnahme, ein Spannungs-Aufbau, eine Wiederaufnahme Vorhergehender, ein Übergang zwischen Modi (Phänomen → Theorie, Deskription → Diagnose, etc.)? Falls erkennbar: knüpft der Absatz an eine konkrete Bewegung der vorhergehenden reflektierenden Kette an (Wiederaufnahme, Begriffs-Switch, Modus-Wechsel)? Die Bewegung benennen, nicht den Inhalt nacherzählen — dafür sind die ersten Sätze.`;
 
 	return `
 ${formatDesc}

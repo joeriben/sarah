@@ -240,13 +240,13 @@ ${outlineLines}
 [OUTPUT-FORMAT]
 ${describeProseFormat(DOCUMENT_COLLAPSE_SPEC)}
 
-Inhalt der SYNTHESE-Sektion: 8–14 Sätze, argumentative Diktion, drei Pflichtbestandteile, Niveau-Beurteilung explizit am Werktyp '${ctx.brief.work_type}' kalibriert.
+SYNTHESE — 8–14 Sätze, argumentative Diktion, drei Pflichtbestandteile, Niveau-Beurteilung explizit am Werktyp '${ctx.brief.work_type}' kalibriert.
 
-Inhalt jeder AUFFAELLIGKEITEN-N-Sektion:
+AUFFAELLIGKEITEN (pro Eintrag):
 - scope: Hauptkapitel-Numerierung (z.B. "Kap. 3", "Kap. 1.2") oder freitextlich "werkweit"
 - observation: Eine Beobachtung zur argumentativen Qualität auf Werk-Ebene
 
-Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Sektionen weg.`;
+Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Einträge weg.`;
 }
 
 function buildUserMessage(ctx: DocumentContext): string {

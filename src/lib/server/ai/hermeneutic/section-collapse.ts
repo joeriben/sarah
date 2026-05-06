@@ -243,7 +243,7 @@ ${completed}
 [OUTPUT-FORMAT]
 ${describeProseFormat(COLLAPSE_SPEC)}
 
-Inhalt der KONTEXTUALISIEREND-Sektion: Synthese der Subkapitel-Bewegung — was wurde hier geleistet? 4–8 Sätze, in argumentativer Diktion (welche Position, welche Bewegung, welche Spannung), nicht in Inhalts-Diktion (was steht da).`;
+KONTEXTUALISIEREND — Synthese der Subkapitel-Bewegung: was wurde hier geleistet? 4–8 Sätze, in argumentativer Diktion (welche Position, welche Bewegung, welche Spannung), nicht in Inhalts-Diktion (was steht da).`;
 }
 
 function buildUserMessage(ctx: CollapseContext): string {

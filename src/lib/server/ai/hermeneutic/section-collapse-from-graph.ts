@@ -397,13 +397,13 @@ Umfang Hauptteil: ${ctx.mainHeadingCount} Hauptkapitel-Überschriften, ${ctx.mai
 [OUTPUT-FORMAT]
 ${describeProseFormat(GRAPH_COLLAPSE_SPEC)}
 
-Inhalt der SYNTHESE-Sektion: 4–8 Sätze, argumentative Diktion (welche Position, welche Bewegung, welche Spannung), keine Inhalts-Diktion (was steht da).
+SYNTHESE — 4–8 Sätze, argumentative Diktion (welche Position, welche Bewegung, welche Spannung), keine Inhalts-Diktion (was steht da).
 
-Inhalt jeder AUFFAELLIGKEITEN-N-Sektion:
+AUFFAELLIGKEITEN (pro Eintrag):
 - scope: §<Position> oder §<Position>:A<ID> (Argument) oder §<Position>:S<ID> (Stützstruktur) oder freitextliche subkapitelweite Bemerkung
 - observation: Eine Beobachtung zur argumentativen Qualität dieses Absatzes/Arguments
 
-Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Sektionen weg. Schreibe keine Allerwelts-Beobachtungen — nur, was bei Begutachtung wirklich relevant wäre.${ctx.brief.validityCheck ? FALLACY_AWARENESS_REGEL : ''}`;
+Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Einträge weg. Schreibe keine Allerwelts-Beobachtungen — nur, was bei Begutachtung wirklich relevant wäre.${ctx.brief.validityCheck ? FALLACY_AWARENESS_REGEL : ''}`;
 }
 
 function buildSystemSuffix(ctx: CollapseContext): string {

@@ -553,15 +553,15 @@ ${preceding}
 [OUTPUT-FORMAT]
 ${describeProseFormat(CHAPTER_COLLAPSE_SPEC)}
 
-Inhalt der SYNTHESE-Sektion: 6–10 Sätze, argumentative Diktion, vier Pflichtbestandteile.
+SYNTHESE — 6–10 Sätze, argumentative Diktion, vier Pflichtbestandteile.
 
-Inhalt der ARGUMENTATIONSWIEDERGABE-Sektion: 1–3 Absätze, expositorisch, neutral, gutachten-fertig.
+ARGUMENTATIONSWIEDERGABE — 1–3 Absätze, expositorisch, neutral, gutachten-fertig.
 
-Inhalt jeder AUFFAELLIGKEITEN-N-Sektion:
+AUFFAELLIGKEITEN (pro Eintrag):
 - scope: L2-Numerierung oder L3-Subkapitel-Numerierung oder §<Position> bei Mode 'paragraphs'
 - observation: Eine Beobachtung zur argumentativen Qualität dieser Einheit
 
-Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Sektionen weg.${ctx.brief.validityCheck && ctx.mode === 'paragraphs' ? FALLACY_AWARENESS_REGEL : ''}`;
+Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Einträge weg.${ctx.brief.validityCheck && ctx.mode === 'paragraphs' ? FALLACY_AWARENESS_REGEL : ''}`;
 }
 
 function buildUserMessage(ctx: ChapterContext): string {

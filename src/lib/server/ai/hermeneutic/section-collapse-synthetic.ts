@@ -284,13 +284,13 @@ Umfang Hauptteil: ${ctx.mainHeadingCount} Hauptkapitel-Überschriften, ${ctx.mai
 [OUTPUT-FORMAT]
 ${describeProseFormat(SYNTHETIC_COLLAPSE_SPEC)}
 
-Inhalt der SYNTHESE-Sektion: 6–10 Sätze, hermeneutisch-bewegungsorientierte Diktion (welche Bewegung, welche Position, welche Spannung), keine Inhalts-Diktion (was steht da).
+SYNTHESE — 6–10 Sätze, hermeneutisch-bewegungsorientierte Diktion (welche Bewegung, welche Position, welche Spannung), keine Inhalts-Diktion (was steht da).
 
-Inhalt jeder AUFFAELLIGKEITEN-N-Sektion:
+AUFFAELLIGKEITEN (pro Eintrag):
 - scope: §<Position> oder §<Position>→§<Position> oder freitextliche subkapitelweite Bemerkung
 - observation: Eine Beobachtung zur hermeneutischen Qualität dieses Absatzes/Übergangs
 
-Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Sektionen weg. Schreibe keine Allerwelts-Beobachtungen — nur, was bei Begutachtung wirklich relevant wäre.`;
+Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Einträge weg. Schreibe keine Allerwelts-Beobachtungen — nur, was bei Begutachtung wirklich relevant wäre.`;
 }
 
 function buildSystemSuffix(ctx: CollapseContext): string {

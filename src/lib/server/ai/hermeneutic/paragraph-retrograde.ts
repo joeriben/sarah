@@ -358,7 +358,7 @@ ${ctx.retrogradeUnitMemo.synthese}${retroAuff}
 [OUTPUT-FORMAT]
 ${describeProseFormat(PARAGRAPH_RETROGRADE_SPEC)}
 
-Inhalt der REFLEKTIEREND-Sektion: 2–4 Sätze, retrograd-revidierend gegenüber der Forward-Lesart. Klare Diagnose: bestätigt / verschoben / korrigiert.`;
+REFLEKTIEREND — 2–4 Sätze, retrograd-revidierend gegenüber der Forward-Lesart. Klare Diagnose: bestätigt / verschoben / korrigiert.`;
 }
 
 function buildUserMessage(ctx: RetrogradeContext): string {

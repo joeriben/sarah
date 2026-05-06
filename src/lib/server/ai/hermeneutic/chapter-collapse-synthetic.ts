@@ -464,15 +464,15 @@ ${preceding}
 [OUTPUT-FORMAT]
 ${describeProseFormat(CHAPTER_COLLAPSE_SYNTHETIC_SPEC)}
 
-Inhalt der SYNTHESE-Sektion: 6–10 Sätze, hermeneutisch-bewegungsorientierte Diktion, vier Pflichtbestandteile.
+SYNTHESE — 6–10 Sätze, hermeneutisch-bewegungsorientierte Diktion, vier Pflichtbestandteile.
 
-Inhalt der VERLAUFSWIEDERGABE-Sektion: 1–3 Absätze, expositorisch, neutral, gutachten-fertig.
+VERLAUFSWIEDERGABE — 1–3 Absätze, expositorisch, neutral, gutachten-fertig.
 
-Inhalt jeder AUFFAELLIGKEITEN-N-Sektion:
+AUFFAELLIGKEITEN (pro Eintrag):
 - scope: ${refScopeHint} oder freitextliche kapitelweite Bemerkung
 - observation: Eine Beobachtung zur hermeneutischen Qualität dieser Einheit
 
-Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Sektionen weg. Schreibe keine Allerwelts-Beobachtungen — nur, was bei Begutachtung wirklich relevant wäre.`;
+Wenn nichts qualitätsmäßig hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Einträge weg. Schreibe keine Allerwelts-Beobachtungen — nur, was bei Begutachtung wirklich relevant wäre.`;
 }
 
 function buildUserMessage(ctx: ChapterContext): string {

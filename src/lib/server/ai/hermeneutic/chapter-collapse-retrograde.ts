@@ -276,15 +276,15 @@ ${ctx.workMemo.synthese}${workAuff}
 [OUTPUT-FORMAT]
 ${describeProseFormat(CHAPTER_RETROGRADE_SPEC)}
 
-Inhalt der SYNTHESE-Sektion: 6–10 Sätze, retrograd-revidierend (bestätigen / verschieben / korrigieren), vier Pflichtbestandteile.
+SYNTHESE — 6–10 Sätze, retrograd-revidierend (bestätigen / verschieben / korrigieren), vier Pflichtbestandteile.
 
-Inhalt der VERLAUFSWIEDERGABE-Sektion: 1–3 Absätze, expositorisch, neutral, gutachten-fertig (übernommen oder akzent-verschoben gegenüber Forward).
+VERLAUFSWIEDERGABE — 1–3 Absätze, expositorisch, neutral, gutachten-fertig (übernommen oder akzent-verschoben gegenüber Forward).
 
-Inhalt jeder AUFFAELLIGKEITEN-N-Sektion:
+AUFFAELLIGKEITEN (pro Eintrag):
 - scope: Subkapitel- oder ¶-Referenz oder freitextliche kapitelweite Bemerkung
 - observation: Eine Beobachtung, die ERST im Werk-Licht sichtbar wird. Forward-Auffälligkeiten nicht wiederholen.
 
-Wenn keine Werk-Licht-spezifische Auffälligkeit hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Sektionen weg.`;
+Wenn keine Werk-Licht-spezifische Auffälligkeit hervorzuheben ist: lasse alle AUFFAELLIGKEITEN-Einträge weg.`;
 }
 
 function buildUserMessage(ctx: RetrogradeContext): string {
