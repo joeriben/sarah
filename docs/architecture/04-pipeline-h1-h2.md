@@ -306,9 +306,24 @@ Beide Folgestufen sind nicht Teil der ersten Implementation.
 
 ---
 
-## 8. Retrograde-2-Pass (H2-Modifikator, optional)
+## 8. Retrograde-2-Pass (H2-Modifikator, optional) — DEPRECATED
 
-**Status:** implementiert 2026-05-05 als FFN-Backprop-style Verfeinerung der H2-Forward-Memos. Default off, schaltbar via `RunOptions.retrograde_pass=true`. Wirkt bei `heuristic='h2'` und beim Composite `heuristic='meta'` (in dem Fall zwischen H2-Forward und `meta_synthesis` eingeschoben).
+> **DEPRECATED bis auf weiteres (2026-05-06).** Erste Spot-Checks zeigten,
+> dass die Strecke nur die *Top-Down-Halbiteration* eines hermeneutischen
+> Zirkels implementiert (W → ¶) — die Bottom-Up-Schließung (¶-Retros zurück
+> in W) fehlt. Außerdem deutete das Hauptkapitel-Retro Plattform-Artefakte
+> (Heading-Numerierungs-Lücken aus dem DOCX-Parser) als textsubstanzielle
+> Befunde, baute also Werk-Architektur-Diagnosen auf einem Substrat-Bug auf.
+>
+> Die UI-Checkbox „Retrograde-Pass" ist entfernt, das `retrograde_pass`-Flag
+> wird in `phasesForRun` ignoriert, persistierte Memos sind soft-deleted.
+> Code (Module, Phase-Namen, Idempotenz-Tags) bleibt erhalten als Kontrakt
+> für die geplante Reaktivierung — Sprach-Korrektur und
+> Bottom-Up-Halbiteration sind im Ticket
+> `docs/ticket_hermeneutischer_zirkel_bottom_up.md` beschrieben. Die
+> folgende Beschreibung dokumentiert den deaktivierten Stand.
+
+**Status:** implementiert 2026-05-05 als (irreführend so gelabeltes) „FFN-Backprop-style"-Refinement der H2-Forward-Memos. Default off, schaltbar via `RunOptions.retrograde_pass=true`. Wirkt bei `heuristic='h2'` und beim Composite `heuristic='meta'` (in dem Fall zwischen H2-Forward und `meta_synthesis` eingeschoben).
 
 ### 8.1 Idee
 

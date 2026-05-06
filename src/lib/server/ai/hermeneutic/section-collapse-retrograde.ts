@@ -1,13 +1,19 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// DEPRECATED bis auf weiteres (User-Setzung 2026-05-06).
+// Nicht im aktiven Pipeline-Pfad. Modul bleibt erhalten als Kontrakt
+// für die geplante Reaktivierung
+// (docs/ticket_hermeneutischer_zirkel_bottom_up.md). Begründung der
+// Deaktivierung siehe chapter-collapse-retrograde.ts.
+
 // Subchapter-collapse retrograde pass — H2-Aggregations-Linie (synthetisch,
 // retrograder Verfeinerungs-Durchlauf).
 //
-// FFN-Backprop-style Stufe 2 (nach chapter-collapse-retrograde): liest das
-// Forward-Subkapitel-Memo zusammen mit dem **retrograde**-Hauptkapitel-Memo
-// (das W bereits absorbiert hat) erneut und legt eine revidierte
-// Subkapitel-Synthese vor. Forward-Memo bleibt unverändert.
+// Top-Down-Halbiteration Stufe 2 (nach chapter-collapse-retrograde):
+// liest das Forward-Subkapitel-Memo zusammen mit dem **retrograde**-
+// Hauptkapitel-Memo (das W bereits absorbiert hat) erneut und legt eine
+// revidierte Subkapitel-Synthese vor. Forward-Memo bleibt unverändert.
 //
 // Input:
 //   - Forward-Subchapter-Memo: `[kontextualisierend/subchapter/synthetic]`

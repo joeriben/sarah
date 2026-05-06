@@ -1,10 +1,16 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// DEPRECATED bis auf weiteres (User-Setzung 2026-05-06).
+// Nicht im aktiven Pipeline-Pfad. Modul bleibt erhalten als Kontrakt
+// für die geplante Reaktivierung
+// (docs/ticket_hermeneutischer_zirkel_bottom_up.md). Begründung der
+// Deaktivierung siehe chapter-collapse-retrograde.ts.
+
 // Per-paragraph retrograde pass — H2-Aggregations-Linie (synthetisch,
 // retrograder Verfeinerungs-Durchlauf).
 //
-// FFN-Backprop-style Stufe 3 (nach chapter-collapse-retrograde +
+// Top-Down-Halbiteration Stufe 3 (nach chapter-collapse-retrograde +
 // section-collapse-retrograde): liest die forward-reflektierende Memo
 // eines Absatzes erneut, jetzt mit dem retrograden Memo der **umfassenden
 // Aggregations-Einheit** als Kontext. Aggregations-Einheit ist:

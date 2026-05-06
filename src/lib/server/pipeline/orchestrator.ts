@@ -69,6 +69,13 @@ import { runDocumentCollapse } from '../ai/hermeneutic/document-collapse.js';
 import { runSectionCollapseSynthetic } from '../ai/hermeneutic/section-collapse-synthetic.js';
 import { runChapterCollapseSynthetic } from '../ai/hermeneutic/chapter-collapse-synthetic.js';
 import { runDocumentCollapseSynthetic } from '../ai/hermeneutic/document-collapse-synthetic.js';
+// DEPRECATED bis auf weiteres (User-Setzung 2026-05-06):
+// die drei retrograde-Module bleiben importiert, damit `case`-Branches in
+// listAtomsForPhase/executeStep weiter typchecken; aktiviert wird die Strecke
+// aber nirgends mehr (siehe phasesForRun + runH2Hierarchical-Calls). Das
+// Feature ist nicht gelöscht, nur eingefroren — die offene Validierungs-
+// Frage (Bottom-Up-Halbiteration vs. Top-Down) ist in
+// docs/ticket_hermeneutischer_zirkel_bottom_up.md beschrieben.
 import { runChapterCollapseRetrograde } from '../ai/hermeneutic/chapter-collapse-retrograde.js';
 import { runSectionCollapseRetrograde } from '../ai/hermeneutic/section-collapse-retrograde.js';
 import { runParagraphRetrograde } from '../ai/hermeneutic/paragraph-retrograde.js';
@@ -98,15 +105,29 @@ export type Phase =
 	| 'section_collapse_synthetic'
 	| 'chapter_collapse_synthetic'
 	| 'document_collapse_synthetic'
-	// H2-Retrograde-Pass (FFN-Backprop-style; opt-in via
-	// RunOptions.retrograde_pass). Verfeinert die Forward-Memos durch
-	// downstream-Kontext: W absorbiert in Chapter-Retro, Chapter-Retro
-	// absorbiert in Subchapter-Retro, Subchapter-Retro absorbiert in
-	// Paragraph-Retro. Idempotenz-Tags
+	// DEPRECATED bis auf weiteres (User-Setzung 2026-05-06).
+	//
+	// Frühere Beschreibung: H2-Retrograde-Pass (irreführend „FFN-Backprop-
+	// style" gelabelt). Verfeinerte Forward-Memos durch downstream-Kontext
+	// (W → Chapter-Retro → Subchapter-Retro → Paragraph-Retro). Korrekt
+	// benannt ist das die *Top-Down-Halbiteration eines hermeneutischen
+	// Zirkels* — die Bottom-Up-Schließung (¶-Retros zurück in W) fehlt.
+	// Außerdem zeigte ein erster Spot-Check, dass das Hauptkapitel-Retro
+	// Plattform-Artefakte (Heading-Numerierungs-Lücken aus dem Parser)
+	// als textsubstanzielle Befunde missdeutete.
+	//
+	// Die Phase-Namen, Idempotenz-Tags und Done-Checks bleiben hier
+	// stehen, damit die noch in DB liegenden Retrograde-Memos
+	// referenzierbar sind und ein späterer Re-Use nicht eine Migration
+	// braucht. Aktiv geschaltet wird die Strecke nirgends mehr (siehe
+	// phasesForRun + runH2Hierarchical-Aufrufe).
+	//
+	// Validierungs- und Reaktivierungs-Plan:
+	// docs/ticket_hermeneutischer_zirkel_bottom_up.md.
+	//
+	// Idempotenz-Tags (historisch persistent):
 	// `[kontextualisierend/{chapter|subchapter}/synthetic-retrograde]` und
-	// `[reflektierend-retrograde]` — bracket-position macht sie
-	// kollisionsfrei zu den Forward-`/synthetic]` und `[reflektierend]`-
-	// LIKE-Patterns.
+	// `[reflektierend-retrograde]`.
 	| 'chapter_collapse_retrograde'
 	| 'section_collapse_retrograde'
 	| 'paragraph_retrograde'
@@ -141,9 +162,11 @@ export const PHASE_ORDER_SYNTHETIC: Phase[] = [
 	'document_collapse_synthetic',
 ];
 
-// H2-Retrograde-Tail (opt-in; FFN-Backprop-style). Top-down: W → Chapter-Retro
-// → Subchapter-Retro → Paragraph-Retro. Wird nur angehängt, wenn
-// RunOptions.retrograde_pass=true gesetzt ist.
+// DEPRECATED bis auf weiteres (User-Setzung 2026-05-06).
+// Liste bleibt exportiert, weil andere Module sie referenzieren könnten;
+// phasesForRun ignoriert RunOptions.retrograde_pass und hängt diese
+// Sequenz nicht mehr an.
+// Reaktivierungs-Plan: docs/ticket_hermeneutischer_zirkel_bottom_up.md.
 export const PHASE_ORDER_RETROGRADE: Phase[] = [
 	'chapter_collapse_retrograde',
 	'section_collapse_retrograde',
@@ -186,13 +209,10 @@ export interface RunOptions {
 	// die H1-Teilstrecke berücksichtigt; ignoriert bei heuristic ∈ {h2, h3}.
 	include_validity?: boolean;
 
-	// H2-spezifischer Modifikator (User-Setzung 2026-05-05): wenn true, hängt
-	// der H2-Walk nach `document_collapse_synthetic` einen retrograden
-	// Verfeinerungs-Pass an (FFN-Backprop-style: W → Chapter-Retro →
-	// Subchapter-Retro → Paragraph-Retro). Default false — der Forward-
-	// Pass ist für sich vollständig; Retrograde ist evaluativ-experimentell.
-	// Auch im 'meta'-Composite-Run für die H2-Teilstrecke berücksichtigt;
-	// ignoriert bei heuristic ∈ {h1, h3}.
+	// DEPRECATED bis auf weiteres (User-Setzung 2026-05-06): Feld wird
+	// noch akzeptiert (Schema-Kompatibilität für laufende DB-Reihen), aber
+	// in phasesForRun + runH2Hierarchical-Aufrufen nicht mehr ausgewertet.
+	// Reaktivierungs-Plan: docs/ticket_hermeneutischer_zirkel_bottom_up.md.
 	retrograde_pass?: boolean;
 
 	cost_cap_usd?: number | null;
@@ -962,7 +982,10 @@ export function phasesForRun(options: RunOptions): Phase[] {
 			return ['h3_walk'];
 		case 'h2': {
 			const phases: Phase[] = [...PHASE_ORDER_SYNTHETIC];
-			if (options.retrograde_pass) phases.push(...PHASE_ORDER_RETROGRADE);
+			// DEPRECATED 2026-05-06: retrograde-Strecke ignoriert das Flag,
+			// bis die offene Bottom-Up-Halbiteration entschieden ist
+			// (docs/ticket_hermeneutischer_zirkel_bottom_up.md).
+			// if (options.retrograde_pass) phases.push(...PHASE_ORDER_RETROGRADE);
 			return phases;
 		}
 		case 'h1': {
@@ -990,7 +1013,9 @@ export function phasesForRun(options: RunOptions): Phase[] {
 				phases.splice(agIdx + 1, 0, 'argument_validity');
 			}
 			phases.push(...PHASE_ORDER_SYNTHETIC);
-			if (options.retrograde_pass) phases.push(...PHASE_ORDER_RETROGRADE);
+			// DEPRECATED 2026-05-06: retrograde-Strecke ignoriert das Flag
+			// auch im meta-Composite-Run.
+			// if (options.retrograde_pass) phases.push(...PHASE_ORDER_RETROGRADE);
 			phases.push('meta_synthesis');
 			return phases;
 		}
@@ -1101,7 +1126,7 @@ export async function runPipelineLoop(
 			sendEvent,
 			erroredAtomIds,
 			recordAtomError,
-			options.retrograde_pass ?? false
+			false // DEPRECATED 2026-05-06: retrograde-Strecke abgeschaltet
 		);
 		if (!ok) return;
 	} else if (heuristic === 'meta') {
@@ -1141,7 +1166,7 @@ export async function runPipelineLoop(
 			sendEvent,
 			erroredAtomIds,
 			recordAtomError,
-			options.retrograde_pass ?? false
+			false // DEPRECATED 2026-05-06: retrograde-Strecke abgeschaltet
 		);
 		if (!h2Ok) return;
 
@@ -1453,11 +1478,14 @@ async function buildH2HierarchicalPlan(
 		atom: { id: documentId, label: 'Werk-Synthese (synthetisch)' },
 	});
 
-	// Retrograde 2-pass (FFN-Backprop-style refinement): top-down nach
-	// abgeschlossener Forward-Strecke + W. Reihenfolge ist hart sequentiell
-	// chapter → subchapter → paragraph, weil jede Ebene auf der retrograden
-	// Vorgänger-Ebene aufbaut (siehe paragraph-retrograde / section-collapse-
-	// retrograde / chapter-collapse-retrograde).
+	// DEPRECATED bis auf weiteres (2026-05-06): retrograde-Strecke wird von
+	// runPipelineLoop nur noch mit retrograde=false aufgerufen, daher ist
+	// dieser Block momentan toter Code. Er bleibt stehen als Kontrakt-Doku
+	// für die geplante Reaktivierung
+	// (docs/ticket_hermeneutischer_zirkel_bottom_up.md). Frühere
+	// Beschreibung: Top-Down-Halbiteration eines hermeneutischen Zirkels
+	// (W → Chapter-Retro → Subchapter-Retro → Paragraph-Retro), zuvor
+	// irreführend als „FFN-Backprop" gelabelt.
 	if (options.retrograde) {
 		// Hauptkapitel-Retrograde (W absorbiert).
 		for (const chapter of chapters) {

@@ -9,8 +9,9 @@
 //            oder 'failed'. Body:
 //              { heuristic?: 'h1'|'h2'|'h3',  // exklusive Pfad-Wahl
 //                include_validity?: bool,    // H1-Modifikator
-//                retrograde_pass?: bool,     // H2-Modifikator
 //                cost_cap_usd?: number }
+//            (retrograde_pass entfernt 2026-05-06 — DEPRECATED, siehe
+//            docs/ticket_hermeneutischer_zirkel_bottom_up.md.)
 //            heuristic-Default: aus dem Brief abgeleitet (h3_enabled=true
 //            → 'h3', sonst 'h1'). H1/H2/H3 sind exklusive Pfade.
 //   GET    — gibt den aktuellen Run-Stand als JSON zurück (für Reload/Polling).
@@ -101,7 +102,6 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const body = (await request.json().catch(() => ({}))) as {
 		heuristic?: 'h1' | 'h2' | 'h3';
 		include_validity?: boolean;
-		retrograde_pass?: boolean;
 		cost_cap_usd?: number | null;
 	};
 	// heuristic: explicit body wins, sonst Default aus dem Brief
@@ -120,7 +120,6 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const options: RunOptions = {
 		heuristic,
 		include_validity: explicitValidity ?? access.brief_validity_check,
-		retrograde_pass: typeof body?.retrograde_pass === 'boolean' ? body.retrograde_pass : false,
 		cost_cap_usd: typeof body?.cost_cap_usd === 'number' ? body.cost_cap_usd : null,
 	};
 

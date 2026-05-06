@@ -1,14 +1,32 @@
 // SPDX-FileCopyrightText: 2024-2026 Benjamin Jörissen
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// DEPRECATED bis auf weiteres (User-Setzung 2026-05-06).
+// Nicht im aktiven Pipeline-Pfad — orchestrator.phasesForRun ignoriert das
+// retrograde_pass-Flag und runH2Hierarchical wird nur mit retrograde=false
+// aufgerufen. Modul bleibt erhalten, weil die `case`-Branches in
+// orchestrator.executeStep weiter typchecken und persistierte
+// Retrograde-Memos sonst nicht refresh-bar wären.
+//
+// Erkenntnis aus dem ersten Spot-Check (2026-05-06): die Strecke
+// implementiert nur die *Top-Down-Halbiteration* eines hermeneutischen
+// Zirkels (W → ¶), nicht den Bottom-Up-Rückweg. Außerdem deutet das
+// Hauptkapitel-Retro Plattform-Artefakte (Heading-Numerierungs-Lücken
+// aus dem DOCX-Parser) als textsubstanzielle Befunde — also Halluzination
+// auf einem Substrat-Bug.
+//
+// Reaktivierungs-Plan inklusive Bottom-Up-Halbiteration und Substrat-
+// Hygiene: docs/ticket_hermeneutischer_zirkel_bottom_up.md.
+
 // Chapter-collapse retrograde pass — H2-Aggregations-Linie (synthetisch,
 // retrograder Verfeinerungs-Durchlauf).
 //
-// FFN-Backprop-style: nachdem der Forward-Pass W (Werk-Synthese) erzeugt hat,
-// wird hier das *bereits vorhandene* Hauptkapitel-Memo mit dem Werk-Wissen
-// aus W neu gelesen und verfeinert. Der Refinement-Output wird als eigenes
-// Memo persistiert (Tag `synthetic-retrograde`), das Forward-Memo bleibt
-// unverändert — beide stehen nebeneinander.
+// Nachdem der Forward-Pass W (Werk-Synthese) erzeugt hat, wird hier das
+// *bereits vorhandene* Hauptkapitel-Memo mit dem Werk-Wissen aus W neu
+// gelesen und verfeinert (Top-Down-Halbiteration des hermeneutischen
+// Zirkels — nicht „Backprop", wie früher gelabelt). Der Refinement-Output
+// wird als eigenes Memo persistiert (Tag `synthetic-retrograde`), das
+// Forward-Memo bleibt unverändert — beide stehen nebeneinander.
 //
 // Input:
 //   - Forward-Chapter-Memo: `[kontextualisierend/chapter/synthetic]` zu l1HeadingId
