@@ -6,15 +6,27 @@
 //
 // FFN-Backprop-style Stufe 3 (nach chapter-collapse-retrograde +
 // section-collapse-retrograde): liest die forward-interpretierende Memo
-// eines Absatzes erneut, jetzt mit dem retrograde-Subkapitel-Memo als
-// Kontext (das Retrograde-Hauptkapitel-Memo + Werk-Synthese bereits
-// absorbiert hat). Das Forward-Memo bleibt unverändert; das Retrograde-
-// Memo wird parallel persistiert.
+// eines Absatzes erneut, jetzt mit dem retrograden Memo der **umfassenden
+// Aggregations-Einheit** als Kontext. Aggregations-Einheit ist:
+//   - bei chosen_level=1 (Hauptkapitel = Synthese-Einheit, vgl.
+//     chooseSubchapterLevel in heading-hierarchy.ts) das Hauptkapitel
+//     selbst → chapter-level Retrograde-Memo
+//   - bei chosen_level=2|3 das nächste umfassende Heading auf dem gewählten
+//     Level → subchapter-level Retrograde-Memo
+//   - Pre-Section-Absätze (zwischen L1 und erstem L2 in chosen_level≥2-
+//     Kapiteln) fallen auf das Hauptkapitel zurück (kongruent zur Forward-
+//     Behandlung in buildH2HierarchicalPlan / paragraphCountForUnit).
+//
+// Diese Auflösung ist Pflicht — der direkt vorausgehende Heading-Eintrag
+// stimmt nur zufällig mit der gewählten Aggregations-Ebene überein, sonst
+// landet der Loader auf einem Heading ohne eigenes Retrograde-Memo.
 //
 // Input:
 //   - Forward-interpretierend-Memo: `[interpretierend]` zu paragraphId
-//   - Retrograde-Subchapter-Memo: `[kontextualisierend/subchapter/synthetic-retrograde]`
-//     zum Heading des umfassenden Subkapitels
+//   - Retrograde-Aggregations-Memo: entweder
+//     `[kontextualisierend/chapter/synthetic-retrograde]` (scope_level=
+//     'chapter') oder `[kontextualisierend/subchapter/synthetic-retrograde]`
+//     (scope_level='subchapter'), je nach Aggregations-Einheit
 //
 // Output-Schema: { interpretierend: string } — wie Forward, aber retrograd
 // neu gelesen. Kein FORMULIEREND-Feld in Retrograde (das ist Forward-only;
@@ -38,6 +50,11 @@ import {
 	describeProseFormat,
 	type SectionSpec,
 } from '../prose-extract.js';
+import {
+	loadChapterUnits,
+	loadResolvedOutline,
+	getPersistedSubchapterLevel,
+} from './heading-hierarchy.js';
 
 // ── Output schema + spec ──────────────────────────────────────────
 
@@ -54,6 +71,15 @@ const PARAGRAPH_RETROGRADE_SPEC: SectionSpec = {
 
 // ── Context ────────────────────────────────────────────────────────
 
+/**
+ * Aggregations-Einheits-Typ für die Prompt-Sprache: 'chapter' = Hauptkapitel
+ * ist die Synthese-Einheit (chosen_level=1, oder Pre-Section-Fallback);
+ * 'subchapter' = ein L2/L3-Heading auf dem gewählten Aggregations-Level
+ * ist die Synthese-Einheit. Beide Pfade sind legitim und produzieren
+ * jeweils das passende Retrograde-Memo (chapter- vs. subchapter-scope).
+ */
+type AggregationUnitKind = 'chapter' | 'subchapter';
+
 interface RetrogradeContext {
 	caseId: string;
 	projectId: string;
@@ -63,13 +89,20 @@ interface RetrogradeContext {
 
 	paragraphId: string;
 	paragraphText: string;
-	subchapterHeadingId: string;
-	subchapterLabel: string;
-	positionInSubchapter: number;
-	subchapterTotalParagraphs: number;
+	/** ID des Aggregations-Einheits-Headings (L1 oder Subkapitel-Heading). */
+	unitHeadingId: string;
+	/** Sprachform: "Hauptkapitel" oder "Subkapitel". */
+	unitKind: AggregationUnitKind;
+	/** Trimmter Heading-Text der Aggregations-Einheit. */
+	unitLabel: string;
+	/** 1-basierte Position des Absatzes innerhalb der Aggregations-Einheit. */
+	positionInUnit: number;
+	/** Gesamtanzahl Absätze in der Aggregations-Einheit. */
+	unitTotalParagraphs: number;
 
 	forwardInterpretierend: string;
-	retrogradeSubchapterMemo: {
+	/** Retrograde-Memo der Aggregations-Einheit (chapter- oder subchapter-scope). */
+	retrogradeUnitMemo: {
 		synthese: string;
 		auffaelligkeiten: { scope: string; observation: string }[];
 	};
@@ -121,40 +154,75 @@ async function loadRetrogradeContext(
 		throw new Error(`Paragraph ${paragraphId} is in section_kind=${para.section_kind}, not 'main'`);
 	}
 
-	const heading = await queryOne<{ id: string; char_start: number; char_end: number }>(
-		`SELECT id, char_start, char_end FROM document_elements
-		 WHERE document_id = $1 AND element_type = 'heading' AND section_kind = 'main'
-		   AND char_start <= $2
-		 ORDER BY char_start DESC LIMIT 1`,
-		[caseRow.central_document_id, para.char_start]
-	);
-	if (!heading) {
+	// Aggregations-Einheit auflösen — kongruent zur Forward-Choreographie
+	// (buildH2HierarchicalPlan / loadCollapseContext / paragraphCountForUnit):
+	//   1. umfassendes L1 finden (latest L1 at-or-before paragraph)
+	//   2. chosen_level via getPersistedSubchapterLevel
+	//   3. bei chosen=1: Aggregation = L1, Memo-Scope = chapter
+	//      bei chosen≥2: Aggregation = letztes Heading auf chosen-Level vor
+	//      diesem Absatz innerhalb des L1; falls keines existiert (Pre-Section-
+	//      Absatz vor erstem L2 in chosen=2-Kapitel) → Fallback auf L1 +
+	//      chapter-Scope-Memo
+	const chapters = await loadChapterUnits(caseRow.central_document_id);
+	const enclosingChapter = [...chapters]
+		.reverse()
+		.find((c) => c.l1.charStart <= para.char_start);
+	if (!enclosingChapter) {
 		throw new Error(
-			`No subchapter heading found before paragraph ${paragraphId} ` +
-				`(retrograde requires an enclosing subchapter)`
+			`No enclosing L1 chapter found for paragraph ${paragraphId} ` +
+				`(orphan paragraph — retrograde requires a chapter context)`
 		);
 	}
 
-	const nextHeading = await queryOne<{ char_start: number }>(
-		`SELECT char_start FROM document_elements
-		 WHERE document_id = $1 AND element_type = 'heading' AND section_kind = 'main'
-		   AND char_start > $2
-		 ORDER BY char_start ASC LIMIT 1`,
-		[caseRow.central_document_id, para.char_start]
-	);
-	const subchapterEnd = nextHeading?.char_start ?? docRow.full_text.length;
+	const chosenLevel = await getPersistedSubchapterLevel(enclosingChapter.l1.headingId);
+	let unitHeadingId = enclosingChapter.l1.headingId;
+	let unitHeadingCharStart = enclosingChapter.l1.charStart;
+	let unitHeadingCharEnd = enclosingChapter.l1.charEnd;
+	let unitLevel = enclosingChapter.l1.level;
+	let unitKind: AggregationUnitKind = 'chapter';
 
-	const subPars = (
+	if (chosenLevel === 2 || chosenLevel === 3) {
+		const candidates = enclosingChapter.innerHeadings.filter(
+			(h) => h.level === chosenLevel && h.charStart <= para.char_start
+		);
+		if (candidates.length > 0) {
+			const last = candidates[candidates.length - 1];
+			unitHeadingId = last.headingId;
+			unitHeadingCharStart = last.charStart;
+			unitHeadingCharEnd = last.charEnd;
+			unitLevel = last.level;
+			unitKind = 'subchapter';
+		}
+		// else: pre-section-Absatz, bleibt bei der L1-Aggregations-Einheit
+	}
+	// chosenLevel===1 oder null: bleibt bei L1 + chapter-Scope.
+
+	// Aggregations-Einheits-Boundary: nächstes Heading auf SAME-OR-HIGHER level
+	// (kongruent zu loadCollapseContext.section-collapse-synthetic). Eine L2-
+	// Einheit umfasst auch ihre L3-Subheadings; eine L1-Einheit reicht bis
+	// zum nächsten L1.
+	const outline = await loadResolvedOutline(caseRow.central_document_id);
+	const nextSiblingOrHigher = outline.find(
+		(h) => h.charStart > unitHeadingCharStart && h.level <= unitLevel
+	);
+	const unitEnd = nextSiblingOrHigher?.charStart ?? docRow.full_text.length;
+
+	const unitPars = (
 		await query<{ id: string; char_start: number }>(
 			`SELECT id, char_start FROM document_elements
 			 WHERE document_id = $1 AND element_type = 'paragraph' AND section_kind = 'main'
 			   AND char_start >= $2 AND char_start < $3
 			 ORDER BY char_start`,
-			[caseRow.central_document_id, heading.char_start, subchapterEnd]
+			[caseRow.central_document_id, unitHeadingCharStart, unitEnd]
 		)
 	).rows;
-	const idx = subPars.findIndex((p) => p.id === paragraphId);
-	if (idx === -1) throw new Error(`Paragraph ${paragraphId} not found in its subchapter`);
+	const idx = unitPars.findIndex((p) => p.id === paragraphId);
+	if (idx === -1) {
+		throw new Error(
+			`Paragraph ${paragraphId} not found in its aggregation unit ` +
+				`(${unitKind} ${unitHeadingId}) — outline/paragraph mismatch`
+		);
+	}
 
 	// Forward-interpretierend laden (Pflicht-Vorbedingung).
 	const fwdRow = await queryOne<{ content: string }>(
@@ -176,8 +244,14 @@ async function loadRetrogradeContext(
 		);
 	}
 
-	// Retrograde-Subchapter-Memo laden (Pflicht-Vorbedingung).
-	const retroSubRow = await queryOne<{
+	// Retrograde-Aggregations-Memo laden (Pflicht-Vorbedingung). Scope hängt
+	// von unitKind ab — chapter- oder subchapter-level Retrograde-Memo.
+	const memoScope = unitKind === 'chapter' ? 'chapter' : 'subchapter';
+	const memoTagPrefix =
+		unitKind === 'chapter'
+			? '[kontextualisierend/chapter/synthetic-retrograde]'
+			: '[kontextualisierend/subchapter/synthetic-retrograde]';
+	const retroRow = await queryOne<{
 		content: string;
 		properties: { auffaelligkeiten?: { scope: string; observation: string }[] } | null;
 	}>(
@@ -186,17 +260,19 @@ async function loadRetrogradeContext(
 		 JOIN namings n ON n.id = mc.naming_id
 		 LEFT JOIN appearances a ON a.naming_id = n.id AND a.mode = 'entity'
 		 WHERE mc.scope_element_id = $1
-		   AND mc.scope_level = 'subchapter'
-		   AND n.inscription LIKE '[kontextualisierend/subchapter/synthetic-retrograde]%'
+		   AND mc.scope_level = $2
+		   AND n.inscription LIKE $3
 		   AND n.deleted_at IS NULL
 		 LIMIT 1`,
-		[heading.id]
+		[unitHeadingId, memoScope, memoTagPrefix + '%']
 	);
-	if (!retroSubRow) {
+	if (!retroRow) {
+		const upstreamPhase =
+			unitKind === 'chapter' ? 'chapter_collapse_retrograde' : 'section_collapse_retrograde';
 		throw new Error(
 			`Cannot run runParagraphRetrograde for ${paragraphId}: ` +
-				`no retrograde subchapter memo exists for enclosing heading ${heading.id}. ` +
-				`Run section_collapse_retrograde first.`
+				`no retrograde ${unitKind} memo exists for enclosing heading ${unitHeadingId}. ` +
+				`Run ${upstreamPhase} first.`
 		);
 	}
 
@@ -213,14 +289,15 @@ async function loadRetrogradeContext(
 		},
 		paragraphId,
 		paragraphText: docRow.full_text.substring(para.char_start, para.char_end),
-		subchapterHeadingId: heading.id,
-		subchapterLabel: docRow.full_text.substring(heading.char_start, heading.char_end).trim(),
-		positionInSubchapter: idx + 1,
-		subchapterTotalParagraphs: subPars.length,
+		unitHeadingId,
+		unitKind,
+		unitLabel: docRow.full_text.substring(unitHeadingCharStart, unitHeadingCharEnd).trim(),
+		positionInUnit: idx + 1,
+		unitTotalParagraphs: unitPars.length,
 		forwardInterpretierend: fwdRow.content,
-		retrogradeSubchapterMemo: {
-			synthese: retroSubRow.content,
-			auffaelligkeiten: retroSubRow.properties?.auffaelligkeiten ?? [],
+		retrogradeUnitMemo: {
+			synthese: retroRow.content,
+			auffaelligkeiten: retroRow.properties?.auffaelligkeiten ?? [],
 		},
 	};
 }
@@ -228,25 +305,39 @@ async function loadRetrogradeContext(
 // ── Prompt assembly ───────────────────────────────────────────────
 
 function buildSystemPrompt(ctx: RetrogradeContext): string {
-	const retroSubAuff =
-		ctx.retrogradeSubchapterMemo.auffaelligkeiten.length === 0
+	const retroAuff =
+		ctx.retrogradeUnitMemo.auffaelligkeiten.length === 0
 			? ''
-			: '\n\nAuffälligkeiten des retrograden Subkapitel-Memos:\n' +
-				ctx.retrogradeSubchapterMemo.auffaelligkeiten
+			: `\n\nAuffälligkeiten des retrograden ${ctx.unitKind === 'chapter' ? 'Hauptkapitel' : 'Subkapitel'}-Memos:\n` +
+				ctx.retrogradeUnitMemo.auffaelligkeiten
 					.map((a) => `  [${a.scope}] ${a.observation}`)
 					.join('\n');
+
+	const unitNoun = ctx.unitKind === 'chapter' ? 'Hauptkapitels' : 'Subkapitels';
+	const unitNounNominative = ctx.unitKind === 'chapter' ? 'Hauptkapitel' : 'Subkapitel';
+	// Bei chapter-scope ist das retrograde Memo direkt das W-absorbierte
+	// Hauptkapitel-Memo (ohne dazwischenliegendes Subkapitel-Memo). Bei
+	// subchapter-scope hat das Subkapitel-Retro das Hauptkapitel-Retro absorbiert.
+	const absorptionPhrase =
+		ctx.unitKind === 'chapter'
+			? 'es hat die Werk-Synthese W absorbiert und reformuliert die Lesart des Hauptkapitels unter der Werk-Perspektive'
+			: 'es hat das retrograde Hauptkapitel-Memo und damit die Werk-Synthese W absorbiert und reformuliert die Lesart des umfassenden Subkapitels unter der Werk-Perspektive';
+	const reLightShort =
+		ctx.unitKind === 'chapter' ? 'Hauptkapitel-Retro-Licht' : 'Subkapitel-Retro-Licht';
+	const knowledgeDescriptor =
+		ctx.unitKind === 'chapter' ? 'Werk-/Hauptkap-Wissen' : 'Werk-/Subkap-Wissen';
 
 	return `[PERSONA]
 ${ctx.brief.persona}
 
 [KONTEXT DIESES PASSES — ABSATZ-RETROGRADE-PASS]
-Du hast in einem früheren Pass bereits eine interpretierende Memo zu diesem Absatz verfasst (Forward-Memo, siehe User-Message). Inzwischen liegt das **retrograde** Subkapitel-Memo vor — es hat das retrograde Hauptkapitel-Memo und damit die Werk-Synthese W absorbiert und reformuliert die Lesart des umfassenden Subkapitels unter der Werk-Perspektive.
+Du hast in einem früheren Pass bereits eine interpretierende Memo zu diesem Absatz verfasst (Forward-Memo, siehe User-Message). Inzwischen liegt das **retrograde** ${unitNounNominative}-Memo vor — ${absorptionPhrase}.
 
 Mit diesem nachgereichten Wissen liest du den Absatz **erneut** und legst eine **revidierte** interpretierende Memo vor.
 
 Aufgabe: das Forward-Memo nicht wiederholen, sondern *re-akzentuieren*.
-- **Bestätigen**, wenn die Forward-Lesart unter dem Subkapitel-Retro-Licht trägt — kurz so benennen.
-- **Verschieben**, wenn das Werk-/Subkap-Wissen die Funktions-Diagnose des Absatzes verändert (z.B. ein im Forward als "Nebenklärung" gelesener Absatz erweist sich rückblickend als pivot, oder umgekehrt).
+- **Bestätigen**, wenn die Forward-Lesart unter dem ${reLightShort} trägt — kurz so benennen.
+- **Verschieben**, wenn das ${knowledgeDescriptor} die Funktions-Diagnose des Absatzes verändert (z.B. ein im Forward als "Nebenklärung" gelesener Absatz erweist sich rückblickend als pivot, oder umgekehrt).
 - **Korrigieren**, wenn die Forward-Lesart dem Absatz im Werk-Kontext substantiell unrecht tut.
 
 Schreibe NICHT noch einmal die Forward-Lesart aus, wenn nichts zu revidieren ist — knappe Bestätigung ("die Forward-Lesart trägt unter Werk-Licht ohne Akzent-Verschiebung") genügt dann. Nur eine Sektion (INTERPRETIEREND), 2–4 Sätze, retrograd-revidierend.
@@ -258,11 +349,11 @@ ${ctx.brief.criteria}
 Titel: ${ctx.documentTitle}
 Werktyp: ${ctx.brief.work_type}
 
-[UMFASSENDES SUBKAPITEL — RETROGRADE-MEMO (W- und Hauptkapitel-absorbiert)]
-Subkapitel: "${ctx.subchapterLabel}"
-Position dieses Absatzes im Subkapitel: ${ctx.positionInSubchapter} von ${ctx.subchapterTotalParagraphs}.
+[UMFASSENDES ${unitNounNominative.toUpperCase()} — RETROGRADE-MEMO (W-${ctx.unitKind === 'chapter' ? '' : ' und Hauptkapitel-'}absorbiert)]
+${unitNounNominative}: "${ctx.unitLabel}"
+Position dieses Absatzes im ${unitNounNominative}: ${ctx.positionInUnit} von ${ctx.unitTotalParagraphs}.
 
-${ctx.retrogradeSubchapterMemo.synthese}${retroSubAuff}
+${ctx.retrogradeUnitMemo.synthese}${retroAuff}
 
 [OUTPUT-FORMAT]
 ${describeProseFormat(PARAGRAPH_RETROGRADE_SPEC)}
@@ -271,7 +362,8 @@ Inhalt der INTERPRETIEREND-Sektion: 2–4 Sätze, retrograd-revidierend gegenüb
 }
 
 function buildUserMessage(ctx: RetrogradeContext): string {
-	return `Absatz ${ctx.positionInSubchapter} von ${ctx.subchapterTotalParagraphs} im Subkapitel "${ctx.subchapterLabel}".
+	const unitNounNominative = ctx.unitKind === 'chapter' ? 'Hauptkapitel' : 'Subkapitel';
+	return `Absatz ${ctx.positionInUnit} von ${ctx.unitTotalParagraphs} im ${unitNounNominative} "${ctx.unitLabel}".
 
 [ABSATZ-TEXT]
 "${ctx.paragraphText}"
@@ -280,7 +372,7 @@ function buildUserMessage(ctx: RetrogradeContext): string {
 ${ctx.forwardInterpretierend}
 
 [AUFGABE]
-Lege jetzt das **retrograde** interpretierende Memo vor — im Licht des retrograden Subkapitel-Memos (siehe System-Prompt). Bestätige / verschiebe / korrigiere; wiederhole das Forward-Memo nicht.`;
+Lege jetzt das **retrograde** interpretierende Memo vor — im Licht des retrograden ${unitNounNominative}-Memos (siehe System-Prompt). Bestätige / verschiebe / korrigiere; wiederhole das Forward-Memo nicht.`;
 }
 
 // ── Storage ───────────────────────────────────────────────────────
@@ -316,7 +408,7 @@ async function storeParagraphRetrogradeMemo(
 			perspective = r.rows[0];
 		}
 
-		const label = `[interpretierend-retrograde] ${ctx.subchapterLabel} §${ctx.positionInSubchapter}`;
+		const label = `[interpretierend-retrograde] ${ctx.unitLabel} §${ctx.positionInUnit}`;
 		const memo = await client.query(
 			`INSERT INTO namings (project_id, inscription, created_by)
 			 VALUES ($1, $2, $3) RETURNING id`,
