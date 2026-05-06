@@ -472,13 +472,21 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 		}
 		case 'paragraph_synthetic': {
 			const all = await listParagraphAtoms(documentId);
+			// Forward (`[reflektierend]`) und Retrograde (`[reflektierend-retrograde]`)
+			// teilen denselben memo_type — ohne Inscription-Filter würde ein
+			// reines Retrograde-Memo den Forward-Pass fälschlich als done
+			// markieren. deleted_at IS NULL hält frische Re-Runs nach
+			// Soft-Delete idempotent.
 			const done = new Set(
 				(await query<{ pid: string }>(
 					`SELECT DISTINCT mc.scope_element_id AS pid
 					 FROM memo_content mc
+					 JOIN namings n ON n.id = mc.naming_id
 					 JOIN document_elements de ON de.id = mc.scope_element_id
 					 WHERE mc.scope_level = 'paragraph'
 					   AND mc.memo_type = 'reflektierend'
+					   AND n.inscription LIKE '[reflektierend]%'
+					   AND n.deleted_at IS NULL
 					   AND de.document_id = $1`,
 					[documentId]
 				)).rows.map((r) => r.pid)
