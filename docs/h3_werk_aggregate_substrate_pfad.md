@@ -81,6 +81,25 @@ Im UI: nach dem Re-Run werden die WERK_BESCHREIBUNG- und WERK_GUTACHT-Karten kon
 
 ---
 
+## Verifikation 2026-05-06 (BA H3 dev)
+
+Backend-Validierung mammouth/claude-sonnet-4-6 auf BA H3 dev (c42e2d8f). 1 BEFUND, 1 GESAMTERGEBNIS, 1 GELTUNGSANSPRUCH als Vorlauf, frische WERK_DESK/GUTACHT (kein Vorzustand).
+
+**WERK_DESKRIPTION** (4951 in / 914 out / 18s):
+- "dieser Befund wird in der Synthese nicht aufgegriffen" — `erkenntnisIntegration[]` Coverage durchgereicht
+- "diese Grenzen werden als konzeptionelle Differenzen formuliert, nicht als Limitationen der eigenen Studie" — `grenzenText` Critical-Friend-Lesart
+- "Werk enthält keine eigenständige Einordnung der Befund-Integration" — Meta-Beobachtung über die Reflexionslücke
+
+**WERK_GUTACHT** (3 Stages, 19922 in / 3117 out / 67s gesamt):
+- Stage A: "Werk-Antwort positioniert GCED und Klafki als komplementäre Konzepte ... die in der Fragestellung angelegte evaluative Zuspitzung wird in der Synthese nicht binär aufgelöst" — direkter Bezug auf `fragestellungsAntwortText`, das genau die "Super Arbeit — hat Frage nicht beantwortet"-Asymmetrie aufdeckt
+- Stage B DURCHFUEHRUNG-Qualität: "vollständig nicht aufgegriffen (0 von 1 Befunden integriert)" — `erkenntnisIntegration[]` als Hotspot-Quelle wirkt
+- Stage B SCHLUSSREFLEXION-Legitimiertheit: "Grenzen des eigenen Vorgehens werden in der Schlussreflexion nicht explizit adressiert" — `grenzenText`-Meta-Reflexion
+- Stage C: zentrale Beobachtung über Aggregat-Befund-Inkohärenz, ohne Verdikt
+
+Substrat-Pfad-Korrektur trägt am Material. Critical-Friend-Stil eingehalten (deskriptive Verben, keine Skala-Adjektive).
+
+---
+
 ## Pflicht-Lektüre
 
 - `h3_synthese_status.md` — wer produziert `gesamtergebnisText`, `fragestellungsAntwortText`, `erkenntnisIntegration[]`
