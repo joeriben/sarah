@@ -4,11 +4,10 @@
 // Per-paragraph hermeneutic pass (H2 — paragraph_synthetic).
 //
 // Pulls the paragraph and its surrounding context, assembles the cached system
-// block (persona, criteria, work header, completed sections, reflective
-// chain in current subchapter) and a fresh user message (predecessor +
-// current paragraph + successor + position label), calls the LLM, parses the
-// structured prose response, and writes the formulierend + reflektierend
-// memos.
+// block (persona, criteria, work header, output format) and a fresh user
+// message (reading context + predecessor + current paragraph + successor +
+// position label), calls the LLM, parses the structured prose response, and
+// writes the formulierend + reflektierend memos.
 //
 // The reflective chain in the current subchapter is the architectural
 // device that makes the section-end kontextualisierende memo synthesizable:
@@ -304,41 +303,54 @@ Umfang Hauptteil: ${caseCtx.mainHeadingCount} Hauptkapitel-Überschriften, ${cas
 }
 
 /**
- * Build the variable suffix containing per-call context: outline with current-
- * scope marker, completed kontextualisierungen, reflective chain. Pass to
- * chat() as `system`.
+ * Deprecated variable suffix hook. Per-call reading context now lives in the
+ * user message via `buildVariableContextBlock()` so it is visually separated
+ * from the system-level OUTPUT-FORMAT contract.
  */
-export function buildSystemSuffix(paraCtx: ParagraphContext, caseCtx: CaseContext): string {
+export function buildSystemSuffix(_paraCtx: ParagraphContext, _caseCtx: CaseContext): string {
+	return '';
+}
+
+function buildVariableContextBlock(paraCtx: ParagraphContext, caseCtx: CaseContext): string {
 	const outlineLines = caseCtx.mainHeadings
-		.map(h => h === paraCtx.subchapterLabel ? `- ${h}           ← AKTUELL HIER` : `- ${h}`)
+		.map(h => h === paraCtx.subchapterLabel ? `- ${h} (aktuelle Stelle)` : `- ${h}`)
 		.join('\n');
 
 	const completed = paraCtx.completedKontextualisierungen.length === 0
-		? '(Noch keine Sektionen abgeschlossen — dies ist der erste analysierte Absatz im Werk.)'
+		? 'keine abgeschlossenen Sektionen; dies ist der erste analysierte Absatz im Werk.'
 		: paraCtx.completedKontextualisierungen
-			.map(k => `## "${k.sectionLabel}"\n${k.content}`)
+			.map(k => `abschnitt "${k.sectionLabel}":\n${indentBlock(k.content)}`)
 			.join('\n\n');
 
 	const chain = paraCtx.reflectiveChain.length === 0
-		? '(Noch keine vorherigen reflektierenden Memos — dies ist der erste Absatz im Unterkapitel.)'
+		? 'keine vorherigen reflektierenden Memos; dies ist der erste Absatz im Unterkapitel.'
 		: paraCtx.reflectiveChain
-			.map(c => `### Absatz ${c.positionInSubchapter}\n${c.content}`)
+			.map(c => `absatz ${c.positionInSubchapter}:\n${indentBlock(c.content)}`)
 			.join('\n\n');
 
-	return `[OUTLINE & POSITION]
-Outline (Hauptüberschriften, sequentiell):
+	return `Lesekontext für diesen Absatz (Input, keine Ausgabevorlage):
+
+outline und position:
 ${outlineLines}
 
-[BISHERIGE GUTACHTERLICHE LEKTÜRE — kontextualisierende Memos abgeschlossener Sektionen]
+bisherige gutachterliche Lektüre abgeschlossener Sektionen:
 ${completed}
 
-[REFLEKTIERENDE KETTE IM AKTUELLEN UNTERKAPITEL "${paraCtx.subchapterLabel}"]
+reflektierende Kette im aktuellen Unterkapitel "${paraCtx.subchapterLabel}":
 ${chain}`;
 }
 
-// Backward-compat: legacy single-string builder. Concatenates prefix + suffix.
-export function buildSystemPrompt(caseCtx: CaseContext, paraCtx: ParagraphContext): string {
-	return buildSystemPrefix(caseCtx) + '\n\n' + buildSystemSuffix(paraCtx, caseCtx);
+function indentBlock(text: string): string {
+	return text
+		.split('\n')
+		.map(line => `  ${line}`)
+		.join('\n');
+}
+
+// Backward-compat: legacy single-string system builder. Variable paragraph
+// context must be supplied via `buildUserMessage(paraCtx, caseCtx)`.
+export function buildSystemPrompt(caseCtx: CaseContext, _paraCtx?: ParagraphContext): string {
+	return buildSystemPrefix(caseCtx);
 }
 
 function buildOutputFormatSection(caseCtx: CaseContext): string {
@@ -363,34 +375,36 @@ function buildOutputFormatSection(caseCtx: CaseContext): string {
 
 	const reflektierendHint = caseCtx.brief.includeFormulierend
 		? `REFLEKTIEREND — argumentative/funktionale Reflexion: was tut dieser Absatz im aktuellen Verlauf des Unterkapitels (vor dem Hintergrund der bisherigen reflektierenden Kette)? Welche Bewegung vollzieht er, welcher Stelle im Argumentations-Aufbau dient er? 1–3 Sätze.`
-		: `REFLEKTIEREND — 2–4 Sätze. Die ersten 1–2 Sätze: Inhaltsanker — was wird zum Thema gemacht, welche Position bezogen, in Deinen Worten, knapp und textnah. Die folgenden 1–2 Sätze in hermeneutisch-bewegungsorientierter Diktion: welche Bewegung vollzieht der Absatz im Verlauf des Unterkapitels — eine Begriffs-Klärung, eine Position-Setzung, eine Forschungsstand-Aufnahme, ein Spannungs-Aufbau, eine Wiederaufnahme Vorhergehender, ein Übergang zwischen Modi (Phänomen → Theorie, Deskription → Diagnose, etc.)? Falls erkennbar: knüpft der Absatz an eine konkrete Bewegung der vorhergehenden reflektierenden Kette an (Wiederaufnahme, Begriffs-Switch, Modus-Wechsel)? Die Bewegung benennen, nicht den Inhalt nacherzählen — dafür sind die ersten Sätze.`;
+		: `REFLEKTIEREND — was bedeutet dieser Absatz a) im Kontext des dir bekannten Gesamttextes und b) im Hinblick auf die Fragestellung der Arbeit und ihre thematischen Kontexte? Diskutiere in hermeneutisch-rekonstruktiver Haltung. 2–4 Sätze.`;
 
 	return `
 ${formatDesc}
 ${formulierendHint}${reflektierendHint}`;
 }
 
-export function buildUserMessage(paraCtx: ParagraphContext): string {
+export function buildUserMessage(paraCtx: ParagraphContext, caseCtx: CaseContext): string {
 	const predecessor = paraCtx.predecessorText
-		? `[Vorgänger-Absatz — Kontext, NICHT zu analysieren]\n"${paraCtx.predecessorText}"`
-		: '[Vorgänger-Absatz: keiner — dies ist der erste Absatz im Unterkapitel.]';
+		? `Vorgänger-Absatz (Kontext, nicht zu analysieren):\n"${paraCtx.predecessorText}"`
+		: 'Vorgänger-Absatz: keiner; dies ist der erste Absatz im Unterkapitel.';
 
 	const successor = paraCtx.successorText
-		? `[Nachfolger-Absatz — nur Vorblick, NICHT zu analysieren]\n"${paraCtx.successorText}"`
-		: '[Nachfolger-Absatz: keiner — dies ist der letzte Absatz im Unterkapitel.]';
+		? `Nachfolger-Absatz (nur Vorblick, nicht zu analysieren):\n"${paraCtx.successorText}"`
+		: 'Nachfolger-Absatz: keiner; dies ist der letzte Absatz im Unterkapitel.';
 
-	return `Aktuelle Position im Werk:
+	return `${buildVariableContextBlock(paraCtx, caseCtx)}
+
+Aktuelle Position im Werk:
 Unterkapitel: "${paraCtx.subchapterLabel}"
 Absatz ${paraCtx.positionInSubchapter} von ${paraCtx.subchapterTotalParagraphs} in diesem Unterkapitel.
 
 ${predecessor}
 
-[AKTUELLER ABSATZ — Fokus der Analyse]
+Aktueller Absatz (Fokus der Analyse):
 "${paraCtx.text}"
 
 ${successor}
 
-Erzeuge die Sektionen für den AKTUELLEN ABSATZ.`;
+Erzeuge jetzt die im OUTPUT-FORMAT definierten Sektionen für den AKTUELLEN ABSATZ.`;
 }
 
 // ── Storage ───────────────────────────────────────────────────────
@@ -498,7 +512,7 @@ export async function runParagraphPass(
 
 	const cacheableSystemPrefix = buildSystemPrefix(caseCtx);
 	const system = buildSystemSuffix(paraCtx, caseCtx);
-	const user = buildUserMessage(paraCtx);
+	const user = buildUserMessage(paraCtx, caseCtx);
 	const spec = buildSectionSpec(caseCtx);
 
 	let repairResult;
