@@ -236,7 +236,7 @@ export async function chat(opts: {
 	 *
 	 * Use this when the system prompt has a stable head (PERSONA, KRITERIEN,
 	 * static OUTLINE, OUTPUT-FORMAT) and a variable tail (current scope,
-	 * completed sections, interpretive chain). Anthropic prompt caching is
+	 * completed sections, reflective chain). Anthropic prompt caching is
 	 * prefix-based: with everything stable in the prefix block and everything
 	 * variable in the suffix, cache hits become reliable across calls.
 	 *

@@ -23,7 +23,7 @@ import { loadSettings } from './client.js';
 export type Tier =
 	| 'h1.tier1'   // H1 basal: AG + validity (per Absatz, hochpräzise, viele Calls)
 	| 'h1.tier2'   // H1 collapse: section/chapter/document/chapter-flow (synthetisch, wenige Calls)
-	| 'h2.tier1'   // H2 synth-memo: per Absatz (interpretierend, mittelpräzise)
+	| 'h2.tier1'   // H2 synth-memo: per Absatz (reflektierend, mittelpräzise)
 	| 'h3.tier1'   // H3 extract: EXPOSITION, FORSCHUNGSDESIGN, FORSCHUNGSGEGENSTAND, GRUNDLAGENTHEORIE-Sub, DURCHFUEHRUNG-BEFUND
 	| 'h3.tier2'   // H3 synth: SYNTHESE, EXKURS-Kernergebnis, SCHLUSSREFLEXION
 	| 'h3.tier3';  // H3 werk-meta: WERK_BESCHREIBUNG, WERK_GUTACHT
@@ -193,7 +193,7 @@ export const TIER_REGISTRY: Record<Tier, TierMeta> = {
 	},
 	'h2.tier1': {
 		description:
-			'H2 synthetisches Per-Absatz-Memo. Interpretierende Zusammenfassung mit ' +
+			'H2 synthetisches Per-Absatz-Memo. Reflektierende Zusammenfassung mit ' +
 			'auffaelligkeiten[]/codes[]-Listen pro Absatz. Mittlere Komplexität, ' +
 			'prosa-shaped Output (Section-Headered-Prose).',
 		recommended: MIMO,

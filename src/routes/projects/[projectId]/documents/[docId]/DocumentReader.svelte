@@ -402,7 +402,7 @@
 				{/if}
 			</section>
 		{:else}
-			{@const interpr = memosFor(el.id).find((m) => m.memo_type === 'interpretierend')}
+			{@const interpr = memosFor(el.id).find((m) => m.memo_type === 'reflektierend')}
 			{@const formul = memosFor(el.id).find((m) => m.memo_type === 'formulierend')}
 			{@const codes = codesFor(el.id)}
 			{@const analysis = analysisFor(el.id)}
@@ -430,8 +430,8 @@
 								</div>
 							{/if}
 							{#if interpr}
-								<div class="memo memo-interpretierend">
-									<div class="memo-label">interpretierend</div>
+								<div class="memo memo-reflektierend">
+									<div class="memo-label">reflektierend</div>
 									<div class="memo-content">{interpr.content}</div>
 								</div>
 							{/if}
@@ -631,11 +631,11 @@
 		border-left-color: rgba(251, 191, 36, 0.4);
 	}
 	.memo-formulierend .memo-label { color: #fbbf24; }
-	.memo-interpretierend {
+	.memo-reflektierend {
 		background: rgba(165, 180, 252, 0.05);
 		border-left-color: rgba(165, 180, 252, 0.5);
 	}
-	.memo-interpretierend .memo-label { color: #a5b4fc; }
+	.memo-reflektierend .memo-label { color: #a5b4fc; }
 
 	.codes { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.2rem; }
 	.code-chip {

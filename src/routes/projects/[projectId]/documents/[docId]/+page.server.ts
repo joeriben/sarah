@@ -19,7 +19,7 @@ export interface DocumentElement {
 
 export interface ParagraphMemo {
 	id: string;
-	memo_type: 'formulierend' | 'interpretierend';
+	memo_type: 'formulierend' | 'reflektierend';
 	content: string;
 }
 
@@ -286,7 +286,7 @@ export const load: PageServerLoad = async ({ params }) => {
 	let synthesesByHeading: Record<string, HeadingSynthesis> = {};
 	// Welche Paragraphen haben AG-Daten (argument_nodes ODER scaffolding_elements)?
 	// Wird im UI als "analytisch erfasst"-Coverage genutzt — unabhängig vom
-	// optionalen synthetisch-interpretierenden Per-¶-Memo.
+	// optionalen synthetisch-reflektierenden Per-¶-Memo.
 	let paragraphHasAg: Record<string, boolean> = {};
 	// Pro L1-Heading: das aggregation_subchapter_level aus heading_classifications.
 	// Bei Wert 1 hat der Section-Collapse-Pass die L2-Subkapitel bewusst nicht
@@ -306,7 +306,7 @@ export const load: PageServerLoad = async ({ params }) => {
 	// nur befüllt, wenn ein meta-Run für dieses Dokument durchgelaufen ist.
 	let workMeta: WorkMeta | null = null;
 	// Argument-Graph-Daten pro Paragraph für DocumentReader (Dokument-Tab + Modal-Argumente-Mode).
-	// Bei Cases ohne synthetisch-interpretierende Per-¶-Memos (Budget-Route, AG-only)
+	// Bei Cases ohne synthetisch-reflektierende Per-¶-Memos (Budget-Route, AG-only)
 	// ist das die einzige Analyse-Ebene, die der Reader anzeigen kann.
 	let analysisByElement: Record<string, ParagraphAnalysis> = {};
 	// H3-§-Spalte: Map paragraph_id → §-skopierte function_constructs (siehe
@@ -320,7 +320,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			await query<{
 				naming_id: string;
 				scope_element_id: string;
-				memo_type: 'formulierend' | 'interpretierend' | 'kontextualisierend';
+				memo_type: 'formulierend' | 'reflektierend' | 'kontextualisierend';
 				scope_level: 'paragraph' | 'subchapter' | 'chapter' | 'work';
 				content: string;
 			}>(

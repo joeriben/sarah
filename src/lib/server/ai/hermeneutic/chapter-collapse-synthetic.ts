@@ -10,7 +10,7 @@
 // Input je nach adaptivem Aggregations-Level (geteilt mit H1, persistiert
 // auf heading_classifications.aggregation_subchapter_level):
 //
-//   - Level 1 (flach): Kette der `interpretierend/paragraph`-Memos der
+//   - Level 1 (flach): Kette der `reflektierend/paragraph`-Memos der
 //     Kapitel-Absätze (kein vorgeschalteter Subkap-Pass auf der H2-Linie).
 //
 //   - Level 2 oder 3: `kontextualisierend/subchapter/synthetic`-Memos der
@@ -98,11 +98,11 @@ interface SubchapterMemoInput {
 	auffaelligkeiten: { scope: string; observation: string }[];
 }
 
-interface ParagraphInterpretierend {
+interface ParagraphReflektierend {
 	paragraphId: string;
 	positionInChapter: number;
 	enclosingSubchapterLabel: string | null;
-	interpretierend: string;
+	reflektierend: string;
 }
 
 interface ChapterContext {
@@ -120,7 +120,7 @@ interface ChapterContext {
 
 	mode: 'paragraphs' | 'subchapter-memos';
 
-	paragraphInterpretierends: ParagraphInterpretierend[] | null;
+	paragraphReflektierends: ParagraphReflektierend[] | null;
 	subchapterMemos: SubchapterMemoInput[] | null;
 
 	precedingChapterMemos: { label: string; synthese: string }[];
@@ -211,22 +211,22 @@ async function loadChapterContext(
 				}));
 
 	let mode: ChapterContext['mode'];
-	let paragraphInterpretierends: ParagraphInterpretierend[] | null = null;
+	let paragraphReflektierends: ParagraphReflektierend[] | null = null;
 	let subchapterMemos: SubchapterMemoInput[] | null = null;
 
 	if (aggregationLevel === 1) {
 		mode = 'paragraphs';
-		paragraphInterpretierends = await loadParagraphInterpretierends(chapter);
-		if (paragraphInterpretierends.length === 0) {
+		paragraphReflektierends = await loadParagraphReflektierends(chapter);
+		if (paragraphReflektierends.length === 0) {
 			throw new Error(
 				`Chapter "${chapter.l1.text}" has aggregation_subchapter_level=1 but ` +
-					`no interpretierend paragraph-memos exist. Run paragraph_synthetic on its paragraphs first.`
+					`no reflektierend paragraph-memos exist. Run paragraph_synthetic on its paragraphs first.`
 			);
 		}
-		const missing = paragraphInterpretierends.filter((p) => !p.interpretierend);
+		const missing = paragraphReflektierends.filter((p) => !p.reflektierend);
 		if (missing.length > 0) {
 			throw new Error(
-				`Chapter "${chapter.l1.text}" — ${missing.length} paragraph(s) missing interpretierend memo. ` +
+				`Chapter "${chapter.l1.text}" — ${missing.length} paragraph(s) missing reflektierend memo. ` +
 					`Run paragraph_synthetic on them first.`
 			);
 		}
@@ -258,15 +258,15 @@ async function loadChapterContext(
 		chapterLabelOutline,
 		aggregationLevel,
 		mode,
-		paragraphInterpretierends,
+		paragraphReflektierends,
 		subchapterMemos,
 		precedingChapterMemos,
 	};
 }
 
-async function loadParagraphInterpretierends(
+async function loadParagraphReflektierends(
 	chapter: ChapterUnit
-): Promise<ParagraphInterpretierend[]> {
+): Promise<ParagraphReflektierend[]> {
 	if (chapter.paragraphIds.length === 0) {
 		throw new Error(`Chapter "${chapter.l1.text}" has no paragraphs`);
 	}
@@ -276,20 +276,20 @@ async function loadParagraphInterpretierends(
 
 	const subHeadings = chapter.innerHeadings.filter((h) => h.level >= 2);
 
-	// Linien-Trennung: nur Forward-`[interpretierend]%`-Memos einlesen, nicht
-	// `[interpretierend-retrograde]%`. Filter via EXISTS in der JOIN-ON-Klausel,
+	// Linien-Trennung: nur Forward-`[reflektierend]%`-Memos einlesen, nicht
+	// `[reflektierend-retrograde]%`. Filter via EXISTS in der JOIN-ON-Klausel,
 	// damit die LEFT JOIN-Semantik (eine Zeile pro Absatz) auch bei vorhandenem
 	// Retrograde-Pendant erhalten bleibt.
 	const paragraphRows = (
-		await query<{ id: string; char_start: number; interpretierend: string | null }>(
-			`SELECT de.id, de.char_start, mc.content AS interpretierend
+		await query<{ id: string; char_start: number; reflektierend: string | null }>(
+			`SELECT de.id, de.char_start, mc.content AS reflektierend
 			 FROM document_elements de
 			 LEFT JOIN memo_content mc ON mc.scope_element_id = de.id
-			   AND mc.memo_type = 'interpretierend' AND mc.scope_level = 'paragraph'
+			   AND mc.memo_type = 'reflektierend' AND mc.scope_level = 'paragraph'
 			   AND EXISTS (
 			     SELECT 1 FROM namings n_fwd
 			     WHERE n_fwd.id = mc.naming_id
-			       AND n_fwd.inscription LIKE '[interpretierend]%'
+			       AND n_fwd.inscription LIKE '[reflektierend]%'
 			       AND n_fwd.deleted_at IS NULL
 			   )
 			 WHERE de.id = ANY($1::uuid[])
@@ -319,7 +319,7 @@ async function loadParagraphInterpretierends(
 		paragraphId: p.id,
 		positionInChapter: positionByPid.get(p.id)!,
 		enclosingSubchapterLabel: enclosingByPid.get(p.id) ?? null,
-		interpretierend: p.interpretierend ?? '',
+		reflektierend: p.reflektierend ?? '',
 	}));
 }
 
@@ -385,7 +385,7 @@ async function loadSubchapterMemosAtLevel(
 // third-person, neutral — keine analytische Diktion.
 //
 // Datenstruktur-Hinweise innerhalb der Pflichtbestandteile sind
-// mode-conditional: L1 (interpretive chain pro ¶) und L2/L3 (Subkap-
+// mode-conditional: L1 (reflective chain pro ¶) und L2/L3 (Subkap-
 // Memos) tragen verschiedene Bewegungs-Spuren.
 
 function buildSystemPrompt(ctx: ChapterContext): string {
@@ -397,19 +397,19 @@ function buildSystemPrompt(ctx: ChapterContext): string {
 
 	const inputDescription =
 		ctx.mode === 'paragraphs'
-			? `Dein Input für diesen Pass ist die **Kette der interpretierenden Memos** der Absätze dieses Hauptkapitels — das Kapitel ist flach gegliedert, es gibt keine vorgeschalteten Subkapitel-Synthesen. Du synthetisierst direkt aus der interpretive chain auf Hauptkapitel-Ebene. Jeder dieser Memos wurde mit voll geladenem Vorlauf-Kontext verfasst (vorhergehende Absätze, abgeschlossene Subkapitel-Synthesen davor, Outline-Position) — die chain trägt die kumulative Synthese-Substanz, die hier verdichtet wird.`
+			? `Dein Input für diesen Pass ist die **Kette der reflektierenden Memos** der Absätze dieses Hauptkapitels — das Kapitel ist flach gegliedert, es gibt keine vorgeschalteten Subkapitel-Synthesen. Du synthetisierst direkt aus der reflective chain auf Hauptkapitel-Ebene. Jeder dieser Memos wurde mit voll geladenem Vorlauf-Kontext verfasst (vorhergehende Absätze, abgeschlossene Subkapitel-Synthesen davor, Outline-Position) — die chain trägt die kumulative Synthese-Substanz, die hier verdichtet wird.`
 			: ctx.aggregationLevel === 2
 				? `Dein Input für diesen Pass sind die **Subkapitel-Memos** der L2-Untergliederungen dieses Hauptkapitels — vorgeschaltete H2-Synthese-Pässe haben pro L2-Subkapitel bereits ein Memo erzeugt (Synthese + Auffälligkeiten). Du fasst diese zu einer Hauptkapitel-Synthese zusammen.`
 				: `Dein Input für diesen Pass sind die **Subkapitel-Memos der L3-Subkapitel** dieses Hauptkapitels (vorgeschaltete H2-Synthese-Pässe haben pro L3-Subkapitel bereits ein Memo erzeugt). Die L2-Mittelgliederung wird **nicht** durch eigene Memos repräsentiert, sondern durch die Numerierung der L3-Subkapitel: Subkapitel mit gemeinsamem L2-Präfix (z.B. "1.2.1", "1.2.2", "1.2.3" gehören zu L2 "1.2") gruppieren sich. Achte auf diese Gliederung als Architektur-Hinweis, ohne sie als eigene Synthese-Ebene zu behandeln.`;
 
 	const movementHint =
 		ctx.mode === 'paragraphs'
-			? 'Wiederaufnahmen, Begriffs-Switches und Bewegungs-Übergänge zwischen den interpretierenden Memos sind die Hinweise auf die Kapitel-Architektur.'
+			? 'Wiederaufnahmen, Begriffs-Switches und Bewegungs-Übergänge zwischen den reflektierenden Memos sind die Hinweise auf die Kapitel-Architektur.'
 			: 'Wiederaufnahmen, Bezugnahmen und durchlaufende hermeneutische Bewegungen über die Subkapitel-Memos hinweg sind die Hinweise auf die Kapitel-Architektur.';
 
 	const coreMovementHint =
 		ctx.mode === 'paragraphs'
-			? 'Hinweis: ein Absatz, der einen markierten Modus-Wechsel des Kapitels trägt (z.B. von Phänomen-Exposition zu Begriffs-Setzung, von Forschungsstand-Aufnahme zu Eigenposition) oder dessen interpretierende Lesart in der Folge wieder aufgegriffen wird, ist strukturell besonders tragend.'
+			? 'Hinweis: ein Absatz, der einen markierten Modus-Wechsel des Kapitels trägt (z.B. von Phänomen-Exposition zu Begriffs-Setzung, von Forschungsstand-Aufnahme zu Eigenposition) oder dessen reflektierende Lesart in der Folge wieder aufgegriffen wird, ist strukturell besonders tragend.'
 			: 'Hinweis: ein Subkapitel, dessen Synthese in den nachfolgenden Subkapitel-Memos häufig wiederaufgegriffen wird oder das eine deutliche Wende des hermeneutischen Verlaufs markiert, ist strukturell besonders tragend.';
 
 	const refScopeHint =
@@ -445,7 +445,7 @@ Aufgabe in drei Teilen:
 
    Diese Wiedergabe darf länger sein als die Synthese — sie soll vollständig genug sein, dass ein:e Lesende, der/die das Hauptkapitel nicht selbst gelesen hat, weiß, was inhaltlich darin behauptet und in welcher Reihenfolge es entfaltet wird.
 
-3. **Auffälligkeiten** (Liste, kann leer sein): Beobachtungen zur hermeneutischen Qualität auf Kapitel-Ebene, die in Synthese und Wiedergabe nicht hineingehören, aber für die Begutachtung relevant sind. Beispiele: "Das L2-Subkapitel 1.2 (Globalitäts-Theorie) wird im Folge-L2 1.3 nirgends explizit angeschlossen — eine theorie-praxis-Brücke wird vorausgesetzt, aber nicht expliziert." oder "Sequenz §3-§5: konsequente schrittweise Klärung; das Kapitel arbeitet hermeneutisch sauber von Phänomen zu Theorie." Halte dich an Auffälligkeiten, die aus den Subkap-Memos (L2/L3) bzw. der interpretive chain (L1) erkennbar sind.
+3. **Auffälligkeiten** (Liste, kann leer sein): Beobachtungen zur hermeneutischen Qualität auf Kapitel-Ebene, die in Synthese und Wiedergabe nicht hineingehören, aber für die Begutachtung relevant sind. Beispiele: "Das L2-Subkapitel 1.2 (Globalitäts-Theorie) wird im Folge-L2 1.3 nirgends explizit angeschlossen — eine theorie-praxis-Brücke wird vorausgesetzt, aber nicht expliziert." oder "Sequenz §3-§5: konsequente schrittweise Klärung; das Kapitel arbeitet hermeneutisch sauber von Phänomen zu Theorie." Halte dich an Auffälligkeiten, die aus den Subkap-Memos (L2/L3) bzw. der reflective chain (L1) erkennbar sind.
 
 [KRITERIEN ALS LESEFOLIE]
 ${ctx.brief.criteria}
@@ -510,17 +510,17 @@ ${block}
 Synthetisiere jetzt das kontextualisierende Hauptkapitel-Memo (Synthese + Verlaufswiedergabe + Auffälligkeiten) ausschließlich aus diesen Subkapitel-Memos.`;
 	}
 
-	const paragraphs = ctx.paragraphInterpretierends!;
+	const paragraphs = ctx.paragraphReflektierends!;
 	const block = paragraphs.map((p) => formatParagraphBlock(p)).join('\n\n');
 	return `Hauptkapitel: "${ctx.chapter.l1.numbering ?? '?'} ${ctx.chapter.l1.text}"
-Aggregations-Ebene: L1 (flach gegliedert; direkt aus interpretive chain synthetisieren)
+Aggregations-Ebene: L1 (flach gegliedert; direkt aus reflective chain synthetisieren)
 Anzahl Absätze: ${paragraphs.length}
 
-[KETTE DER INTERPRETIERENDEN MEMOS]
+[KETTE DER REFLEKTIERENDEN MEMOS]
 
 ${block}
 
-Synthetisiere jetzt das kontextualisierende Hauptkapitel-Memo (Synthese + Verlaufswiedergabe + Auffälligkeiten) ausschließlich aus dieser interpretive chain.`;
+Synthetisiere jetzt das kontextualisierende Hauptkapitel-Memo (Synthese + Verlaufswiedergabe + Auffälligkeiten) ausschließlich aus dieser reflective chain.`;
 }
 
 function formatSubchapterMemoBlock(m: SubchapterMemoInput): string {
@@ -533,9 +533,9 @@ function formatSubchapterMemoBlock(m: SubchapterMemoInput): string {
 	return `## Subkapitel ${num} "${m.label}"\n\n${m.memoText}${auff}`;
 }
 
-function formatParagraphBlock(p: ParagraphInterpretierend): string {
+function formatParagraphBlock(p: ParagraphReflektierend): string {
 	const enclosing = p.enclosingSubchapterLabel ? ` (innerhalb: ${p.enclosingSubchapterLabel})` : '';
-	return `## §${p.positionInChapter}${enclosing}\n${p.interpretierend}`;
+	return `## §${p.positionInChapter}${enclosing}\n${p.reflektierend}`;
 }
 
 // ── Storage ───────────────────────────────────────────────────────
@@ -699,7 +699,7 @@ export async function runChapterCollapseSynthetic(
 
 	const inputCount =
 		ctx.mode === 'paragraphs'
-			? (ctx.paragraphInterpretierends?.length ?? 0)
+			? (ctx.paragraphReflektierends?.length ?? 0)
 			: (ctx.subchapterMemos?.length ?? 0);
 
 	return {

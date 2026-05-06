@@ -5,7 +5,7 @@
 //
 // Counterpart to section-collapse.ts but consumes ONLY the analytical
 // line (argument_nodes + argument_edges + scaffolding_elements) — not the
-// synthetic interpretierend memos. Tests question (c) of the
+// synthetic reflektierend memos. Tests question (c) of the
 // argumentation-graph experiment: "Kann eine kontextualisierende
 // Subkapitel-Synthese aus dem Graph mindestens so gut gespeist werden?"
 //

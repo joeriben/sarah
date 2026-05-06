@@ -4,7 +4,7 @@
 // Subchapter-collapse pass. Triggered when sequential reading reaches a
 // section boundary. Synthesizes a kontextualisierende memo that captures
 // what the subchapter contributes to the work's overall argument, drawing
-// on the chain of formulierend + interpretierend memos accumulated during
+// on the chain of formulierend + reflektierend memos accumulated during
 // the per-paragraph passes.
 //
 // "A step back — less detail, more figure of movement." That's the brief
@@ -54,8 +54,8 @@ interface CollapseContext {
 	paragraphs: {
 		paragraphId: string;
 		positionInSubchapter: number;
-		interpretierendId: string | null;
-		interpretierend: string | null;
+		reflektierendId: string | null;
+		reflektierend: string | null;
 	}[];
 
 	completedKontextualisierungen: { sectionLabel: string; content: string }[];
@@ -116,17 +116,17 @@ async function loadCollapseContext(
 		await query<{
 			paragraph_id: string;
 			char_start: number;
-			interpretierend_id: string | null;
-			interpretierend: string | null;
+			reflektierend_id: string | null;
+			reflektierend: string | null;
 		}>(
 			`SELECT
 			   de.id AS paragraph_id,
 			   de.char_start,
-			   i.naming_id AS interpretierend_id,
-			   i.content AS interpretierend
+			   i.naming_id AS reflektierend_id,
+			   i.content AS reflektierend
 			 FROM document_elements de
 			 LEFT JOIN memo_content i ON i.scope_element_id = de.id
-			   AND i.memo_type = 'interpretierend' AND i.scope_level = 'paragraph'
+			   AND i.memo_type = 'reflektierend' AND i.scope_level = 'paragraph'
 			 WHERE de.document_id = $1
 			   AND de.element_type = 'paragraph'
 			   AND de.section_kind = 'main'
@@ -193,8 +193,8 @@ async function loadCollapseContext(
 		paragraphs: paragraphsWithMemos.map((p, i) => ({
 			paragraphId: p.paragraph_id,
 			positionInSubchapter: i + 1,
-			interpretierendId: p.interpretierend_id,
-			interpretierend: p.interpretierend,
+			reflektierendId: p.reflektierend_id,
+			reflektierend: p.reflektierend,
 		})),
 		completedKontextualisierungen: completedKontextualisierungen.map(r => ({
 			sectionLabel: r.section_label.trim(),
@@ -222,7 +222,7 @@ ${ctx.brief.persona}
 Hypothesen über die Werkrichtung dürfen formuliert werden, aber als Hypothesen markiert ("ist zu vermuten", "wird sich zeigen müssen", "deutet darauf hin" o.ä.) — nicht als bereits getroffene Beobachtungen.
 
 [KONTEXT DIESES PASSES — SYNTHESE-MODUS]
-Du hast jetzt ein vollständiges Subkapitel sequentiell gelesen und pro Absatz eine Verdichtung + interpretierende Reflexion verfasst. Jetzt synthetisiert Du das **kontextualisierende Memo** für dieses Subkapitel — einen Schritt zurück: weniger Absatzdetail, stärker die argumentative Bewegungsfigur. Was leistet dieses Subkapitel für das Werk-Ganze? Welche Position wurde bezogen, welche Voraussetzung für nachfolgende Subkapitel geschaffen, welche Spannungen sind offen?
+Du hast jetzt ein vollständiges Subkapitel sequentiell gelesen und pro Absatz eine Verdichtung + reflektierende Reflexion verfasst. Jetzt synthetisiert Du das **kontextualisierende Memo** für dieses Subkapitel — einen Schritt zurück: weniger Absatzdetail, stärker die argumentative Bewegungsfigur. Was leistet dieses Subkapitel für das Werk-Ganze? Welche Position wurde bezogen, welche Voraussetzung für nachfolgende Subkapitel geschaffen, welche Spannungen sind offen?
 
 Wichtig: rekapituliere nicht die Absätze einzeln. Konstruiere die *Bewegung* der Argumentation. Nenne tragende Begriffe oder Schlüsselstellen, wenn sie für die Werkrichtung tragen — nicht aus Vollständigkeit.
 
@@ -248,7 +248,7 @@ Inhalt der KONTEXTUALISIEREND-Sektion: Synthese der Subkapitel-Bewegung — was 
 
 function buildUserMessage(ctx: CollapseContext): string {
 	const memoBlock = ctx.paragraphs.map(p => {
-		const i = p.interpretierend ?? '(keine interpretierende Memo)';
+		const i = p.reflektierend ?? '(keine reflektierende Memo)';
 		return `## Absatz ${p.positionInSubchapter}
 ${i}`;
 	}).join('\n\n');
@@ -256,7 +256,7 @@ ${i}`;
 	return `Subkapitel: "${ctx.subchapterLabel}"
 Anzahl Absätze: ${ctx.paragraphs.length}
 
-[KETTE DER INTERPRETIERENDEN MEMOS]
+[KETTE DER REFLEKTIERENDEN MEMOS]
 
 ${memoBlock}
 
@@ -347,10 +347,10 @@ export async function runSubchapterCollapse(
 	if (ctx.paragraphs.length === 0) {
 		throw new Error(`No paragraphs in subchapter "${ctx.subchapterLabel}"`);
 	}
-	const missing = ctx.paragraphs.filter(p => !p.interpretierend);
+	const missing = ctx.paragraphs.filter(p => !p.reflektierend);
 	if (missing.length > 0) {
 		throw new Error(
-			`Cannot collapse subchapter — ${missing.length} paragraph(s) missing interpretierend memo. ` +
+			`Cannot collapse subchapter — ${missing.length} paragraph(s) missing reflektierend memo. ` +
 			`Run runParagraphPass on them first.`
 		);
 	}

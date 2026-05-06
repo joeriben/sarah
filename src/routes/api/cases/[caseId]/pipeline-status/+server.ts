@@ -231,7 +231,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		};
 	};
 
-	const synthPass = find('paragraph', 'interpretierend');
+	const synthPass = find('paragraph', 'reflektierend');
 	synthPass.total = totalParagraphs;
 
 	// H1-Linie: nur graph-getaggte Collapses zählen.

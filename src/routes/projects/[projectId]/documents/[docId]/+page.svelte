@@ -228,9 +228,9 @@
 			'Kontextualisierende Synthese pro Hauptkapitel inkl. gutachten-fertiger Argumentationswiedergabe.',
 		work: 'Werk-Synthese aus den Hauptkapitel-Synthesen.',
 		paragraph_synthetic:
-			'Formulierende und interpretierende Memos pro Absatz, sequentiell unter Bezug auf alle vorhergehenden ¶ desselben Subkapitels. Grundlage für die kumulativ-sequenzielle H2-Aggregation.',
+			'Formulierende und reflektierende Memos pro Absatz, sequentiell unter Bezug auf alle vorhergehenden ¶ desselben Subkapitels. Grundlage für die kumulativ-sequenzielle H2-Aggregation.',
 		subchapter_synthetic:
-			'Kontextualisierende Synthese pro Subkapitel (L2/L3 adaptiv) aus der interpretive chain — Verlaufswiedergabe statt Argumentations-Graph.',
+			'Kontextualisierende Synthese pro Subkapitel (L2/L3 adaptiv) aus der reflective chain — Verlaufswiedergabe statt Argumentations-Graph.',
 		chapter_synthetic:
 			'Kontextualisierende Synthese pro Hauptkapitel aus den synthetischen Subkapitel-Memos. Vier Pflichtbestandteile inkl. hermeneutischer Tragfähigkeit.',
 		work_synthetic:
@@ -1159,7 +1159,7 @@
 	});
 
 	// Coverage pro Heading: wie viele ¶ analytisch erfasst (AG-Daten) und wie
-	// viele synthetisch (interpretierendes Per-¶-Memo, optionales Addendum).
+	// viele synthetisch (reflektierendes Per-¶-Memo, optionales Addendum).
 	// Beide Zahlen werden separat geführt, damit die UI die richtige Pending-
 	// Message wählen kann (synth ist optional, AG ist Pflicht-Hauptlinie).
 	const memoCoverageByHeading = $derived.by(() => {
@@ -1173,7 +1173,7 @@
 				const cur = map.get(currentHeadingId)!;
 				cur.total += 1;
 				if (paragraphHasAg[e.id]) cur.withAg += 1;
-				if (memosByElement[e.id]?.some((m) => m.memo_type === 'interpretierend')) {
+				if (memosByElement[e.id]?.some((m) => m.memo_type === 'reflektierend')) {
 					cur.withSynth += 1;
 				}
 			}
@@ -1259,7 +1259,7 @@
 	};
 	const HEURISTIC_HINT: Record<DocReaderHeuristic, string> = {
 		h1: 'Argumente, Beziehungen, Stützstrukturen pro Absatz (Argumentations-Graph).',
-		h2: 'Formulierende & interpretierende Memos und Codes pro Absatz.',
+		h2: 'Formulierende & reflektierende Memos und Codes pro Absatz.',
 		h3: '§-skopierte Funktionstyp-Konstrukte pro Absatz (Werk-Konstrukte siehe Outline).',
 	};
 

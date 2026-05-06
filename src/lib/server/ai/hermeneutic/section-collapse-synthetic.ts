@@ -4,7 +4,7 @@
 // Subchapter-collapse pass — H2-Aggregations-Linie (synthetisch).
 //
 // Counterpart zu section-collapse-from-graph.ts auf der H2-Linie. Konsumiert
-// die interpretive chain (interpretierend/paragraph-Memos aus paragraph_synthetic)
+// die reflective chain (reflektierend/paragraph-Memos aus paragraph_synthetic)
 // und synthetisiert das kontextualisierende Memo des Subkapitels — kumulativ-
 // hermeneutisch statt graph-extraktiv.
 //
@@ -68,8 +68,8 @@ interface CollapseContext {
 	paragraphs: {
 		paragraphId: string;
 		positionInSubchapter: number;
-		interpretierendId: string | null;
-		interpretierend: string | null;
+		reflektierendId: string | null;
+		reflektierend: string | null;
 	}[];
 
 	completedKontextualisierungen: { sectionLabel: string; content: string }[];
@@ -134,8 +134,8 @@ async function loadCollapseContext(
 	);
 	const subchapterEnd = nextSiblingOrHigher?.charStart ?? docRow.full_text.length;
 
-	// Linien-Trennung: nur Forward-`[interpretierend]%`-Memos einlesen, nicht
-	// `[interpretierend-retrograde]%` — der Retrograde-Pass darf den
+	// Linien-Trennung: nur Forward-`[reflektierend]%`-Memos einlesen, nicht
+	// `[reflektierend-retrograde]%` — der Retrograde-Pass darf den
 	// Forward-Subkapitel-Synthese-Pass nicht beeinflussen. Filter via EXISTS
 	// in der JOIN-ON-Klausel, damit die LEFT JOIN-Semantik (eine Zeile pro
 	// Absatz) auch bei vorhandenem Retrograde-Pendant erhalten bleibt.
@@ -143,21 +143,21 @@ async function loadCollapseContext(
 		await query<{
 			paragraph_id: string;
 			char_start: number;
-			interpretierend_id: string | null;
-			interpretierend: string | null;
+			reflektierend_id: string | null;
+			reflektierend: string | null;
 		}>(
 			`SELECT
 			   de.id AS paragraph_id,
 			   de.char_start,
-			   i.naming_id AS interpretierend_id,
-			   i.content AS interpretierend
+			   i.naming_id AS reflektierend_id,
+			   i.content AS reflektierend
 			 FROM document_elements de
 			 LEFT JOIN memo_content i ON i.scope_element_id = de.id
-			   AND i.memo_type = 'interpretierend' AND i.scope_level = 'paragraph'
+			   AND i.memo_type = 'reflektierend' AND i.scope_level = 'paragraph'
 			   AND EXISTS (
 			     SELECT 1 FROM namings n_fwd
 			     WHERE n_fwd.id = i.naming_id
-			       AND n_fwd.inscription LIKE '[interpretierend]%'
+			       AND n_fwd.inscription LIKE '[reflektierend]%'
 			       AND n_fwd.deleted_at IS NULL
 			   )
 			 WHERE de.document_id = $1
@@ -233,8 +233,8 @@ async function loadCollapseContext(
 		paragraphs: paragraphsWithMemos.map((p, i) => ({
 			paragraphId: p.paragraph_id,
 			positionInSubchapter: i + 1,
-			interpretierendId: p.interpretierend_id,
-			interpretierend: p.interpretierend,
+			reflektierendId: p.reflektierend_id,
+			reflektierend: p.reflektierend,
 		})),
 		completedKontextualisierungen: completedKontextualisierungen.map((r) => ({
 			sectionLabel: r.section_label.trim(),
@@ -250,7 +250,7 @@ function buildSystemPrefix(ctx: CollapseContext): string {
 ${ctx.brief.persona}
 
 [KONTEXT DIESES PASSES — SYNTHESE AUS DER INTERPRETIVE CHAIN]
-Du synthetisierst das **kontextualisierende Memo** für ein Subkapitel auf der H2-Linie: dein Input ist die Kette der interpretierenden Memos, die in der sequenziellen Per-Absatz-Lektüre dieses Subkapitels entstanden sind. Jeder dieser Memos wurde mit voll geladenem Vorlauf-Kontext verfasst (vorhergehende Absätze des Subkapitels, abgeschlossene Subkapitel-Synthesen davor, Outline-Position) — die chain trägt also schon die kumulative Synthese-Substanz, die hier verdichtet wird.
+Du synthetisierst das **kontextualisierende Memo** für ein Subkapitel auf der H2-Linie: dein Input ist die Kette der reflektierenden Memos, die in der sequenziellen Per-Absatz-Lektüre dieses Subkapitels entstanden sind. Jeder dieser Memos wurde mit voll geladenem Vorlauf-Kontext verfasst (vorhergehende Absätze des Subkapitels, abgeschlossene Subkapitel-Synthesen davor, Outline-Position) — die chain trägt also schon die kumulative Synthese-Substanz, die hier verdichtet wird.
 
 Aufgabe in zwei Teilen:
 
@@ -271,7 +271,7 @@ Aufgabe in zwei Teilen:
    - "§5 baut eine Spannung zwischen Forschungsstand und Eigenposition auf, die im Subkapitel selbst nicht aufgelöst wird — Auflösung wird offenbar in nachfolgendem Subkapitel erwartet."
    - "Sequenz §2-§4: konsequente schrittweise Klärung; das Subkapitel arbeitet hermeneutisch sauber von Phänomen zu Theorie."
 
-   Halte dich an Auffälligkeiten, die aus der interpretive chain erkennbar sind (Bewegungsbrüche, ungeklärte Switches, aufgebaute aber nicht eingelöste Spannungen, prägnante Konsolidierungen). Unterlasse stilistische oder rhetorische Bewertungen.
+   Halte dich an Auffälligkeiten, die aus der reflective chain erkennbar sind (Bewegungsbrüche, ungeklärte Switches, aufgebaute aber nicht eingelöste Spannungen, prägnante Konsolidierungen). Unterlasse stilistische oder rhetorische Bewertungen.
 
 [KRITERIEN ALS LESEFOLIE]
 ${ctx.brief.criteria}
@@ -316,7 +316,7 @@ ${completed}`;
 function buildUserMessage(ctx: CollapseContext): string {
 	const memoBlock = ctx.paragraphs
 		.map((p) => {
-			const i = p.interpretierend ?? '(keine interpretierende Memo)';
+			const i = p.reflektierend ?? '(keine reflektierende Memo)';
 			return `## §${p.positionInSubchapter}\n${i}`;
 		})
 		.join('\n\n');
@@ -324,11 +324,11 @@ function buildUserMessage(ctx: CollapseContext): string {
 	return `Subkapitel: "${ctx.subchapterLabel}"
 Anzahl Absätze: ${ctx.paragraphs.length}
 
-[KETTE DER INTERPRETIERENDEN MEMOS]
+[KETTE DER REFLEKTIERENDEN MEMOS]
 
 ${memoBlock}
 
-Synthetisiere jetzt das kontextualisierende Memo (Synthese + Auffälligkeiten) für dieses Subkapitel auf Basis der interpretive chain.`;
+Synthetisiere jetzt das kontextualisierende Memo (Synthese + Auffälligkeiten) für dieses Subkapitel auf Basis der reflective chain.`;
 }
 
 // ── Storage ───────────────────────────────────────────────────────
@@ -446,10 +446,10 @@ export async function runSectionCollapseSynthetic(
 	if (ctx.paragraphs.length === 0) {
 		throw new Error(`No paragraphs in subchapter "${ctx.subchapterLabel}"`);
 	}
-	const missing = ctx.paragraphs.filter((p) => !p.interpretierend);
+	const missing = ctx.paragraphs.filter((p) => !p.reflektierend);
 	if (missing.length > 0) {
 		throw new Error(
-			`Cannot collapse subchapter "${ctx.subchapterLabel}" — ${missing.length} paragraph(s) missing interpretierend memo. ` +
+			`Cannot collapse subchapter "${ctx.subchapterLabel}" — ${missing.length} paragraph(s) missing reflektierend memo. ` +
 				`Run runParagraphPass on them first (H2 phase 'paragraph_synthetic').`
 		);
 	}

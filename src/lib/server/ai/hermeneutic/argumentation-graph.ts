@@ -29,7 +29,7 @@
 //
 //   (1) the analytical pass receives a *prior arguments index* (structured
 //       listing of arguments extracted from earlier paragraphs of this
-//       subchapter) instead of the interpretive memo chain. Using the
+//       subchapter) instead of the reflective memo chain. Using the
 //       memo chain would inject synthetic interpretation into the
 //       analytical pass and contaminate the experiment.
 //

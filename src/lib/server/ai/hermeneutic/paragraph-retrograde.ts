@@ -5,7 +5,7 @@
 // retrograder Verfeinerungs-Durchlauf).
 //
 // FFN-Backprop-style Stufe 3 (nach chapter-collapse-retrograde +
-// section-collapse-retrograde): liest die forward-interpretierende Memo
+// section-collapse-retrograde): liest die forward-reflektierende Memo
 // eines Absatzes erneut, jetzt mit dem retrograden Memo der **umfassenden
 // Aggregations-Einheit** als Kontext. Aggregations-Einheit ist:
 //   - bei chosen_level=1 (Hauptkapitel = Synthese-Einheit, vgl.
@@ -22,23 +22,23 @@
 // landet der Loader auf einem Heading ohne eigenes Retrograde-Memo.
 //
 // Input:
-//   - Forward-interpretierend-Memo: `[interpretierend]` zu paragraphId
+//   - Forward-reflektierend-Memo: `[reflektierend]` zu paragraphId
 //   - Retrograde-Aggregations-Memo: entweder
 //     `[kontextualisierend/chapter/synthetic-retrograde]` (scope_level=
 //     'chapter') oder `[kontextualisierend/subchapter/synthetic-retrograde]`
 //     (scope_level='subchapter'), je nach Aggregations-Einheit
 //
-// Output-Schema: { interpretierend: string } — wie Forward, aber retrograd
+// Output-Schema: { reflektierend: string } — wie Forward, aber retrograd
 // neu gelesen. Kein FORMULIEREND-Feld in Retrograde (das ist Forward-only;
 // inhaltliche Verdichtung ist eine Forward-Aufgabe und ändert sich durch
 // Werk-Wissen nicht).
 //
-// Storage: Inscription-Tag `[interpretierend-retrograde]`,
-// memo_type='interpretierend' (gleicher Typ wie Forward, damit nachgelagerte
+// Storage: Inscription-Tag `[reflektierend-retrograde]`,
+// memo_type='reflektierend' (gleicher Typ wie Forward, damit nachgelagerte
 // Konsumenten ggf. den jeweiligen Retrograde-Stand abrufen können — Trennung
 // erfolgt rein über das inscription-Tag).
 //
-// Idempotent: skipt, wenn ein retrograde-interpretierend-Memo für diesen
+// Idempotent: skipt, wenn ein retrograde-reflektierend-Memo für diesen
 // Absatz existiert. Re-run: DELETE über naming-id.
 
 import { z } from 'zod';
@@ -59,13 +59,13 @@ import {
 // ── Output schema + spec ──────────────────────────────────────────
 
 const ParagraphRetrogradeResultSchema = z.object({
-	interpretierend: z.string().min(1),
+	reflektierend: z.string().min(1),
 });
 
 export type ParagraphRetrogradeResult = z.infer<typeof ParagraphRetrogradeResultSchema>;
 
 const PARAGRAPH_RETROGRADE_SPEC: SectionSpec = {
-	singletons: { INTERPRETIEREND: 'multiline' },
+	singletons: { REFLEKTIEREND: 'multiline' },
 	lists: {},
 };
 
@@ -100,7 +100,7 @@ interface RetrogradeContext {
 	/** Gesamtanzahl Absätze in der Aggregations-Einheit. */
 	unitTotalParagraphs: number;
 
-	forwardInterpretierend: string;
+	forwardReflektierend: string;
 	/** Retrograde-Memo der Aggregations-Einheit (chapter- oder subchapter-scope). */
 	retrogradeUnitMemo: {
 		synthese: string;
@@ -224,15 +224,15 @@ async function loadRetrogradeContext(
 		);
 	}
 
-	// Forward-interpretierend laden (Pflicht-Vorbedingung).
+	// Forward-reflektierend laden (Pflicht-Vorbedingung).
 	const fwdRow = await queryOne<{ content: string }>(
 		`SELECT mc.content
 		 FROM memo_content mc
 		 JOIN namings n ON n.id = mc.naming_id
 		 WHERE mc.scope_element_id = $1
 		   AND mc.scope_level = 'paragraph'
-		   AND mc.memo_type = 'interpretierend'
-		   AND n.inscription LIKE '[interpretierend]%'
+		   AND mc.memo_type = 'reflektierend'
+		   AND n.inscription LIKE '[reflektierend]%'
 		   AND n.deleted_at IS NULL
 		 LIMIT 1`,
 		[paragraphId]
@@ -240,7 +240,7 @@ async function loadRetrogradeContext(
 	if (!fwdRow) {
 		throw new Error(
 			`Cannot run runParagraphRetrograde for ${paragraphId}: ` +
-				`no forward interpretierend memo exists. Run paragraph_synthetic first.`
+				`no forward reflektierend memo exists. Run paragraph_synthetic first.`
 		);
 	}
 
@@ -294,7 +294,7 @@ async function loadRetrogradeContext(
 		unitLabel: docRow.full_text.substring(unitHeadingCharStart, unitHeadingCharEnd).trim(),
 		positionInUnit: idx + 1,
 		unitTotalParagraphs: unitPars.length,
-		forwardInterpretierend: fwdRow.content,
+		forwardReflektierend: fwdRow.content,
 		retrogradeUnitMemo: {
 			synthese: retroRow.content,
 			auffaelligkeiten: retroRow.properties?.auffaelligkeiten ?? [],
@@ -331,16 +331,16 @@ function buildSystemPrompt(ctx: RetrogradeContext): string {
 ${ctx.brief.persona}
 
 [KONTEXT DIESES PASSES — ABSATZ-RETROGRADE-PASS]
-Du hast in einem früheren Pass bereits eine interpretierende Memo zu diesem Absatz verfasst (Forward-Memo, siehe User-Message). Inzwischen liegt das **retrograde** ${unitNounNominative}-Memo vor — ${absorptionPhrase}.
+Du hast in einem früheren Pass bereits eine reflektierende Memo zu diesem Absatz verfasst (Forward-Memo, siehe User-Message). Inzwischen liegt das **retrograde** ${unitNounNominative}-Memo vor — ${absorptionPhrase}.
 
-Mit diesem nachgereichten Wissen liest du den Absatz **erneut** und legst eine **revidierte** interpretierende Memo vor.
+Mit diesem nachgereichten Wissen liest du den Absatz **erneut** und legst eine **revidierte** reflektierende Memo vor.
 
 Aufgabe: das Forward-Memo nicht wiederholen, sondern *re-akzentuieren*.
 - **Bestätigen**, wenn die Forward-Lesart unter dem ${reLightShort} trägt — kurz so benennen.
 - **Verschieben**, wenn das ${knowledgeDescriptor} die Funktions-Diagnose des Absatzes verändert (z.B. ein im Forward als "Nebenklärung" gelesener Absatz erweist sich rückblickend als pivot, oder umgekehrt).
 - **Korrigieren**, wenn die Forward-Lesart dem Absatz im Werk-Kontext substantiell unrecht tut.
 
-Schreibe NICHT noch einmal die Forward-Lesart aus, wenn nichts zu revidieren ist — knappe Bestätigung ("die Forward-Lesart trägt unter Werk-Licht ohne Akzent-Verschiebung") genügt dann. Nur eine Sektion (INTERPRETIEREND), 2–4 Sätze, retrograd-revidierend.
+Schreibe NICHT noch einmal die Forward-Lesart aus, wenn nichts zu revidieren ist — knappe Bestätigung ("die Forward-Lesart trägt unter Werk-Licht ohne Akzent-Verschiebung") genügt dann. Nur eine Sektion (REFLEKTIEREND), 2–4 Sätze, retrograd-revidierend.
 
 [KRITERIEN ALS LESEFOLIE]
 ${ctx.brief.criteria}
@@ -358,7 +358,7 @@ ${ctx.retrogradeUnitMemo.synthese}${retroAuff}
 [OUTPUT-FORMAT]
 ${describeProseFormat(PARAGRAPH_RETROGRADE_SPEC)}
 
-Inhalt der INTERPRETIEREND-Sektion: 2–4 Sätze, retrograd-revidierend gegenüber der Forward-Lesart. Klare Diagnose: bestätigt / verschoben / korrigiert.`;
+Inhalt der REFLEKTIEREND-Sektion: 2–4 Sätze, retrograd-revidierend gegenüber der Forward-Lesart. Klare Diagnose: bestätigt / verschoben / korrigiert.`;
 }
 
 function buildUserMessage(ctx: RetrogradeContext): string {
@@ -368,11 +368,11 @@ function buildUserMessage(ctx: RetrogradeContext): string {
 [ABSATZ-TEXT]
 "${ctx.paragraphText}"
 
-[FORWARD-INTERPRETIEREND-MEMO (zu revidieren)]
-${ctx.forwardInterpretierend}
+[FORWARD-REFLEKTIEREND-MEMO (zu revidieren)]
+${ctx.forwardReflektierend}
 
 [AUFGABE]
-Lege jetzt das **retrograde** interpretierende Memo vor — im Licht des retrograden ${unitNounNominative}-Memos (siehe System-Prompt). Bestätige / verschiebe / korrigiere; wiederhole das Forward-Memo nicht.`;
+Lege jetzt das **retrograde** reflektierende Memo vor — im Licht des retrograden ${unitNounNominative}-Memos (siehe System-Prompt). Bestätige / verschiebe / korrigiere; wiederhole das Forward-Memo nicht.`;
 }
 
 // ── Storage ───────────────────────────────────────────────────────
@@ -408,7 +408,7 @@ async function storeParagraphRetrogradeMemo(
 			perspective = r.rows[0];
 		}
 
-		const label = `[interpretierend-retrograde] ${ctx.unitLabel} §${ctx.positionInUnit}`;
+		const label = `[reflektierend-retrograde] ${ctx.unitLabel} §${ctx.positionInUnit}`;
 		const memo = await client.query(
 			`INSERT INTO namings (project_id, inscription, created_by)
 			 VALUES ($1, $2, $3) RETURNING id`,
@@ -423,8 +423,8 @@ async function storeParagraphRetrogradeMemo(
 		await client.query(
 			`INSERT INTO memo_content
 			   (naming_id, content, format, status, memo_type, scope_element_id, scope_level)
-			 VALUES ($1, $2, 'text', 'active', 'interpretierend', $3, 'paragraph')`,
-			[memoId, result.interpretierend, ctx.paragraphId]
+			 VALUES ($1, $2, 'text', 'active', 'reflektierend', $3, 'paragraph')`,
+			[memoId, result.reflektierend, ctx.paragraphId]
 		);
 
 		return { memoId };
@@ -459,10 +459,10 @@ export async function runParagraphRetrograde(
 		`SELECT n.id
 		 FROM namings n
 		 JOIN memo_content mc ON mc.naming_id = n.id
-		 WHERE n.inscription LIKE '[interpretierend-retrograde]%'
+		 WHERE n.inscription LIKE '[reflektierend-retrograde]%'
 		   AND mc.scope_element_id = $1
 		   AND mc.scope_level = 'paragraph'
-		   AND mc.memo_type = 'interpretierend'
+		   AND mc.memo_type = 'reflektierend'
 		   AND n.deleted_at IS NULL
 		 LIMIT 1`,
 		[paragraphId]

@@ -31,11 +31,11 @@
 //   section_collapse_synthetic läuft.
 //
 //   Phasen (für Idempotenz-Tags + Preflight-Counts unverändert):
-//     1. paragraph_synthetic            — formulierend + interpretierend pro Absatz,
+//     1. paragraph_synthetic            — formulierend + reflektierend pro Absatz,
 //        mit voll geladenem Vorlauf-Kontext (Outline + abgeschlossene Subkapitel-
-//        Synthesen + interpretive chain im aktuellen Subkapitel — siehe
+//        Synthesen + reflective chain im aktuellen Subkapitel — siehe
 //        per-paragraph.ts:14-17 zum architektonischen Sinn der chain).
-//     2. section_collapse_synthetic     — Subkapitel-Synthese aus interpretive chain
+//     2. section_collapse_synthetic     — Subkapitel-Synthese aus reflective chain
 //     3. chapter_collapse_synthetic     — Hauptkapitel-Synthese aus Subkap-Memos
 //     4. document_collapse_synthetic    — Werk-Synthese aus Kapitel-Memos
 //   Idempotenz-Tags: [kontextualisierend/{subchapter|chapter|work}/synthetic]
@@ -103,8 +103,8 @@ export type Phase =
 	// absorbiert in Subchapter-Retro, Subchapter-Retro absorbiert in
 	// Paragraph-Retro. Idempotenz-Tags
 	// `[kontextualisierend/{chapter|subchapter}/synthetic-retrograde]` und
-	// `[interpretierend-retrograde]` — bracket-position macht sie
-	// kollisionsfrei zu den Forward-`/synthetic]` und `[interpretierend]`-
+	// `[reflektierend-retrograde]` — bracket-position macht sie
+	// kollisionsfrei zu den Forward-`/synthetic]` und `[reflektierend]`-
 	// LIKE-Patterns.
 	| 'chapter_collapse_retrograde'
 	| 'section_collapse_retrograde'
@@ -131,7 +131,7 @@ export const PHASE_ORDER_ANALYTICAL: Phase[] = [
 ];
 
 // H2-Synthese-Linie (kumulativ-sequenziell). paragraph_synthetic produziert
-// die interpretive chain pro Absatz; die drei collapse-synthetic-Phasen
+// die reflective chain pro Absatz; die drei collapse-synthetic-Phasen
 // aggregieren bewegungs-orientiert von Subkapitel → Kapitel → Werk.
 export const PHASE_ORDER_SYNTHETIC: Phase[] = [
 	'paragraph_synthetic',
@@ -478,7 +478,7 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 					 FROM memo_content mc
 					 JOIN document_elements de ON de.id = mc.scope_element_id
 					 WHERE mc.scope_level = 'paragraph'
-					   AND mc.memo_type = 'interpretierend'
+					   AND mc.memo_type = 'reflektierend'
 					   AND de.document_id = $1`,
 					[documentId]
 				)).rows.map((r) => r.pid)
@@ -648,8 +648,8 @@ async function listAtomsForPhase(phase: Phase, documentId: string): Promise<Atom
 					 JOIN namings n ON n.id = mc.naming_id
 					 JOIN document_elements de ON de.id = mc.scope_element_id
 					 WHERE mc.scope_level = 'paragraph'
-					   AND mc.memo_type = 'interpretierend'
-					   AND n.inscription LIKE '[interpretierend-retrograde]%'
+					   AND mc.memo_type = 'reflektierend'
+					   AND n.inscription LIKE '[reflektierend-retrograde]%'
 					   AND n.deleted_at IS NULL
 					   AND de.document_id = $1`,
 					[documentId]

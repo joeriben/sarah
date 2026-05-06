@@ -4,13 +4,13 @@
 // Per-paragraph hermeneutic pass (H2 — paragraph_synthetic).
 //
 // Pulls the paragraph and its surrounding context, assembles the cached system
-// block (persona, criteria, work header, completed sections, interpretive
+// block (persona, criteria, work header, completed sections, reflective
 // chain in current subchapter) and a fresh user message (predecessor +
 // current paragraph + successor + position label), calls the LLM, parses the
-// structured prose response, and writes the formulierend + interpretierend
+// structured prose response, and writes the formulierend + reflektierend
 // memos.
 //
-// The interpretive chain in the current subchapter is the architectural
+// The reflective chain in the current subchapter is the architectural
 // device that makes the section-end kontextualisierende memo synthesizable:
 // each paragraph's interpretation is position-aware against the subchapter's
 // progression so far, so the later collapse pass has a chain of
@@ -31,7 +31,7 @@ import {
 
 const ParagraphPassResultSchema = z.object({
 	formulierend: z.string().min(1).optional(),  // present iff brief.include_formulierend
-	interpretierend: z.string().min(1),
+	reflektierend: z.string().min(1),
 });
 
 export type ParagraphPassResult = z.infer<typeof ParagraphPassResultSchema>;
@@ -41,7 +41,7 @@ export type ParagraphPassResult = z.infer<typeof ParagraphPassResultSchema>;
 // parser does not default an empty string that would fail Zod's min(1).
 function buildSectionSpec(caseCtx: CaseContext): SectionSpec {
 	const singletons: Record<string, FieldKind> = {
-		INTERPRETIEREND: 'multiline',
+		REFLEKTIEREND: 'multiline',
 	};
 	if (caseCtx.brief.includeFormulierend) {
 		singletons.FORMULIEREND = 'multiline';
@@ -86,7 +86,7 @@ export interface ParagraphContext {
 	predecessorText: string | null;
 	successorText: string | null;
 	completedKontextualisierungen: { sectionLabel: string; content: string }[];
-	interpretiveChain: { positionInSubchapter: number; content: string }[];
+	reflectiveChain: { positionInSubchapter: number; content: string }[];
 }
 
 // ── Context loaders ───────────────────────────────────────────────
@@ -211,9 +211,9 @@ export async function loadParagraphContext(
 	const predecessor = idx > 0 ? subPars[idx - 1] : null;
 	const successor = idx < subPars.length - 1 ? subPars[idx + 1] : null;
 
-	// Interpretive chain: prior interpretierende memos in this subchapter.
-	// Linien-Trennung: nur Forward-Memos (`[interpretierend]%`), nicht
-	// `[interpretierend-retrograde]%` — der Retrograde-Pass läuft über die
+	// Reflective chain: prior reflektierende memos in this subchapter.
+	// Linien-Trennung: nur Forward-Memos (`[reflektierend]%`), nicht
+	// `[reflektierend-retrograde]%` — der Retrograde-Pass läuft über die
 	// vollständige Forward-Kette und darf hier nicht eingeflochten werden.
 	const chainRows = (
 		await query<{ char_start: number; content: string }>(
@@ -221,9 +221,9 @@ export async function loadParagraphContext(
 			 FROM memo_content mc
 			 JOIN namings n ON n.id = mc.naming_id
 			 JOIN document_elements de ON de.id = mc.scope_element_id
-			 WHERE mc.memo_type = 'interpretierend'
+			 WHERE mc.memo_type = 'reflektierend'
 			   AND mc.scope_level = 'paragraph'
-			   AND n.inscription LIKE '[interpretierend]%'
+			   AND n.inscription LIKE '[reflektierend]%'
 			   AND n.deleted_at IS NULL
 			   AND de.document_id = $1
 			   AND de.char_start >= $2 AND de.char_start < $3
@@ -231,7 +231,7 @@ export async function loadParagraphContext(
 			[caseCtx.centralDocumentId, heading.char_start, para.char_start]
 		)
 	).rows;
-	const interpretiveChain = chainRows.map(r => ({
+	const reflectiveChain = chainRows.map(r => ({
 		positionInSubchapter: subPars.findIndex(p => p.char_start === r.char_start) + 1,
 		content: r.content,
 	}));
@@ -272,7 +272,7 @@ export async function loadParagraphContext(
 			sectionLabel: r.section_label.trim(),
 			content: r.content,
 		})),
-		interpretiveChain,
+		reflectiveChain,
 	};
 }
 
@@ -305,7 +305,7 @@ Umfang Hauptteil: ${caseCtx.mainHeadingCount} Hauptkapitel-Überschriften, ${cas
 
 /**
  * Build the variable suffix containing per-call context: outline with current-
- * scope marker, completed kontextualisierungen, interpretive chain. Pass to
+ * scope marker, completed kontextualisierungen, reflective chain. Pass to
  * chat() as `system`.
  */
 export function buildSystemSuffix(paraCtx: ParagraphContext, caseCtx: CaseContext): string {
@@ -319,9 +319,9 @@ export function buildSystemSuffix(paraCtx: ParagraphContext, caseCtx: CaseContex
 			.map(k => `## "${k.sectionLabel}"\n${k.content}`)
 			.join('\n\n');
 
-	const chain = paraCtx.interpretiveChain.length === 0
-		? '(Noch keine vorherigen interpretierenden Memos — dies ist der erste Absatz im Unterkapitel.)'
-		: paraCtx.interpretiveChain
+	const chain = paraCtx.reflectiveChain.length === 0
+		? '(Noch keine vorherigen reflektierenden Memos — dies ist der erste Absatz im Unterkapitel.)'
+		: paraCtx.reflectiveChain
 			.map(c => `### Absatz ${c.positionInSubchapter}\n${c.content}`)
 			.join('\n\n');
 
@@ -332,7 +332,7 @@ ${outlineLines}
 [BISHERIGE GUTACHTERLICHE LEKTÜRE — kontextualisierende Memos abgeschlossener Sektionen]
 ${completed}
 
-[INTERPRETIERENDE KETTE IM AKTUELLEN UNTERKAPITEL "${paraCtx.subchapterLabel}"]
+[REFLEKTIERENDE KETTE IM AKTUELLEN UNTERKAPITEL "${paraCtx.subchapterLabel}"]
 ${chain}`;
 }
 
@@ -349,13 +349,13 @@ function buildOutputFormatSection(caseCtx: CaseContext): string {
 		? `Inhalt der FORMULIEREND-Sektion: inhaltliche Verdichtung des aktuellen Absatzes — was wird gesagt, in 1–3 Sätzen, in Deinen Worten. Textnah, ohne Wertung oder Argumentations-Reflexion.\n\n`
 		: '';
 
-	const interpretierendHint = caseCtx.brief.includeFormulierend
-		? `Inhalt der INTERPRETIEREND-Sektion: argumentative/funktionale Reflexion: was tut dieser Absatz im aktuellen Verlauf des Unterkapitels (vor dem Hintergrund der bisherigen interpretierenden Kette)? Welche Bewegung vollzieht er, welcher Stelle im Argumentations-Aufbau dient er? 1–3 Sätze.`
-		: `Inhalt der INTERPRETIEREND-Sektion: 2–4 Sätze. Die ersten 1–2 Sätze: was wird zum Thema gemacht, welche Position bezogen — knapp, als Inhaltsanker. Die folgenden 1–2 Sätze: welche argumentative Bewegung / Funktion vollzieht der Absatz vor dem Hintergrund der bisherigen interpretierenden Kette des Subkapitels?`;
+	const reflektierendHint = caseCtx.brief.includeFormulierend
+		? `Inhalt der REFLEKTIEREND-Sektion: argumentative/funktionale Reflexion: was tut dieser Absatz im aktuellen Verlauf des Unterkapitels (vor dem Hintergrund der bisherigen reflektierenden Kette)? Welche Bewegung vollzieht er, welcher Stelle im Argumentations-Aufbau dient er? 1–3 Sätze.`
+		: `Inhalt der REFLEKTIEREND-Sektion: 2–4 Sätze. Die ersten 1–2 Sätze: was wird zum Thema gemacht, welche Position bezogen — knapp, als Inhaltsanker. Die folgenden 1–2 Sätze: welche argumentative Bewegung / Funktion vollzieht der Absatz vor dem Hintergrund der bisherigen reflektierenden Kette des Subkapitels?`;
 
 	return `
 ${formatDesc}
-${formulierendHint}${interpretierendHint}`;
+${formulierendHint}${reflektierendHint}`;
 }
 
 export function buildUserMessage(paraCtx: ParagraphContext): string {
@@ -384,7 +384,7 @@ Erzeuge die Sektionen für den AKTUELLEN ABSATZ.`;
 // ── Storage ───────────────────────────────────────────────────────
 
 interface StoreResult {
-	interpretierendMemoId: string;
+	reflektierendMemoId: string;
 	formulierendMemoId: string | null;
 }
 
@@ -420,7 +420,7 @@ async function storeResult(
 		}
 
 		const insertParagraphMemo = async (
-			memoType: 'formulierend' | 'interpretierend',
+			memoType: 'formulierend' | 'reflektierend',
 			content: string
 		) => {
 			const label = `[${memoType}] ${paraCtx.subchapterLabel} §${paraCtx.positionInSubchapter}`;
@@ -453,9 +453,9 @@ async function storeResult(
 			}
 			formulierendMemoId = await insertParagraphMemo('formulierend', result.formulierend);
 		}
-		const interpretierendMemoId = await insertParagraphMemo('interpretierend', result.interpretierend);
+		const reflektierendMemoId = await insertParagraphMemo('reflektierend', result.reflektierend);
 
-		return { interpretierendMemoId, formulierendMemoId };
+		return { reflektierendMemoId, formulierendMemoId };
 	});
 }
 
