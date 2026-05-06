@@ -5,15 +5,16 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 
-	type SettingsTab = 'provider' | 'tiers' | 'usage' | 'library' | 'briefs';
+	type SettingsTab = 'provider' | 'tiers' | 'slots' | 'usage' | 'library' | 'briefs';
 	let activeTab: SettingsTab = $state('provider');
 
 	// Sync activeTab from URL ?tab=briefs etc. (also fires on direct deep-link load).
 	$effect(() => {
 		const t = $page.url.searchParams.get('tab') as SettingsTab | null;
-		if (t && ['provider', 'tiers', 'usage', 'library', 'briefs'].includes(t) && activeTab !== t) {
+		if (t && ['provider', 'tiers', 'slots', 'usage', 'library', 'briefs'].includes(t) && activeTab !== t) {
 			activeTab = t;
 			if (t === 'tiers') loadTiers();
+			if (t === 'slots') loadSlots();
 			if (t === 'usage') fetchUsage();
 			if (t === 'library') loadLibrary();
 			if (t === 'briefs') loadBriefs();
@@ -26,6 +27,7 @@
 		url.searchParams.set('tab', t);
 		history.replaceState({}, '', url.toString());
 		if (t === 'tiers') loadTiers();
+		if (t === 'slots') loadSlots();
 		if (t === 'usage') fetchUsage();
 		if (t === 'library') loadLibrary();
 		if (t === 'briefs') loadBriefs();
@@ -163,6 +165,133 @@
 		return usdPerM < 1
 			? `$${usdPerM.toFixed(2)}`
 			: `$${usdPerM.toFixed(usdPerM < 10 ? 1 : 0)}`;
+	}
+
+	// ── LLM-Slots (Tool-LLM-Routing, parallel zu Tiers) ───────
+	interface SlotCandidate {
+		provider: string;
+		model: string;
+		maxInputTokens: number;
+		maxOutputTokens: number;
+		note: string;
+		isRecommended: boolean;
+	}
+	interface SlotRow {
+		slot: string;
+		description: string;
+		resolved: { provider: string; model: string; maxInputTokens: number; maxOutputTokens: number };
+		recommended: { provider: string; model: string; maxInputTokens: number; maxOutputTokens: number };
+		isRecommended: boolean;
+		candidates: SlotCandidate[];
+	}
+	let slotRows = $state<SlotRow[]>([]);
+	let slotsLoading = $state(false);
+	let slotsError = $state<string | null>(null);
+	let slotBusy = $state<string | null>(null);
+	// Per-slot draft: candidate (provider::model) + token budgets, edited before saving.
+	let slotDrafts = $state<Record<string, { candidateKey: string; maxInputTokens: number; maxOutputTokens: number }>>({});
+
+	function slotKey(s: { provider: string; model: string }): string {
+		return `${s.provider}::${s.model}`;
+	}
+
+	function findSlotCandidate(s: SlotRow, key: string): SlotCandidate | undefined {
+		return s.candidates.find((c) => slotKey(c) === key);
+	}
+
+	async function loadSlots() {
+		slotsLoading = true;
+		slotsError = null;
+		try {
+			const res = await fetch('/api/settings/llm-slots');
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const data = await res.json();
+			slotRows = data.slots;
+			// Reset drafts to mirror the freshly resolved server state.
+			const next: typeof slotDrafts = {};
+			for (const r of slotRows) {
+				next[r.slot] = {
+					candidateKey: slotKey(r.resolved),
+					maxInputTokens: r.resolved.maxInputTokens,
+					maxOutputTokens: r.resolved.maxOutputTokens,
+				};
+			}
+			slotDrafts = next;
+		} catch (e: any) {
+			slotsError = e.message;
+		} finally {
+			slotsLoading = false;
+		}
+	}
+
+	// When the user picks a different candidate from the dropdown, snap token
+	// budgets to that candidate's defaults — they can still edit afterwards.
+	function pickSlotCandidate(s: SlotRow, key: string) {
+		const c = findSlotCandidate(s, key);
+		if (!c) return;
+		slotDrafts[s.slot] = {
+			candidateKey: key,
+			maxInputTokens: c.maxInputTokens,
+			maxOutputTokens: c.maxOutputTokens,
+		};
+	}
+
+	async function saveSlot(s: SlotRow) {
+		const draft = slotDrafts[s.slot];
+		if (!draft) return;
+		const c = findSlotCandidate(s, draft.candidateKey);
+		if (!c) {
+			slotsError = `Unbekannter Kandidat: ${draft.candidateKey}`;
+			return;
+		}
+		if (!Number.isFinite(draft.maxInputTokens) || draft.maxInputTokens <= 0) {
+			slotsError = 'maxInputTokens muss > 0 sein';
+			return;
+		}
+		if (!Number.isFinite(draft.maxOutputTokens) || draft.maxOutputTokens <= 0) {
+			slotsError = 'maxOutputTokens muss > 0 sein';
+			return;
+		}
+		slotBusy = s.slot;
+		try {
+			const res = await fetch('/api/settings/llm-slots', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					slot: s.slot,
+					provider: c.provider,
+					model: c.model,
+					maxInputTokens: draft.maxInputTokens,
+					maxOutputTokens: draft.maxOutputTokens,
+				}),
+			});
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({}));
+				throw new Error(body.error || `HTTP ${res.status}`);
+			}
+			await loadSlots();
+		} catch (e: any) {
+			slotsError = e.message;
+		} finally {
+			slotBusy = null;
+		}
+	}
+
+	async function clearSlot(s: SlotRow) {
+		slotBusy = s.slot;
+		try {
+			const res = await fetch('/api/settings/llm-slots', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ slot: s.slot, clear: true }),
+			});
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			await loadSlots();
+		} catch (e: any) {
+			slotsError = e.message;
+		} finally {
+			slotBusy = null;
+		}
 	}
 
 	// ── Provider state ────────────────────────────────────────
@@ -456,6 +585,9 @@
 		<button class="tab" class:active={activeTab === 'tiers'} onclick={() => switchTab('tiers')}>
 			Modell-Tiers
 		</button>
+		<button class="tab" class:active={activeTab === 'slots'} onclick={() => switchTab('slots')}>
+			LLM-Slots
+		</button>
 		<button class="tab" class:active={activeTab === 'usage'} onclick={() => switchTab('usage')}>
 			Usage
 		</button>
@@ -609,6 +741,104 @@
 
 							{#if selected?.note}
 								<p class="tier-route-note">{selected.note}</p>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{/if}
+
+	{#if activeTab === 'slots'}
+		<!-- ═══════ LLM-Slots (Tool-LLM-Routing für orthogonale Werkzeuge) ═══════ -->
+		<div class="section">
+			<h2>LLM-Slots</h2>
+			<p class="section-hint">
+				Tool-LLMs für orthogonale Werkzeuge (z.B. <code>ultimate_knower</code> für Sachfragen
+				in der H1↔H2-Einwand-Schleife). Anders als Tiers binden Slots <em>fixe Token-Budgets</em>
+				ans Werkzeug — die Knappheit ist Teil des Vertrags. ★ markiert die Default-Empfehlung.
+			</p>
+
+			{#if slotsError}
+				<div class="message message-error">{slotsError}</div>
+			{/if}
+
+			{#if slotsLoading}
+				<div class="loading">Lade Slot-Konfiguration…</div>
+			{:else}
+				<div class="slot-list">
+					{#each slotRows as s (s.slot)}
+						{@const draft = slotDrafts[s.slot]}
+						{@const selected = draft ? findSlotCandidate(s, draft.candidateKey) : undefined}
+						<div class="slot-row">
+							<div class="slot-row-head">
+								<code class="slot-id">{s.slot}</code>
+								{#if !s.isRecommended}
+									<span class="slot-overridden">override</span>
+								{/if}
+							</div>
+
+							<p class="slot-description">{s.description}</p>
+
+							<div class="slot-pick-row">
+								<select
+									class="input-field slot-route-select"
+									value={draft?.candidateKey ?? slotKey(s.resolved)}
+									onchange={(e) => pickSlotCandidate(s, (e.target as HTMLSelectElement).value)}
+									disabled={slotBusy === s.slot}
+								>
+									{#each s.candidates as c}
+										<option value={slotKey(c)}>
+											{c.isRecommended ? '★ ' : ''}{c.provider} · {c.model} (default {c.maxInputTokens}/{c.maxOutputTokens})
+										</option>
+									{/each}
+								</select>
+							</div>
+
+							<div class="slot-tokens-row">
+								<label class="slot-token-field">
+									<span>maxInputTokens</span>
+									<input
+										type="number"
+										min="1"
+										step="1"
+										class="input-field slot-token-input"
+										bind:value={slotDrafts[s.slot].maxInputTokens}
+										disabled={slotBusy === s.slot}
+									/>
+								</label>
+								<label class="slot-token-field">
+									<span>maxOutputTokens</span>
+									<input
+										type="number"
+										min="1"
+										step="1"
+										class="input-field slot-token-input"
+										bind:value={slotDrafts[s.slot].maxOutputTokens}
+										disabled={slotBusy === s.slot}
+									/>
+								</label>
+								<button
+									class="btn btn-primary slot-save-btn"
+									onclick={() => saveSlot(s)}
+									disabled={slotBusy === s.slot}
+								>
+									{slotBusy === s.slot ? '…' : 'Speichern'}
+								</button>
+								{#if !s.isRecommended}
+									<button
+										class="btn btn-secondary"
+										onclick={() => clearSlot(s)}
+										disabled={slotBusy === s.slot}
+										title="User-Wahl löschen, Empfehlung wieder aktiv"
+									>
+										Auf Empfehlung
+									</button>
+								{/if}
+							</div>
+
+							{#if selected?.note}
+								<p class="slot-route-note">{selected.note}</p>
 							{/if}
 						</div>
 					{/each}
@@ -1434,6 +1664,87 @@
 		font-size: 0.74rem;
 		color: #8b8fa3;
 		margin: 0.5rem 0 0;
+		line-height: 1.45;
+		padding-left: 0.4rem;
+		border-left: 2px solid #2a2d3a;
+	}
+
+	/* ── LLM-Slots ────────────────────────── */
+	.slot-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.7rem;
+	}
+	.slot-row {
+		background: rgba(255, 255, 255, 0.02);
+		border: 1px solid #2a2d3a;
+		border-radius: 8px;
+		padding: 0.85rem 1rem;
+	}
+	.slot-row-head {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		margin-bottom: 0.4rem;
+	}
+	.slot-id {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.85rem;
+		color: #e1e4e8;
+		font-weight: 600;
+	}
+	.slot-overridden {
+		font-size: 0.65rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: #c4b5fd;
+		background: rgba(196, 181, 253, 0.1);
+		padding: 0.1rem 0.4rem;
+		border-radius: 3px;
+	}
+	.slot-description {
+		font-size: 0.78rem;
+		color: #c9cdd5;
+		margin: 0 0 0.5rem;
+		line-height: 1.45;
+	}
+	.slot-pick-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 0.5rem;
+	}
+	.slot-route-select {
+		flex: 1;
+		max-width: none;
+		padding: 0.4rem 0.6rem;
+		font-size: 0.8rem;
+		font-family: inherit;
+	}
+	.slot-tokens-row {
+		display: flex;
+		align-items: flex-end;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+	}
+	.slot-token-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		font-size: 0.72rem;
+		color: #8b8fa3;
+	}
+	.slot-token-input {
+		width: 110px;
+		max-width: none;
+		padding: 0.35rem 0.5rem;
+		font-size: 0.8rem;
+	}
+	.slot-save-btn { align-self: flex-end; }
+	.slot-route-note {
+		font-size: 0.74rem;
+		color: #8b8fa3;
+		margin: 0.6rem 0 0;
 		line-height: 1.45;
 		padding-left: 0.4rem;
 		border-left: 2px solid #2a2d3a;

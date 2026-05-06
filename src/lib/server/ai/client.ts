@@ -50,6 +50,20 @@ export interface AiSettings {
 	 * testConnection).
 	 */
 	tiers?: Partial<Record<string, { provider: Provider; model: string }>>;
+	/**
+	 * User-Wahl pro Tool-Slot (siehe `llm-slots.ts`). Slots sind orthogonal
+	 * zu Tiers — sie binden ein Werkzeug-LLM (z.B. `ultimate_knower` für
+	 * Sachfragen in der H1↔H2-Einwand-Schleife) an Provider+Model+Token-
+	 * Budget. Schlüssel sind Slot-IDs (`ultimate_knower`, `fact_check`).
+	 * Fehlt ein Eintrag, greift die SLOT_REGISTRY-Empfehlung. Siehe
+	 * `docs/architecture/04-pipeline-h1-h2.md` §9.8.
+	 */
+	slots?: Partial<
+		Record<
+			string,
+			{ provider: Provider; model: string; maxInputTokens: number; maxOutputTokens: number }
+		>
+	>;
 }
 
 export const SUPPORTED_LANGUAGES: Record<string, string> = {
@@ -97,6 +111,46 @@ export function loadSettings(): AiSettings {
 			}
 			if (Object.keys(tiers).length > 0) {
 				settings.tiers = tiers;
+			}
+		}
+		// Load per-slot overrides (llm-slots.ts). Permissive wie tiers, plus
+		// numerische Token-Budgets. Validation gegen bekannte Slot-IDs
+		// passiert in resolveSlot().
+		if (parsed.slots && typeof parsed.slots === 'object') {
+			const slots: Partial<
+				Record<
+					string,
+					{ provider: Provider; model: string; maxInputTokens: number; maxOutputTokens: number }
+				>
+			> = {};
+			for (const [slot, override] of Object.entries(parsed.slots)) {
+				if (!override || typeof override !== 'object') continue;
+				const o = override as {
+					provider?: string;
+					model?: string;
+					maxInputTokens?: number;
+					maxOutputTokens?: number;
+				};
+				if (
+					o.provider &&
+					o.provider in PROVIDERS &&
+					typeof o.model === 'string' &&
+					o.model.length > 0 &&
+					typeof o.maxInputTokens === 'number' &&
+					o.maxInputTokens > 0 &&
+					typeof o.maxOutputTokens === 'number' &&
+					o.maxOutputTokens > 0
+				) {
+					slots[slot] = {
+						provider: o.provider as Provider,
+						model: o.model,
+						maxInputTokens: Math.floor(o.maxInputTokens),
+						maxOutputTokens: Math.floor(o.maxOutputTokens),
+					};
+				}
+			}
+			if (Object.keys(slots).length > 0) {
+				settings.slots = slots;
 			}
 		}
 		return settings;
