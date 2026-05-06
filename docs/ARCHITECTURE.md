@@ -1,6 +1,6 @@
 # SARAH — Architektur (Inhaltsverzeichnis)
 
-**Stand: 2026-05-04** · Eintrittspunkt für jede neue Session.
+**Stand: 2026-05-06** · Eintrittspunkt für jede neue Session.
 
 Diese Doku ist der **single source of truth** für Architektur, Datenmodell und Pipeline-Stand. Alle Teildokumente sind kurz (≤200 Zeilen) und auf schnelles Scannen unter Context-Druck optimiert.
 
@@ -28,6 +28,7 @@ Diese Doku ist der **single source of truth** für Architektur, Datenmodell und 
 | 07 | [api-and-ui](architecture/07-api-and-ui.md) | Endpoint-Inventar, UI-Routes, Komponenten, Shared-Module | ... ein API-Endpoint suchst oder eine UI-Seite baust |
 | 08 | [conventions](architecture/08-conventions.md) | Commit-Disziplin, Doku-Update-Regeln, Vokabular, AUTO-Mode-Grenzen | ... committen, Doku updaten, oder unsicher über Vorgehen bist |
 | 09 | [legacy-docs-ledger](architecture/09-legacy-docs-ledger.md) | Status aller älteren `docs/*.md` — autoritativ vs. veraltet vs. ersetzt durch | ... ein altes `design-*.md` liest und wissen willst, ob es noch gilt |
+| 10 | [pipeline-h4](architecture/10-pipeline-h4.md) | Selbstkorrigierende Heuristik H4: per-¶-Schleife H1↔H2 auf existierenden Tools, `simulated_expert`-Slot, Mig 053 | ... an der H4-Schleife arbeitest oder die dreifache Motivation (H1-Korrektur, H2-Präzisierung, simulated_expert) verstehen willst |
 
 ---
 
@@ -38,6 +39,7 @@ Diese Doku ist der **single source of truth** für Architektur, Datenmodell und 
 | Welche Tabelle hat Spalte X? | [01-data-model](architecture/01-data-model.md) |
 | Welche Phase läuft im Pipeline-Run wann? | [04-pipeline-h1-h2 §1](architecture/04-pipeline-h1-h2.md) |
 | Was ist die Meta-Synthese (Run-Setup-Option 3, H1→H2→Meta)? | [04-pipeline-h1-h2 §7](architecture/04-pipeline-h1-h2.md) |
+| Was ist H4 (selbstkorrigierende Heuristik, Einwand-Schleife)? | [10-pipeline-h4](architecture/10-pipeline-h4.md) |
 | Was ist der aktuelle Stand von H3:GRUNDLAGENTHEORIE? | [05-pipeline-h3 §4.3](architecture/05-pipeline-h3.md) |
 | Wie funktioniert H3:DURCHFUEHRUNG (Hotspots → H1 → Grounding → BEFUND)? | [05-pipeline-h3 §4.4](architecture/05-pipeline-h3.md) |
 | Wie modifiziert H3:EXKURS den FORSCHUNGSGEGENSTAND? | [05-pipeline-h3 §4.5](architecture/05-pipeline-h3.md) bzw. [h3_exkurs_status.md](h3_exkurs_status.md) |

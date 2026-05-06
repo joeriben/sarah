@@ -3,7 +3,7 @@
 --
 -- Migration 053: paragraph_einwand_iterations — Audit-Persistenz für die
 -- selbstkorrigierende H4-Heuristik (Einwand-Schleife zwischen H1- und
--- H2-Tools, siehe docs/architecture/06-pipeline-h4.md).
+-- H2-Tools, siehe docs/architecture/10-pipeline-h4.md).
 --
 -- Konzept (kurz):
 -- H4 ist eine eigenständige Heuristik (parallel zu H1/H2/H3), die H1- und

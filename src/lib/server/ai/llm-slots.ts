@@ -14,7 +14,7 @@
 //     das Budget mit: ein konzentrierter Sachfrage-Slot mit 250in/1000out
 //     ist absichtlich knapp; die Knappheit ist Teil des Werkzeug-Vertrags.
 //
-// Konzeptioneller Hintergrund: docs/architecture/06-pipeline-h4.md.
+// Konzeptioneller Hintergrund: docs/architecture/10-pipeline-h4.md.
 //
 // Persistenz wie bei tiers: User-Wahl in `ai-settings.json` `slots`, fehlt
 // ein Eintrag → Registry-Empfehlung. `resolveSlot(slot)` ist der Zugriff

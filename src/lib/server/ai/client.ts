@@ -56,7 +56,7 @@ export interface AiSettings {
 	 * Sachfragen in der selbstkorrigierenden H4-Heuristik) an Provider+
 	 * Model+Token-Budget. Schlüssel sind Slot-IDs (`simulated_expert`,
 	 * `fact_check`). Fehlt ein Eintrag, greift die SLOT_REGISTRY-Empfehlung.
-	 * Siehe `docs/architecture/06-pipeline-h4.md`.
+	 * Siehe `docs/architecture/10-pipeline-h4.md`.
 	 */
 	slots?: Partial<
 		Record<

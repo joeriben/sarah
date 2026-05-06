@@ -1,6 +1,6 @@
 # 04 — Pipeline H1/H2 (Orchestrator + zwei symmetrische Linien)
 
-**Stand: 2026-05-05** · Pipeline-Orchestrator + zwei symmetrische Heuristik-Linien (analytisch / synthetisch-hermeneutisch). Drei-Heuristiken-Architektur: H1, H2, H3 sind exklusiv pro Run (`options.heuristic`).
+**Stand: 2026-05-06** · Pipeline-Orchestrator + zwei symmetrische Heuristik-Linien (analytisch / synthetisch-hermeneutisch). Vier-Heuristiken-Architektur: H1, H2, H3, H4 sind exklusiv pro Run (`options.heuristic`); H4 ist die selbstkorrigierende Heuristik, separat in [10-pipeline-h4.md](10-pipeline-h4.md).
 
 Eintrittspunkt: `src/lib/server/pipeline/orchestrator.ts`. Per-Heuristik-Implementierung in `src/lib/server/ai/hermeneutic/`.
 
@@ -10,7 +10,7 @@ State: `pipeline_runs`-Tabelle (Mig 038). Max 1 aktiver Run pro Case (DB-Constra
 
 ## 1. Phasen-Reihenfolge
 
-`phasesForRun(options)` wählt anhand `options.heuristic ∈ {h1, h2, h3}` exklusiv die Linie. Für H3 siehe `05-pipeline-h3.md` (linearer Walk-Driver).
+`phasesForRun(options)` wählt anhand `options.heuristic ∈ {h1, h2, h3, h4}` exklusiv die Linie. Für H3 siehe `05-pipeline-h3.md` (linearer Walk-Driver), für H4 siehe `10-pipeline-h4.md` (per-¶-Schleife auf H1+H2-Tools).
 
 ### 1.1 H1 — analytische Linie (`PHASE_ORDER_ANALYTICAL`)
 
@@ -369,150 +369,8 @@ Pro Schicht parallel zur Forward-Persistenz. Memo-Triade unverändert (`namings`
 
 ---
 
-## 9. H1↔H2 Einwand-Schleife & Stufe-3-Werkzeuge (geplant — Phase A: Fundament)
+## 9. H4 (selbstkorrigierende Heuristik) — separate Datei
 
-**Status:** Designentscheidung 2026-05-06. Phase A (Fundament: Doku, Migration, LLM-Slots-Settings) im Bau. Phase B (Schleifen-Mechanik), Phase C (Stufe-3-Mini-Aufruf) und Phase D (Große Stufe 3) folgen.
+H4 ist eine **eigenständige vierte Heuristik** parallel zu H1/H2/H3, exklusiv pro Run. Sie ruft H1- und H2-Pass-Funktionen per Verweis auf, läuft als per-¶-Schleife (max 3 Iterationen) zwischen den Tools, endet auf ¶-Ebene und liefert revidierte `argument_nodes` + finales fresh-H2-Memo.
 
-Die Einwand-Schleife ist eine **per-¶-Klärung zwischen H1 und H2**, bevor Fehl-Einstufungen ins Kapitel-Aggregat durchgereicht werden. Sie wirkt nur im Composite `heuristic='meta'` (linienreine H1+H2-Stand-alone-Runs sind unverändert). Die Schleife ist **asymmetrisch**: H2 reicht einen Einwand ein, H1 prüft und revidiert ggf., H2 schreibt am Ende fresh.
-
-### 9.1 Motivation
-
-Im additiven Default-Composite läuft H1 vollständig durch, danach H2 vollständig, danach Meta-Synthese aggregiert. Eine in H1 ungenaue Argumenteinstufung (z.B. fälschliches `referential_grounding=namedropping` für eine substanziell verortete Autor-Erwähnung) wird über alle H1-Aggregations-Schichten durchgereicht und ist erst auf Werk-Ebene in der Meta-Synthese als Differenz zwischen H1 und H2 sichtbar. Die Einwand-Schleife greift früher: am Punkt der Entstehung.
-
-Die Schleife verhindert nicht alle Fehleinschätzungen — sie verhindert nur, dass Fehleinschätzungen **unrevidiert nach oben durchgereicht** werden, wenn die jeweils andere Linie die Information zur Revision hat.
-
-### 9.2 Trigger
-
-Pro ¶ wird die Schleife initiiert, wenn nach H1's `argumentation_graph` (+`argument_validity`) und H2's `paragraph_synthetic` mindestens eine der Bedingungen auf den H1-Argumenten dieses ¶ wahr ist:
-
-```
-∃ argument: validity_assessment.carries == false
-∨ ∃ argument: referential_grounding ∈ {namedropping, abstract}
-∨ ∃ argument_edge mit kind='contradicts' im ¶
-```
-
-Alle drei Bedingungen lesen existierende `argument_nodes`/`argument_edges`-Felder — kein neues Schema, keine zusätzliche Klassifikation.
-
-### 9.3 Schleifen-Mechanik
-
-```
-1. H1 läuft clean → argument_nodes
-2. H2 läuft clean (linienrein) → ¶-Kommentar v1
-3. Trigger-Check auf H1
-4. wenn fires:
-   a. H2 formuliert Einwand (Free-Text, ggf. mit Mini-Stufe-3-Recherche)
-   b. H1 reevaluiert (stateless) → ggf. revidierte argument_nodes + Begründung
-   c. counter += 1
-   d. Trigger-Check auf revidiertem H1:
-      - nicht mehr fires → break (status=resolved)
-      - fires und counter < 3 → zurück zu (a)
-      - fires und counter == 3 → break (status=unresolved)
-5. H2 läuft fresh (ohne Einwand-Memory) auf finalem H1 → ¶-Kommentar final (überschreibt v1)
-```
-
-**Iterations-Modell A:** jede H2-Einwand-Formulierung zählt als eine Iteration, max 3. Die finale fresh-H2-Re-Run-Phase zählt nicht mit.
-
-**Termination:** drei Endzustände — `resolved` (Trigger erlischt), `unresolved` (counter==3 erreicht), `resolved` (H2 verzichtet auf weiteren Einwand). Status fällt strukturell aus dem Loop, kein LLM-Flag nötig.
-
-**Orchestrator hält den Loop-State**, nicht die Modelle. H1 hat keine Schleifen-Awareness.
-
-### 9.4 H1-Prompt-Template (stateless)
-
-```
-Argument: "[claim-Text aus argument_nodes]"
-Bisherige Einstufung: [referential_grounding=…, validity_assessment=…]
-Andererseits: [Einwand-Text, von H2 formuliert, ggf. mit Recherche-Faktum]
-
-Beurteile den Einwand und beziehe ihn ggf. in deine Prüfung ein.
-Begründe deine Entscheidung in 1-2 Sätzen.
-```
-
-H1-Output: revidierte (oder bestätigte) `argument_nodes`-Felder + `begruendung` (1-2 Sätze Prosa). Kein Verweis auf "iteration n", kein Verweis auf "H2", kein Schleifen-Bewusstsein. Jeder Aufruf ist ein einmaliger Beurteilungsauftrag.
-
-### 9.5 H2-Einwand-Rolle (mit Vorgeschichte)
-
-H2 in der Einwand-Rolle sieht in Iteration `n`:
-
-- aktueller Stand H1 (ggf. revidiert in vorigen Iterationen)
-- ¶-Text
-- eigener Initial-Kommentar v1
-- für jede frühere Iteration `k < n`: `einwand_k` + `H1.begruendung_k`
-
-Damit ist Eskalation möglich: wenn H1 in Iteration 1 mit Begründung Y abgelehnt hat, kann Iteration 2 Y direkt adressieren — z.B. durch Mini-Stufe-3-Recherche zur Untermauerung des Einwands.
-
-In der **finalen fresh-Rolle** sieht H2 nur das (ggf. revidierte) H1 + ¶-Text. Keine Einwand-Historie, kein v1-Memory. Schreibt fresh und überschreibt v1.
-
-### 9.6 Stufe-3-Mini (in der Schleife)
-
-H2 darf in jeder Iteration den `simulated_expert`-Slot konsultieren, um Sachfragen zu klären, die per Modell-Wissen entscheidbar sind, aber nicht durch das vorhandene Pipeline-Material:
-
-- **Beispiel:** "Wurde Klafkis Allgemeinbildungs-Konzept 1985 in welchem Werk formuliert?"
-- **Format:** Free-Text-Frage von H2, Suffix automatisch concatenated: `"Deine Antwort darf nicht länger als 1000 Tokens sein."`
-- **Modell:** `resolveSlot('simulated_expert')` (siehe §9.8)
-- **Token-Budget:** `maxInputTokens` (Default 250) + `maxOutputTokens` (Default 1000) aus Slot-Config
-- **Antwort fließt in den Einwand-Text ein**, nicht als separater Kanal an H1
-
-Mini-Stufe-3 ist H2-getriggert, nicht orchestrator-automatisch. H2 entscheidet, ob die Frage Modell-Wissen erfordert.
-
-### 9.7 Große Stufe 3 (Kapitel-Aggregator)
-
-Akkumulierte Klärungs-Ergebnisse pro Hauptkapitel werden vor `chapter_collapse_synthetic` ausgewertet. Trigger:
-
-```
-fires_large_stufe3 := unresolved_set.nonempty
-                   ∨ ∃ cluster: count({¶ : ¶.cluster=cluster}) ≥ N    (Default N=2)
-```
-
-V1 ist **cluster-basiert** (zählt `validity_failure | namedropping | abstract | contradiction`-Vorkommen pro Kapitel, anchor-blind). Anchor-basiertes Pattern-Matching (z.B. "Klafki in ¶3, ¶17, ¶42") nachgeschaltet, falls V1 zu viele False-Positives produziert.
-
-Bei Trigger feuert ein einzelner Aufruf an die "Große Stufe 3":
-
-- **Modell:** `resolveSlot('simulated_expert')`, aber mit großzügigerem Token-Budget (RAG/Upload-fähig)
-- **Eingabe:** Liste der unresolved-¶s mit Mini-Chat-Historie + aggregierte Cluster-Patterns
-- **Ausgabe:** Memo `[kontextualisierend/chapter/large_stufe3]…`, fließt in die Kapitelsynthese als zusätzliche Stimme — überschreibt **keine** ¶-Kommentare
-- **Frequenz:** ein Call pro Kapitel maximal (Kostenkontrolle)
-
-### 9.8 LLM-Slots (Konfiguration)
-
-Parallel zu `model-tiers` für Pipeline-Phasen: orthogonales Slot-System für Tool-LLMs. Konfiguration in `ai-settings.json` als neues Feld `slots`, gleicher Persistenz-Mechanismus wie `tiers`.
-
-| Slot | Zweck | Default |
-|------|-------|---------|
-| `simulated_expert` | Sachfragen-Modell für Mini-Stufe-3 und Große Stufe 3 | claude-opus-4.7 (OpenRouter), 250in/1000out |
-| `fact_check` | Fact-Check-Slot, später ggf. weiter differenziert | TBD |
-
-Slot-Schema (jeder Slot):
-
-```typescript
-{
-  provider: Provider;
-  model: string;
-  maxInputTokens: number;
-  maxOutputTokens: number;
-}
-```
-
-Resolver: `resolveSlot('simulated_expert')` liefert die User-Wahl aus `ai-settings.json` `slots.simulated_expert`, sonst die Registry-Empfehlung. UI-Ort: `/settings?tab=llm-slots`.
-
-Begründung Default Opus: für deutsche Bildungsphilosophie-Sachfragen wahrscheinlich höhere Trainings-Korpus-Exposition als MiMo (chinesischer Reasoning-Schwerpunkt) oder Mistral (französisch-europäisch, weniger deutschsprachig-akademisch). Keine kontrollierten Benchmarks auf dieser Domäne — die Setzung ist Plausibilitäts-Default, nicht gemessen.
-
-### 9.9 Audit-Persistenz
-
-Migration 053: Tabelle `paragraph_einwand_iterations`. Pro Iteration ein Row mit:
-
-- `run_id`, `paragraph_element_id`, `iteration_n`
-- `trigger_clusters` JSONB (welche Cluster feuerten)
-- `einwand_text`, `simulated_expert_q`/`simulated_expert_a` (NULL falls nicht aufgerufen)
-- `h1_revised_fields` JSONB, `h1_begruendung`
-- `status` ('resolved' | 'unresolved' | 'pending')
-
-Tief persistiert für Debugging und empirische Analyse der Schleife (Konvergenz-Quoten, häufige Trigger-Cluster, Mini-Stufe-3-Hit-Rate).
-
-### 9.10 Phasen-Plan
-
-| Phase | Inhalt | Status |
-|-------|--------|--------|
-| A | Fundament: §9-Doku, Mig 053, AiSettings-Erweiterung, llm-slots.ts, /settings-Tab | im Bau |
-| B | Schleifen-Mechanik im Orchestrator, H1/H2-Prompt-Erweiterung, ¶-Indikator | offen |
-| C | Stufe-3-Mini-Caller, Einbettung in H2-Einwand-Formulation | offen |
-| D | Großer-Stufe-3-Aggregator + RAG-Hook + Kapitel-Memo + UI-Indikator | offen |
+Beschreibung in **[10-pipeline-h4.md](10-pipeline-h4.md)** — dreifache Motivation, Trigger, Schleifen-Mechanik, Inscription-Strategie für die finale H2-Memo (`[reflektierend]` vs. `[reflektierend/draft]`), `simulated_expert`-Slot, Audit-Persistenz Mig 053, Verhältnis zur Meta-Synthese als Benchmark-Linie.
