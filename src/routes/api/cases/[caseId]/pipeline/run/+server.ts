@@ -7,13 +7,14 @@
 //   POST   — startet einen neuen Run oder resumed einen pausierten/laufenden;
 //            antwortet mit text/event-stream (SSE) bis zu 'completed', 'paused'
 //            oder 'failed'. Body:
-//              { heuristic?: 'h1'|'h2'|'h3',  // exklusive Pfad-Wahl
+//              { heuristic?: 'h1'|'h2'|'h3'|'meta',  // exklusive Pfad-Wahl
 //                include_validity?: bool,    // H1-Modifikator
 //                cost_cap_usd?: number }
 //            (retrograde_pass entfernt 2026-05-06 — DEPRECATED, siehe
 //            docs/ticket_hermeneutischer_zirkel_bottom_up.md.)
 //            heuristic-Default: aus dem Brief abgeleitet (h3_enabled=true
-//            → 'h3', sonst 'h1'). H1/H2/H3 sind exklusive Pfade.
+//            → 'h3', sonst 'h1'). H1/H2/H3 sind exklusive Pfade; 'meta' ist
+//            Composite-Run (H1+H2+meta_synthesis, User-Setzung 2026-05-05).
 //   GET    — gibt den aktuellen Run-Stand als JSON zurück (für Reload/Polling).
 //   DELETE — setzt cancel_requested = true; der laufende Loop stoppt nach
 //            dem nächsten atomaren Step graceful, persistierter Stand bleibt.
@@ -100,21 +101,22 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	}
 
 	const body = (await request.json().catch(() => ({}))) as {
-		heuristic?: 'h1' | 'h2' | 'h3';
+		heuristic?: 'h1' | 'h2' | 'h3' | 'meta';
 		include_validity?: boolean;
 		cost_cap_usd?: number | null;
 	};
 	// heuristic: explicit body wins, sonst Default aus dem Brief
 	// (h3_enabled=true → 'h3'; sonst 'h1'). H1, H2, H3 sind exklusive
-	// Pfade pro Run; Brief-Spalte `h3_enabled` ist Übergangs-Modellierung
-	// und wird in einer Folge-Migration zu einer expliziten heuristic-
-	// Spalte mit Werten 'h1'|'h2'|'h3'.
+	// Pfade pro Run; 'meta' ist Composite-Run (H1+H2+meta_synthesis,
+	// User-Setzung 2026-05-05). Brief-Spalte `h3_enabled` ist Übergangs-
+	// Modellierung und wird in einer Folge-Migration zu einer expliziten
+	// heuristic-Spalte.
 	// include_validity ist H1-spezifischer Modifikator (argument_validity
 	// einschieben); explicit body wins, sonst Default aus dem Brief.
 	const explicitValidity = typeof body?.include_validity === 'boolean' ? body.include_validity : null;
 	const briefHeuristic: 'h1' | 'h3' = access.brief_h3_enabled ? 'h3' : 'h1';
-	const heuristic: 'h1' | 'h2' | 'h3' =
-		body?.heuristic === 'h1' || body?.heuristic === 'h2' || body?.heuristic === 'h3'
+	const heuristic: 'h1' | 'h2' | 'h3' | 'meta' =
+		body?.heuristic === 'h1' || body?.heuristic === 'h2' || body?.heuristic === 'h3' || body?.heuristic === 'meta'
 			? body.heuristic
 			: briefHeuristic;
 	const options: RunOptions = {

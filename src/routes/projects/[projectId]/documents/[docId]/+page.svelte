@@ -569,6 +569,13 @@
 			runActive = false;
 			runEventSource = null;
 			await loadPipelineStatus();
+			// Tab-Daten (workSynthesis, workSynthetic, workMeta, synthesesByHeading,
+			// analysisByElement, h3ConstructsByElement) kommen aus dem +page.server.ts-
+			// Loader und sind nach einem Pipeline-Run veraltet. invalidateAll erzwingt
+			// einen Loader-Re-Run, damit die Tabs (Meta-Tab insb.) ohne Page-Reload
+			// die neu geschriebenen Memos/Anchors zeigen. Greift nach completed,
+			// paused (partielle Daten) und failed (atom-tolerant geschriebene Daten).
+			await invalidateAll();
 		}
 	}
 
