@@ -2,17 +2,21 @@
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
 -- Migration 053: paragraph_einwand_iterations — Audit-Persistenz für die
--- H1↔H2-Einwand-Schleife (siehe docs/architecture/04-pipeline-h1-h2.md §9).
+-- selbstkorrigierende H4-Heuristik (Einwand-Schleife zwischen H1- und
+-- H2-Tools, siehe docs/architecture/06-pipeline-h4.md).
 --
 -- Konzept (kurz):
--- Im Composite-Run `heuristic='meta'` läuft pro Hauptlinien-¶ nach H1+H2 ein
--- Trigger-Check auf den H1-Argumenten. Bei Trigger fires (validity.carries=
--- false ∨ referential_grounding ∈ {namedropping, abstract} ∨ contradicts-
--- Edge im ¶) formuliert H2 einen Einwand an H1, H1 reevaluiert stateless,
--- ggf. mit Mini-Stufe-3-Recherche durch H2 vorab. Schleife max 3 Iterationen.
+-- H4 ist eine eigenständige Heuristik (parallel zu H1/H2/H3), die H1- und
+-- H2-Pass-Funktionen als Tools per Verweis aufruft. Pro Hauptlinien-¶ läuft
+-- nach H1 (argumentation_graph + argument_validity) und H2 (paragraph_synthetic,
+-- v1) ein Trigger-Check auf den H1-Argumenten. Bei Trigger fires
+-- (validity.carries=false ∨ referential_grounding ∈ {namedropping, abstract}
+-- ∨ contradicts-Edge im ¶) formuliert H2 einen Einwand an H1, H1 reevaluiert
+-- stateless, ggf. mit Mini-Stufe-3-Recherche durch H2 vorab (simulated_expert-
+-- Slot). Schleife max 3 Iterationen.
 --
 -- Diese Tabelle persistiert jede Iteration tief: vollständiger Einwand-Text,
--- Ultimate-Knower-Q/A (falls H2 Mini-Stufe-3 konsultiert hat), H1's revidierte
+-- Simulated-Expert-Q/A (falls H2 Mini-Stufe-3 konsultiert hat), H1's revidierte
 -- Felder + Begründung, Status der Iteration. Tiefe Persistenz dient Debugging
 -- und empirischer Auswertung der Schleife (Konvergenz-Quoten, häufige
 -- Trigger-Cluster, Mini-Stufe-3-Hit-Rate, Stand-off-Pattern).
@@ -44,8 +48,11 @@
 -- Form: { "<argId>": { "referential_grounding": "concrete", "validity_…": …}}.
 -- NULL falls H1 nichts revidiert hat (gleiches Ergebnis wie vorher).
 --
--- ultimate_knower_q/a: NULL wenn H2 in dieser Iteration keine Mini-Stufe-3-
+-- simulated_expert_q/a: NULL wenn H2 in dieser Iteration keine Mini-Stufe-3-
 -- Recherche aufgerufen hat. Beide gemeinsam gesetzt oder beide NULL.
+-- „simulated_expert" ist bewusst ehrlich gewählt: das ist eine LLM-Antwort,
+-- keine echte Fachexpertise — halluzinationsanfällig wie jede andere Modell-
+-- Antwort, mit den Vor-/Nachteilen des konfigurierten Modells.
 --
 -- TO REVERT:
 --   DROP TABLE paragraph_einwand_iterations;
@@ -59,8 +66,8 @@ CREATE TABLE paragraph_einwand_iterations (
     trigger_clusters JSONB NOT NULL,
 
     einwand_text TEXT NOT NULL,
-    ultimate_knower_q TEXT,
-    ultimate_knower_a TEXT,
+    simulated_expert_q TEXT,
+    simulated_expert_a TEXT,
 
     h1_revised_fields JSONB,
     h1_begruendung TEXT,
@@ -75,9 +82,9 @@ CREATE TABLE paragraph_einwand_iterations (
     UNIQUE (run_id, paragraph_element_id, iteration_n),
 
     -- Q und A immer paarweise: entweder beide NULL oder beide gesetzt.
-    CONSTRAINT ultimate_knower_q_a_paired CHECK (
-        (ultimate_knower_q IS NULL AND ultimate_knower_a IS NULL)
-        OR (ultimate_knower_q IS NOT NULL AND ultimate_knower_a IS NOT NULL)
+    CONSTRAINT simulated_expert_q_a_paired CHECK (
+        (simulated_expert_q IS NULL AND simulated_expert_a IS NULL)
+        OR (simulated_expert_q IS NOT NULL AND simulated_expert_a IS NOT NULL)
     )
 );
 

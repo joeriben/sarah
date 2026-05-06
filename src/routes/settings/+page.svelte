@@ -754,9 +754,10 @@
 		<div class="section">
 			<h2>LLM-Slots</h2>
 			<p class="section-hint">
-				Tool-LLMs für orthogonale Werkzeuge (z.B. <code>ultimate_knower</code> für Sachfragen
-				in der H1↔H2-Einwand-Schleife). Anders als Tiers binden Slots <em>fixe Token-Budgets</em>
-				ans Werkzeug — die Knappheit ist Teil des Vertrags. ★ markiert die Default-Empfehlung.
+				Tool-LLMs für orthogonale Werkzeuge (z.B. <code>simulated_expert</code> für Sachfragen
+				in der selbstkorrigierenden H4-Heuristik). Anders als Tiers binden Slots
+				<em>fixe Token-Budgets</em> ans Werkzeug — die Knappheit ist Teil des Vertrags.
+				★ markiert die Default-Empfehlung.
 			</p>
 
 			{#if slotsError}

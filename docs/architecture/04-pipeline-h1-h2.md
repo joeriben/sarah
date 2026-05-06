@@ -444,11 +444,11 @@ In der **finalen fresh-Rolle** sieht H2 nur das (ggf. revidierte) H1 + ¶-Text. 
 
 ### 9.6 Stufe-3-Mini (in der Schleife)
 
-H2 darf in jeder Iteration den `ultimate_knower`-Slot konsultieren, um Sachfragen zu klären, die per Modell-Wissen entscheidbar sind, aber nicht durch das vorhandene Pipeline-Material:
+H2 darf in jeder Iteration den `simulated_expert`-Slot konsultieren, um Sachfragen zu klären, die per Modell-Wissen entscheidbar sind, aber nicht durch das vorhandene Pipeline-Material:
 
 - **Beispiel:** "Wurde Klafkis Allgemeinbildungs-Konzept 1985 in welchem Werk formuliert?"
 - **Format:** Free-Text-Frage von H2, Suffix automatisch concatenated: `"Deine Antwort darf nicht länger als 1000 Tokens sein."`
-- **Modell:** `resolveSlot('ultimate_knower')` (siehe §9.8)
+- **Modell:** `resolveSlot('simulated_expert')` (siehe §9.8)
 - **Token-Budget:** `maxInputTokens` (Default 250) + `maxOutputTokens` (Default 1000) aus Slot-Config
 - **Antwort fließt in den Einwand-Text ein**, nicht als separater Kanal an H1
 
@@ -467,7 +467,7 @@ V1 ist **cluster-basiert** (zählt `validity_failure | namedropping | abstract |
 
 Bei Trigger feuert ein einzelner Aufruf an die "Große Stufe 3":
 
-- **Modell:** `resolveSlot('ultimate_knower')`, aber mit großzügigerem Token-Budget (RAG/Upload-fähig)
+- **Modell:** `resolveSlot('simulated_expert')`, aber mit großzügigerem Token-Budget (RAG/Upload-fähig)
 - **Eingabe:** Liste der unresolved-¶s mit Mini-Chat-Historie + aggregierte Cluster-Patterns
 - **Ausgabe:** Memo `[kontextualisierend/chapter/large_stufe3]…`, fließt in die Kapitelsynthese als zusätzliche Stimme — überschreibt **keine** ¶-Kommentare
 - **Frequenz:** ein Call pro Kapitel maximal (Kostenkontrolle)
@@ -478,7 +478,7 @@ Parallel zu `model-tiers` für Pipeline-Phasen: orthogonales Slot-System für To
 
 | Slot | Zweck | Default |
 |------|-------|---------|
-| `ultimate_knower` | Sachfragen-Modell für Mini-Stufe-3 und Große Stufe 3 | claude-opus-4.7 (OpenRouter), 250in/1000out |
+| `simulated_expert` | Sachfragen-Modell für Mini-Stufe-3 und Große Stufe 3 | claude-opus-4.7 (OpenRouter), 250in/1000out |
 | `fact_check` | Fact-Check-Slot, später ggf. weiter differenziert | TBD |
 
 Slot-Schema (jeder Slot):
@@ -492,7 +492,7 @@ Slot-Schema (jeder Slot):
 }
 ```
 
-Resolver: `resolveSlot('ultimate_knower')` liefert die User-Wahl aus `ai-settings.json` `slots.ultimate_knower`, sonst die Registry-Empfehlung. UI-Ort: `/settings?tab=llm-slots`.
+Resolver: `resolveSlot('simulated_expert')` liefert die User-Wahl aus `ai-settings.json` `slots.simulated_expert`, sonst die Registry-Empfehlung. UI-Ort: `/settings?tab=llm-slots`.
 
 Begründung Default Opus: für deutsche Bildungsphilosophie-Sachfragen wahrscheinlich höhere Trainings-Korpus-Exposition als MiMo (chinesischer Reasoning-Schwerpunkt) oder Mistral (französisch-europäisch, weniger deutschsprachig-akademisch). Keine kontrollierten Benchmarks auf dieser Domäne — die Setzung ist Plausibilitäts-Default, nicht gemessen.
 
@@ -502,7 +502,7 @@ Migration 053: Tabelle `paragraph_einwand_iterations`. Pro Iteration ein Row mit
 
 - `run_id`, `paragraph_element_id`, `iteration_n`
 - `trigger_clusters` JSONB (welche Cluster feuerten)
-- `einwand_text`, `ultimate_knower_q`/`ultimate_knower_a` (NULL falls nicht aufgerufen)
+- `einwand_text`, `simulated_expert_q`/`simulated_expert_a` (NULL falls nicht aufgerufen)
 - `h1_revised_fields` JSONB, `h1_begruendung`
 - `status` ('resolved' | 'unresolved' | 'pending')
 

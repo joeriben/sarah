@@ -8,13 +8,13 @@
 //     H2.tier1 = synthetisches Per-¶-Memo, …) an Provider+Model. Token-
 //     Budget ist per-Call entschieden (lange Synthese vs. kurze Extraktion).
 //
-//   - Slots (diese Datei) binden ein TOOL (z.B. `ultimate_knower` für
-//     Sachfragen-Recherche in der H1↔H2-Einwand-Schleife) an Provider+Model
-//     UND fixe Token-Budgets. Das Tool definiert sich über das Budget mit:
-//     ein konzentrierter Sachfrage-Slot mit 250in/1000out ist absichtlich
-//     knapp; die Knappheit ist Teil des Werkzeug-Vertrags.
+//   - Slots (diese Datei) binden ein TOOL (z.B. `simulated_expert` für
+//     Sachfragen-Recherche in der selbstkorrigierenden H4-Heuristik) an
+//     Provider+Model UND fixe Token-Budgets. Das Tool definiert sich über
+//     das Budget mit: ein konzentrierter Sachfrage-Slot mit 250in/1000out
+//     ist absichtlich knapp; die Knappheit ist Teil des Werkzeug-Vertrags.
 //
-// Konzeptioneller Hintergrund: docs/architecture/04-pipeline-h1-h2.md §9.8.
+// Konzeptioneller Hintergrund: docs/architecture/06-pipeline-h4.md.
 //
 // Persistenz wie bei tiers: User-Wahl in `ai-settings.json` `slots`, fehlt
 // ein Eintrag → Registry-Empfehlung. `resolveSlot(slot)` ist der Zugriff
@@ -24,7 +24,7 @@ import type { Provider } from './client.js';
 import { loadSettings } from './client.js';
 
 export type LlmSlot =
-	| 'ultimate_knower'   // Sachfragen-Modell für Mini-Stufe-3 + Große Stufe 3
+	| 'simulated_expert'  // Sachfragen-Modell für Mini-Stufe-3 + Große Stufe 3
 	| 'fact_check';        // Fact-Check-Slot (TBD, später ggf. weiter differenziert)
 
 export interface SlotModel {
@@ -79,14 +79,17 @@ const SONNET_MAMMOUTH: SlotModel = {
 };
 
 export const SLOT_REGISTRY: Record<LlmSlot, SlotMeta> = {
-	ultimate_knower: {
+	simulated_expert: {
 		description:
-			'Sachfragen-Modell für Mini-Stufe-3 in der H1↔H2-Einwand-Schleife und ' +
-			'für die Große Stufe 3 auf Kapitelebene. H2 formuliert konzentrierte ' +
+			'Sachfragen-Modell für Mini-Stufe-3 in der selbstkorrigierenden H4-Heuristik ' +
+			'und für die Große Stufe 3 auf Kapitelebene. H2 formuliert konzentrierte ' +
 			'Sachfragen frei (z.B. "Wurde Klafkis Allgemeinbildungs-Konzept 1985 in ' +
 			'welchem Werk formuliert?"); die Antwort fließt als Faktum-Untermauerung ' +
 			'in den Einwand an H1 ein. Knappes Token-Budget ist Teil des Vertrags — ' +
-			'das Werkzeug ist auf konzentrierte, prosa-knappe Antworten ausgelegt.',
+			'das Werkzeug ist auf konzentrierte, prosa-knappe Antworten ausgelegt. ' +
+			'Name bewusst „simuliert": das ist eine LLM-Antwort, keine echte ' +
+			'Fachexpertise — halluzinationsanfällig, mit den Vor-/Nachteilen des ' +
+			'konfigurierten Modells.',
 		recommended: OPUS_OR,
 		candidates: [
 			{
@@ -125,13 +128,13 @@ export const SLOT_REGISTRY: Record<LlmSlot, SlotMeta> = {
 			'Fact-Check-Slot — Quellen-Verifikation und Zitations-Prüfung. ' +
 			'Stand 2026-05-06: nicht differenziert, später ggf. aufgespalten in ' +
 			'`fact_check_quotes` (wörtliche Zitate) vs. `fact_check_factuals` ' +
-			'(sachliche Aussagen). Default vorerst gleicher Slot wie ultimate_knower.',
+			'(sachliche Aussagen). Default vorerst gleicher Slot wie simulated_expert.',
 		recommended: OPUS_OR,
 		candidates: [
 			{
 				...OPUS_OR,
 				note:
-					'Default vor Slot-Differenzierung — gleiches Modell wie ultimate_knower. ' +
+					'Default vor Slot-Differenzierung — gleiches Modell wie simulated_expert. ' +
 					'Sobald die Aufgaben unterschiedliche Modell-Klassen erfordern, eigene Slots.',
 			},
 		],

@@ -52,11 +52,11 @@ export interface AiSettings {
 	tiers?: Partial<Record<string, { provider: Provider; model: string }>>;
 	/**
 	 * User-Wahl pro Tool-Slot (siehe `llm-slots.ts`). Slots sind orthogonal
-	 * zu Tiers — sie binden ein Werkzeug-LLM (z.B. `ultimate_knower` für
-	 * Sachfragen in der H1↔H2-Einwand-Schleife) an Provider+Model+Token-
-	 * Budget. Schlüssel sind Slot-IDs (`ultimate_knower`, `fact_check`).
-	 * Fehlt ein Eintrag, greift die SLOT_REGISTRY-Empfehlung. Siehe
-	 * `docs/architecture/04-pipeline-h1-h2.md` §9.8.
+	 * zu Tiers — sie binden ein Werkzeug-LLM (z.B. `simulated_expert` für
+	 * Sachfragen in der selbstkorrigierenden H4-Heuristik) an Provider+
+	 * Model+Token-Budget. Schlüssel sind Slot-IDs (`simulated_expert`,
+	 * `fact_check`). Fehlt ein Eintrag, greift die SLOT_REGISTRY-Empfehlung.
+	 * Siehe `docs/architecture/06-pipeline-h4.md`.
 	 */
 	slots?: Partial<
 		Record<
