@@ -23,7 +23,7 @@ const PARAGRAPH_ID = '5d6550f9-bcf1-47d0-af94-acb303784262'; // Friedensfrage-Au
 
 const t0 = Date.now();
 const run = await runParagraphPass(CASE_ID, PARAGRAPH_ID, USER_ID, {
-	modelOverride: { provider: 'openrouter', model: 'xiaomi/mimo-v2.5-pro' },
+	// modelOverride: { provider: 'openrouter', model: 'xiaomi/mimo-v2.5-pro' },
 });
 const dt = ((Date.now() - t0) / 1000).toFixed(1);
 
