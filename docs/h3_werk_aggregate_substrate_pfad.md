@@ -77,7 +77,14 @@ Bestehende WERK_DESKRIPTION + WERK_GUTACHT-Konstrukte sind nach diesem Fix *konz
 1. WERK_DESKRIPTION + WERK_GUTACHT neu laufen lassen (Idempotenz: clear-vor-insert greift).
 2. SYNTHESE + SCHLUSSREFLEXION müssen *nicht* neu laufen — ihre Outputs sind durch diesen Fix unbeeinflusst.
 
-Im UI: nach dem Re-Run werden die WERK_BESCHREIBUNG- und WERK_GUTACHT-Karten konsistent zur SYNTHESE/SR-Antwort sein (Slot A des Outline-Tab-Konzepts).
+Im UI: Slot A der Synthesen-Spalte (Documents-Page → Outline-Tab) zeigt die vier Werk-Aggregate jetzt in der Reihenfolge des Substrat-Pfades:
+
+1. **Synthese — Gesamtergebnis** (`SYNTHESE/GESAMTERGEBNIS`): Antwort auf die Fragestellung, Gesamtergebnis, Erkenntnis-Integration mit ✓/✗ pro BEFUND (Coverage-Audit) und expliziter Hotspot-Markierung für nicht-integrierte BEFUNDE.
+2. **Schlussreflexion — Geltungsanspruch** (`SCHLUSSREFLEXION/GELTUNGSANSPRUCH`): Geltungsanspruch, Grenzen, Anschlussforschung als drei separat akzentuierte Sub-Blöcke.
+3. **Werk-Beschreibung** (`WERK_DESKRIPTION`): deskriptive Meta-Reflexion über die anderen Konstrukte.
+4. **Werk-Gutachten** (`WERK_GUTACHT`): Critical-Friend-Würdigung in drei Stages — a (Werk im Lichte der Fragestellung) als Fließtext, b (Hotspot-Würdigung pro Funktionstyp-Achse) als strukturierte Liste mit `axisName` + Indikator (rot/gelb/neutral) + Rationale, c (Fazit) als Fließtext.
+
+Die ersten beiden Karten sind direkte Werk-Texte; 3+4 reflektieren über sie. Damit ist der Substrat-Pfad nicht nur backend-seitig, sondern auch in der User-Sicht akzentuiert: Der User sieht zuerst die Werk-Antwort und das Coverage-Audit, dann den Werk-Geltungsanspruch, dann die Critical-Friend-Reflexion darüber.
 
 ---
 

@@ -812,12 +812,19 @@
 	// die werk-Verdikte nebeneinander lesen kann.
 	//   H1: Werk-Synthese, Kapitelverlauf, Heading-Synthesen
 	//   H2: Werk-Synthese-synthetic (cousin von H1, ohne argument-extraktive Stützung)
-	//   H3: WERK_DESKRIPTION, WERK_GUTACHT
+	//   H3: SYNTHESE/GESAMTERGEBNIS, SCHLUSSREFLEXION/GELTUNGSANSPRUCH,
+	//        WERK_DESKRIPTION, WERK_GUTACHT — die vier Werk-Aggregate, die
+	//        zusammen den Substrat-Pfad zum Schluss-Verdikt tragen
+	//        (siehe docs/h3_werk_aggregate_substrate_pfad.md).
 	const synthesenAvail = $derived.by(() => {
 		const h1 = workSynthesis !== null || chapterFlow !== null;
 		const h2 = workSynthetic !== null;
 		const h3 = (werkConstructs ?? []).some(
-			(c) => c.outline_function_type === 'WERK_DESKRIPTION' || c.outline_function_type === 'WERK_GUTACHT'
+			(c) =>
+				(c.outline_function_type === 'SYNTHESE' && c.construct_kind === 'GESAMTERGEBNIS') ||
+				(c.outline_function_type === 'SCHLUSSREFLEXION' && c.construct_kind === 'GELTUNGSANSPRUCH') ||
+				c.outline_function_type === 'WERK_DESKRIPTION' ||
+				c.outline_function_type === 'WERK_GUTACHT'
 		);
 		return { h1, h2, h3 };
 	});
@@ -2268,13 +2275,108 @@
 							{/if}
 							{#if synthesenAvail.h3}
 								<div class="synthesen-col">
-									<div class="export-bar export-bar-col" title="H3-Synthese (Werk-Beschreibung + Werk-Gutachten) als Datei herunterladen.">
+									<div class="export-bar export-bar-col" title="H3-Synthese (Werk-Aggregate aus SYNTHESE/SCHLUSSREFLEXION + Werk-Beschreibung + Werk-Gutachten) als Datei herunterladen.">
 										<span class="export-bar-label">H3 ↓</span>
 										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=docx&heuristic=h3`} download>DOCX</a>
 										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=pdf&heuristic=h3`} download>PDF</a>
 										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=md&heuristic=h3`} download>MD</a>
 										<a class="export-link" href={`/api/projects/${$page.params.projectId}/documents/${$page.params.docId}/outline/export?format=json&heuristic=h3`} download>JSON</a>
 									</div>
+									<!--
+										Reihenfolge des Substrat-Pfades zum Schluss-Verdikt
+										(siehe docs/h3_werk_aggregate_substrate_pfad.md):
+										  1. SYNTHESE/GESAMTERGEBNIS   — Werk-Antwort + Befund-Integration
+										  2. SCHLUSSREFLEXION/GELTUNGSANSPRUCH — Geltung + Grenzen + Anschlussforschung
+										  3. WERK_DESKRIPTION         — deskriptive Meta-Reflexion
+										  4. WERK_GUTACHT             — Critical-Friend-Würdigung (a/b/c)
+										Die ersten beiden sind direkte Werk-Texte; 3+4 reflektieren über sie.
+									-->
+									{#each (werkConstructs ?? []).filter((c) => c.outline_function_type === 'SYNTHESE' && c.construct_kind === 'GESAMTERGEBNIS') as c (c.id)}
+										{@const antwort = pickText(c, 'fragestellungsAntwortText')}
+										{@const gesamt = pickText(c, 'gesamtergebnisText', 'text')}
+										{@const integration = (c.content as { erkenntnisIntegration?: unknown[] }).erkenntnisIntegration}
+										{@const integrationItems = Array.isArray(integration) ? integration as Array<{ befundId?: string; befundSnippet?: string; integriert?: boolean; hinweis?: string; synthesisAnchorParagraphId?: string | null }> : []}
+										{@const integrated = integrationItems.filter((i) => i.integriert === true)}
+										{@const notIntegrated = integrationItems.filter((i) => i.integriert === false)}
+										{#if antwort || gesamt || integrationItems.length > 0}
+											<article class="work-verdict">
+												<header class="work-verdict-head">
+													<span class="work-tag">H3 · Werk-Aggregat</span>
+													<h2>Synthese — Gesamtergebnis</h2>
+												</header>
+												<div class="work-content">
+													{#if antwort}
+														<div class="werk-subblock">
+															<h5>Antwort auf die Fragestellung</h5>
+															<p class="werk-paragraph">{antwort}</p>
+														</div>
+													{/if}
+													{#if gesamt}
+														<div class="werk-subblock">
+															<h5>Gesamtergebnis</h5>
+															<p class="werk-paragraph">{gesamt}</p>
+														</div>
+													{/if}
+													{#if integrationItems.length > 0}
+														<div class="werk-subblock">
+															<h5>Erkenntnis-Integration ({integrated.length}/{integrationItems.length} Befunde integriert)</h5>
+															<ul class="werk-integration-list">
+																{#each integrationItems as item, idx (item.befundId ?? idx)}
+																	<li class="werk-integration-item" class:integrated={item.integriert === true} class:not-integrated={item.integriert === false}>
+																		<span class="werk-integration-marker" title={item.integriert === true ? 'In die Synthese integriert' : 'Nicht in die Synthese integriert'}>{item.integriert === true ? '✓' : '✗'}</span>
+																		<div class="werk-integration-body">
+																			{#if item.befundSnippet}
+																				<div class="werk-integration-snippet">{item.befundSnippet}</div>
+																			{/if}
+																			{#if item.hinweis}
+																				<div class="werk-integration-hinweis">{item.hinweis}</div>
+																			{/if}
+																		</div>
+																	</li>
+																{/each}
+															</ul>
+															{#if notIntegrated.length > 0}
+																<p class="werk-meta">{notIntegrated.length} Befund{notIntegrated.length === 1 ? '' : 'e'} bleib{notIntegrated.length === 1 ? 't' : 'en'} unverbunden mit der Synthese — Hotspot-Material für die Werk-Würdigung.</p>
+															{/if}
+														</div>
+													{/if}
+												</div>
+											</article>
+										{/if}
+									{/each}
+									{#each (werkConstructs ?? []).filter((c) => c.outline_function_type === 'SCHLUSSREFLEXION' && c.construct_kind === 'GELTUNGSANSPRUCH') as c (c.id)}
+										{@const geltung = pickText(c, 'geltungsanspruchText', 'text')}
+										{@const grenzen = pickText(c, 'grenzenText')}
+										{@const anschluss = pickText(c, 'anschlussforschungText')}
+										{#if geltung || grenzen || anschluss}
+											<article class="work-verdict">
+												<header class="work-verdict-head">
+													<span class="work-tag">H3 · Werk-Aggregat</span>
+													<h2>Schlussreflexion — Geltungsanspruch</h2>
+												</header>
+												<div class="work-content">
+													{#if geltung}
+														<div class="werk-subblock">
+															<h5>Geltungsanspruch</h5>
+															<p class="werk-paragraph">{geltung}</p>
+														</div>
+													{/if}
+													{#if grenzen}
+														<div class="werk-subblock">
+															<h5>Grenzen</h5>
+															<p class="werk-paragraph">{grenzen}</p>
+														</div>
+													{/if}
+													{#if anschluss}
+														<div class="werk-subblock">
+															<h5>Anschlussforschung</h5>
+															<p class="werk-paragraph">{anschluss}</p>
+														</div>
+													{/if}
+												</div>
+											</article>
+										{/if}
+									{/each}
 									{#each (werkConstructs ?? []).filter((c) => c.outline_function_type === 'WERK_DESKRIPTION') as c (c.id)}
 										{@const text = pickText(c, 'werkBeschreibungText', 'text')}
 										{#if text}
@@ -2289,10 +2391,11 @@
 									{/each}
 									{#each (werkConstructs ?? []).filter((c) => c.outline_function_type === 'WERK_GUTACHT') as c (c.id)}
 										{@const aText = pickText(c, 'aText')}
-										{@const bText = pickText(c, 'bText')}
+										{@const bAxesRaw = (c.content as { bAxes?: unknown[] }).bAxes}
+										{@const bAxes = Array.isArray(bAxesRaw) ? bAxesRaw as Array<{ axisName?: string; indicator?: 'yellow' | 'red' | null; rationale?: string }> : []}
 										{@const cText = pickText(c, 'cText')}
 										{@const gatingDisabled = (c.content as { gatingDisabled?: boolean }).gatingDisabled === true}
-										{#if aText || bText || cText}
+										{#if aText || bAxes.length > 0 || cText}
 											<article class="work-verdict">
 												<header class="work-verdict-head">
 													<span class="work-tag">H3 · Würdigung (Critical Friend)</span>
@@ -2305,10 +2408,27 @@
 															<p class="werk-paragraph">{aText}</p>
 														</div>
 													{/if}
-													{#if bText}
+													{#if bAxes.length > 0}
 														<div class="werk-subblock">
-															<h5>b · Hotspot-Würdigung</h5>
-															<p class="werk-paragraph">{bText}</p>
+															<h5>b · Hotspot-Würdigung (pro Funktionstyp-Achse)</h5>
+															<ul class="werk-axes-list">
+																{#each bAxes as axis, idx (idx)}
+																	{@const ind = axis.indicator === 'red' || axis.indicator === 'yellow' ? axis.indicator : null}
+																	<li class="werk-axis-item">
+																		<div class="werk-axis-head">
+																			<span class="werk-axis-name">{axis.axisName ?? 'Achse'}</span>
+																			{#if ind}
+																				<span class="werk-signal werk-signal-{ind}" title={ind === 'red' ? 'Hotspot — Hinweis auf strukturellen Befund' : 'Hotspot — ambivalente Beobachtung'}>{ind === 'red' ? 'Hotspot' : 'Ambivalent'}</span>
+																			{:else}
+																				<span class="werk-signal werk-signal-neutral" title="Kein Hotspot — Beobachtung ohne Indikator">unauffällig</span>
+																			{/if}
+																		</div>
+																		{#if axis.rationale}
+																			<p class="werk-paragraph">{axis.rationale}</p>
+																		{/if}
+																	</li>
+																{/each}
+															</ul>
 														</div>
 													{/if}
 													{#if cText}
@@ -3860,7 +3980,101 @@
 		color: #ef4444;
 		border: 1px solid rgba(239, 68, 68, 0.3);
 	}
+	.werk-signal-neutral {
+		background: rgba(156, 163, 175, 0.08);
+		color: #9ca3af;
+		border: 1px solid rgba(156, 163, 175, 0.25);
+	}
 	.werk-rationale { font-size: 0.84rem; color: #c5c8d3; }
+	/*
+	 * Erkenntnis-Integration (SYNTHESE/GESAMTERGEBNIS, Coverage-Audit über
+	 * BEFUNDE → Synthese). ✓ = integriert (gedeckt durch Synthese), ✗ =
+	 * nicht-integriert (Indikator-Material für die Werk-Würdigung). Farbe
+	 * codiert Wertung (rot/gelb/grün via .werk-signal-*), nicht Klassifikator-
+	 * Typ — siehe feedback_color_only_for_reviewer_signals.
+	 */
+	.werk-integration-list {
+		list-style: none;
+		margin: 0.4rem 0 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.werk-integration-item {
+		display: grid;
+		grid-template-columns: 1.4em 1fr;
+		gap: 0.5rem;
+		padding: 0.45rem 0.6rem;
+		border-radius: 4px;
+		border-left: 3px solid transparent;
+		background: rgba(255, 255, 255, 0.025);
+	}
+	.werk-integration-item.integrated {
+		border-left-color: rgba(110, 231, 183, 0.55);
+	}
+	.werk-integration-item.not-integrated {
+		border-left-color: rgba(239, 68, 68, 0.55);
+		background: rgba(239, 68, 68, 0.04);
+	}
+	.werk-integration-marker {
+		font-weight: 700;
+		font-size: 1.05rem;
+		line-height: 1.2;
+		color: #6ee7b7;
+	}
+	.werk-integration-item.not-integrated .werk-integration-marker {
+		color: #ef4444;
+	}
+	.werk-integration-body {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.werk-integration-snippet {
+		font-size: 0.85rem;
+		color: #d6d8e0;
+		font-style: italic;
+		line-height: 1.45;
+	}
+	.werk-integration-hinweis {
+		font-size: 0.85rem;
+		color: #c5c8d3;
+		line-height: 1.5;
+	}
+	/*
+	 * WERK_GUTACHT Stage B (Hotspot-Würdigung pro Funktionstyp-Achse).
+	 * Pro Achse: axisName, indicator (yellow|red|null), rationale.
+	 * indicator=null heißt explizit "kein Hotspot" — wird als unauffällig
+	 * markiert, statt fehlt-Lücke.
+	 */
+	.werk-axes-list {
+		list-style: none;
+		margin: 0.4rem 0 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+	}
+	.werk-axis-item {
+		padding: 0.5rem 0.65rem;
+		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.025);
+		border-left: 3px solid rgba(156, 163, 175, 0.25);
+	}
+	.werk-axis-item:has(.werk-signal-yellow) { border-left-color: rgba(251, 191, 36, 0.55); }
+	.werk-axis-item:has(.werk-signal-red) { border-left-color: rgba(239, 68, 68, 0.55); }
+	.werk-axis-head {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		margin-bottom: 0.25rem;
+	}
+	.werk-axis-name {
+		font-size: 0.82rem;
+		color: #c7d2fe;
+		font-weight: 600;
+	}
 	.werk-stats {
 		display: grid;
 		grid-template-columns: max-content 1fr;
