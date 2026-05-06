@@ -489,7 +489,7 @@ export async function chat(opts: {
 
 // ── Connection test ───────────────────────────────────────────────
 
-export async function testConnection(): Promise<{ ok: boolean; error?: string; model?: string }> {
+export async function testConnection(): Promise<{ ok: boolean; error?: string; model?: string; fatal?: boolean }> {
 	try {
 		init();
 		const response = await chat({
@@ -498,6 +498,41 @@ export async function testConnection(): Promise<{ ok: boolean; error?: string; m
 		});
 		return { ok: true, model: response.model };
 	} catch (e: unknown) {
-		return { ok: false, error: e instanceof Error ? e.message : String(e) };
+		const message = e instanceof Error ? e.message : String(e);
+		return { ok: false, error: message, fatal: isFatalProviderError(e) };
 	}
+}
+
+// ── Fatal-Error-Erkennung ─────────────────────────────────────────
+//
+// Provider-Fehler, die im aktuellen Run nicht von selbst weggehen:
+// abgelaufene/ungültige API-Keys (401), erschöpfte Tages-/Wochen-Quotas
+// (403 mit „limit"/„quota"/„key"-Wording bei OpenRouter), harte
+// Rate-Limits (429). Solche Fehler sind NICHT atom-spezifisch — der
+// nächste Atom-Aufruf scheitert sofort mit derselben Meldung. Der
+// Orchestrator nutzt das Signal, um den Loop nach dem ersten Treffer
+// abzubrechen, statt 80+ Atome durchzubrennen.
+//
+// Erkennung: primär `err.status` (gesetzt von OpenAI- und Anthropic-SDK
+// auf APIError), sekundär Message-Pattern als Fallback für nicht-SDK-
+// Fehler (Network-Layer, Proxy, custom error wrappers).
+
+const FATAL_MESSAGE_PATTERN =
+	/(?:key\s*limit\s*exceeded|insufficient\s*quota|quota\s*exceeded|rate\s*limit|invalid\s*api\s*key|unauthor[iz]ed|forbidden|payment\s*required)/i;
+
+export function isFatalProviderError(err: unknown): boolean {
+	if (!err || typeof err !== 'object') return false;
+	const status = (err as { status?: unknown }).status;
+	if (typeof status === 'number') {
+		// 401 (unauthorized), 402 (payment required), 403 (forbidden incl.
+		// OpenRouter quota), 429 (rate-limit) → kein Atom-Wiederholen.
+		if (status === 401 || status === 402 || status === 403 || status === 429) {
+			return true;
+		}
+	}
+	const message = (err as { message?: unknown }).message;
+	if (typeof message === 'string' && FATAL_MESSAGE_PATTERN.test(message)) {
+		return true;
+	}
+	return false;
 }

@@ -83,6 +83,7 @@ import {
 } from './h3-walk-driver.js';
 import { PreconditionFailedError } from '../ai/h3/precondition.js';
 import { resolveTier } from '../ai/model-tiers.js';
+import { isFatalProviderError, testConnection } from '../ai/client.js';
 
 export type Phase =
 	| 'argumentation_graph'
@@ -1054,6 +1055,21 @@ export async function runPipelineLoop(
 	}
 	const documentId = initialRun.document_id;
 
+	// Pre-Flight: Provider auf Erreichbarkeit prüfen, bevor wir 80+ Atome
+	// abfeuern. Fängt den häufigsten Failure-Mode (abgelaufener Key,
+	// erschöpfte Wochen-/Tages-Quota auf OpenRouter, Rate-Limit-Block) am
+	// Run-Start ab statt erst nach 30 verbrannten Atomen. testConnection()
+	// nutzt die globale provider+model-Setzung; tier-spezifische Provider-
+	// Splits (selten) sind hier nicht abgedeckt — dann greift der Fail-Fast
+	// in den Per-Atom-catch-Blöcken.
+	const preflight = await testConnection();
+	if (!preflight.ok && preflight.fatal) {
+		const message = `Provider-Pre-Flight fehlgeschlagen — Run nicht gestartet: ${preflight.error ?? 'unknown'}`;
+		await markFailed(runId, message);
+		safeSend(sendEvent, { type: 'failed', message });
+		return;
+	}
+
 	const heuristic = options.heuristic ?? 'h1';
 
 	// Pre-Check (Cancel + Run-vorhanden). Returnt true wenn der Loop weiter
@@ -1282,6 +1298,14 @@ async function runIterativePhase(
 			safeSend(sendEvent, { type: 'step-error', phase, atom, message });
 			if (err instanceof PreconditionFailedError) {
 				await markFailed(runId, message);
+				safeSend(sendEvent, { type: 'failed', message });
+				return false;
+			}
+			// Provider-Fatale (Auth/Quota/Rate-Limit) sind nicht atom-spezifisch
+			// — derselbe Key/Account ist für alle Folge-Atome dasselbe Limit.
+			// Statt durch 80+ Atome durchzubrennen: Run hart abbrechen.
+			if (isFatalProviderError(err)) {
+				await markFailed(runId, `Provider-Fehler (Auth/Quota/Rate-Limit) — Run abgebrochen: ${message}`);
 				safeSend(sendEvent, { type: 'failed', message });
 				return false;
 			}
@@ -1622,6 +1646,12 @@ async function runH2Hierarchical(
 			safeSend(sendEvent, { type: 'step-error', phase, atom, message });
 			if (err instanceof PreconditionFailedError) {
 				await markFailed(runId, message);
+				safeSend(sendEvent, { type: 'failed', message });
+				return false;
+			}
+			// Provider-Fatale: siehe runIterativePhase (gleiche Logik).
+			if (isFatalProviderError(err)) {
+				await markFailed(runId, `Provider-Fehler (Auth/Quota/Rate-Limit) — Run abgebrochen: ${message}`);
 				safeSend(sendEvent, { type: 'failed', message });
 				return false;
 			}
